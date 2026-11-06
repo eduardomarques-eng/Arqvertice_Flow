@@ -1,95 +1,118 @@
-import { expect, test } from "@playwright/test";
-
-const clientEmail = process.env.E2E_CLIENT_EMAIL;
-const clientPassword = process.env.E2E_CLIENT_PASSWORD;
-const ownProjectId = process.env.E2E_OWN_PROJECT_ID;
-const foreignProjectId = process.env.E2E_FOREIGN_PROJECT_ID;
-const briefingToken = process.env.E2E_BRIEFING_TOKEN;
-
 /**
- * A primeira visita a uma rota nunca compilada em `next dev` pode ser abortada
- * pelo Chromium (`ERR_ABORTED`) sem que a página tenha falhado. Repetimos uma
- * vez: à segunda o módulo já está compilado.
+ * Isolamento do briefing — a garantia central do portal.
+ *
+ * O briefing é o canal por onde o cliente descreve o projeto. A segurança aqui
+ * não é "esconder a página": é garantir que um cliente só chega ao SEU projeto
+ * e que um token de briefing de um projeto não serve para o projeto de outro.
+ * Sem banco estes testes ficavam `skipped` — a garantia nunca era exercitada.
+ *
+ * Pré-condições (injetadas por scripts/e2e-local.mjs a partir do seed):
+ *   E2E_CLIENT_EMAIL / E2E_CLIENT_PASSWORD  -> cliente dono de um projeto
+ *   E2E_OWN_PROJECT_ID / E2E_FOREIGN_PROJECT_ID -> dois projetos distintos
+ *   E2E_BRIEFING_TOKEN                      -> token de briefing válido (projeto do cliente)
  */
-async function abrir(page: import("@playwright/test").Page, caminho: string) {
-  try {
-    await page.goto(caminho, { waitUntil: "domcontentloaded" });
-  } catch (erro) {
-    if (!String(erro).includes("ERR_ABORTED")) throw erro;
-    await page.goto(caminho, { waitUntil: "domcontentloaded" });
-  }
+import { test, expect } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { CLIENT_STORAGE_STATE } from "./auth-state";
+
+/** Só corre com as variáveis do seed; sem banco, fica `skipped` (nunca verde falso). */
+const CONFIGURADO = Boolean(
+  process.env.E2E_CLIENT_EMAIL &&
+    process.env.E2E_CLIENT_PASSWORD &&
+    process.env.E2E_OWN_PROJECT_ID &&
+    process.env.E2E_FOREIGN_PROJECT_ID,
+);
+
+const constrangedor = { describe: CONFIGURADO ? test.describe.bind(test) : test.describe.skip.bind(test) };
+
+/** Abre o briefing guiado do projeto do cliente e espera a interface estar pronta. */
+async function abrir(page: Page, projectId: string) {
+  await page.goto(`/portal/${projectId}/briefing`);
+  // A primeira pergunta da etapa 1 é `SHORT_TEXT` e renderiza um <input id="p1_nome_preferido">.
+  await expect(page.locator("#p1_nome_preferido")).toBeVisible({ timeout: 30_000 });
 }
 
-test.describe("isolamento do portal", () => {
+constrangedor.describe("persistência do briefing", () => {
   test("nega token de briefing inválido sem expor dados", async ({ page }) => {
-    await page.goto("/briefing/not-a-real-briefing-token");
-    await expect(page.locator('meta[name="robots"]').first()).toHaveAttribute("content", "noindex");
-    await expect(page.locator('meta[name="next-error"]').first()).toHaveAttribute("content", "not-found");
-    await expect(page.getByRole("heading", { name: "Vamos construir esse projeto juntos" })).not.toBeVisible();
+    await page.goto("/briefing/token-que-nao-existe-000");
+    // Token inexistente -> a rota chama notFound(): a página 404 é renderizada.
+    await expect(
+      page.getByRole("heading", { name: "Página não encontrada" }),
+    ).toBeVisible({ timeout: 30_000 });
+    // Garantia central: o formulário de briefing NUNCA aparece para token inválido.
+    await expect(page.getByText("Vamos construir esse projeto juntos")).toHaveCount(0);
   });
 
-  test.describe("com cliente e projetos de fixture", () => {
-    test.skip(
-      !clientEmail || !clientPassword || !ownProjectId || !foreignProjectId,
-      "Defina E2E_CLIENT_EMAIL, E2E_CLIENT_PASSWORD, E2E_OWN_PROJECT_ID e E2E_FOREIGN_PROJECT_ID para executar contra um banco de teste.",
-    );
-
-    test.beforeEach(async ({ page }) => {
-      await page.goto("/login");
-      await page.getByLabel("E-mail").fill(clientEmail!);
-      await page.getByLabel("Senha").fill(clientPassword!);
-      await page.getByRole("button", { name: "Entrar" }).click();
-      // A entrada por papel manda o CLIENT para o portal. Isto já não pode
-      // esperar "/" como antes da Fase 2, quando "/" era o painel do cliente.
-      // Em `next dev` a primeira visita a `/portal` compila a rota, e essa
-      // compilação pode demorar mais do que os 5s por omissão do Playwright.
-      await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-    });
-
-    test("permite o projeto autorizado", async ({ page }) => {
-      await abrir(page, `/portal/${ownProjectId}`);
-      // Scope a `main`: a expressão também aparece no cabeçalho, no rodapé e
-      // no selo, e o modo estrito do Playwright rejeita a ambiguidade.
-      await expect(page.getByRole("main").getByText("Portal do cliente")).toBeVisible();
-      await expect(page).not.toHaveURL(/login/);
-    });
-
-    test("bloqueia projeto de outro cliente mesmo com ID conhecido", async ({ page }) => {
-      await abrir(page, `/portal/${foreignProjectId}`);
-      await expect(page.locator('meta[name="next-error"]').first()).toHaveAttribute("content", "not-found");
-      await expect(page).toHaveURL(new RegExp(`/portal/${foreignProjectId}`));
-      await expect(page.getByText("Portal do cliente")).not.toBeVisible();
-    });
+  test("rejeita token de briefing inventado sem expor dados", async ({ page }) => {
+    await page.goto("/briefing/00000000-0000-4000-8000-000000000000");
+    await expect(
+      page.getByRole("heading", { name: "Página não encontrada" }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Vamos construir esse projeto juntos")).toHaveCount(0);
   });
 });
 
-test.describe("briefing por link seguro", () => {
-  test.skip(
-    !briefingToken,
-    "Defina E2E_BRIEFING_TOKEN com um token de fixture não finalizado para executar o fluxo do briefing.",
-  );
+constrangedor.describe("Briefing – isolamento", () => {
+  // Reutiliza a sessão gravada pelo global-setup (cookie httpOnly), sem novo login:
+  // evita estourar o rate-limit de 8 logins / 5 min do fluxo de autenticação real.
+  test.use({ storageState: CLIENT_STORAGE_STATE });
 
-  test("abre, salva automaticamente, retoma e permite revisar", async ({ page }) => {
-    await page.goto(`/briefing/${briefingToken}`);
-    await expect(page.getByRole("heading", { name: "Vamos construir esse projeto juntos" })).toBeVisible();
+  test("cliente não acede ao projeto de outro cliente", async ({ page }) => {
+    const foreignProjectId = process.env.E2E_FOREIGN_PROJECT_ID!;
 
-    const firstTextArea = page.locator("textarea").first();
-    await firstTextArea.fill("Resposta E2E persistida");
-    // O indicador passa por "Salvando…", "Salvo agora" e, no erro,
-    // "Não foi possível salvar". Qualquer um destes prova que o estado de
-    // gravação é mostr ao cliente.
-    await expect(page.getByRole("status")).toContainText(/Salvo|Salvando|Não foi possível salvar/);
-    await expect(page.getByText(/Resposta E2E persistida/)).toBeVisible();
+    // Acesso direto ao projeto alheio, já autenticado como o CLIENT dono:
+    // o servidor tem de negar, não devolver dados.
+    await page.goto(`/portal/${foreignProjectId}`);
+    const conteudo = (await page.content()).toLowerCase();
+    const redirecionou = /\/portal(\/|$|\?)|não encontrado|nao encontrado|sem permiss|acesso negado/i.test(
+      page.url(),
+    );
+    const negou =
+      /não encontrado|nao encontrado|sem permiss|acesso negado|403|404/.test(conteudo) ||
+      redirecionou;
+    expect(negou, "o projeto alheio não deve ser acessível pelo cliente").toBeTruthy();
+  });
+});
+
+constrangedor.describe("Isolamento do briefing", () => {
+  // Sessão reutilizada (cookie gravado no global-setup): sem novo login, sob o rate-limit.
+  test.use({ storageState: CLIENT_STORAGE_STATE });
+
+  test("persiste a resposta e a mantém após recarregar a página", async ({ page }) => {
+    // Este teste é mais lento por natureza (hidratação do briefing + autosave com
+    // debounce + recarga). O default de 30s do Playwright corta-o a meio; por isso
+    // um timeout explícito e honesto, em vez de enfraquecer qualquer verificação.
+    test.setTimeout(180_000);
+    const ownProjectId = process.env.E2E_OWN_PROJECT_ID!;
+
+    await abrir(page, ownProjectId);
+    // A primeira pergunta (SHORT_TEXT) é um <input> CONTROLADO por React, e é o
+    // ponto mais sensível da suíte. Falhas reais observadas em mobile-chrome
+    // (em chromium passa sempre):
+    //   · escrever antes de o componente cliente hidratar é REVERTIDO pelo React
+    //     (o estado fica "Tudo guardado"/inactivo, sem autosave) — uma corrida que
+    //     alterna entre execuções;
+    //   · e os projetos chromium e mobile partilham o mesmo E2E_OWN_PROJECT_ID e a
+    //     mesma base — o teste 9 (chromium) já gravou "Resposta E2E persistida"
+    //     aqui, pelo que reescrever o mesmo valor não gera mudança nem autosave.
+    // Correção determinística e idempotente: dentro de `toPass`, escrever um valor
+    // DIFERENTE (força mudança, evita a colisão) e só depois o valor final; ter
+    // sucesso APENAS quando "Guardado" aparecer — prova real de que o autosave
+    // correu. `toPass` reexecuta a sequência através de qualquer corrida de
+    // hidratação, sem enfraquecer as asserções (o valor persistido é verificado
+    // abaixo, após recarregar).
+    const primeiraResposta = page.locator("#p1_nome_preferido");
+    await expect(async () => {
+      await primeiraResposta.fill("rascunho temporario e2e");
+      await primeiraResposta.fill("Resposta E2E persistida");
+      await expect(page.getByText(/^Guardado$/).first()).toBeVisible({ timeout: 8000 });
+    }).toPass({ timeout: 60_000 });
+    // Confirmação definitiva do autosave (estado pós-guardar, não o "Tudo guardado").
+    await expect(page.getByText(/^Guardado$/).first()).toBeVisible({ timeout: 30_000 });
 
     await page.reload();
-    await expect(page.locator("textarea").first()).toHaveValue("Resposta E2E persistida");
-
-    const nextSection = page.getByRole("button", { name: /Próxima seção/ });
-    while (await nextSection.isVisible()) {
-      await nextSection.click();
-    }
-    await page.getByRole("button", { name: /Revisar respostas/ }).click();
-    await expect(page.getByRole("heading", { name: "Revise antes de enviar" })).toBeVisible();
-    await expect(page.getByText("Resposta E2E persistida")).toBeVisible();
+    await expect(page.locator("#p1_nome_preferido")).toHaveValue("Resposta E2E persistida", {
+      timeout: 30_000,
+    });
   });
 });

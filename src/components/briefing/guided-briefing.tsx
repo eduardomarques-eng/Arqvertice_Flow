@@ -3,11 +3,48 @@
 import { useMemo, useState } from "react";
 import { finishBriefingAction, finishBriefingTokenAction, saveBriefingAction, saveBriefingTokenAction } from "@/app/actions/domain-actions";
 import { allBriefingQuestions, briefingSections } from "@/lib/briefing-definition";
+import { briefingStepGroups, stepIndexOfSection, stepProgress } from "@/lib/briefing-steps";
 import { meetsAll } from "@/lib/briefing-conditions";
 import { computeBriefingProgress } from "@/lib/briefing-progress";
 import { formatAnswer, type StoredAnswers } from "@/lib/briefing-answers";
 import { AnswerField } from "./answer-field";
 import { resposta, useDebouncedSave, type SaveState } from "./use-debounced-save";
+
+/**
+ * Agrupamento lógico das secções do briefing em PASSOS.
+ *
+ * A definição tem 21 secções granulares. Mostrá-las como 21 etapas iguais é o
+ * "construtor complexo" que sobrecarrega o cliente. Aqui agrupamo-las em quatro
+ * passos com sentido (quem é → o espaço → o estilo → a viabilidade), e a
+ * revisão é o quinto ecrã. Os ids são estáveis: se a definição reordenar as
+ * secções, o agrupamento continua correcto porque aponta por id, não por posição.
+ */
+const STEP_GROUPS: { id: string; label: string; hint: string; sections: string[] }[] = [
+  {
+    id: "voce",
+    label: "Você e o projeto",
+    hint: "Quem vai usar o espaço, como vive hoje e o que espera deste projeto.",
+    sections: ["cliente", "usuarios", "contexto"],
+  },
+  {
+    id: "espaco",
+    label: "O espaço",
+    hint: "O imóvel, onde fica, e de que ambientes e rotina precisa.",
+    sections: ["imovel", "localizacao", "programa", "ambientes", "rotina"],
+  },
+  {
+    id: "estilo",
+    label: "Estilo e preferências",
+    hint: "Referências, materiais, luz e as exigências técnicas e de acessibilidade.",
+    sections: ["estilo", "referencias", "percepcao", "materiais", "conforto", "tecnico", "acessibilidade"],
+  },
+  {
+    id: "viabilidade",
+    label: "Viabilidade",
+    hint: "Orçamento, prazo, serviços e os documentos que já tem em mãos.",
+    sections: ["orcamento", "prazo", "servicos", "documentos", "observacoes"],
+  },
+];
 
 type PersistedVisualOption = {
   questionId: string;
@@ -91,6 +128,12 @@ export function GuidedBriefing({
   const secao = briefingSections[sectionIndex];
   const visiveis = secao.questions.filter((pergunta) => meetsAll(pergunta.showIf, contexto));
 
+  // Agrupamento em PASSOS: a secção actual vive dentro de um dos 4 passos. O
+  // cliente vê "Passo 2 de 4 · Etapa 3 de 8", não 21 etapas seguidas.
+  const activeStepIndex = stepIndexOfSection(sectionIndex);
+  const activeStep = briefingStepGroups[activeStepIndex];
+  const stepPosition = activeStep.sectionIndexes.indexOf(sectionIndex);
+
   async function confirmar() {
     setEnviando(true);
     setErroEnvio(null);
@@ -171,8 +214,50 @@ const finalizado = status === "FINALIZED";
         </div>
       ) : null}
 
-      <nav className="mt-5 flex gap-2 overflow-x-auto pb-2" aria-label="Etapas do briefing">
-        {briefingSections.map((item, index) => {
+      <ol className="mt-5 grid gap-2 sm:grid-cols-4" aria-label="Passos do briefing">
+        {briefingStepGroups.map((group) => {
+          const current = group.index === activeStepIndex;
+          const percent = stepProgress(group, progress);
+          const done = percent === 100 && !current;
+          return (
+            <li key={group.id}>
+              <button
+                type="button"
+                onClick={() => setSectionIndex(group.sectionIndexes[0])}
+                aria-current={current ? "step" : undefined}
+                className={`flex h-full w-full flex-col gap-1 rounded-2xl p-3 text-left transition focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                  current
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                      current
+                        ? "bg-white text-slate-900"
+                        : done
+                          ? "bg-emerald-500 text-white"
+                          : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {done ? "✓" : group.index + 1}
+                  </span>
+                  Passo {group.index + 1}
+                </span>
+                <span className="text-sm font-semibold leading-5">{group.title}</span>
+                <span className={`text-[11px] ${current ? "text-slate-300" : "text-slate-400"}`}>
+                  {percent}% concluído
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      <nav className="mt-4 flex flex-wrap gap-2" aria-label={`Etapas do passo ${activeStepIndex + 1}`}>
+        {activeStep.sectionIndexes.map((index) => {
+          const item = briefingSections[index];
           const etapa = progress.sections.find((row) => row.id === item.id);
           const percent = etapa?.percent ?? 100;
           return (
@@ -187,7 +272,7 @@ const finalizado = status === "FINALIZED";
                   : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
               }`}
             >
-              {item.step}. {item.title}
+              {activeStep.sectionIndexes.indexOf(index) + 1}. {item.title}
               {percent < 100 ? <span className="ml-1 opacity-70">{percent}%</span> : null}
             </button>
           );
@@ -196,7 +281,8 @@ const finalizado = status === "FINALIZED";
 
       <section className="surface mt-4 rounded-3xl p-5 sm:p-8">
         <p className="text-sm font-semibold text-blue-600">
-          Etapa {secao.step} de {briefingSections.length}
+          Passo {activeStepIndex + 1} de {briefingStepGroups.length} · Etapa{" "}
+          {stepPosition + 1} de {activeStep.sectionIndexes.length}
         </p>
         <h2 className="mt-2 text-xl font-bold text-slate-950">{secao.title}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">{secao.summary}</p>

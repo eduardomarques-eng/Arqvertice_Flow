@@ -1,5 +1,9 @@
 *.ps1
 !scripts/*.ps1
+# Pastas pesadas e módulos desconectados
+OmniRoute/
+.tmp.*
+*.tmp
 .system_generated/
 *.log
 .next/
@@ -13,6 +17,9 @@ test-results/
 .env
 .env.*
 !.env.example
+.env*.local
+.env.production
+.env.development
 
 # Vercel CLI (npx vercel pull/build/deploy).
 .vercel/

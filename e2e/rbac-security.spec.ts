@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { CLIENT_STORAGE_STATE } from "./auth-state";
+import { existsSync } from "node:fs";
 
 const clientEmail = process.env.E2E_CLIENT_EMAIL;
 const clientPassword = process.env.E2E_CLIENT_PASSWORD;
@@ -41,12 +43,18 @@ test.describe("RBAC — visitante sem sessao", () => {
 
 test.describe("SEGURANCA — CLIENT com sessao", () => {
   test.skip(!clientEmail || !clientPassword, "Defina E2E_CLIENT_EMAIL e E2E_CLIENT_PASSWORD para executar com sessao de cliente.");
+  // Sessão reutilizada do global-setup (login feito UMA vez). Evita estourar o
+  // rate-limit de 8 logins / 5 min do endpoint de login — sem desligar a proteção
+  // anti-brute-force. O login real continua provado por auth.spec.ts.
+  if (existsSync(CLIENT_STORAGE_STATE)) {
+    test.use({ storageState: CLIENT_STORAGE_STATE });
+  }
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("E-mail").fill(clientEmail!);
-    await page.getByLabel("Senha").fill(clientPassword!);
-    await page.getByRole("button", { name: "Entrar" }).click();
+    // A sessão vem do storageState. Verificamos que está ativa (o cliente chega
+    // ao SEU portal) antes de testar as restrições — um visitante sem sessão daria
+    // um falso "bloqueado" por redireccionamento para /login.
+    await page.goto(`/portal/${process.env.E2E_OWN_PROJECT_ID}`);
     await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
   });
 

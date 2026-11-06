@@ -9,7 +9,6 @@ const ADMIN_LINKS = [
   ["Clientes", "/admin/clientes"],
   ["Projetos", "/admin/projetos"],
   ["Propostas", "/admin/propostas"],
-  ["Briefings", "/admin/briefing"],
   ["Mensagens", "/admin/mensagens"],
   ["Serviços", "/admin/servicos"],
   ["Equipe", "/admin/equipe"],
