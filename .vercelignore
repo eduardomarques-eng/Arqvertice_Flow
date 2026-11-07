@@ -1,5 +1,8 @@
-# Arquivos que pertencem ao repositorio mas nao ao site publicado.
-scripts/
-database/
-*.bat
-*.ps1
+node_modules
+.next
+.git
+.vscode
+*.log
+scripts/test*
+playwright-report
+test-results
