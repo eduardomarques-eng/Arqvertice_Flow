@@ -1381,11 +1381,11 @@ export async function getProposalPdfInput(proposalId: string, versionNumber?: nu
  * um link que não abre — o pior resultado possível num e-mail comercial.
  */
 export function proposalPublicUrl(token: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/+$/, "");
-  if (!base && process.env.NODE_ENV === "production") {
-    throw new Error("NEXT_PUBLIC_APP_URL não configurada: o link da proposta ficaria inválido em produção.");
-  }
-  return `${base ?? "http://localhost:3000"}/briefing-proposta/${encodeURIComponent(token)}`;
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/+$/, "") ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
+    (process.env.NODE_ENV === "production" ? "https://arqvertice-flow.vercel.app" : "http://localhost:3000");
+  return `${base}/briefing-proposta/${encodeURIComponent(token)}`;
 }
 
 /** FASE 4C, item 51 — envio da proposta por e-mail. */

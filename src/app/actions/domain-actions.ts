@@ -4,16 +4,18 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient, updateClient } from "@/server/services/client-service";
 import { createProject, updateProject } from "@/server/services/project-service";
-import { createScheduleStage, updateScheduleStage, updateScheduleStageStatus } from "@/server/services/schedule-service";
+import { createScheduleStage, deleteScheduleStage, updateScheduleStage, updateScheduleStageStatus } from "@/server/services/schedule-service";
 import { createProjectPayment, updateProjectPayment } from "@/server/services/payment-service";
 import { saveBriefingResponses } from "@/server/services/briefing-service";
 import { finishBriefing, reopenBriefing } from "@/server/services/briefing-service";
+import { notifyBriefingSubmitted } from "@/server/services/notification-dispatch-service";
 import { removeVisualOption, saveVisualOption } from "@/server/services/briefing-service";
 import { requireProjectAccess, requireRole, requireScheduleRole } from "@/server/auth";
 import { DomainError } from "@/server/errors";
 import { createBriefingLink, revokeBriefingLink, getBriefingLinkStatus } from "@/server/services/briefing-link-service";
 import { finishBriefingByToken, saveBriefingResponsesByToken } from "@/server/services/briefing-service";
 import { updateReportVisibility } from "@/server/services/report-visibility-service";
+import { saveBriefingQuestions } from "@/server/services/briefing-service";
 import { archiveProjectDocument, uploadProjectDocument } from "@/server/services/document-service";
 import { createProposal, createProposalLink, decideProposal, generateContract, getProposalReadiness, listProposals, saveProposalPresentation, saveProposalVersion, sendProposalEmail, sendProposalWhatsApp } from "@/server/services/proposal-service";
 import { listContractTemplates, listMessageTemplates, updateContractTemplate, updateMessageTemplate } from "@/server/services/message-template-service";
@@ -30,6 +32,7 @@ import { listAuditTrail } from "@/server/audit";
 import { resolveClientKey } from "@/lib/proposal-access";
 import { setOperatorProjectAccess } from "@/server/services/operation-service";
 import type { SignatureStatusName } from "@/lib/signature";
+import { prisma } from "@/server/db";
 
 export async function saveClientAction(input: unknown) {
   await requireRole("ADMIN");
@@ -70,6 +73,9 @@ export async function saveScheduleStageAction(input: unknown) {
   const result = await createScheduleStage(input);
   revalidatePath("/admin/projetos");
   revalidatePath("/admin");
+  if (typeof input === "object" && input !== null && "projectId" in input && typeof input.projectId === "string") {
+    revalidatePath(`/admin/projetos/${input.projectId}/cronograma`);
+  }
   return result;
 }
 
@@ -86,6 +92,7 @@ export async function moveStageStatusAction(stageId: string, status: string) {
     await updateScheduleStageStatus(stageId, status);
     revalidatePath("/admin/projetos");
     revalidatePath("/admin");
+    revalidatePath("/operacao");
     return { ok: true as const };
   } catch (error) {
     return {
@@ -103,6 +110,16 @@ export async function editScheduleStageAction(id: string, input: unknown) {
   const result = await updateScheduleStage(id, input);
   revalidatePath("/admin/projetos");
   revalidatePath("/admin");
+  revalidatePath("/operacao");
+  return result;
+}
+
+export async function deleteScheduleStageAction(id: string) {
+  await requireScheduleRole();
+  const result = await deleteScheduleStage(id);
+  revalidatePath("/admin/projetos");
+  revalidatePath("/admin");
+  revalidatePath("/operacao");
   return result;
 }
 
@@ -128,6 +145,22 @@ export async function saveBriefingAction(projectId: string, input: unknown) {
   const result = await saveBriefingResponses(projectId, input);
   revalidatePath(`/admin/projetos/${projectId}`);
   revalidatePath(`/portal/${projectId}`);
+  // Notifica automaticamente o Arquiteto Eduardo Marques quando o cliente
+  // complementa ou edita as respostas do briefing.
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { client: { select: { name: true } } },
+    });
+    const clientName = project?.client.name;
+    if (clientName) {
+      await notifyBriefingSubmitted(result.id, projectId, clientName).catch(() =>
+        undefined,
+      );
+    }
+  } catch {
+    // Não falha o salvamento do briefing por causa da notificação.
+  }
   return result;
 }
 
@@ -156,16 +189,41 @@ export async function removeBriefingVisualOptionAction(id: string) {
   return removeVisualOption(id);
 }
 
-export async function createBriefingLinkAction(projectId: string) {
-  const result = await createBriefingLink(projectId);
-  revalidatePath(`/admin/projetos/${projectId}`);
+export async function saveBriefingQuestionsAction(projectId: string, input: { title: string; questions: unknown }) {
+  const result = await saveBriefingQuestions(projectId, input);
+  revalidatePath("/admin/briefing");
+  revalidatePath(`/admin/briefing/${projectId}/editor`);
   return result;
 }
 
+export async function createBriefingLinkAction(projectId: string) {
+  try {
+    const result = await createBriefingLink(projectId);
+    revalidatePath(`/admin/projetos/${projectId}`);
+    revalidatePath("/admin/briefing");
+    return { ok: true as const, ...result };
+  } catch (error) {
+    console.error("[createBriefingLinkAction] Erro capturado:", error);
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Falha ao gerar o link exclusivo do briefing.",
+    };
+  }
+}
+
 export async function revokeBriefingLinkAction(projectId: string) {
-  const result = await revokeBriefingLink(projectId);
-  revalidatePath(`/admin/projetos/${projectId}`);
-  return result;
+  try {
+    const result = await revokeBriefingLink(projectId);
+    revalidatePath(`/admin/projetos/${projectId}`);
+    revalidatePath("/admin/briefing");
+    return { ok: true as const, result };
+  } catch (error) {
+    console.error("[revokeBriefingLinkAction] Erro capturado:", error);
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Falha ao revogar o link do briefing.",
+    };
+  }
 }
 
 export async function getBriefingLinkStatusAction(projectId: string) {
@@ -391,4 +449,3 @@ export async function setOperatorProjectAccessAction(userId: string, projectIds:
   revalidatePath("/operacao");
   return result;
 }
-

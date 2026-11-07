@@ -16,7 +16,7 @@ export type LegacyTask = {
   ordem: number;
 };
 
-export type ScheduleStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+export type ScheduleStatus = "NOT_STARTED" | "IN_PROGRESS" | "REVIEW" | "COMPLETED";
 
 /**
  * Estados que o MODELO conhece. `ScheduleStageStatus` no Prisma tem exactamente
@@ -26,12 +26,13 @@ export type ScheduleStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
  * coincidir com o nome criaria um estado que ninguém pode distinguir de
  * `IN_PROGRESS`.
  */
-export const SCHEDULE_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"] as const;
+export const SCHEDULE_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "REVIEW", "COMPLETED"] as const;
 
 /** Rótulos em português — uma vez só, para UI e PDF não divergirem. */
 export const SCHEDULE_STATUS_LABELS: Record<ScheduleStatus, string> = {
   NOT_STARTED: "Não iniciada",
   IN_PROGRESS: "Em andamento",
+  REVIEW: "Em revisão",
   COMPLETED: "Concluída",
 };
 
@@ -48,9 +49,10 @@ export function isScheduleStatus(value: unknown): value is ScheduleStatus {
  * etapa a 100% que o sistema continuaria a contar como em andamento.
  */
 export const SCHEDULE_TRANSITIONS: Record<ScheduleStatus, readonly ScheduleStatus[]> = {
-  NOT_STARTED: ["IN_PROGRESS", "COMPLETED"],
-  IN_PROGRESS: ["NOT_STARTED", "COMPLETED"],
-  COMPLETED: ["NOT_STARTED", "IN_PROGRESS"],
+  NOT_STARTED: ["IN_PROGRESS", "REVIEW", "COMPLETED"],
+  IN_PROGRESS: ["NOT_STARTED", "REVIEW", "COMPLETED"],
+  REVIEW: ["IN_PROGRESS", "COMPLETED", "NOT_STARTED"],
+  COMPLETED: ["NOT_STARTED", "IN_PROGRESS", "REVIEW"],
 };
 
 export function canTransition(from: ScheduleStatus, to: ScheduleStatus): boolean {
@@ -62,14 +64,15 @@ export function canTransition(from: ScheduleStatus, to: ScheduleStatus): boolean
  * `completion` que corresponde ao estado pedido.
  *
  * IN_PROGRESS preserva o avanço real quando a etapa já estava a meio; quando não
- * estava (0% ou 100%), arranca em 1% — o mínimo que significa "começou", sem
- * inventar uma percentagem arbitrária de meio caminho.
+ * estava (0% ou 100%), arranca em 50% — um ponto de partida claro para a
+ * recuperação rápida do trabalho no quadro.
  */
 export function completionForStatus(status: ScheduleStatus, current: number): number {
   const safe = Math.max(0, Math.min(100, current));
   if (status === "COMPLETED") return 100;
   if (status === "NOT_STARTED") return 0;
-  return safe > 0 && safe < 100 ? safe : 1;
+  if (status === "REVIEW") return safe > 0 && safe < 100 ? safe : 75;
+  return safe > 0 && safe < 100 ? safe : 50;
 }
 
 export function scheduleStatusFromPercentage(percentage: number): ScheduleStatus {

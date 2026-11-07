@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { createHmac } from "node:crypto";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
 import {
@@ -28,7 +29,7 @@ export type NotificationInput = {
  * e-mail, WhatsApp e notificações internas sem alterar os serviços de domínio.
  */
 export async function recordNotification(input: NotificationInput) {
-  return prisma.notificationEvent.create({
+  const event = await prisma.notificationEvent.create({
     data: {
       type: input.type,
       channel: input.channel,
@@ -43,6 +44,39 @@ export async function recordNotification(input: NotificationInput) {
       payload: input.payload ? (JSON.parse(JSON.stringify(input.payload)) as Prisma.InputJsonValue) : Prisma.DbNull,
     },
   });
+  void notifyWebhook(event).catch((error) => {
+    console.error("[notification] Falha no webhook de notificação.", error);
+  });
+  return event;
+}
+
+async function notifyWebhook(event: {
+  id: string;
+  type: string;
+  channel: string;
+  status: string;
+  recipient: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  occurredAt: Date;
+}) {
+  const url = process.env.NOTIFICATION_WEBHOOK_URL?.trim();
+  if (!url) return;
+  const payload = JSON.stringify({
+    id: event.id,
+    type: event.type,
+    channel: event.channel,
+    status: event.status,
+    recipient: event.recipient,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    occurredAt: event.occurredAt.toISOString(),
+  });
+  const secret = process.env.NOTIFICATION_WEBHOOK_SECRET?.trim();
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (secret) headers["x-arqvertice-signature"] = createHmac("sha256", secret).update(payload).digest("hex");
+  const response = await fetch(url, { method: "POST", headers, body: payload });
+  if (!response.ok) throw new Error(`Webhook respondeu ${response.status}.`);
 }
 
 export async function listNotificationEvents(entityId: string) {

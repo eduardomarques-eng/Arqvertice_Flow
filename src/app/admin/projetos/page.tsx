@@ -50,7 +50,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
             <Card key={project.id}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <Link href={`/admin/projetos/${project.id}`} className="font-semibold text-slate-900 hover:text-blue-700">
+                  <Link href={`/admin/projetos/${project.id}/cronograma`} className="font-semibold text-slate-900 hover:text-blue-700">
                     {project.name}
                   </Link>
                   <p className="mt-1 text-sm text-slate-500">{project.type || "Sem tipo definido"}</p>
@@ -69,7 +69,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
               </div>
 
               <Link href={`/admin/projetos/${project.id}`} className="mt-3 inline-block text-sm font-semibold text-slate-700 hover:text-blue-700">
-                Abrir projeto →
+                Detalhes do projeto →
               </Link>
             </Card>
           ))}

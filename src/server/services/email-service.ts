@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import { appUrl, escapeHtml, sendTransactionalEmail } from "@/lib/email";
 import { recordNotification } from "@/server/services/notification-service";
 import { NOTIFICATION_CHANNEL, NOTIFICATION_STATUS } from "@/lib/commercial-events";
 
@@ -29,15 +29,6 @@ export type EmailResult = {
  * indicava o erro. Agora a ausência de `NEXT_PUBLIC_APP_URL` é um erro explícito
  * em produção e só há fallback em desenvolvimento, onde o localhost é o certo.
  */
-function appUrl() {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (configured) return configured.replace(/\/+$/, "");
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("NEXT_PUBLIC_APP_URL não configurada: os links de recuperação ficariam inválidos em produção.");
-  }
-  return "http://localhost:3000";
-}
-
 /**
  * Envio de e-mail via Resend.
  *
@@ -46,8 +37,6 @@ function appUrl() {
  * Todos os envios ficam registados em `NotificationEvent`.
  */
 export async function sendEmail(input: EmailInput): Promise<EmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM ?? "ARQVERTICE <nao-responda@resend.dev>";
   const record = (status: string, error?: string) =>
     recordNotification({
       type: (input.eventType ?? "proposal.sent") as never,
@@ -61,25 +50,9 @@ export async function sendEmail(input: EmailInput): Promise<EmailResult> {
       entityId: input.entityId,
     }).catch(() => undefined); // a auditoria nunca pode derrubar o envio
 
-  if (!apiKey) {
-    await record(NOTIFICATION_STATUS.FAILED, "RESEND_API_KEY não configurado.");
-    return { ok: false, configured: false, error: "RESEND_API_KEY não configurado." };
-  }
-
-  try {
-    const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({ from, to: input.to, subject: input.subject, html: input.html, text: input.text });
-    if (error) {
-      await record(NOTIFICATION_STATUS.FAILED, error.message);
-      return { ok: false, configured: true, error: error.message };
-    }
-    await record(NOTIFICATION_STATUS.SENT);
-    return { ok: true, configured: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha desconhecida no envio.";
-    await record(NOTIFICATION_STATUS.FAILED, message);
-    return { ok: false, configured: true, error: message };
-  }
+  const result = await sendTransactionalEmail(input);
+  await record(result.ok ? NOTIFICATION_STATUS.SENT : NOTIFICATION_STATUS.FAILED, result.error);
+  return { ok: result.ok, configured: result.configured, error: result.error };
 }
 
 /** Link de recuperação, com o token em claro. */
@@ -129,6 +102,4 @@ export function passwordResetEmail(input: { to: string; name: string; url: strin
  * função criaria duas listas de caracteres a escapar, e a que ficasse por
  * actualizar seria uma fuga de HTML.
  */
-export function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
-}
+export { appUrl, escapeHtml };

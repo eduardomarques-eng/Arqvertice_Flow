@@ -32,8 +32,9 @@ import { formatCurrencyBRL, formatDateBR } from "./contract-template";
  */
 
 export const REPORT_TITLE = "RELATÓRIO EXECUTIVO DE CRONOGRAMA & OBRAS";
-export const REPORT_SUBTITLE = "ArqVértice • Arquitetura, Estrutura & Engenharia";
+export const REPORT_SUBTITLE = "ARQVÉRTICE ARQUITETURA, ESTRUTURA & ENGENHARIA";
 export const REPORT_DOCUMENT_KIND = "Dossiê de Acompanhamento Físico";
+export const REPORT_MOTTO = "Excelência técnica, organização e rigor executivo do projeto ao canteiro de obras.";
 
 export type ReportStage = {
   id: string;
@@ -147,6 +148,13 @@ export const REPORT_CRITERIA: { label: string; description: string }[] = [
   { label: "Sem prazo", description: "Etapa sem data limite cadastrada; não é atraso, é dado em falta." },
 ];
 
+const reportPaymentStatusLabels: Record<string, string> = {
+  PAID: "Liquidado",
+  PENDING: "A faturar",
+  OVERDUE: "Atrasada",
+  AWAITING_COMPLETION: "A faturar",
+};
+
 /** Marcas de combinação: o que fica depois de "NFD" num acento. */
 const COMBINING_MARKS = /[̀-ͯ]/g;
 
@@ -209,10 +217,15 @@ function buildEquipe(stages: ReportStage[]): ScheduleReport["equipe"] {
     if (stage.discipline?.trim()) entry.disciplines.add(stage.discipline.trim());
     byDesigner.set(name, entry);
   }
+  const roleByName: Record<string, string> = {
+    "Erick Santiago": "Engenheiro de Obra · Gestão de Campo e Canteiro",
+    "Luan Almeida": "Engenheiro Calculista · Fundações, Formas e Armaduras",
+    "Eduardo Marques": "Arquiteto Projetista · Projeto Executivo, Modelagem/Render 3D, Elétrico e Hidrossanitário",
+  };
   return [...byDesigner.entries()]
     .map(([name, entry]) => ({
       name,
-      role: entry.total === 1 ? "Responsável técnico" : "Responsável técnico",
+      role: roleByName[name] ?? "Responsável técnico",
       disciplines: [...entry.disciplines].toSorted((a, b) => a.localeCompare(b, "pt-BR")).join(", ") || "Geral",
       stages: entry.total,
       progress: completionOf(stages.filter((stage) => stage.designer?.trim() === name)),
@@ -222,7 +235,15 @@ function buildEquipe(stages: ReportStage[]): ScheduleReport["equipe"] {
 
 /** Secção 3 — fases; a atual é a primeira abaixo de 100%. */
 function buildPhases(stages: ReportStage[]) {
-  const phases = phasesByDiscipline(stages);
+  const aliases: Record<string, string> = {
+    "3D": "Projeto 3D",
+    Obras: "Execução da Obra",
+    Estrutura: "Projeto Estrutural",
+  };
+  const phases = phasesByDiscipline(stages).map((phase) => ({
+    ...phase,
+    discipline: aliases[phase.discipline] ?? phase.discipline,
+  }));
   const current = phases.find((phase) => phase.progress < 100) ?? phases[phases.length - 1] ?? null;
   return {
     phases: phases.map((phase) => ({
@@ -391,7 +412,7 @@ export function buildScheduleReport(input: ScheduleReportInput): ScheduleReport 
         dueDate: dateOrDash(payment.dueDate),
         paidAt: dateOrDash(payment.paidAt),
         stage: payment.stageName ?? "—",
-        status: paymentStatusLabels[payment.status as keyof typeof paymentStatusLabels] ?? payment.status,
+        status: reportPaymentStatusLabels[payment.status] ?? paymentStatusLabels[payment.status as keyof typeof paymentStatusLabels] ?? payment.status,
         amount: formatCurrencyBRL(payment.amount),
       })),
       nextPayment: nextPayment

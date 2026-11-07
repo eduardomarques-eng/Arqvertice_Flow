@@ -67,6 +67,8 @@ export function StageStatusControl({
               ? "Concluir"
               : status === "IN_PROGRESS"
                 ? "Em andamento"
+                : status === "REVIEW"
+                  ? "Enviar para revisão"
                 : "Reiniciar"}
           </button>
         ))}

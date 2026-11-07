@@ -6,7 +6,7 @@ import { DomainError } from "./errors";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { canOperateSchedule } from "@/lib/schedule-roles";
 
-export type AuthRole = "ADMIN" | "OPERADOR" | "CLIENT";
+export type AuthRole = "ADMIN" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "CLIENT";
 const COOKIE = "arqvertice_session";
 const LIFETIME = 1000 * 60 * 60 * 24 * 7;
 
@@ -46,6 +46,14 @@ export async function requireRole(role: AuthRole) {
   if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
   if (user.role !== role) throw new DomainError("Você não tem permissão para esta ação.", "INTEGRITY");
   return user;
+}
+
+export function isTeamRole(role: string): role is "EQUIPE" | "OPERADOR" {
+  return role === "EQUIPE" || role === "OPERADOR";
+}
+
+export function isClientRole(role: string): role is "CLIENTE" | "CLIENT" {
+  return role === "CLIENTE" || role === "CLIENT";
 }
 
 export async function requirePageRole(role: AuthRole) {
@@ -94,6 +102,35 @@ export async function requireProjectAccess(projectId: string) {
     select: { id: true },
   });
   if (!project) throw new DomainError("Projeto não encontrado.", "NOT_FOUND");
+  return user;
+}
+
+export async function requirePageClientPortal() {
+  const user = await currentUser();
+  if (!user) redirect("/login?next=%2Fportal");
+  if (!isClientRole(user.role) && user.role !== "ADMIN") redirect("/");
+  return user;
+}
+
+export async function requirePageTeamRole() {
+  const user = await currentUser();
+  if (!user) redirect("/login?next=%2Fequipe");
+  if (!isTeamRole(user.role) && user.role !== "ADMIN") redirect("/");
+  return user;
+}
+
+/**
+ * Área administrativa: apenas o papel ADMIN entra. Usada em todas as rotas
+ * de /admin (financeiro, propostas, contratos, configurações, gestão de
+ * usuários). EQUIPE e CLIENTE são redirecionados para os seus portais.
+ */
+export async function requirePageAdminRole() {
+  const user = await currentUser();
+  if (!user) redirect("/login?next=/admin");
+  if (user.role !== "ADMIN") {
+    const target = isTeamRole(user.role) ? "/equipe" : "/portal";
+    redirect(target);
+  }
   return user;
 }
 
@@ -173,4 +210,3 @@ export async function requireContractAccess(contractId: string) {
   if (!contract) throw new DomainError("Contrato não encontrado.", "NOT_FOUND");
   return user;
 }
-

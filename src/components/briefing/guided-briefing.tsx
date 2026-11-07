@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { finishBriefingAction, finishBriefingTokenAction, saveBriefingAction, saveBriefingTokenAction } from "@/app/actions/domain-actions";
 import { allBriefingQuestions, briefingSections } from "@/lib/briefing-definition";
-import { briefingStepGroups, stepIndexOfSection, stepProgress } from "@/lib/briefing-steps";
+import type { BriefingQuestion, BriefingSection } from "@/lib/briefing-schema";
+import { briefingStepGroups, stepProgress } from "@/lib/briefing-steps";
 import { meetsAll } from "@/lib/briefing-conditions";
 import { computeBriefingProgress } from "@/lib/briefing-progress";
 import { formatAnswer, type StoredAnswers } from "@/lib/briefing-answers";
@@ -62,6 +63,7 @@ type Props = {
   initialStatus: "DRAFT" | "FINALIZED";
   initialVersion: number;
   persistedVisualOptions: PersistedVisualOption[];
+  customQuestions?: BriefingQuestion[];
   /** Caminho de retorno do portal, para a revisão poder voltar. */
   backHref?: string;
 };
@@ -88,6 +90,7 @@ export function GuidedBriefing({
   initialStatus,
   initialVersion,
   persistedVisualOptions,
+  customQuestions,
   backHref,
 }: Props) {
   const [answers, setAnswers] = useState<StoredAnswers>(initialResponses);
@@ -96,6 +99,16 @@ export function GuidedBriefing({
   const [revisando, setRevisando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
+  const activeQuestions = customQuestions?.length ? customQuestions : allBriefingQuestions;
+  const activeSections: BriefingSection[] = customQuestions?.length
+    ? [...new Set(customQuestions.map((question) => question.category ?? "Programa de necessidades"))].map((category, index) => ({
+        id: `custom-${index}`,
+        step: index + 1,
+        title: category,
+        summary: "Perguntas personalizadas do seu briefing.",
+        questions: customQuestions.filter((question) => (question.category ?? "Programa de necessidades") === category),
+      }))
+    : briefingSections;
 
   const gravar = async (proximo: StoredAnswers) => {
     try {
@@ -112,7 +125,7 @@ export function GuidedBriefing({
   const { agendar, estado, gravarAgora } = useDebouncedSave(gravar);
 
   const progress = useMemo(
-    () => computeBriefingProgress(answers, allBriefingQuestions, briefingSections),
+    () => computeBriefingProgress(answers, activeQuestions, activeSections),
     [answers],
   );
 
@@ -125,13 +138,16 @@ export function GuidedBriefing({
     agendar(proximo);
   }
 
-  const secao = briefingSections[sectionIndex];
+  const secao = activeSections[sectionIndex];
   const visiveis = secao.questions.filter((pergunta) => meetsAll(pergunta.showIf, contexto));
 
   // Agrupamento em PASSOS: a secção actual vive dentro de um dos 4 passos. O
   // cliente vê "Passo 2 de 4 · Etapa 3 de 8", não 21 etapas seguidas.
-  const activeStepIndex = stepIndexOfSection(sectionIndex);
-  const activeStep = briefingStepGroups[activeStepIndex];
+  const displayGroups = customQuestions?.length
+    ? activeSections.map((section, index) => ({ id: section.id, index, title: section.title, subtitle: section.summary, sectionIds: [section.id], sectionIndexes: [index] }))
+    : briefingStepGroups;
+  const activeStepIndex = displayGroups.findIndex((group) => group.sectionIndexes.includes(sectionIndex));
+  const activeStep = displayGroups[Math.max(0, activeStepIndex)];
   const stepPosition = activeStep.sectionIndexes.indexOf(sectionIndex);
 
   async function confirmar() {
@@ -160,13 +176,24 @@ export function GuidedBriefing({
         onConfirmar={() => void confirmar()}
         enviando={enviando}
         erro={erroEnvio}
+        sections={activeSections}
         backHref={backHref}
       />
     );
 }
 const finalizado = status === "FINALIZED";
 
+if (finalizado) {
   return (
+    <div className="mx-auto max-w-2xl rounded-3xl border border-indigo-100 bg-white p-8 text-center shadow-[0_8px_30px_rgb(0,0,0,0.06)] sm:p-12">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-3xl text-emerald-600">✓</div>
+      <h1 className="mt-6 text-2xl font-bold text-slate-950">Briefing recebido com sucesso!</h1>
+      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">O Arquiteto Eduardo Marques e a equipe técnica já têm as diretrizes para conceber o seu projeto. Se precisar corrigir alguma resposta, fale com a equipe ArqVértice.</p>
+    </div>
+  );
+}
+
+return (
     <div className="mx-auto max-w-3xl">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -184,14 +211,14 @@ const finalizado = status === "FINALIZED";
       </header>
 
       {!finalizado ? (
-        <div className="mt-6">
+        <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-sm sm:static sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:backdrop-blur-none sm:border-0 sm:shadow-none sm:mt-6 transition-all">
           <div className="flex items-baseline justify-between text-xs font-semibold text-slate-600">
             <span>
               {progress.requiredPending > 0
                 ? `Faltam ${progress.requiredPending} pergunta(s) obrigatória(s)`
                 : "Obrigatórias completas"}
             </span>
-            <span>{progress.percent}%</span>
+            <span className="text-blue-600 font-bold">{progress.percent}%</span>
           </div>
           <div
             className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"
@@ -206,7 +233,7 @@ const finalizado = status === "FINALIZED";
               style={{ width: `${progress.percent}%` }}
             />
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-1.5 text-[11px] sm:text-xs text-slate-500">
             {progress.applicable} pergunta(s) aplicáveis a si
             {progress.notApplicable > 0 ? ` · ${progress.notApplicable} não se aplicam` : ""}
             {progress.optionalPending > 0 ? ` · ${progress.optionalPending} opcionais por responder` : ""}
@@ -215,7 +242,7 @@ const finalizado = status === "FINALIZED";
       ) : null}
 
       <ol className="mt-5 grid gap-2 sm:grid-cols-4" aria-label="Passos do briefing">
-        {briefingStepGroups.map((group) => {
+        {displayGroups.map((group) => {
           const current = group.index === activeStepIndex;
           const percent = stepProgress(group, progress);
           const done = percent === 100 && !current;
@@ -257,7 +284,7 @@ const finalizado = status === "FINALIZED";
 
       <nav className="mt-4 flex flex-wrap gap-2" aria-label={`Etapas do passo ${activeStepIndex + 1}`}>
         {activeStep.sectionIndexes.map((index) => {
-          const item = briefingSections[index];
+          const item = activeSections[index];
           const etapa = progress.sections.find((row) => row.id === item.id);
           const percent = etapa?.percent ?? 100;
           return (
@@ -281,7 +308,7 @@ const finalizado = status === "FINALIZED";
 
       <section className="surface mt-4 rounded-3xl p-5 sm:p-8">
         <p className="text-sm font-semibold text-blue-600">
-          Passo {activeStepIndex + 1} de {briefingStepGroups.length} · Etapa{" "}
+          Passo {activeStepIndex + 1} de {displayGroups.length} · Etapa{" "}
           {stepPosition + 1} de {activeStep.sectionIndexes.length}
         </p>
         <h2 className="mt-2 text-xl font-bold text-slate-950">{secao.title}</h2>
@@ -309,20 +336,20 @@ const finalizado = status === "FINALIZED";
         </div>
 
         {!finalizado ? (
-          <div className="mt-10 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+          <div className="mt-10 sticky bottom-0 z-20 -mx-5 -mb-5 p-4 sm:static sm:mx-0 sm:mb-0 sm:p-0 bg-white/95 backdrop-blur-md border-t border-slate-200/80 sm:border-0 shadow-lg sm:shadow-none pb-safe flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
             <button
               type="button"
               disabled={sectionIndex === 0}
               onClick={() => setSectionIndex((index) => Math.max(0, index - 1))}
-              className="min-h-12 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 disabled:opacity-40"
+              className="min-h-12 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-40"
             >
               Etapa anterior
             </button>
-            {sectionIndex < briefingSections.length - 1 ? (
+            {sectionIndex < activeSections.length - 1 ? (
               <button
                 type="button"
                 onClick={() => setSectionIndex((index) => index + 1)}
-                className="min-h-12 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
+                className="min-h-12 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 shadow-sm"
               >
                 Próxima etapa
               </button>
@@ -330,7 +357,7 @@ const finalizado = status === "FINALIZED";
               <button
                 type="button"
                 onClick={() => setRevisando(true)}
-                className="min-h-12 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white"
+                className="min-h-12 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 shadow-sm"
               >
                 Revisar respostas
               </button>
@@ -384,6 +411,7 @@ function Review({
   onConfirmar,
   enviando,
   erro,
+  sections,
   backHref,
 }: {
   answers: StoredAnswers;
@@ -392,12 +420,13 @@ function Review({
   onConfirmar: () => void;
   enviando: boolean;
   erro: string | null;
+  sections: BriefingSection[];
   backHref?: string;
 }) {
   const contexto = (questionId: string) => answers[questionId]?.value;
   const respondidas = (questionId: string) => formatAnswer(contexto(questionId));
 
-  const pendentes = briefingSections.flatMap((secao) =>
+  const pendentes = sections.flatMap((secao) =>
     secao.questions
       .filter((pergunta) => meetsAll(pergunta.showIf, contexto))
       .filter((pergunta) => pergunta.required && !respondidas(pergunta.id))
@@ -441,7 +470,7 @@ function Review({
       ) : null}
 
       <div className="mt-6 space-y-3">
-        {briefingSections.map((secao) => {
+        {sections.map((secao) => {
           const respondidasNaSecao = secao.questions
             .filter((pergunta) => meetsAll(pergunta.showIf, contexto))
             .filter((pergunta) => respondidas(pergunta.id));
@@ -474,11 +503,11 @@ function Review({
 
       {erro ? <p className="mt-4 text-sm font-semibold text-rose-700">{erro}</p> : null}
 
-      <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+      <div className="mt-8 sticky bottom-0 z-20 -mx-5 -mb-5 p-4 sm:static sm:mx-0 sm:mb-0 sm:p-0 bg-white/95 backdrop-blur-md border-t border-slate-200/80 sm:border-0 shadow-lg sm:shadow-none pb-safe flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
         <button
           type="button"
           onClick={onVoltar}
-          className="min-h-12 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200"
+          className="min-h-12 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
         >
           Voltar às respostas
         </button>
@@ -486,7 +515,7 @@ function Review({
           type="button"
           disabled={enviando}
           onClick={onConfirmar}
-          className="min-h-12 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          className="min-h-12 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 shadow-sm disabled:opacity-50"
         >
           {enviando ? "A enviar…" : "Enviar briefing"}
         </button>

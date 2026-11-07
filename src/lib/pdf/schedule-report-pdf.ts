@@ -1,6 +1,7 @@
 import { PdfWriter } from "./pdf-writer";
 import {
   REPORT_DOCUMENT_KIND,
+  REPORT_MOTTO,
   REPORT_SUBTITLE,
   REPORT_TITLE,
   type ScheduleReport,
@@ -79,7 +80,7 @@ export function renderScheduleReportPdf(report: ScheduleReport): Uint8Array {
     { size: 9 },
   );
 
-  writer.heading("6. RESUMO FINANCEIRO DO PROJETO");
+  writer.heading("6. RESUMO FINANCEIRO & CRONOGRAMA DE DESEMBOLSO");
   writer.labelledList(report.financial.rows);
   writer.flowText(report.financial.nextPayment, { size: 8.5, color: "#0369a1", gapAfter: 6 });
   writer.table({
@@ -161,7 +162,11 @@ function header(writer: PdfWriter, report: ScheduleReport): void {
     bold: true,
     color: "#475569",
   });
-  writer.y += 12;
+  writer.drawText(REPORT_MOTTO, writer.margin, writer.y + 19, {
+    size: 7.5,
+    color: "#475569",
+  });
+  writer.y += 22;
   writer.drawText(`Emissão: ${report.emittedAtLabel}`, writer.width - writer.margin, writer.y + 8, {
     size: 8.5,
     color: "#0f172a",

@@ -353,20 +353,20 @@ export function ImageChoice({
                   alt={option.altText ?? option.label}
                   loading="lazy"
                   decoding="async"
-                  className="h-36 w-full object-cover"
+                  className="aspect-[16/10] w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                 />
               ) : (
-                <div className="flex h-36 w-full items-center justify-center bg-slate-100 text-xs text-slate-500">
+                <div className="flex aspect-[16/10] w-full items-center justify-center bg-slate-100 text-xs text-slate-500">
                   Sem imagem
                 </div>
               )}
-              <span className="block bg-white p-3">
-                <span className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-900">
-                  {escolhida ? "✓ " : ""}
-                  {option.label}
+              <span className="block bg-white p-3.5">
+                <span className="flex items-center justify-between gap-2 text-sm sm:text-base font-semibold text-slate-900">
+                  <span>{option.label}</span>
+                  {escolhida ? <span className="text-indigo-600 font-bold">✓</span> : null}
                 </span>
                 {option.description ? (
-                  <span className="mt-1 block text-xs text-slate-500">{option.description}</span>
+                  <span className="mt-1.5 block text-xs sm:text-sm leading-relaxed text-slate-500">{option.description}</span>
                 ) : null}
               </span>
             </button>

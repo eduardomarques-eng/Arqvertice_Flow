@@ -90,6 +90,142 @@ export type ProjectSnapshot = {
   disciplines: { discipline: string; progress: number }[];
 };
 
+export type ExecutiveDashboardData = {
+  metrics: DashboardMetrics & {
+    contractedTotal: number;
+    installmentsReceived: number;
+    openBalance: number;
+    finalizedBriefings: number;
+    pendingBriefings: number;
+    averageProgress: number;
+    completedStages: number;
+    totalStages: number;
+    dueSoon: number;
+    nextInstallment: { amount: number; dueDate: Date } | null;
+  };
+  projects: ProjectSnapshot[];
+  deliveries: {
+    id: string;
+    name: string;
+    projectId: string;
+    projectName: string;
+    dueDate: Date;
+    completion: number;
+    status: string;
+    designer: string | null;
+    overdue: boolean;
+  }[];
+  team: {
+    name: string;
+    role: string;
+    stages: number;
+    completed: number;
+    completion: number;
+  }[];
+  proposalFunnel: { label: string; value: number; tone: "neutral" | "blue" | "violet" | "emerald" }[];
+  clients: { id: string; name: string }[];
+  briefings: { id: string; projectId: string; projectName: string; clientName: string; status: string }[];
+};
+
+export async function executiveDashboardData(): Promise<ExecutiveDashboardData> {
+  await requireRole("ADMIN");
+  const now = new Date();
+  const horizon = new Date(now);
+  horizon.setDate(horizon.getDate() + 14);
+
+  const [metrics, projects, deliveries, installments, briefings, users, stages, funnel, clients] = await Promise.all([
+    dashboardMetrics(),
+    projectSnapshots(8),
+    prisma.scheduleStage.findMany({
+      where: { dueDate: { not: null, lte: horizon }, status: { not: "COMPLETED" } },
+      orderBy: { dueDate: "asc" },
+      take: 12,
+      select: {
+        id: true, name: true, projectId: true, dueDate: true, completion: true, status: true, designer: true,
+        project: { select: { name: true } },
+      },
+    }),
+    prisma.projectInstallment.findMany({ select: { amount: true, status: true } }),
+    prisma.briefing.findMany({ select: { id: true, projectId: true, status: true, project: { select: { name: true, client: { select: { name: true } } } } }, orderBy: { updatedAt: "desc" }, take: 8 }),
+    prisma.user.findMany({ where: { role: { in: ["ADMIN", "OPERADOR"] } }, select: { name: true, role: true } }),
+    prisma.scheduleStage.findMany({ select: { designer: true, completion: true, status: true } }),
+    Promise.all([
+      prisma.proposal.count({ where: { status: { in: ["DRAFT", "IN_REVIEW", "NEGOTIATING"] } } }),
+      prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED"] } } }),
+      prisma.proposal.count({ where: { status: "APPROVED" } }),
+      prisma.proposal.count({ where: { status: "CONVERTED" } }),
+    ]),
+    prisma.client.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
+
+  const contractedTotal = installments.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  const installmentsReceived = installments
+    .filter((item) => item.status === "PAID")
+    .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  const team = users.map((user) => {
+    const assigned = stages.filter((stage) => stage.designer?.trim() === user.name.trim());
+    const completion = assigned.length
+      ? Math.round(assigned.reduce((sum, stage) => sum + stageCompletion(stage), 0) / assigned.length)
+      : 0;
+    return {
+      name: user.name,
+      role: user.role,
+      stages: assigned.length,
+      completed: assigned.filter((stage) => stage.status === "COMPLETED").length,
+      completion,
+    };
+  });
+  const totalStages = stages.length;
+  const completedStages = stages.filter((stage) => stage.status === "COMPLETED").length;
+  const averageProgress = totalStages
+    ? Math.round(stages.reduce((sum, stage) => sum + stageCompletion(stage), 0) / totalStages * 10) / 10
+    : 0;
+  const nextInstallment = await prisma.projectInstallment.findFirst({
+    where: { status: { not: "PAID" } },
+    orderBy: { dueDate: "asc" },
+    select: { amount: true, dueDate: true },
+  });
+
+  return {
+    metrics: {
+      ...metrics,
+      contractedTotal,
+      installmentsReceived,
+      openBalance: Math.max(0, contractedTotal - installmentsReceived),
+      finalizedBriefings: briefings.filter((briefing) => briefing.status === "FINALIZED").length,
+      pendingBriefings: briefings.filter((briefing) => briefing.status !== "FINALIZED").length,
+      averageProgress,
+      completedStages,
+      totalStages,
+      dueSoon: deliveries.filter((delivery) => delivery.dueDate !== null && delivery.dueDate >= now && delivery.dueDate <= new Date(now.getTime() + 7 * 86400000)).length,
+      nextInstallment: nextInstallment ? { amount: Number(nextInstallment.amount), dueDate: nextInstallment.dueDate } : null,
+    },
+    projects,
+    deliveries: deliveries
+      .filter((stage): stage is typeof stage & { dueDate: Date } => stage.dueDate !== null)
+      .map((stage) => ({
+        ...stage,
+        projectName: stage.project.name,
+        overdue: stage.dueDate < now,
+      })),
+    team,
+    proposalFunnel: [
+      { label: "Em preparação", value: funnel[0], tone: "neutral" },
+      { label: "Em análise", value: funnel[1], tone: "blue" },
+      { label: "Aprovadas", value: funnel[2], tone: "violet" },
+      { label: "Convertidas", value: funnel[3], tone: "emerald" },
+    ],
+    clients,
+    briefings: briefings.map((briefing) => ({
+      id: briefing.id,
+      projectId: briefing.projectId,
+      projectName: briefing.project.name,
+      clientName: briefing.project.client.name,
+      status: briefing.status,
+    })),
+  };
+}
+
 /** Projetos com progresso e etapa atual, para o painel e para o cronograma. */
 export async function projectSnapshots(limit = 6): Promise<ProjectSnapshot[]> {
   await requireRole("ADMIN");

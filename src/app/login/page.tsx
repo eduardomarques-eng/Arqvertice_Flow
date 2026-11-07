@@ -16,7 +16,10 @@ export default function LoginPage() {
     // que a resposta acabou de definir. A navegação do router servia o payload
     // já em cache, a entrada via como visitante anónimo e o cliente ficava na
     // página inicial em vez de ir para o portal.
-    else window.location.assign("/");
+    else {
+      const user = (await response.clone().json()).user as { role: string };
+      window.location.assign(user.role === "ADMIN" ? "/admin" : user.role === "EQUIPE" || user.role === "OPERADOR" ? "/equipe" : "/portal");
+    }
     setPending(false);
   }
   return (
@@ -58,4 +61,3 @@ export default function LoginPage() {
     </main>
   );
 }
-

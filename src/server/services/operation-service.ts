@@ -7,32 +7,25 @@ import { requireRole } from "@/server/auth";
 /**
  * Operação do cronograma pelo funcionário da equipa (OPERADOR).
  *
- * Lista APENAS os projetos atribuídos ao utilizador via `ProjectAccess` — o
- * mesmo mecanismo que isola o cliente. Um operador nunca vê projetos de outro
- * cliente nem o painel comercial: quem decide o que ele vê é esta consulta,
- * filtrada por `userId`, e não o menu. Reutiliza a regra única de progresso
- * (`completionOf`) e de alertas (`stageAlert`) para não criar uma segunda
- * verdade para o mesmo número.
+ * ADMIN vê todos os projetos; OPERADOR vê apenas os projetos atribuídos via
+ * `ProjectAccess`. A escrita continua protegida no serviço de cronograma.
  */
-export async function listOperationProjects(userId: string) {
-  const accesses = await prisma.projectAccess.findMany({
-    where: { userId },
+export async function listOperationProjects(userId: string, role: "ADMIN" | "EQUIPE" | "OPERADOR") {
+  const projects = await prisma.project.findMany({
+    where: role === "ADMIN" ? undefined : { access: { some: { userId } } },
     select: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          client: { select: { name: true } },
-          stages: { select: { completion: true, status: true, dueDate: true } },
-        },
-      },
+      id: true,
+      name: true,
+      status: true,
+      address: true,
+      client: { select: { name: true, city: true, state: true, phone: true } },
+      stages: { select: { completion: true, status: true, dueDate: true, discipline: true, name: true } },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { updatedAt: "desc" },
   });
 
   const now = new Date();
-  return accesses.map(({ project }) => {
+  return projects.map((project) => {
     const overdue = project.stages.filter(
       (stage) => stageAlert({ status: stage.status, dueDate: stage.dueDate }, now).overdue,
     ).length;
@@ -40,8 +33,10 @@ export async function listOperationProjects(userId: string) {
       id: project.id,
       name: project.name,
       status: project.status,
+      address: project.address,
+      client: project.client,
       clientName: project.client.name,
-      stages: project.stages.length,
+      stages: project.stages,
       overdue,
       progress: completionOf(project.stages),
     };

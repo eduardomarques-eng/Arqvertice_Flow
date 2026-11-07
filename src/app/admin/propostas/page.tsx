@@ -2,11 +2,13 @@ import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import Link from "next/link";
+import { requirePageAdminRole } from "@/server/auth";
 import { listProposals } from "@/server/services/proposal-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProposalsPage() {
+  await requirePageAdminRole();
   const proposals = await listProposals();
   return (
     <AppShell eyebrow="Comercial">

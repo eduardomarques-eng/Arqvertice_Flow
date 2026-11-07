@@ -1,14 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Montserrat } from "next/font/google";
 import "./globals.css";
-
-const montserrat = Montserrat({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-montserrat",
-  weight: ["400", "500", "600", "700"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -16,6 +8,20 @@ export const metadata: Metadata = {
     template: "%s · ArqVértice Flow",
   },
   description: "Base moderna para gestão de projetos, obras e relacionamento com clientes.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ArqVértice",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
@@ -23,7 +29,7 @@ export default function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className={montserrat.variable}>{children}</body>
+      <body className="antialiased min-h-screen">{children}</body>
     </html>
   );
 }

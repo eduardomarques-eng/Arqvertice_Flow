@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db";
+import { notifyBriefingSubmitted } from "@/server/services/notification-dispatch-service";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { briefingSchema, briefingUpdateSchema } from "@/lib/validation";
@@ -20,6 +21,7 @@ import {
   type BriefingReference,
 } from "@/lib/briefing-consolidation";
 import { briefingQuestionById } from "@/lib/briefing-definition";
+import { briefingQuestionsFromJson, OFFICIAL_BRIEFING_QUESTIONS } from "@/lib/briefing-template";
 
 function jsonResponses(value: Record<string, unknown>): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -42,8 +44,31 @@ export async function startBriefing(projectId: string) {
   await requireProjectAccess(projectId);
   return prisma.briefing.upsert({
     where: { projectId },
-    create: { projectId, responses: {} },
+    create: { projectId, responses: {}, questions: OFFICIAL_BRIEFING_QUESTIONS },
     update: {},
+  });
+}
+
+export async function getBriefingQuestions(projectId: string) {
+  await requireRole("ADMIN");
+  const briefing = await prisma.briefing.upsert({
+    where: { projectId },
+    create: { projectId, responses: {}, questions: OFFICIAL_BRIEFING_QUESTIONS },
+    update: {},
+    select: { id: true, projectId: true, title: true, questions: true },
+  });
+  return { ...briefing, questions: briefingQuestionsFromJson(briefing.questions) };
+}
+
+export async function saveBriefingQuestions(projectId: string, input: { title: string; questions: unknown }) {
+  await requireRole("ADMIN");
+  const questions = briefingQuestionsFromJson(input.questions);
+  if (!questions.length) throw new DomainError("O briefing precisa ter pelo menos uma pergunta.", "VALIDATION");
+  return prisma.briefing.upsert({
+    where: { projectId },
+    create: { projectId, title: input.title.trim() || "Briefing Executivo & Programa de Necessidades", responses: {}, questions: questions as unknown as Prisma.InputJsonValue },
+    update: { title: input.title.trim() || "Briefing Executivo & Programa de Necessidades", questions: questions as unknown as Prisma.InputJsonValue },
+    select: { id: true, projectId: true, title: true, questions: true },
   });
 }
 
@@ -194,14 +219,21 @@ export async function updateBriefing(projectId: string, input: unknown) {
 
 export async function finishBriefing(projectId: string) {
   await requireProjectAccess(projectId);
-  const briefing = await prisma.briefing.findUnique({ where: { projectId } });
+  const briefing = await prisma.briefing.findUnique({
+    where: { projectId },
+    include: { project: { select: { client: { select: { name: true } } } } },
+  });
   if (!briefing) return notFound("Briefing");
   if (briefing.status === "FINALIZED") return briefing;
   const now = new Date();
-  return prisma.$transaction(async (tx) => {
+  const finalized = await prisma.$transaction(async (tx) => {
     await tx.briefingRevision.create({ data: { briefingId: briefing.id, version: briefing.version, responses: jsonResponses((briefing.responses ?? {}) as Record<string, unknown>) } });
     return tx.briefing.update({ where: { projectId }, data: { submittedAt: now, finalizedAt: now, status: "FINALIZED" } });
   });
+  await notifyBriefingSubmitted(finalized.id, finalized.projectId, briefing.project.client.name).catch((error) =>
+    console.error("[briefing] Falha ao notificar briefing respondido.", error),
+  );
+  return finalized;
 }
 
 export async function getBriefingByToken(token: string) {
@@ -231,10 +263,14 @@ export async function finishBriefingByToken(token: string) {
   const link = await resolveBriefingToken(token);
   if (link.briefing.status === "FINALIZED") return link.briefing;
   const now = new Date();
-  return prisma.$transaction(async (tx) => {
+  const finalized = await prisma.$transaction(async (tx) => {
     await tx.briefingRevision.create({ data: { briefingId: link.briefing.id, version: link.briefing.version, responses: jsonResponses((link.briefing.responses ?? {}) as Record<string, unknown>) } });
     return tx.briefing.update({ where: { id: link.briefing.id }, data: { submittedAt: now, finalizedAt: now, status: "FINALIZED" } });
   });
+  await notifyBriefingSubmitted(finalized.id, finalized.projectId, link.briefing.project.client.name).catch((error) =>
+    console.error("[briefing] Falha ao notificar briefing respondido.", error),
+  );
+  return finalized;
 }
 
 export async function reopenBriefing(projectId: string) {

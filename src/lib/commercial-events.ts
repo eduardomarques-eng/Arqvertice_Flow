@@ -10,6 +10,9 @@ export const COMMERCIAL_EVENT = {
   CONTRACT_SENT: "contract.sent",
   CONTRACT_VIEWED: "contract.viewed",
   CONTRACT_SIGNED: "contract.signed",
+  BRIEFING_SENT: "briefing.sent",
+  BRIEFING_SUBMITTED: "briefing.submitted",
+  STAGE_COMPLETED: "stage.completed",
 } as const;
 
 export type CommercialEventType = (typeof COMMERCIAL_EVENT)[keyof typeof COMMERCIAL_EVENT];
@@ -25,6 +28,9 @@ export const COMMERCIAL_EVENT_LABELS: Record<CommercialEventType, string> = {
   "contract.sent": "Contrato enviado",
   "contract.viewed": "Contrato visualizado",
   "contract.signed": "Contrato assinado",
+  "briefing.sent": "Briefing enviado",
+  "briefing.submitted": "Briefing respondido",
+  "stage.completed": "Etapa concluída",
 };
 
 export const NOTIFICATION_CHANNEL = {

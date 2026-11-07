@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWhatsAppLink, buildWhatsAppMessage, normalizeWhatsAppPhone } from "./whatsapp";
+import { buildWhatsAppLink, buildWhatsAppMessage, generateWhatsAppLink, normalizeWhatsAppPhone, sanitizePhoneNumber, WhatsAppTemplates } from "./whatsapp";
 
 describe("whatsapp da proposta comercial", () => {
   it("substitui placeholders e preserva chaves desconhecidas", () => {
@@ -25,6 +25,20 @@ describe("whatsapp da proposta comercial", () => {
 
   it("lança erro ao montar link sem telefone válido", () => {
     expect(() => buildWhatsAppLink("", "oi")).toThrow("Telefone inválido");
+  });
+
+  it("adiciona o DDI do Brasil ao link automatizado", () => {
+    expect(sanitizePhoneNumber("(85) 98590-2642")).toBe("5585985902642");
+    expect(generateWhatsAppLink("(85) 98590-2642", " Olá ")).toBe("https://wa.me/5585985902642?text=Ol%C3%A1");
+  });
+
+  it("oferece templates estruturados para os eventos do estúdio", () => {
+    expect(WhatsAppTemplates.stageCompleted({
+      clientName: "Pedro",
+      stageName: "Projeto Executivo",
+      projectName: "Residência de Praia",
+      portalUrl: "https://example.com/portal",
+    })).toContain("Projeto Executivo");
   });
 
   it("sinaliza as variáveis obrigatórias ausentes para bloquear o envio", () => {

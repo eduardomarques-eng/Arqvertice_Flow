@@ -94,3 +94,15 @@ textarea:focus-visible {
     box-shadow: none !important;
   }
 }
+
+/* Mobile Safe Area & Touch Comfort (Apple HIG) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 16px);
+}
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}

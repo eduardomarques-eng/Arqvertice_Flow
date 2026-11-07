@@ -2,49 +2,43 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { SectionHeading } from "@/components/section-heading";
-import { StageStatusControl } from "@/components/schedule/stage-status-control";
+import { ScheduleStageCreateForm } from "@/components/schedule/schedule-stage-create-form";
+import { KanbanBoardView } from "@/components/schedule/kanban-board";
 import { requirePageProjectAccess } from "@/server/auth";
-import { kanbanBoard, type KanbanColumnId } from "@/server/services/schedule-service";
-import { alertDetail, DUE_SOON_DAYS } from "@/lib/schedule-alerts";
+import { kanbanBoard } from "@/server/services/schedule-service";
+import { DUE_SOON_DAYS } from "@/lib/schedule-alerts";
 
 export const dynamic = "force-dynamic";
 
-const COLUMN_TONE: Record<KanbanColumnId, "red" | "neutral" | "blue" | "green"> = {
-  ATRASADO: "red",
-  NOT_STARTED: "neutral",
-  IN_PROGRESS: "blue",
-  COMPLETED: "green",
+const DISCIPLINE_LABEL: Record<string, string> = {
+  Arquitetura: "Arquitetura (Eduardo)",
+  "3D": "Projeto 3D (Eduardo)",
+  Estrutura: "Estrutura (Luan)",
+  Complementares: "Complementares (Eduardo)",
+  Obras: "Execução da Obra (Erick)",
 };
 
-/** Prioridade derivada da regra única de alertas — não é coluna na base. */
-const PRIORITY_TONE = { ALTA: "red", MEDIA: "amber", NORMAL: "neutral" } as const;
-
-/**
- * Cor do texto do alerta, por valor.
- *
- * Não pode ser `text-${tone}-700`: o Tailwind só gera as classes que encontra
- * no código, e uma classe montada em runtime não existe no CSS final.
- */
-const ALERT_TEXT: Record<string, string> = {
-  green: "text-emerald-700",
-  red: "text-rose-700",
-  amber: "text-amber-700",
-  blue: "text-blue-700",
-  neutral: "text-slate-500",
-};
-
-function formatDate(value: Date | null) {
-  if (!value) return "—";
-  return value.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
-}
-
-export default async function CronogramaPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CronogramaPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const user = await requirePageProjectAccess(id);
   const board = await kanbanBoard(id);
-
+  const allCards = board.columns.flatMap((column) => column.cards);
+  const disciplineRows = Object.entries(
+    allCards.reduce<Record<string, { total: number; completed: number; progress: number }>>((result, card) => {
+      const key = card.discipline ?? "Geral";
+      const row = result[key] ?? { total: 0, completed: 0, progress: 0 };
+      row.total += 1;
+      row.completed += card.completion === 100 ? 1 : 0;
+      row.progress += card.completion;
+      result[key] = row;
+      return result;
+    }, {}),
+  );
   return (
     <AppShell eyebrow="Cronograma" role={user.role}>
       <Link
@@ -69,11 +63,19 @@ export default async function CronogramaPage({ params }: { params: Promise<{ id:
               </Badge>
             ) : null}
             <Badge tone="blue">{board.totals.completion}%</Badge>
+            <Badge tone="neutral">{board.totals.stages - (board.columns.find((column) => column.id === "COMPLETED")?.cards.length ?? 0)} pendente(s)</Badge>
           </div>
         }
       />
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
+        <span>{board.totals.stages} marcos</span>
+        <span>{board.columns.find((column) => column.id === "COMPLETED")?.cards.length ?? 0} concluído(s)</span>
+        <span>{board.totals.attention} em atenção</span>
+        <a href={`/api/projects/${id}/cronograma/relatorio/pdf`} className="font-semibold text-blue-600 hover:text-blue-700">
+          Exportar relatório PDF
+        </a>
+        <ScheduleStageCreateForm projectId={id} />
         {user.role === "ADMIN" ? (
           <Link href={`/admin/projetos/${id}/relatorio`} className="font-semibold text-blue-600 hover:text-blue-700">
             Relatório do cronograma →
@@ -81,94 +83,26 @@ export default async function CronogramaPage({ params }: { params: Promise<{ id:
         ) : null}
       </div>
 
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <Card className="border-slate-900 bg-slate-950 text-white">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Geral</p>
+          <p className="mt-2 text-2xl font-bold">{board.totals.completion}%</p>
+          <p className="text-xs text-slate-300">{allCards.filter((card) => card.completion === 100).length}/{allCards.length} concluídas</p>
+        </Card>
+        {disciplineRows.map(([discipline, row]) => (
+          <Card key={discipline}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{DISCIPLINE_LABEL[discipline] ?? discipline}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{Math.round(row.progress / row.total)}%</p>
+            <p className="text-xs text-slate-500">{row.completed}/{row.total} concluídas</p>
+          </Card>
+        ))}
+      </div>
+
       {board.totals.stages === 0 ? (
         <Card className="mt-6 border-dashed text-center">
           <p className="py-8 text-sm text-slate-500">Este projeto ainda não tem etapas no cronograma.</p>
         </Card>
-      ) : (
-        // Kanban horizontal com scroll no próprio tabuleiro: em ecrãs estreitos
-        // as colunas deslizam em vez de forçarem overflow da página.
-        <div className="-mx-5 mt-6 overflow-x-auto px-5 pb-4 md:-mx-10 md:px-10">
-          <div className="flex min-w-max gap-4">
-            {board.columns.map((column) => (
-              <section key={column.id} className="w-80 shrink-0" aria-label={column.label}>
-                <header className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-slate-700">{column.label}</h2>
-                  <Badge tone={COLUMN_TONE[column.id]}>{column.cards.length}</Badge>
-                </header>
-
-                <div className="mt-3 space-y-3">
-                  {column.cards.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
-                      Sem etapas
-                    </p>
-                  ) : (
-                    column.cards.map((card) => (
-                      <Card key={card.id}>
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-900">{card.name}</p>
-                          <Badge tone={PRIORITY_TONE[card.priority]}>{card.priority}</Badge>
-                        </div>
-                        {card.discipline ? (
-                          <p className="mt-1 text-xs text-slate-500">{card.discipline}</p>
-                        ) : null}
-
-                        <div className="mt-3">
-                          <div className="flex items-center justify-between text-xs text-slate-500">
-                            <span>Avanço</span>
-                            <span className="font-semibold text-slate-700">{card.completion}%</span>
-                          </div>
-                          <Progress value={card.completion} />
-                        </div>
-
-                        <dl className="mt-3 space-y-1 text-xs text-slate-500">
-                          <div className="flex justify-between gap-2">
-                            <dt>Responsável</dt>
-                            <dd className={card.designer ? "text-slate-700" : "font-medium text-amber-700"}>
-                              {card.designer ?? "Por atribuir"}
-                            </dd>
-                          </div>
-                          <div className="flex justify-between gap-2">
-                            <dt>Início</dt>
-                            <dd className="text-slate-700">{formatDate(card.startDate)}</dd>
-                          </div>
-                          <div className="flex justify-between gap-2">
-                            <dt>Prazo</dt>
-                            <dd className="text-slate-700">{formatDate(card.dueDate)}</dd>
-                          </div>
-                          <div className="flex justify-between gap-2">
-                            <dt>Status</dt>
-                            <dd className="text-slate-700">{card.statusLabel}</dd>
-                          </div>
-                          <div className="flex justify-between gap-2">
-                            <dt>Alerta</dt>
-                            <dd className={ALERT_TEXT[card.alert.tone]}>
-                              {card.alert.label} · {alertDetail(card.alert)}
-                            </dd>
-                          </div>
-                          {card.dependencyName ? (
-                            <div className="flex justify-between gap-2">
-                              <dt>Depende de</dt>
-                              <dd className="truncate text-slate-700">{card.dependencyName}</dd>
-                            </div>
-                          ) : null}
-                        </dl>
-
-                        <StageStatusControl
-                          stageId={card.id}
-                          stageName={card.name}
-                          current={card.status}
-                          allowed={card.allowedTransitions}
-                        />
-                      </Card>
-                    ))
-                  )}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-      )}
+      ) : <KanbanBoardView projectId={id} board={board} />}
     </AppShell>
   );
 }

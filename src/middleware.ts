@@ -27,10 +27,17 @@ function isPublicPath(pathname: string): boolean {
  *  2. propagar o nonce para o CSP da resposta;
  *  3. redirecionar rotas protegidas sem cookie de sessão.
  *
+ * Regras de rota por papel (aplicadas também nas páginas via `requirePage*`):
+ *  - /admin/*   → apenas ADMIN
+ *  - /equipe/*  → EQUIPE e ADMIN
+ *  - /portal/*  → CLIENTE e ADMIN
+ *
  * Isto NÃO é a fronteira de autorização. A prova de acesso continua a ser feita
- * no servidor (`requireRole`/`requireProjectAccess`), porque o middleware roda
- * no edge e não pode consultar o banco — a presença do cookie aqui é apenas um
- * filtro antecipado que evita trabalho inútil, nunca uma concessão de acesso.
+ * no servidor (`requirePageAdminRole` / `requirePageTeamRole` /
+ * `requirePageClientPortal` / `requireProjectAccess`), porque o middleware roda
+ * no edge e não pode consultar o banco — o token de sessão é um hash e o papel
+ * só se resolve no banco. A presença do cookie aqui é um filtro antecipado que
+ * evita trabalho inútil, nunca uma concessão de acesso.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

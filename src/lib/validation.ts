@@ -12,6 +12,7 @@ export const clientSchema = z.object({
   document: optionalText,
   address: z.record(z.string(), z.unknown()).optional().nullable(),
   notes: optionalText,
+  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
 });
 export const clientUpdateSchema = clientSchema.partial();
 
@@ -57,7 +58,7 @@ export const scheduleStageUpdateSchema = scheduleStageSchema.omit({ projectId: t
 /** Transição de estado pedida pela interface. Validada no serviço. */
 export const scheduleStageTransitionSchema = z.object({
   id: z.string().uuid(),
-  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]),
+  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "REVIEW", "COMPLETED"]),
 });
 
 export const paymentSchema = z.object({
@@ -74,6 +75,18 @@ export const paymentSchema = z.object({
   archivedAt: optionalDate,
 });
 export const paymentUpdateSchema = paymentSchema.omit({ projectId: true, order: true }).partial();
+
+export const projectInstallmentSchema = z.object({
+  projectId: uuid,
+  description: z.string().trim().min(1).max(255),
+  amount: z.coerce.number().finite().nonnegative(),
+  dueDate: z.coerce.date(),
+  paidDate: optionalDate,
+  status: z.enum(["PENDING", "PAID", "OVERDUE"]).default("PENDING"),
+  linkedStageId: uuid.optional().nullable(),
+  order: z.number().int().positive(),
+});
+export const projectInstallmentUpdateSchema = projectInstallmentSchema.omit({ projectId: true }).partial();
 
 export const briefingSchema = z.object({
   projectId: z.string().uuid(),

@@ -15,12 +15,12 @@ export const dynamic = "force-dynamic";
  */
 export default async function HomePage() {
   const user = await currentUser();
-  if (user?.role === "CLIENT") redirect("/portal");
+  if (user?.role === "CLIENT" || user?.role === "CLIENTE") redirect("/portal");
   if (user?.role === "ADMIN") redirect("/admin");
   // Funcionário da equipa: vai direto para a operação do cronograma, sem passar
   // pelo painel comercial. O destino é só conveniência — a fronteira real está
   // em requirePageScheduleRole/requireScheduleRole no servidor.
-  if (user?.role === "OPERADOR") redirect("/operacao");
+  if (user?.role === "OPERADOR" || user?.role === "EQUIPE") redirect("/equipe");
 
   // Sem sessão: a base de dados está ligada? O diagnóstico técnico só aparece
   // aqui, nunca no painel do ADMIN.

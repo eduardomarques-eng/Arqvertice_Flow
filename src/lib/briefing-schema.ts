@@ -85,6 +85,8 @@ export type BriefingCondition =
 
 export type BriefingQuestion = {
   id: string;
+  category?: string;
+  active?: boolean;
   type: AnswerKind;
   text: string;
   hint?: string;

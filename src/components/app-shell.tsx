@@ -1,13 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Brand } from "@/components/brand";
+import { MobileNav } from "@/components/mobile-nav";
 import type { AuthRole } from "@/server/auth";
 
 // Navegação administrativa completa (dono/ADMIN).
 const ADMIN_LINKS = [
   ["Painel", "/admin"],
   ["Clientes", "/admin/clientes"],
+  ["Briefing", "/admin/briefing"],
   ["Projetos", "/admin/projetos"],
+  ["Operação / Cronograma", "/operacao"],
   ["Propostas", "/admin/propostas"],
   ["Mensagens", "/admin/mensagens"],
   ["Serviços", "/admin/servicos"],
@@ -38,7 +41,7 @@ export function AppShell({
   environment?: "admin" | "client";
   role?: AuthRole;
 }) {
-  const isOperador = role === "OPERADOR";
+  const isOperador = role === "OPERADOR" || role === "EQUIPE";
   const links = environment === "client"
     ? ([["Meu projeto", "/portal"]] as const)
     : isOperador
@@ -49,7 +52,7 @@ export function AppShell({
     : isOperador
       ? "Flow · operação de cronograma"
       : "Flow · gestão de projetos";
-  const groupLabel = isOperador ? "Operação" : "Administração";
+  const groupLabel = environment === "client" ? "Meu projeto" : isOperador ? "Equipe técnica" : "Administração";
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -66,9 +69,22 @@ export function AppShell({
         </nav>
       </aside>
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-[#f5f5f7]/95 px-5 py-4 backdrop-blur md:px-10">
-          <div className="mx-auto flex max-w-7xl items-center justify-between">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{eyebrow}</p><p className="mt-1 text-sm text-slate-600">ArqVértice Flow · {environment === "client" ? "Portal do Cliente" : isOperador ? "operação de cronograma" : "ambiente administrativo"}</p></div>
+        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#f5f5f7]/95 px-5 py-4 backdrop-blur md:px-10">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <MobileNav
+                links={links}
+                environment={environment}
+                areaLabel={areaLabel}
+                groupLabel={groupLabel}
+              />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{eyebrow}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  ArqVértice Flow · {environment === "client" ? "Portal do Cliente" : isOperador ? "operação de cronograma" : "ambiente administrativo"}
+                </p>
+              </div>
+            </div>
             <Link href="/login" className="text-sm font-semibold text-blue-600 hover:text-blue-700">Entrar →</Link>
           </div>
         </header>

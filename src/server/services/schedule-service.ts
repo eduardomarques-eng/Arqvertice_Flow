@@ -14,23 +14,21 @@ import {
 } from "@/lib/schedule";
 import { stageCompletion } from "@/lib/progress";
 import { stageAlert, summarizeAlerts, type AlertPriority, type StageAlert } from "@/lib/schedule-alerts";
+import { notifyStageCompleted } from "@/server/services/notification-dispatch-service";
 
 /**
  * Colunas do quadro.
  *
- * Só entram estados que existem no modelo. `ScheduleStageStatus` tem apenas
- * NOT_STARTED / IN_PROGRESS / COMPLETED — não existe "em revisão" nem
- * "prioridade" no banco, e não foram inventados. "ATRASADO" é derivado: etapa
- * não concluída cujo prazo já passou. Cada etapa aparece em UMA coluna, para não
- * contar duas vezes.
+ * O quadro segue a regra visual do documento de referência: três colunas por
+ * percentual. O status persistido continua disponível para transições e PDF;
+ * a coluna é uma projeção visual estável do avanço.
  */
-export type KanbanColumnId = "ATRASADO" | "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+export type KanbanColumnId = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
 
 export const KANBAN_COLUMNS: { id: KanbanColumnId; label: string }[] = [
-  { id: "ATRASADO", label: "Atrasado" },
-  { id: "NOT_STARTED", label: "Não iniciado" },
+  { id: "NOT_STARTED", label: "Não iniciado / A iniciar" },
   { id: "IN_PROGRESS", label: "Em andamento" },
-  { id: "COMPLETED", label: "Concluído" },
+  { id: "COMPLETED", label: "Finalizado / Concluído" },
 ];
 
 export type KanbanCard = {
@@ -38,12 +36,14 @@ export type KanbanCard = {
   order: number;
   name: string;
   discipline: string | null;
+  description: string | null;
   designer: string | null;
   completion: number;
   status: ScheduleStatus;
   statusLabel: string;
   startDate: Date | null;
   dueDate: Date | null;
+  notes: string | null;
   /** Alerta único, calculado pela regra de `@/lib/schedule-alerts`. */
   alert: StageAlert;
   /** Prioridade derivada da regra de alertas — não é coluna na base. */
@@ -70,14 +70,15 @@ export type KanbanBoard = {
   assignees: string[];
 };
 
-/** Coluna de uma etapa: o atraso tem prioridade sobre o status. */
+/** O prazo alerta o card, mas não altera a coluna visual por percentual. */
 export function columnFor(
   stage: { status: ScheduleStatus; completion: number; dueDate: Date | null },
   now: Date,
 ): KanbanColumnId {
-  const alert = stageAlert({ status: stage.status, dueDate: stage.dueDate }, now);
-  if (alert.overdue) return "ATRASADO";
-  return stage.status;
+  stageAlert({ status: stage.status, dueDate: stage.dueDate }, now);
+  if (stage.completion >= 99) return "COMPLETED";
+  if (stage.completion <= 5) return "NOT_STARTED";
+  return "IN_PROGRESS";
 }
 
 /** Etapas de um projecto, agrupadas nas colunas do quadro. */
@@ -108,18 +109,41 @@ export async function kanbanBoard(projectId: string): Promise<KanbanBoard> {
       order: stage.order,
       name: stage.name,
       discipline: stage.discipline,
+      description: stage.description ?? technicalDescription(stage.name),
       designer: stage.designer,
       completion: stageCompletion(stage),
       status: stage.status,
       statusLabel: SCHEDULE_STATUS_LABELS[stage.status],
       startDate: stage.startDate,
       dueDate: stage.dueDate,
+      notes: stage.notes,
       alert,
       priority: alert.priority,
       dependencyName,
       dependencyStatus,
       allowedTransitions: SCHEDULE_TRANSITIONS[stage.status],
     };
+
+    function technicalDescription(name: string): string | null {
+      const descriptions: Record<string, string> = {
+        "Estudo Preliminar": "Conceituação espacial, zoneamento do terreno e volumetria básica.",
+        "Projeto Básico": "Plantas baixas, cortes esquemáticos, cotas gerais e layout preliminar.",
+        "Projeto Pré Formas": "Lançamento de pilares e vigas no TQS para compatibilização inicial.",
+        "Projeto Formas Finais": "Definição de seções, eixos, rebaixos e furações estruturais definitivas.",
+        "Modelagem 3D": "Construção de malha tridimensional, enquadramentos e aplicação de texturas.",
+        "Renderização 3D (Imagens Finais)": "Iluminação fotorrealista, ambientação paisagística e pós-produção das cenas.",
+        "Projeto Executivo": "Detalhamento executivo para obra, paginações, vãos e especificações de acabamento.",
+        "Projeto Armaduras": "Detalhamento das ferragens positivas, negativas, estribos e tabelas de aço.",
+        "Projeto Amaduras": "Detalhamento das ferragens positivas, negativas, estribos e tabelas de aço.",
+        "Projeto Fundação": "Dimensionamento de sapatas, estacas, blocos de coroamento e cargas no solo.",
+        "Projeto Elétrico": "Quadro de cargas, circuitos de baixa tensão, tomadas, interruptores e iluminação.",
+        "Projeto Hidrossanitário - Esgotamento": "Traçado de tubulações, caixas sifonadas, prumadas e reservatórios.",
+        "Projeto Hidrossanitário - Abastecimento": "Traçado de tubulações, caixas sifonadas, prumadas e reservatórios.",
+        "Projeto Hidrossanitário - Drenagem": "Traçado de tubulações, caixas sifonadas, prumadas e reservatórios.",
+        "Execução de Obras": "Gestão de canteiro, locação, cronograma físico-financeiro e fiscalização de campo.",
+      };
+      return descriptions[name] ?? null;
+    }
   });
 
   const columns = KANBAN_COLUMNS.map((column) => ({
@@ -210,12 +234,37 @@ export async function createScheduleStage(input: unknown) {
 export async function updateScheduleStage(id: string, input: unknown) {
   const user = await requireScheduleRole();
   const data = scheduleStageUpdateSchema.parse(input);
-  const stage = await prisma.scheduleStage.findUnique({ where: { id }, select: { projectId: true } });
+  const stage = await prisma.scheduleStage.findUnique({
+    where: { id },
+    select: { projectId: true, completion: true },
+  });
   if (!stage) return notFound("Etapa");
   await requireScheduleWrite(user, stage.projectId, "Etapa");
-  const update = data.completion === undefined ? data : { ...data, status: scheduleStatusFromPercentage(data.completion) };
+  const update = data.completion === undefined ? data : {
+    ...data,
+    status: scheduleStatusFromPercentage(data.completion),
+    completedAt: data.completion >= 99 ? new Date() : null,
+  };
   try {
-    return await prisma.scheduleStage.update({ where: { id }, data: update });
+    const updated = await prisma.scheduleStage.update({ where: { id }, data: update });
+    // Cálculo de prazos integrado: quando a data limite de uma etapa vinculada a
+    // parcela(s) muda, propaga o novo vencimento para essas parcelas automaticamente.
+    if (data.dueDate !== undefined && data.dueDate !== null) {
+      const target = new Date(data.dueDate);
+      const linked = await prisma.projectInstallment.findMany({ where: { linkedStageId: id } });
+      if (linked.some((item) => item.dueDate.getTime() !== target.getTime())) {
+        await prisma.projectInstallment.updateMany({
+          where: { linkedStageId: id },
+          data: { dueDate: target },
+        });
+      }
+    }
+    if (data.completion !== undefined && data.completion >= 99 && stage.completion < 99) {
+      await notifyStageCompleted(updated.id).catch((error) =>
+        console.error("[schedule] Falha ao notificar etapa concluída.", error),
+      );
+    }
+    return updated;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return notFound("Etapa");
     throw error;
@@ -231,6 +280,43 @@ export async function reorderScheduleStage(id: string, order: number) {
   return updateScheduleStage(id, { order });
 }
 
+export async function moveScheduleStage(id: string, projectId: string, status: ScheduleStatus, order?: number, completion?: number) {
+  const current = await prisma.scheduleStage.findUnique({ where: { id }, select: { projectId: true, order: true } });
+  if (!current) return notFound("Etapa");
+  if (current.projectId !== projectId) return notFound("Etapa");
+
+  if (status !== (await prisma.scheduleStage.findUnique({ where: { id }, select: { status: true } }))?.status) {
+    await updateScheduleStageStatus(id, status, completion);
+  }
+
+  if (order === undefined || order === current.order) return;
+  const user = await requireScheduleRole();
+  await requireScheduleWrite(user, current.projectId, "Etapa");
+  await prisma.$transaction(async (transaction) => {
+    await transaction.scheduleStage.update({ where: { id }, data: { order: -1 } });
+    if (order > current.order) {
+      await transaction.scheduleStage.updateMany({
+        where: { projectId: current.projectId, order: { gt: current.order, lte: order } },
+        data: { order: { decrement: 1 } },
+      });
+    } else {
+      await transaction.scheduleStage.updateMany({
+        where: { projectId: current.projectId, order: { gte: order, lt: current.order } },
+        data: { order: { increment: 1 } },
+      });
+    }
+    await transaction.scheduleStage.update({ where: { id }, data: { order } });
+  });
+}
+
+export async function deleteScheduleStage(id: string) {
+  const user = await requireScheduleRole();
+  const stage = await prisma.scheduleStage.findUnique({ where: { id }, select: { projectId: true } });
+  if (!stage) return notFound("Etapa");
+  await requireScheduleWrite(user, stage.projectId, "Etapa");
+  return prisma.scheduleStage.delete({ where: { id } });
+}
+
 /**
  * Mudança de estado da etapa, respeitando as regras do domínio.
  *
@@ -242,11 +328,10 @@ export async function reorderScheduleStage(id: string, order: number) {
  *     bloqueio é real e mexer no estado por cima dele seria o sistema a dizer
  *     que a etapa avançou quando a predecessora ainda não entregou.
  *
- * O `status` NÃO é escrito à mão. Grava-se o `completion` correspondente e o
- * status é recalculado por `scheduleStatusFromPercentage`, mantendo a regra
- * única: o estado é derivado do avanço.
+ * O status operacional é escrito pelo fluxo de transição; o percentual continua
+ * sendo ajustado pela regra central para manter métricas e relatório coerentes.
  */
-export async function updateScheduleStageStatus(id: string, status: string) {
+export async function updateScheduleStageStatus(id: string, status: string, completionOverride?: number) {
   // Autorização AQUI, não só na server action: o serviço é o ponto de escrita
   // e pode ser chamado de qualquer sítio. Sem esta guarda, uma chamada directa
   // ao serviço mudaria o estado de uma etapa sem qualquer verificação de sessão.
@@ -284,11 +369,21 @@ export async function updateScheduleStageStatus(id: string, status: string) {
     );
   }
 
-  return prisma.scheduleStage.update({
+  if (completionOverride !== undefined && (!Number.isInteger(completionOverride) || completionOverride < 0 || completionOverride > 100)) {
+    throw new DomainError("O avanço da etapa é inválido.", "VALIDATION");
+  }
+  const updated = await prisma.scheduleStage.update({
     where: { id },
     data: {
-      completion: completionForStatus(status, stage.completion),
+      status,
+      completion: completionOverride ?? completionForStatus(status, stage.completion),
       completedAt: status === "COMPLETED" ? new Date() : null,
     },
   });
+  if (status === "COMPLETED" && stage.status !== "COMPLETED") {
+    await notifyStageCompleted(updated.id).catch((error) =>
+      console.error("[schedule] Falha ao notificar etapa concluída.", error),
+    );
+  }
+  return updated;
 }

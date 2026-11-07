@@ -12,26 +12,30 @@ describe("colunas do quadro", () => {
     expect(columnFor({ status: "COMPLETED", completion: 100, dueDate: null }, AGORA)).toBe("COMPLETED");
   });
 
-  it("prazo vencido manda a etapa para ATRASADO", () => {
-    expect(columnFor({ status: "NOT_STARTED", completion: 0, dueDate: ONTEM }, AGORA)).toBe("ATRASADO");
-    expect(columnFor({ status: "IN_PROGRESS", completion: 40, dueDate: ONTEM }, AGORA)).toBe("ATRASADO");
+  it("prazo vencido mantém a fase e sinaliza o alerta no card", () => {
+    expect(columnFor({ status: "NOT_STARTED", completion: 0, dueDate: ONTEM }, AGORA)).toBe("NOT_STARTED");
+    expect(columnFor({ status: "IN_PROGRESS", completion: 40, dueDate: ONTEM }, AGORA)).toBe("IN_PROGRESS");
   });
 
   it("prazo ainda no futuro nao marca como atrasada", () => {
     expect(columnFor({ status: "IN_PROGRESS", completion: 40, dueDate: AMANHA }, AGORA)).toBe("IN_PROGRESS");
   });
 
-  it("etapa concluída nunca fica em ATRASADO, mesmo com prazo antigo", () => {
+  it("usa os limites visuais de 0-5, 6-98 e 99-100", () => {
+    expect(columnFor({ status: "IN_PROGRESS", completion: 5, dueDate: null }, AGORA)).toBe("NOT_STARTED");
+    expect(columnFor({ status: "NOT_STARTED", completion: 6, dueDate: null }, AGORA)).toBe("IN_PROGRESS");
+    expect(columnFor({ status: "IN_PROGRESS", completion: 98, dueDate: null }, AGORA)).toBe("IN_PROGRESS");
+    expect(columnFor({ status: "IN_PROGRESS", completion: 99, dueDate: null }, AGORA)).toBe("COMPLETED");
+  });
+
+  it("etapa concluída permanece concluída, mesmo com prazo antigo", () => {
     expect(columnFor({ status: "COMPLETED", completion: 100, dueDate: ONTEM }, AGORA)).toBe("COMPLETED");
   });
 
   it("todas as colunas são estados que o modelo conhece", () => {
     const ids = KANBAN_COLUMNS.map((column) => column.id);
-    // "EM REVISÃO" não existe em ScheduleStageStatus e não foi inventado.
-    expect(ids).toEqual(["ATRASADO", "NOT_STARTED", "IN_PROGRESS", "COMPLETED"]);
+    expect(ids).toEqual(["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]);
     const doModelo: KanbanColumnId[] = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"];
-    for (const id of ids) {
-      if (id !== "ATRASADO") expect(doModelo).toContain(id);
-    }
+    expect(ids).toEqual(doModelo);
   });
 });

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
-import { currentUser } from "@/server/auth";
+import { requirePageClientPortal } from "@/server/auth";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -25,8 +25,7 @@ export const dynamic = "force-dynamic";
  * outro.
  */
 export default async function PortalIndexPage() {
-  const user = await currentUser();
-  if (!user) redirect("/login?next=%2Fportal");
+  const user = await requirePageClientPortal();
 
   const projects = await prisma.project.findMany({
     where:

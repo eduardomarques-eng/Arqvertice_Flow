@@ -8,6 +8,7 @@ import {
   type ScheduleReportInput,
 } from "@/lib/schedule-report";
 import { PdfWriter } from "@/lib/pdf/pdf-writer";
+import { isInstallmentOverdue } from "@/server/services/installment-service";
 
 /**
  * SERVIÇO DO RELATÓRIO DE CRONOGRAMA — Fase 3.
@@ -48,6 +49,7 @@ export async function getScheduleReport(
         include: { dependency: { select: { name: true, status: true } } },
       },
       payments: { orderBy: { order: "asc" }, include: { scheduleStage: { select: { name: true } } } },
+      installments: { orderBy: { order: "asc" } },
     },
   });
   if (!project) return null;
@@ -77,6 +79,16 @@ export async function getScheduleReport(
     status: payment.status,
     stageName: payment.scheduleStage?.name ?? null,
   }));
+  const installments: ReportPayment[] = project.installments.map((item) => ({
+    id: item.id,
+    name: item.description,
+    amount: item.amount,
+    dueDate: item.dueDate,
+    paidAt: item.paidDate,
+    status: item.status !== "PAID" && isInstallmentOverdue(item.dueDate, emittedAt) ? "OVERDUE" : item.status,
+    stageName: project.stages.find((stage) => stage.id === item.linkedStageId)?.name ?? null,
+  }));
+  const financialPayments = installments.length > 0 ? installments : payments;
 
   const input: ScheduleReportInput = {
     project: {
@@ -97,8 +109,8 @@ export async function getScheduleReport(
       state: project.client.state,
     },
     stages,
-    payments,
-    budget: project.budget === null ? null : Number(project.budget),
+    payments: financialPayments,
+    budget: project.totalValue ?? (financialPayments.length ? financialPayments.reduce((sum, payment) => sum + payment.amount, 0) : project.budget === null ? null : Number(project.budget)),
     emittedAt,
   };
 

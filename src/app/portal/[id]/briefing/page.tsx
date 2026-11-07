@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { requirePageProjectAccess } from "@/server/auth";
+import { requirePageClientPortal, requirePageProjectAccess } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { GuidedBriefing } from "@/components/briefing/guided-briefing";
 import { answersOf } from "@/server/services/briefing-service";
 
 export default async function BriefingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  await requirePageClientPortal();
   await requirePageProjectAccess(id);
   const briefing = await prisma.briefing.upsert({
     where: { projectId: id },
