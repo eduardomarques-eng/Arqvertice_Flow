@@ -1,7 +1,13 @@
 import { prisma } from "@/server/db";
 import { requireProjectAccess, requireRole } from "@/server/auth";
 import { notFound } from "@/server/errors";
-import type { ProjectDiscipline, DeliverableType, ApprovalStatus } from "@prisma/client";
+import type {
+  ProjectDiscipline,
+  DeliverableType,
+  ApprovalStatus,
+  ProjectStagePhase,
+  AcervoCategory,
+} from "@prisma/client";
 import { DISCIPLINE_LABELS } from "@/lib/sheet-metadata-parser";
 
 export type CreateDeliverableInput = {
@@ -14,6 +20,9 @@ export type CreateDeliverableInput = {
   sheetCode: string;
   subject: string;
   title: string;
+  subtitle?: string | null;
+  phaseFolder?: ProjectStagePhase;
+  category?: AcervoCategory;
   description?: string | null;
   fileUrl: string;
   thumbnailUrl?: string | null;
@@ -99,6 +108,9 @@ export async function createProjectDeliverable(input: CreateDeliverableInput) {
       sheetCode: input.sheetCode.trim(),
       subject: input.subject.trim(),
       title: input.title.trim(),
+      subtitle: input.subtitle?.trim() || null,
+      phaseFolder: input.phaseFolder || "PROJETO_EXECUTIVO",
+      category: input.category || "PLANTA_TECNICA_PDF",
       description: input.description?.trim() || null,
       fileUrl: input.fileUrl,
       thumbnailUrl: input.thumbnailUrl || null,
@@ -147,6 +159,9 @@ export async function updateProjectDeliverable(id: string, input: UpdateDelivera
       ...(input.sheetCode ? { sheetCode: input.sheetCode.trim() } : {}),
       ...(input.subject ? { subject: input.subject.trim() } : {}),
       ...(input.title ? { title: input.title.trim() } : {}),
+      ...(input.subtitle !== undefined ? { subtitle: input.subtitle?.trim() || null } : {}),
+      ...(input.phaseFolder ? { phaseFolder: input.phaseFolder } : {}),
+      ...(input.category ? { category: input.category } : {}),
       ...(input.description !== undefined ? { description: input.description?.trim() || null } : {}),
       ...(input.fileUrl ? { fileUrl: input.fileUrl } : {}),
       ...(input.thumbnailUrl !== undefined ? { thumbnailUrl: input.thumbnailUrl } : {}),

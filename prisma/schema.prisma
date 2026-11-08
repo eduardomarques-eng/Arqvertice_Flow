@@ -74,14 +74,35 @@ enum DocumentSource {
   PAYMENT_RECEIPT
 }
 
+enum ProjectStagePhase {
+  PROJETO_PRELIMINAR
+  PROJETO_LEGAL
+  PROJETO_EXECUTIVO
+}
+
+enum AcervoCategory {
+  PLANTA_TECNICA_PDF
+  DOCUMENTACAO_MEMORIAL
+  IMAGEM_RENDER
+}
+
+enum AccessActionType {
+  VIEW
+  DOWNLOAD
+}
+
 enum ProjectDiscipline {
   ARQUITETURA
   ESTRUTURAL
+  ESTRUTURA
   ELETRICO
   HIDROSSANITARIO
   HVAC
   INTERIORES
   COMPATIBILIZACAO
+  COMBATE_INCENDIO
+  RENDER_3D
+  LEGAL_APROVACAO
   EXECUCAO_OBRA
   GERAL
 }
@@ -100,6 +121,7 @@ enum DeliverableType {
 enum ApprovalStatus {
   EM_ELABORACAO
   REVISAO_INTERNA
+  APROVADO_INTERNO
   APROVADO_CLIENTE
   REJEITADO
   LIBERADO_OBRA
@@ -264,6 +286,7 @@ model Project {
   folders        ProjectFolder[]
   environments   ProjectEnvironment[]
   checklists     ChecklistItem[]
+  deliverableAccessLogs DeliverableAccessLog[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -340,17 +363,20 @@ model ProjectDeliverable {
   environmentId String?             @db.Uuid
   stageId       String?             @db.Uuid
   discipline    ProjectDiscipline
+  phaseFolder   ProjectStagePhase   @default(PROJETO_EXECUTIVO)
+  category      AcervoCategory      @default(PLANTA_TECNICA_PDF)
   type          DeliverableType
   sheetCode     String?
   subject       String
   title         String
+  subtitle      String?
   description   String?
   fileUrl       String
   thumbnailUrl  String?
   version       String              @default("R00")
   fileSize      String?
-  status        ApprovalStatus      @default(EM_ELABORACAO)
-  isClientView  Boolean             @default(false)
+  status        ApprovalStatus      @default(APROVADO_INTERNO)
+  isClientView  Boolean             @default(true)
   isRequired    Boolean             @default(true)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
@@ -360,9 +386,29 @@ model ProjectDeliverable {
   environment   ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
   stage         ScheduleStage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
   checklists    ChecklistItem[]
+  accessLogs    DeliverableAccessLog[]
 
-  @@index([projectId, discipline])
+  @@index([projectId, discipline, phaseFolder])
+  @@index([projectId])
   @@index([sheetCode])
+}
+
+model DeliverableAccessLog {
+  id            String             @id @default(uuid()) @db.Uuid
+  projectId     String             @db.Uuid
+  deliverableId String             @db.Uuid
+  userId        String?            @db.Uuid
+  userName      String
+  userRole      String
+  action        AccessActionType
+  sheetTitle    String
+  createdAt     DateTime           @default(now())
+
+  project       Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliverable   ProjectDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([deliverableId])
 }
 
 model ProjectFolder {

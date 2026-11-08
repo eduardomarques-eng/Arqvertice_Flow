@@ -8,7 +8,13 @@ import {
   listProjectDeliverables,
 } from "@/server/services/deliverable-service";
 import { createRequestContext, logError } from "@/server/observability";
-import type { ApprovalStatus, DeliverableType, ProjectDiscipline } from "@prisma/client";
+import type {
+  ApprovalStatus,
+  DeliverableType,
+  ProjectDiscipline,
+  ProjectStagePhase,
+  AcervoCategory,
+} from "@prisma/client";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { requestId } = createRequestContext(request);
@@ -48,7 +54,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const sheetCode = String(formData.get("sheetCode") || "").trim();
     const subject = String(formData.get("subject") || "").trim();
     const title = String(formData.get("title") || `${sheetCode} - ${subject}`).trim();
+    const subtitle = formData.get("subtitle") ? String(formData.get("subtitle")).trim() : null;
     const discipline = (formData.get("discipline") || "ARQUITETURA") as ProjectDiscipline;
+    const phaseFolder = (formData.get("phaseFolder") || "PROJETO_EXECUTIVO") as ProjectStagePhase;
+    const category = (formData.get("category") || "PLANTA_TECNICA_PDF") as AcervoCategory;
     const type = (formData.get("type") || "PRANCHA_EXECUTIVA") as DeliverableType;
     const version = String(formData.get("version") || "R00").trim();
     const stageId = formData.get("stageId") ? String(formData.get("stageId")) : null;
@@ -83,6 +92,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       sheetCode,
       subject,
       title,
+      subtitle,
+      phaseFolder,
+      category,
       description,
       fileUrl: storageKey,
       thumbnailUrl: null,

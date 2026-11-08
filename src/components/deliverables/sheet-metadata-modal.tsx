@@ -8,7 +8,25 @@ import {
   APPROVAL_STATUS_LABELS,
   type ParsedSheetMetadata,
 } from "@/lib/sheet-metadata-parser";
-import type { ProjectDiscipline, DeliverableType, ApprovalStatus } from "@prisma/client";
+import type {
+  ProjectDiscipline,
+  DeliverableType,
+  ApprovalStatus,
+  ProjectStagePhase,
+  AcervoCategory,
+} from "@prisma/client";
+
+export const PHASE_FOLDER_LABELS: Record<ProjectStagePhase, string> = {
+  PROJETO_PRELIMINAR: "1. Projeto Preliminar (Estudo)",
+  PROJETO_LEGAL: "2. Projeto Legal (Prefeitura/Condomínio)",
+  PROJETO_EXECUTIVO: "3. Projeto Executivo (Obra)",
+};
+
+export const ACERVO_CATEGORY_LABELS: Record<AcervoCategory, string> = {
+  PLANTA_TECNICA_PDF: "Planta Técnica (PDF)",
+  DOCUMENTACAO_MEMORIAL: "Memorial Descritivo & ART / Docs",
+  IMAGEM_RENDER: "Imagem & Render 3D",
+};
 
 export interface StageOption {
   id: string;
@@ -31,7 +49,10 @@ export interface DeliverableData {
   sheetCode: string;
   subject: string;
   title: string;
+  subtitle?: string | null;
   discipline: ProjectDiscipline;
+  phaseFolder?: ProjectStagePhase;
+  category?: AcervoCategory;
   type: DeliverableType;
   version: string;
   stageId?: string | null;
@@ -94,6 +115,10 @@ const DEFAULT_FOLDERS_BY_DISCIPLINE: Record<ProjectDiscipline, string[]> = {
   INTERIORES: ["01. Marcenaria Detalhada", "02. Paginação de Revestimentos", "03. Forro & Iluminação"],
   COMPATIBILIZACAO: ["01. Matriz BIM & Clashes", "02. Relatórios de Compatibilização"],
   EXECUCAO_OBRA: ["01. Canteiro & Locação", "02. Liberações de Concretagem"],
+  ESTRUTURA: ["01. Pré-Formas", "02. Formas Finais TQS", "03. Armaduras CA-50", "04. Fundações SPT"],
+  COMBATE_INCENDIO: ["01. Hidrantes & Extintores", "02. Sinalização de Emergência", "03. Alarme & Detecção"],
+  RENDER_3D: ["01. Renders Externos", "02. Renders Internos", "03. Plantas Humanizadas"],
+  LEGAL_APROVACAO: ["01. Pranchas de Prefeitura", "02. Memorial de Aprovação", "03. Licenças & Alvarás"],
   GERAL: ["01. Geral & Coordenação"],
 };
 
@@ -115,7 +140,10 @@ export function SheetMetadataModal({
   const [sheetCode, setSheetCode] = useState("");
   const [subject, setSubject] = useState("");
   const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
   const [discipline, setDiscipline] = useState<ProjectDiscipline>("ARQUITETURA");
+  const [phaseFolder, setPhaseFolder] = useState<ProjectStagePhase>("PROJETO_EXECUTIVO");
+  const [category, setCategory] = useState<AcervoCategory>("PLANTA_TECNICA_PDF");
   const [type, setType] = useState<DeliverableType>("PRANCHA_EXECUTIVA");
   const [version, setVersion] = useState("R00");
   const [stageId, setStageId] = useState<string>("");
@@ -146,7 +174,10 @@ export function SheetMetadataModal({
       setSheetCode(initialData.sheetCode || "");
       setSubject(initialData.subject || "");
       setTitle(initialData.title || "");
+      setSubtitle(initialData.subtitle || "");
       setDiscipline(initialData.discipline || "ARQUITETURA");
+      setPhaseFolder(initialData.phaseFolder || "PROJETO_EXECUTIVO");
+      setCategory(initialData.category || "PLANTA_TECNICA_PDF");
       setType(initialData.type || "PRANCHA_EXECUTIVA");
       setVersion(initialData.version || "R00");
       setStageId(initialData.stageId || "");
@@ -165,7 +196,16 @@ export function SheetMetadataModal({
       setSheetCode(parsedMetadata.sheetCode);
       setSubject(parsedMetadata.subject);
       setTitle(parsedMetadata.title);
+      setSubtitle("");
       setDiscipline(parsedMetadata.discipline);
+      setPhaseFolder("PROJETO_EXECUTIVO");
+      setCategory(
+        parsedMetadata.type === "RENDER_3D"
+          ? "IMAGEM_RENDER"
+          : parsedMetadata.type === "MEMORIAL_DESCRITIVO"
+          ? "DOCUMENTACAO_MEMORIAL"
+          : "PLANTA_TECNICA_PDF"
+      );
       setType(parsedMetadata.type);
       setVersion(parsedMetadata.version || "R00");
       setEnvironmentId(parsedMetadata.environmentName || "");
@@ -229,7 +269,10 @@ export function SheetMetadataModal({
             sheetCode,
             subject,
             title: title || `${sheetCode} - ${subject}`,
+            subtitle: subtitle || null,
             discipline,
+            phaseFolder,
+            category,
             type,
             version,
             stageId: stageId || null,
@@ -254,7 +297,10 @@ export function SheetMetadataModal({
         formData.append("sheetCode", sheetCode);
         formData.append("subject", subject);
         formData.append("title", title || `${sheetCode} - ${subject}`);
+        if (subtitle) formData.append("subtitle", subtitle);
         formData.append("discipline", discipline);
+        formData.append("phaseFolder", phaseFolder);
+        formData.append("category", category);
         formData.append("type", type);
         formData.append("version", version);
         if (stageId) formData.append("stageId", stageId);
@@ -482,6 +528,75 @@ export function SheetMetadataModal({
                       + {chip}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Linha 2.1: Título & Subtítulo Complementar */}
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-7">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Título da Prancha *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Ex: ARQ-01 · Planta Baixa de Layout"
+                    className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-blue-600 focus:outline-none"
+                  />
+                  <p className="mt-0.5 text-[10px] text-slate-400">Identificação canônica exibida nas listas e relatórios</p>
+                </div>
+
+                <div className="col-span-5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Subtítulo / Complemento
+                  </label>
+                  <input
+                    type="text"
+                    value={subtitle}
+                    onChange={(e) => setSubtitle(e.target.value)}
+                    placeholder="Ex: Pavimento Térreo e Coberta"
+                    className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-600 focus:outline-none"
+                  />
+                  <p className="mt-0.5 text-[10px] text-slate-400">Detalhamento específico do desenho</p>
+                </div>
+              </div>
+
+              {/* Linha 2.2: Subpasta Normativa & Categoria do Acervo */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Subpasta Normativa *
+                  </label>
+                  <select
+                    value={phaseFolder}
+                    onChange={(e) => setPhaseFolder(e.target.value as ProjectStagePhase)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-blue-600 focus:outline-none bg-white"
+                  >
+                    {Object.entries(PHASE_FOLDER_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Categoria do Acervo *
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as AcervoCategory)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-blue-600 focus:outline-none bg-white"
+                  >
+                    {Object.entries(ACERVO_CATEGORY_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

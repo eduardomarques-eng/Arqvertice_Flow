@@ -5,14 +5,35 @@ import {
   DISCIPLINE_LABELS,
   APPROVAL_STATUS_LABELS,
 } from "@/lib/sheet-metadata-parser";
-import type { ProjectDiscipline, DeliverableType, ApprovalStatus } from "@prisma/client";
+import type {
+  ProjectDiscipline,
+  DeliverableType,
+  ApprovalStatus,
+  ProjectStagePhase,
+  AcervoCategory,
+} from "@prisma/client";
+
+export const PHASE_FOLDER_SHORT_LABELS: Record<ProjectStagePhase, string> = {
+  PROJETO_PRELIMINAR: "Preliminar",
+  PROJETO_LEGAL: "Legal / Aprovação",
+  PROJETO_EXECUTIVO: "Executivo",
+};
+
+export const ACERVO_CATEGORY_SHORT_LABELS: Record<AcervoCategory, string> = {
+  PLANTA_TECNICA_PDF: "PDF Técnico",
+  DOCUMENTACAO_MEMORIAL: "Doc / Memorial",
+  IMAGEM_RENDER: "Render 3D",
+};
 
 export interface DeliverableCardItem {
   id: string;
   sheetCode: string | null;
   subject: string;
   title: string;
+  subtitle?: string | null;
   discipline: ProjectDiscipline;
+  phaseFolder?: ProjectStagePhase;
+  category?: AcervoCategory;
   type: DeliverableType;
   version: string;
   fileSize: string | null;
@@ -90,6 +111,30 @@ const DISCIPLINE_THEMES: Record<
     border: "border-emerald-200",
     dot: "bg-emerald-500",
   },
+  ESTRUTURA: {
+    bg: "bg-indigo-50",
+    text: "text-indigo-700",
+    border: "border-indigo-200",
+    dot: "bg-indigo-500",
+  },
+  COMBATE_INCENDIO: {
+    bg: "bg-rose-50",
+    text: "text-rose-700",
+    border: "border-rose-200",
+    dot: "bg-rose-500",
+  },
+  RENDER_3D: {
+    bg: "bg-violet-50",
+    text: "text-violet-700",
+    border: "border-violet-200",
+    dot: "bg-violet-500",
+  },
+  LEGAL_APROVACAO: {
+    bg: "bg-blue-50",
+    text: "text-blue-700",
+    border: "border-blue-200",
+    dot: "bg-blue-500",
+  },
   GERAL: {
     bg: "bg-slate-50",
     text: "text-slate-700",
@@ -153,7 +198,8 @@ export function DeliverableCard({
               {DISCIPLINE_LABELS[deliverable.discipline] || deliverable.discipline}
             </span>
 
-            <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">
+            {/* Revisão em Destaque */}
+            <span className="inline-flex items-center rounded-lg bg-blue-600 px-2 py-0.5 font-mono text-[11px] font-bold text-white shadow-xs">
               {deliverable.version}
             </span>
           </div>
@@ -164,20 +210,51 @@ export function DeliverableCard({
           </Badge>
         </div>
 
-        {/* Assunto e Título */}
-        <div className="mt-3.5">
-          <h4
-            className="text-sm font-bold text-slate-900 line-clamp-1 group-hover:text-blue-600 transition-colors"
-            title={deliverable.subject}
-          >
-            {deliverable.subject}
-          </h4>
-          <p
-            className="mt-1 text-xs text-slate-500 line-clamp-2 leading-relaxed"
-            title={deliverable.title}
-          >
-            {deliverable.title}
-          </p>
+        {/* Hierarquia: Título Principal e Subtítulo Conjugado */}
+        <div className="mt-3.5 space-y-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {deliverable.phaseFolder && (
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                📂 {PHASE_FOLDER_SHORT_LABELS[deliverable.phaseFolder] || deliverable.phaseFolder}
+              </span>
+            )}
+            {deliverable.category && (
+              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                {ACERVO_CATEGORY_SHORT_LABELS[deliverable.category] || deliverable.category}
+              </span>
+            )}
+          </div>
+
+          <div>
+            <h4
+              className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug"
+              title={deliverable.title}
+            >
+              {deliverable.title}
+            </h4>
+            {deliverable.subtitle ? (
+              <p
+                className="mt-0.5 text-xs font-medium text-slate-600 italic line-clamp-1"
+                title={deliverable.subtitle}
+              >
+                — {deliverable.subtitle}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Tag de Assunto */}
+          <div className="pt-0.5">
+            <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+              🏷️ {deliverable.subject}
+            </span>
+          </div>
+
+          {/* Descrição Técnica se houver */}
+          {deliverable.description ? (
+            <p className="mt-1 text-[11px] text-slate-600 line-clamp-2 leading-relaxed bg-slate-50/80 p-2 rounded-xl border border-slate-100">
+              {deliverable.description}
+            </p>
+          ) : null}
         </div>
 
         {/* Metadados Técnicos (Ambiente, Etapa, Pasta) */}
@@ -205,12 +282,8 @@ export function DeliverableCard({
               {isPdf ? "📄 Documento PDF" : "🖼️ Imagem / Render"}
               {deliverable.fileSize ? ` • ${deliverable.fileSize}` : ""}
             </span>
-            <span>
-              {deliverable.isClientView ? (
-                <span className="font-semibold text-emerald-600">✓ Portal Cliente</span>
-              ) : (
-                <span className="text-slate-400">Restrito</span>
-              )}
+            <span className="font-mono text-slate-400">
+              {new Date(deliverable.createdAt).toLocaleDateString("pt-BR")}
             </span>
           </div>
         </div>
@@ -218,12 +291,12 @@ export function DeliverableCard({
 
       {/* Footer com Botões de Ação */}
       <div className="mt-4 flex items-center justify-between gap-1.5 border-t border-slate-100 pt-3">
-        {/* Visualizar (Olho) */}
+        {/* Visualizar Planta */}
         <button
           type="button"
           onClick={() => onView(deliverable)}
-          className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition"
-          title="Pré-visualizar em tela cheia"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition"
+          title="Abrir visualizador da planta técnica"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -232,25 +305,25 @@ export function DeliverableCard({
           Visualizar
         </button>
 
-        {/* Download direto */}
+        {/* Download Direto */}
         <a
           href={downloadUrl}
           download={downloadFileName}
-          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition"
-          title="Baixar prancha com nome técnico padronizado"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition"
+          title="Baixar arquivo da prancha"
         >
           <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          Baixar
+          Download
         </a>
 
-        {/* Editar Metadados (Lápis) */}
+        {/* Editar Cadastro */}
         <button
           type="button"
           onClick={() => onEdit(deliverable)}
-          className="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 active:scale-95 transition"
-          title="Editar assunto, código, versão e status"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 active:scale-95 transition"
+          title="Editar cadastro da prancha (título, subtítulo, revisão, subpasta)"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -258,7 +331,7 @@ export function DeliverableCard({
           Editar
         </button>
 
-        {/* Excluir (Lixeira) */}
+        {/* Excluir */}
         <button
           type="button"
           onClick={() => onDelete(deliverable.id, deliverable.sheetCode)}

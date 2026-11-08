@@ -60,3 +60,4 @@ export const CANONICAL_CHECKLIST_TEMPLATE = [
     verifiedBy: null,
   },
 ];
+

@@ -79,12 +79,16 @@ export function parseSheetFileName(fileName: string): ParsedSheetMetadata {
     const prefixMap: Record<ProjectDiscipline, string> = {
       ARQUITETURA: "ARQ",
       ESTRUTURAL: "EST",
+      ESTRUTURA: "EST",
       ELETRICO: "ELE",
       HIDROSSANITARIO: "HID",
       HVAC: "VAC",
       INTERIORES: "INT",
       COMPATIBILIZACAO: "MEP",
       EXECUCAO_OBRA: "OBR",
+      COMBATE_INCENDIO: "INC",
+      RENDER_3D: "RND",
+      LEGAL_APROVACAO: "LEG",
       GERAL: "PRJ",
     };
     sheetCode = `${prefixMap[discipline]}-01`;
@@ -108,12 +112,16 @@ export function parseSheetFileName(fileName: string): ParsedSheetMetadata {
     const defaultSubjectMap: Record<ProjectDiscipline, string> = {
       ARQUITETURA: "Plantas Baixas e Layout Operacional",
       ESTRUTURAL: "Formas e Armaduras Estruturais",
+      ESTRUTURA: "Formas e Armaduras Estruturais",
       ELETRICO: "Projeto Luminotécnico e Pontos de Força",
       HIDROSSANITARIO: "Instalações de Esgotamento e Abastecimento",
       HVAC: "Climatização e Renovação de Ar",
       INTERIORES: "Detalhamento de Marcenaria e Paginação",
       COMPATIBILIZACAO: "Compatibilização Global de Disciplinas",
       EXECUCAO_OBRA: "Plantas de Canteiro e Liberação Executiva",
+      COMBATE_INCENDIO: "Prevenção e Combate a Incêndio (PPCI)",
+      RENDER_3D: "Perspectivas e Renders 3D Realistas",
+      LEGAL_APROVACAO: "Plantas e Documentos para Aprovação Legal",
       GERAL: "Documentação Técnica de Engenharia",
     };
     subject = defaultSubjectMap[discipline];
@@ -188,12 +196,16 @@ export function parseSheetFileName(fileName: string): ParsedSheetMetadata {
 export const DISCIPLINE_LABELS: Record<ProjectDiscipline, string> = {
   ARQUITETURA: "Arquitetura",
   ESTRUTURAL: "Estrutural",
+  ESTRUTURA: "Estrutura",
   ELETRICO: "Elétrico (MEP)",
   HIDROSSANITARIO: "Hidrossanitário (MEP)",
   HVAC: "Climatização (HVAC)",
   INTERIORES: "Interiores & Marcenaria",
   COMPATIBILIZACAO: "Compatibilização Global",
   EXECUCAO_OBRA: "Execução & Canteiro",
+  COMBATE_INCENDIO: "Combate a Incêndio (PPCI)",
+  RENDER_3D: "Renders & Imagens 3D",
+  LEGAL_APROVACAO: "Projeto Legal & Aprovação",
   GERAL: "Coordenação Geral",
 };
 
@@ -211,6 +223,7 @@ export const DELIVERABLE_TYPE_LABELS: Record<DeliverableType, string> = {
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, { label: string; tone: "blue" | "green" | "amber" | "red" | "neutral" }> = {
   EM_ELABORACAO: { label: "Em Elaboração", tone: "blue" },
   REVISAO_INTERNA: { label: "Revisão Interna", tone: "amber" },
+  APROVADO_INTERNO: { label: "Aprovado Interno", tone: "blue" },
   APROVADO_CLIENTE: { label: "Aprovado pelo Cliente", tone: "green" },
   LIBERADO_OBRA: { label: "Liberado para Obra", tone: "green" },
   REJEITADO: { label: "Rejeitado / Revisar", tone: "red" },
