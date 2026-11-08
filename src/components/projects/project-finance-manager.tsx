@@ -57,10 +57,33 @@ export function ProjectFinanceManager({ projectId, initialInstallments, stages }
 
   async function toggleStatus(item: Installment) {
     const status = item.status === "PAID" ? "PENDING" : "PAID";
-    const response = await fetch(`/api/projects/${projectId}/installments/${item.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status, paidDate: status === "PAID" ? new Date().toISOString() : null }) });
-    if (!response.ok) { setError("Não foi possível atualizar o status."); return; }
-    const saved = await response.json();
-    setItems((current) => current.map((entry) => entry.id === saved.id ? saved : entry));
+    const nextPaidDate = status === "PAID" ? new Date().toISOString() : null;
+
+    // Resposta otimista instantânea no estado local
+    setItems((current) =>
+      current.map((entry) =>
+        entry.id === item.id ? { ...entry, status, paidDate: nextPaidDate } : entry,
+      ),
+    );
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/installments/${item.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status, paidDate: nextPaidDate }),
+      });
+      if (!response.ok) {
+        // Reverte se falhou
+        setItems((current) => current.map((entry) => (entry.id === item.id ? item : entry)));
+        setError("Não foi possível atualizar o status.");
+        return;
+      }
+      const saved = await response.json();
+      setItems((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    } catch {
+      setItems((current) => current.map((entry) => (entry.id === item.id ? item : entry)));
+      setError("Falha de conexão ao atualizar status.");
+    }
   }
 
   return <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

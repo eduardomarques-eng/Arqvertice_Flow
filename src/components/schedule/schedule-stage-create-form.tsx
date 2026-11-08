@@ -13,7 +13,7 @@ export function ScheduleStageCreateForm({ projectId }: { projectId: string }) {
         onClick={() => setIsOpen(true)}
         className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800 transition active:scale-[0.98]"
       >
-        <span>+</span> Adicionar Nova Etapa (14 Canônicas)
+        <span>+</span> Nova Etapa
       </button>
 
       <StageFormModal

@@ -10,6 +10,8 @@ import type {
 import { parseSheetFileName } from "@/lib/sheet-metadata-parser";
 import type { StageOption } from "./sheet-metadata-modal";
 
+import { MASTER_PHASES, MASTER_DISCIPLINES } from "@/lib/master-data";
+
 export interface StagedDeliverableItem {
   id: string; // id temporário local
   file: File;
@@ -53,24 +55,22 @@ const PRESET_SUBJECTS = [
   "Combate a Incêndio (PPCI)",
 ];
 
-const PHASE_OPTIONS: Array<{ value: ProjectStagePhase; label: string; icon: string }> = [
-  { value: "PROJETO_PRELIMINAR", label: "Projeto Preliminar", icon: "📐" },
-  { value: "PROJETO_LEGAL", label: "Projeto Legal", icon: "🏛️" },
-  { value: "PROJETO_EXECUTIVO", label: "Projeto Executivo", icon: "🏗️" },
-];
+const PHASE_OPTIONS: Array<{ value: ProjectStagePhase; label: string; icon: string }> =
+  MASTER_PHASES.map((p) => ({
+    value: p.key as ProjectStagePhase,
+    label: p.label,
+    icon: p.icon,
+  }));
 
 const DISCIPLINE_OPTIONS: Array<{ value: ProjectDiscipline; label: string }> = [
-  { value: "ARQUITETURA", label: "Arquitetura" },
-  { value: "ESTRUTURAL", label: "Estrutural (TQS)" },
-  { value: "HIDROSSANITARIO", label: "Hidrossanitário (Revit)" },
-  { value: "ELETRICO", label: "Elétrico & Iluminação (Revit)" },
-  { value: "COMBATE_INCENDIO", label: "Combate a Incêndio (PPCI)" },
-  { value: "RENDER_3D", label: "Renders 3D (Corona)" },
-  { value: "LEGAL_APROVACAO", label: "Documentação Legal / ART" },
-  { value: "HVAC", label: "Climatização (HVAC)" },
-  { value: "INTERIORES", label: "Interiores & Marcenaria" },
-  { value: "COMPATIBILIZACAO", label: "Compatibilização Global" },
-  { value: "GERAL", label: "Coordenação Geral" },
+  ...MASTER_DISCIPLINES.map((d) => ({
+    value: d.key as ProjectDiscipline,
+    label: `${d.name} (${d.tool.split(" ")[0]})`,
+  })),
+  { value: "HVAC" as ProjectDiscipline, label: "Climatização (HVAC)" },
+  { value: "INTERIORES" as ProjectDiscipline, label: "Interiores & Marcenaria" },
+  { value: "COMPATIBILIZACAO" as ProjectDiscipline, label: "Compatibilização Global" },
+  { value: "GERAL" as ProjectDiscipline, label: "Coordenação Geral" },
 ];
 
 const CATEGORY_OPTIONS: Array<{ value: AcervoCategory; label: string }> = [
@@ -234,8 +234,8 @@ export function StagingCatalogModal({
     activeItem?.file.name.toLowerCase().endsWith(".pdf");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-3 sm:p-5 backdrop-blur-md animate-in fade-in duration-200 font-sans">
-      <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-3 sm:p-5 animate-in fade-in duration-150 font-sans">
+      <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-zinc-900/10 animate-in fade-in zoom-in-95 duration-150">
         {/* Cabeçalho da Janela de Catalogação */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-6 py-4">
           <div className="flex items-center gap-3">

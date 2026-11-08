@@ -118,57 +118,6 @@ export function renderScheduleReportPdf(report: ScheduleReport): Uint8Array {
     });
   }
 
-  // Seção da Matriz de Pranchas Técnicas
-  if (report.matrizPranchas.total > 0) {
-    writer.heading("5.4 MATRIZ DE ENTREGÁVEIS & PRANCHAS TÉCNICAS");
-    writer.flowText(
-      `Total: ${report.matrizPranchas.total} prancha(s) · ${report.matrizPranchas.entregues} liberada(s) (${report.matrizPranchas.taxa}%) · ${report.matrizPranchas.pendentes} em desenvolvimento`,
-      { size: 8.5, bold: true, color: "#0f172a", gapAfter: 6 }
-    );
-
-    if (report.matrizPranchas.concluidas.length > 0) {
-      writer.flowText("Pranchas Concluídas & Liberadas:", { size: 8, bold: true, color: "#15803d", gapAfter: 4 });
-      writer.table({
-        columns: [
-          { title: "Código", weight: 16 },
-          { title: "Assunto", weight: 36 },
-          { title: "Disciplina", weight: 20 },
-          { title: "Versão", weight: 12, align: "center" },
-          { title: "Data Homologação", weight: 16, align: "center" },
-        ],
-        rows: report.matrizPranchas.concluidas.map((p) => [
-          p.sheetCode,
-          p.subject,
-          p.discipline,
-          p.version,
-          p.data,
-        ]),
-        headerFill: "#15803d",
-      });
-    }
-
-    if (report.matrizPranchas.emDesenvolvimento.length > 0) {
-      writer.flowText("Pranchas em Desenvolvimento & Previstas:", { size: 8, bold: true, color: "#0369a1", gapAfter: 4 });
-      writer.table({
-        columns: [
-          { title: "Código / Ref.", weight: 18 },
-          { title: "Assunto Previsto", weight: 36 },
-          { title: "Disciplina", weight: 20 },
-          { title: "Responsável", weight: 14 },
-          { title: "Prazo Estimado", weight: 12, align: "center" },
-        ],
-        rows: report.matrizPranchas.emDesenvolvimento.map((p) => [
-          p.sheetCode,
-          p.subject,
-          p.discipline,
-          p.responsavel,
-          p.prazo,
-        ]),
-        headerFill: "#0369a1",
-      });
-    }
-  }
-
   writer.heading("6. RESUMO FINANCEIRO & CRONOGRAMA DE DESEMBOLSO");
   writer.labelledList(report.financial.rows);
   writer.flowText(report.financial.nextPayment, { size: 8.5, color: "#0369a1", gapAfter: 6 });

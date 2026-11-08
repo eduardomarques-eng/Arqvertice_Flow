@@ -10,14 +10,22 @@ import { ProjectFinanceManager } from "./project-finance-manager";
 import { CommercialSummary } from "@/components/proposals/commercial-summary";
 import { ProposalActions } from "@/components/proposals/proposal-actions";
 import { BriefingLinkManager } from "@/components/briefing/briefing-link-manager";
-import { ProjectDeliverablesTab } from "@/components/deliverables/project-deliverables-tab";
+import { ProjectAcervoTab } from "@/components/deliverables/project-acervo-tab";
 import type { DeliverableCardItem } from "@/components/deliverables/deliverable-card";
 import { ProjectChecklistTab } from "@/components/deliverables/project-checklist-tab";
 import { DocumentUploader } from "@/components/documents/document-uploader";
 import { DocumentList } from "@/components/documents/document-list";
+import dynamic from "next/dynamic";
 import { ReportVisibilityControl } from "@/components/reports/report-visibility-control";
+import type { StageFormData } from "@/components/schedule/stage-form-modal";
 import type { DeliverableMatrix } from "@/server/services/deliverable-service";
 import type { ChecklistItemData } from "@/server/actions/checklist";
+
+// Modal de Criação / Edição de Etapas carregado dinamicamente sob demanda
+const StageFormModal = dynamic(
+  () => import("@/components/schedule/stage-form-modal").then((mod) => mod.StageFormModal),
+  { ssr: false }
+);
 
 export type TabKey = "plantas" | "cronograma" | "geral" | "checklist" | "pranchas";
 export type MainModuleKey = "plantas" | "cronograma";
@@ -85,6 +93,16 @@ export function ProjectDetailTabs({
 
   const [mainModule, setMainModule] = useState<MainModuleKey>(resolveMainModule(tabParam));
   const [cronoSubTab, setCronoSubTab] = useState<CronoSubTabKey>(resolveCronoSubTab(tabParam));
+  const [selectedStageToEdit, setSelectedStageToEdit] = useState<StageFormData | null>(null);
+  const [isStageModalOpen, setIsStageModalOpen] = useState(false);
+  const [triggerUploadSignal, setTriggerUploadSignal] = useState(0);
+
+  const handleOpenNewDeliverable = () => {
+    if (mainModule !== "plantas") {
+      switchMainModule("plantas");
+    }
+    setTriggerUploadSignal((prev) => prev + 1);
+  };
 
   // Sincroniza com parâmetros de busca
   useEffect(() => {
@@ -125,18 +143,130 @@ export function ProjectDetailTabs({
   const addressFormatted = addressObj.formatted || addressObj.localizacao || "Loteamento Praia Bela, Litoral Sul";
   const loteQuadra = addressObj.loteQuadra || addressObj.lote || "Lote 14, Quadra B";
   const areaConstruida = addressObj.areaConstruida || addressObj.area || "385,00 m²";
+  const formattedBudget = project.budget
+    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(project.budget)
+    : "R$ 30.000,00";
 
   return (
     <div className="space-y-6 font-sans">
       {/* ============================================================== */}
-      {/* TAREFA 1: SELETOR DE MÓDULOS APPLE HIG NO TOPO DO PROJETO      */}
+      {/* 1. ARQUITETURA "RECORD PAGE HEADER" (SALESFORCE LIGHTNING)    */}
+      {/* ============================================================== */}
+      <div className="rounded-3xl border border-zinc-200/90 bg-white p-5 sm:p-6 shadow-xs">
+        {/* Barra de Registro Fixa (Record Banner) */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 border border-blue-200/60 text-2xl shadow-xs">
+              🏛️
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 border border-blue-200/50">
+                  {project.type || "Residencial Alto Padrão"}
+                </span>
+                <span className="text-xs font-semibold text-zinc-400">· Edificação</span>
+                <span className="text-xs text-zinc-500">
+                  Cliente: <strong className="text-zinc-800 font-semibold">{project.client?.name ?? "Não informado"}</strong>
+                </span>
+              </div>
+              <h1 className="mt-1 text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">
+                {project.name}
+              </h1>
+            </div>
+          </div>
+
+          {/* Botões de Ação Global à direita */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleOpenNewDeliverable}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-50 hover:border-zinc-400 transition active:scale-95 shadow-xs"
+            >
+              <span className="text-blue-600 font-black">+</span> Nova Prancha
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedStageToEdit(null);
+                setIsStageModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-50 hover:border-zinc-400 transition active:scale-95 shadow-xs"
+            >
+              <span className="text-blue-600 font-black">+</span> Nova Etapa
+            </button>
+            <Link
+              href={`/admin/projetos/${project.id}/relatorio`}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-zinc-800 transition active:scale-95 shadow-xs"
+            >
+              <span>📊</span> Visualizar Relatório
+            </Link>
+          </div>
+        </div>
+
+        {/* Grid de Métricas Principais em linha compacta (Inline Field Set) */}
+        <div className="mt-5 pt-4 border-t border-zinc-100 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Área Total
+            </span>
+            <span className="font-bold text-zinc-900 text-sm mt-0.5 block font-mono">
+              {areaConstruida}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Valor Global
+            </span>
+            <span className="font-bold text-zinc-900 text-sm mt-0.5 block font-mono">
+              {formattedBudget}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Progresso Físico
+            </span>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-16 h-2 rounded-full bg-zinc-200 overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                  style={{ width: `${completion}%` }}
+                />
+              </div>
+              <span className="font-mono text-xs font-bold text-zinc-900">
+                {completion}% Concluído
+              </span>
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Status Executivo
+            </span>
+            <div className="mt-1">
+              {overdue > 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-200/80">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  {overdue} Pendência(s)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200/80">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Fases Liberadas
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================== */}
+      {/* SELETOR DE MÓDULOS PRINCIPAIS (ACERVO vs CRONOGRAMA)           */}
       {/* ============================================================== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* MÓDULO 1: PLANTAS CADASTRADAS (ACERVO TÉCNICO) */}
         <button
           type="button"
           onClick={() => switchMainModule("plantas")}
-          className={`group relative flex items-start gap-4 rounded-3xl p-5 text-left transition-all duration-200 border ${
+          className={`group relative flex items-start gap-4 rounded-3xl p-5 text-left border active:scale-[0.98] transition-transform duration-75 select-none ${
             mainModule === "plantas"
               ? "bg-white border-blue-600 shadow-md ring-2 ring-blue-600/20"
               : "bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white shadow-xs"
@@ -183,7 +313,7 @@ export function ProjectDetailTabs({
         <button
           type="button"
           onClick={() => switchMainModule("cronograma")}
-          className={`group relative flex items-start gap-4 rounded-3xl p-5 text-left transition-all duration-200 border ${
+          className={`group relative flex items-start gap-4 rounded-3xl p-5 text-left border active:scale-[0.98] transition-transform duration-75 select-none ${
             mainModule === "cronograma"
               ? "bg-white border-blue-600 shadow-md ring-2 ring-blue-600/20"
               : "bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white shadow-xs"
@@ -232,11 +362,13 @@ export function ProjectDetailTabs({
       {/* ============================================================== */}
       {mainModule === "plantas" && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          <ProjectDeliverablesTab
+          <ProjectAcervoTab
             projectId={project.id}
+            projectName={project.name}
             initialDeliverables={deliverables}
             initialMatrix={deliverableMatrix}
             stages={stages}
+            triggerUploadSignal={triggerUploadSignal}
           />
 
           {/* Arquivos Gerais / Documentos Privados */}
@@ -260,9 +392,9 @@ export function ProjectDetailTabs({
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Sub-navegação do Cronograma */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-3">
-            <div className="flex space-x-1 rounded-2xl bg-slate-200/70 p-1.5 shadow-inner">
+            <div className="flex space-x-1 rounded-2xl bg-slate-200/70 p-1.5 shadow-inner overflow-x-auto scrollbar-none flex-nowrap -mx-4 px-4 sm:mx-0 sm:px-0 max-w-full">
               {[
-                { key: "etapas" as CronoSubTabKey, label: "Avanço Físico & 14 Etapas", icon: "📈", badge: `${completion}%` },
+                { key: "etapas" as CronoSubTabKey, label: "Avanço Físico & Etapas", icon: "📈", badge: `${completion}%` },
                 { key: "financeiro" as CronoSubTabKey, label: "Visão Geral & Financeiro", icon: "💰", badge: `${installments.length} parcelas` },
                 { key: "checklist" as CronoSubTabKey, label: "Checklist de Obra", icon: "✅", badge: `${checklistRate}%` },
               ].map((sub) => {
@@ -272,14 +404,14 @@ export function ProjectDetailTabs({
                     key={sub.key}
                     type="button"
                     onClick={() => switchCronoSubTab(sub.key)}
-                    className={`flex items-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all duration-200 ${
+                    className={`flex min-h-[44px] items-center gap-2 rounded-xl py-2 px-3 text-xs font-bold active:scale-[0.98] transition-transform duration-75 select-none ${
                       active
                         ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5"
                         : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
                     }`}
                   >
                     <span>{sub.icon}</span>
-                    <span>{sub.label}</span>
+                    <span className="whitespace-nowrap">{sub.label}</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] ${
                         active ? "bg-blue-600 text-white" : "bg-slate-300 text-slate-700"
@@ -292,16 +424,16 @@ export function ProjectDetailTabs({
               })}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <Link
                 href={`/admin/projetos/${project.id}/cronograma`}
-                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs"
+                className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition-transform duration-75 select-none shadow-xs"
               >
                 Quadro Kanban →
               </Link>
               <Link
                 href={`/admin/projetos/${project.id}/relatorio`}
-                className="rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-xs"
+                className="inline-flex min-h-[44px] items-center rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 active:scale-[0.98] transition-transform duration-75 select-none shadow-xs"
               >
                 Relatório Técnico Executivo
               </Link>
@@ -318,7 +450,7 @@ export function ProjectDetailTabs({
                       Controle Físico-Financeiro
                     </span>
                     <h3 className="mt-1 text-lg font-bold text-slate-900">
-                      Avanço Físico das 14 Etapas Canônicas
+                      Avanço Físico das Etapas do Cronograma
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-500">
                       {totalStages} etapa(s) cadastradas · {completion}% de avanço linear médio ponderado
@@ -326,6 +458,16 @@ export function ProjectDetailTabs({
                   </div>
 
                   <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStageToEdit(null);
+                        setIsStageModalOpen(true);
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition active:scale-95"
+                    >
+                      + Nova Etapa
+                    </button>
                     <Link
                       href={`/admin/projetos/${project.id}/cronograma`}
                       className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
@@ -392,9 +534,28 @@ export function ProjectDetailTabs({
                             </div>
                           </td>
                           <td className="py-2.5 pr-3 text-right">
-                            <Badge tone={c.completion === 100 ? "green" : c.completion > 0 ? "blue" : "neutral"}>
-                              {c.completion === 100 ? "Concluída" : c.completion > 0 ? "Em andamento" : "Não iniciada"}
-                            </Badge>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Badge tone={c.completion === 100 ? "green" : c.completion > 0 ? "blue" : "neutral"}>
+                                {c.completion === 100 ? "Concluída" : c.completion > 0 ? "Em andamento" : "Não iniciada"}
+                              </Badge>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedStageToEdit({
+                                    name: `${c.name} (Cópia)`,
+                                    discipline: c.discipline,
+                                    designer: c.designer,
+                                    dueDate: c.dueDate,
+                                    completion: 0,
+                                  });
+                                  setIsStageModalOpen(true);
+                                }}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-xs active:scale-95"
+                                title="Duplicar etapa"
+                              >
+                                📑 Duplicar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -530,6 +691,17 @@ export function ProjectDetailTabs({
           )}
         </div>
       )}
+
+      {/* Modal de Criação / Duplicação de Etapa */}
+      <StageFormModal
+        projectId={project.id}
+        initialStage={selectedStageToEdit}
+        isOpen={isStageModalOpen}
+        onClose={() => {
+          setIsStageModalOpen(false);
+          setSelectedStageToEdit(null);
+        }}
+      />
     </div>
   );
 }

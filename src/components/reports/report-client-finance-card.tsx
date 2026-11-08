@@ -41,12 +41,27 @@ export function ReportClientFinanceCard({
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const togglePayment = async (item: InstallmentItem) => {
+    const isPaid = item.status === "PAID" || item.status === "Liquidado";
+    const nextStatus = isPaid ? "PENDING" : "PAID";
+    const nextPaidDate = isPaid ? null : new Date().toISOString();
+
+    // 1. Atualização Otimista Imediata (resposta em milissegundos)
+    setPayments((prev) =>
+      prev.map((p) =>
+        p.id === item.id
+          ? {
+              ...p,
+              status: nextStatus === "PAID" ? "Liquidado" : "Pendente",
+              paidAt: nextPaidDate
+                ? new Date(nextPaidDate).toLocaleDateString("pt-BR")
+                : "—",
+            }
+          : p,
+      ),
+    );
+
     try {
       setLoadingId(item.id);
-      const isPaid = item.status === "PAID" || item.status === "Liquidado";
-      const nextStatus = isPaid ? "PENDING" : "PAID";
-      const nextPaidDate = isPaid ? null : new Date().toISOString();
-
       const res = await fetch(`/api/projects/${projectId}/installments/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -56,23 +71,18 @@ export function ReportClientFinanceCard({
         }),
       });
 
-      if (res.ok) {
+      if (!res.ok) {
+        // Reversão em caso de falha de rede
         setPayments((prev) =>
-          prev.map((p) =>
-            p.id === item.id
-              ? {
-                  ...p,
-                  status: nextStatus === "PAID" ? "Liquidado" : "Pendente",
-                  paidAt: nextPaidDate
-                    ? new Date(nextPaidDate).toLocaleDateString("pt-BR")
-                    : "—",
-                }
-              : p,
-          ),
+          prev.map((p) => (p.id === item.id ? item : p)),
         );
       }
     } catch (err) {
       console.error("Erro ao alterar status da parcela:", err);
+      // Reversão em caso de exceção
+      setPayments((prev) =>
+        prev.map((p) => (p.id === item.id ? item : p)),
+      );
     } finally {
       setLoadingId(null);
     }

@@ -4,46 +4,112 @@ import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-p
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { editScheduleStageAction, deleteScheduleStageAction } from "@/app/actions/domain-actions";
+import { toggleChecklistItem } from "@/server/actions/checklist";
 import type { KanbanBoard, KanbanCard, KanbanColumnId } from "@/server/services/schedule-service";
-import { StageFormModal } from "./stage-form-modal";
+import { StageFormModal, type StageFormData } from "./stage-form-modal";
+import { MASTER_DISCIPLINES } from "@/lib/master-data";
 
 const DISCIPLINE_STYLE: Record<string, { badge: string; border: string; progress: string }> = {
   Arquitetura: { badge: "border-indigo-200 bg-indigo-50 text-indigo-700", border: "border-l-indigo-600", progress: "bg-indigo-600" },
   Estrutura: { badge: "border-amber-200 bg-amber-50 text-amber-700", border: "border-l-amber-500", progress: "bg-amber-500" },
   Estrutural: { badge: "border-amber-200 bg-amber-50 text-amber-700", border: "border-l-amber-500", progress: "bg-amber-500" },
+  "Estrutural TQS": { badge: "border-amber-200 bg-amber-50 text-amber-700", border: "border-l-amber-500", progress: "bg-amber-500" },
   "3D": { badge: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", border: "border-l-fuchsia-500", progress: "bg-fuchsia-600" },
   "Projeto 3D": { badge: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", border: "border-l-fuchsia-500", progress: "bg-fuchsia-600" },
+  "3D Corona": { badge: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", border: "border-l-fuchsia-500", progress: "bg-fuchsia-600" },
   Complementares: { badge: "border-sky-200 bg-sky-50 text-sky-700", border: "border-l-sky-500", progress: "bg-sky-500" },
+  "Hidrossanitário Revit": { badge: "border-sky-200 bg-sky-50 text-sky-700", border: "border-l-sky-500", progress: "bg-sky-500" },
+  "Elétrico Revit": { badge: "border-yellow-200 bg-yellow-50 text-yellow-800", border: "border-l-yellow-500", progress: "bg-yellow-500" },
+  "Combate a Incêndio": { badge: "border-rose-200 bg-rose-50 text-rose-700", border: "border-l-rose-500", progress: "bg-rose-500" },
   Obra: { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", border: "border-l-emerald-500", progress: "bg-emerald-600" },
   Obras: { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", border: "border-l-emerald-500", progress: "bg-emerald-600" },
   "Execução de Obra": { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", border: "border-l-emerald-500", progress: "bg-emerald-600" },
 };
 
-const COLUMN_STYLE: Record<KanbanColumnId, { label: string; tone: string }> = {
-  NOT_STARTED: { label: "A iniciar", tone: "border-slate-200 bg-slate-50" },
-  IN_PROGRESS: { label: "Em andamento", tone: "border-blue-200 bg-blue-50/60" },
-  COMPLETED: { label: "Concluído", tone: "border-emerald-200 bg-emerald-50/60" },
+const COLUMN_STYLE: Record<
+  KanbanColumnId,
+  { label: string; tone: string; dotColor: string; headerBadge: string; sublabel: string }
+> = {
+  NOT_STARTED: {
+    label: "A Iniciar / Backlog",
+    sublabel: "Fase de planejamento e requisitos",
+    tone: "border-slate-200 bg-slate-50/70",
+    dotColor: "bg-slate-400",
+    headerBadge: "bg-slate-200 text-slate-700",
+  },
+  IN_PROGRESS: {
+    label: "Em Modelagem / Produção",
+    sublabel: "Desenvolvimento ativo de pranchas",
+    tone: "border-blue-200 bg-blue-50/40",
+    dotColor: "bg-blue-600",
+    headerBadge: "bg-blue-100 text-blue-800",
+  },
+  REVIEW: {
+    label: "Revisão Técnica / Compatibilização",
+    sublabel: "Auditoria e checagem de interferências",
+    tone: "border-amber-200 bg-amber-50/40",
+    dotColor: "bg-amber-600",
+    headerBadge: "bg-amber-100 text-amber-800",
+  },
+  COMPLETED: {
+    label: "Concluído / Liberado",
+    sublabel: "Pronto para entrega ao cliente",
+    tone: "border-emerald-200 bg-emerald-50/40",
+    dotColor: "bg-emerald-600",
+    headerBadge: "bg-emerald-100 text-emerald-800",
+  },
 };
 
 function initials(name: string | null) {
-  return name?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "?";
+  return (
+    name
+      ?.split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "AV"
+  );
+}
+
+function getAvatarColor(name: string | null) {
+  if (!name) return "bg-slate-800 text-white";
+  const lower = name.toLowerCase();
+  if (lower.includes("eduardo")) return "bg-blue-600 text-white";
+  if (lower.includes("luan")) return "bg-amber-600 text-white";
+  if (lower.includes("erick")) return "bg-emerald-600 text-white";
+  return "bg-slate-800 text-white";
 }
 
 function deadline(card: KanbanCard) {
   if (!card.dueDate) return { text: "Sem prazo", tone: "text-slate-500 bg-slate-50" };
   const date = new Date(card.dueDate);
   const text = date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
-  const tone = card.alert.overdue ? "text-rose-600 bg-rose-50" : card.alert.dueSoon ? "text-amber-600 bg-amber-50" : "text-slate-500 bg-slate-50";
-  const detail = card.alert.overdue ? `${Math.abs(card.alert.daysRemaining ?? 0)} dia(s) em atraso` : card.alert.dueSoon ? (card.alert.daysRemaining === 0 ? "Vence hoje" : `Vence em ${card.alert.daysRemaining} dia(s)`) : text;
+  const tone = card.alert.overdue
+    ? "text-rose-600 bg-rose-50 border-rose-200"
+    : card.alert.dueSoon
+    ? "text-amber-600 bg-amber-50 border-amber-200"
+    : "text-slate-500 bg-slate-50 border-slate-200";
+  const detail = card.alert.overdue
+    ? `${Math.abs(card.alert.daysRemaining ?? 0)}d atraso`
+    : card.alert.dueSoon
+    ? card.alert.daysRemaining === 0
+      ? "Hoje"
+      : `Em ${card.alert.daysRemaining}d`
+    : text;
   return { text: detail, tone };
 }
 
-function statusForColumn(column: KanbanColumnId) {
-  return column === "COMPLETED" ? "COMPLETED" : column === "IN_PROGRESS" ? "IN_PROGRESS" : "NOT_STARTED";
+function statusForColumn(column: KanbanColumnId): "NOT_STARTED" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" {
+  if (column === "COMPLETED") return "COMPLETED";
+  if (column === "REVIEW") return "REVIEW";
+  if (column === "IN_PROGRESS") return "IN_PROGRESS";
+  return "NOT_STARTED";
 }
 
-function columnForCompletion(completion: number): KanbanColumnId {
+function columnForCompletion(completion: number, currentStatus?: string): KanbanColumnId {
   if (completion >= 99) return "COMPLETED";
+  if (currentStatus === "REVIEW" || (completion >= 75 && completion < 99)) return "REVIEW";
   if (completion <= 5) return "NOT_STARTED";
   return "IN_PROGRESS";
 }
@@ -54,233 +120,581 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
   const [query, setQuery] = useState("");
   const [assignee, setAssignee] = useState("");
   const [discipline, setDiscipline] = useState("");
+  const [filterAlertOnly, setFilterAlertOnly] = useState(false);
   const [selected, setSelected] = useState<KanbanCard | null>(null);
+  const [editingStage, setEditingStage] = useState<StageFormData | null>(null);
   const [isCreatingStage, setIsCreatingStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Mudança de avanço físico que move o card de coluna instantaneamente.
-   *
-   * A coluna é uma projeção estrita do percentual: 0–5% «A iniciar», 6–98% «Em
-   * andamento», 99–100% «Concluído». A escrita é otimista no ecrã e persistida
-   * via PATCH /api/projects/[id]/stages/[stageId].
+   * Mudança de avanço físico que move o card de coluna instantaneamente (Optimistic).
    */
   async function handleCompletionChange(card: KanbanCard, nextCompletion: number) {
     const completion = Math.max(0, Math.min(100, Math.round(nextCompletion)));
     if (completion === card.completion) return;
-    const target = columnForCompletion(completion);
+    const target = columnForCompletion(completion, card.status);
     const status = statusForColumn(target);
 
+    // 1. Atualização Otimista Imediata
     setColumns((current) => {
       const without = current.map((col) => ({ ...col, cards: [...col.cards] }));
       const source = without.find((col) => col.cards.some((c) => c.id === card.id));
       if (source) {
         source.cards.splice(source.cards.findIndex((c) => c.id === card.id), 1);
       }
-      const label = status === "COMPLETED" ? "Concluída" : status === "IN_PROGRESS" ? "Em andamento" : "Não iniciada";
+      const label =
+        status === "COMPLETED"
+          ? "Concluída"
+          : status === "REVIEW"
+          ? "Em revisão"
+          : status === "IN_PROGRESS"
+          ? "Em andamento"
+          : "Não iniciada";
       const destination = without.find((col) => col.id === target);
       if (destination) {
-        destination.cards.push({ ...card, completion, statusLabel: label });
+        destination.cards.push({ ...card, completion, status, statusLabel: label });
       }
       return without;
     });
     setError(null);
 
+    // 2. Disparo assíncrono em background
     try {
       const response = await fetch(`/api/projects/${projectId}/stages/${card.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status, completion, order: card.order }),
       });
-      if (!response.ok) throw new Error((await response.json()).error ?? "Não foi possível atualizar o avanço.");
+      if (!response.ok) throw new Error((await response.json()).error ?? "Falha ao salvar avanço.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar o avanço.");
       router.refresh();
     }
   }
 
-  const visible = useMemo(() => columns.map((column) => ({
-    ...column,
-    cards: column.cards.filter((card) =>
-      (!query || card.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
-      (!assignee || card.designer === assignee) &&
-      (!discipline || card.discipline === discipline),
-    ),
-  })), [columns, query, assignee, discipline]);
+  /**
+   * Toggle Otimista de item de Checklist inline no Card
+   */
+  async function handleChecklistToggle(cardId: string, checklistId: string, currentCompleted: boolean) {
+    const nextCompleted = !currentCompleted;
+
+    // Atualização otimista local imediata no card
+    setColumns((current) =>
+      current.map((col) => ({
+        ...col,
+        cards: col.cards.map((c) => {
+          if (c.id !== cardId) return c;
+          const updatedChecklists = (c.checklists || []).map((chk) =>
+            chk.id === checklistId ? { ...chk, isCompleted: nextCompleted } : chk,
+          );
+          return { ...c, checklists: updatedChecklists };
+        }),
+      })),
+    );
+
+    // Chamada em background
+    try {
+      await toggleChecklistItem(checklistId, projectId, nextCompleted);
+    } catch {
+      // Reverte em caso de erro
+      router.refresh();
+    }
+  }
+
+  const visible = useMemo(
+    () =>
+      columns.map((column) => ({
+        ...column,
+        cards: column.cards.filter(
+          (card) =>
+            (!query || card.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
+            (!assignee || card.designer === assignee) &&
+            (!discipline || card.discipline === discipline) &&
+            (!filterAlertOnly || card.alert.overdue || card.alert.dueSoon),
+        ),
+      })),
+    [columns, query, assignee, discipline, filterAlertOnly],
+  );
 
   async function onDragEnd(result: DropResult) {
-    if (!result.destination || (result.destination.droppableId === result.source.droppableId && result.destination.index === result.source.index)) return;
+    if (
+      !result.destination ||
+      (result.destination.droppableId === result.source.droppableId &&
+        result.destination.index === result.source.index)
+    )
+      return;
+
     const sourceId = result.source.droppableId as KanbanColumnId;
     const targetId = result.destination.droppableId as KanbanColumnId;
+    const targetStatus = statusForColumn(targetId);
+
     const previous = columns;
     const moved = visible.find((column) => column.id === sourceId)?.cards[result.source.index];
     if (!moved) return;
+
+    let completion = moved.completion;
+    if (targetId === "COMPLETED") completion = 100;
+    else if (targetId === "REVIEW") completion = moved.completion < 75 || moved.completion >= 99 ? 85 : moved.completion;
+    else if (targetId === "NOT_STARTED") completion = 0;
+    else if (targetId === "IN_PROGRESS") completion = moved.completion === 0 || moved.completion >= 99 ? 50 : moved.completion;
+
+    const statusLabel =
+      targetStatus === "COMPLETED"
+        ? "Concluída"
+        : targetStatus === "REVIEW"
+        ? "Em revisão"
+        : targetStatus === "IN_PROGRESS"
+        ? "Em andamento"
+        : "Não iniciada";
+
+    const updated = {
+      ...moved,
+      status: targetStatus,
+      completion,
+      statusLabel,
+    };
+
+    // 1. Atualização Otimista Imediata (0ms)
     const next = previous.map((column) => ({ ...column, cards: [...column.cards] }));
     const sourceCards = next.find((column) => column.id === sourceId)?.cards;
     if (!sourceCards) return;
     sourceCards.splice(sourceCards.findIndex((card) => card.id === moved.id), 1);
-    const completion = targetId === "COMPLETED" ? 100 : targetId === "NOT_STARTED" ? 0 : moved.completion === 100 ? 85 : moved.completion === 0 ? 10 : moved.completion;
-    const updated = { ...moved, completion, statusLabel: targetId === "COMPLETED" ? "Concluída" : targetId === "IN_PROGRESS" ? "Em andamento" : "Não iniciada" };
+
     const targetCards = next.find((column) => column.id === targetId)?.cards;
     if (!targetCards) return;
+
     const visibleTargetCards = visible.find((column) => column.id === targetId)?.cards ?? [];
     const beforeId = visibleTargetCards[result.destination.index]?.id;
     const insertionIndex = beforeId ? targetCards.findIndex((card) => card.id === beforeId) : targetCards.length;
     targetCards.splice(Math.max(0, insertionIndex), 0, updated);
+
     setColumns(next);
     setError(null);
+
+    // 2. Disparo assíncrono em background sem bloqueio
     try {
       const response = await fetch(`/api/projects/${projectId}/stages/${moved.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status: statusForColumn(targetId), completion, order: result.destination.index }),
+        body: JSON.stringify({ status: targetStatus, completion, order: result.destination.index }),
       });
       if (!response.ok) throw new Error((await response.json()).error ?? "Não foi possível mover a etapa.");
-      router.refresh();
     } catch (reason) {
       setColumns(previous);
       setError(reason instanceof Error ? reason.message : "Não foi possível mover a etapa.");
     }
   }
 
+  const QUICK_DISCIPLINES = [
+    { label: "Todas as Disciplinas", value: "" },
+    ...MASTER_DISCIPLINES.map((d) => ({
+      label: d.name,
+      value: d.name === "Estrutural TQS" ? "Estrutura" : d.name === "3D Corona" ? "Projeto 3D" : d.name,
+    })),
+    { label: "Execução de Obra", value: "Obra" },
+  ];
+
   return (
     <>
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar etapa..." className="min-w-44 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
-          <select value={assignee} onChange={(event) => setAssignee(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-            <option value="">Todos os responsáveis</option>
-            {board.assignees.map((name) => <option key={name}>{name}</option>)}
-          </select>
-          <select value={discipline} onChange={(event) => setDiscipline(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-            <option value="">Todas as disciplinas</option>
-            {["Arquitetura", "Estrutura", "Projeto 3D", "Complementares", "Obra", "Execução de Obra"].map((name) => <option key={name}>{name}</option>)}
-          </select>
+      {/* Barra de Filtros Rápidos Estilo Trello / Bitrix24 */}
+      <div className="mt-5 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 flex-1">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Pesquisar etapa ou atividade técnica..."
+              className="min-w-52 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+            />
+            <select
+              aria-label="Filtrar por responsável"
+              value={assignee}
+              onChange={(event) => setAssignee(event.target.value)}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 bg-white"
+            >
+              <option value="">Todos os responsáveis</option>
+              {board.assignees.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingStage(null);
+              setIsCreatingStage(true);
+            }}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 active:scale-[0.98] transition-transform duration-75 select-none shrink-0"
+          >
+            <span>+</span> Nova Atividade
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsCreatingStage(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 transition active:scale-95 shrink-0"
-        >
-          <span className="text-sm font-light">+</span> Nova Etapa (14 Canônicas)
-        </button>
+
+        {/* Pílulas de Filtro Rápido */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-nowrap -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 pt-1 border-t border-slate-100">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 shrink-0">
+            Filtros:
+          </span>
+          {QUICK_DISCIPLINES.map((d) => {
+            const isActive = discipline === d.value;
+            return (
+              <button
+                key={d.label}
+                type="button"
+                onClick={() => setDiscipline(d.value)}
+                className={`min-h-[44px] rounded-xl px-3.5 py-1.5 text-xs font-bold whitespace-nowrap active:scale-[0.98] transition-transform duration-75 select-none ${
+                  isActive
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {d.label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setFilterAlertOnly(!filterAlertOnly)}
+            className={`min-h-[44px] rounded-xl px-3.5 py-1.5 text-xs font-bold whitespace-nowrap active:scale-[0.98] transition-transform duration-75 select-none flex items-center gap-1 ${
+              filterAlertOnly
+                ? "bg-rose-600 text-white shadow-2xs"
+                : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+            }`}
+          >
+            <span>⚠️ Atenção / Prazos</span>
+          </button>
+        </div>
       </div>
-      {error ? <p className="mt-2 text-sm font-semibold text-rose-700">{error}</p> : null}
+
+      {error && <p className="mt-2 text-xs font-semibold text-rose-700">{error}</p>}
+
+      {/* QUADRO KANBAN FLUIDO EM 4 COLUNAS (TRELLO / BITRIX24) */}
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="mt-5 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
-          {visible.map((column) => (
-            <Droppable droppableId={column.id} key={column.id}>
-              {(provided, snapshot) => (
-                <section
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className={`w-[88vw] sm:w-[340px] shrink-0 snap-center lg:w-auto lg:shrink min-h-48 rounded-2xl border p-3.5 transition-colors ${COLUMN_STYLE[column.id].tone} ${snapshot.isDraggingOver ? "ring-2 ring-blue-300" : ""}`}
-                >
-                  <header className="mb-3 flex items-center justify-between">
-                    <h2 className="text-sm font-bold text-slate-800">{COLUMN_STYLE[column.id].label}</h2>
-                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">{column.cards.length}</span>
-                  </header>
-                  <div className="space-y-2.5">
-                    {column.cards.map((card, index) => {
-                      const due = deadline(card);
-                      const colors = DISCIPLINE_STYLE[card.discipline ?? ""] ?? { badge: "border-slate-200 bg-slate-50 text-slate-600", border: "border-l-slate-400", progress: "bg-slate-500" };
-                      return (
-                        <Draggable draggableId={card.id} index={index} key={card.id}>
-                          {(dragProvided, dragSnapshot) => (
-                            <article ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps} onClick={() => setSelected(card)} className={`cursor-grab rounded-2xl border border-neutral-100 border-l-4 bg-white/95 p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.08)] active:cursor-grabbing ${colors.border} ${dragSnapshot.isDragging ? "scale-[1.02] rotate-1 border-indigo-400 shadow-[0_20px_35px_rgba(0,0,0,0.15)]" : ""}`}>
-                              <div className="flex items-center justify-between gap-2">
-                                <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${colors.badge}`}>{card.discipline ?? "Sem disciplina"}</span>
-                                {card.priority === "ALTA" ? <span className="text-[10px] font-bold text-rose-600">ALTA</span> : <span className="text-[10px] font-semibold text-slate-400">NORMAL</span>}
-                              </div>
-                              <h3 className="mt-2 text-sm font-semibold leading-5 text-slate-800">{card.name}</h3>
-                              {card.description ? <p className="mt-1 text-xs leading-4 text-slate-500">{card.description}</p> : null}
-                              <div className="mt-3 flex items-center gap-2 text-xs">
-                                <span title={card.designer ?? "Responsável não atribuído"} className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">{initials(card.designer)}</span>
-                                <span className="min-w-0 flex-1 truncate text-slate-500">{card.designer ?? "Por atribuir"}</span>
-                                <span className={`rounded-md border px-1.5 py-1 font-semibold ${due.tone}`}>◷ {due.text}</span>
-                              </div>
-                              <div className="mt-3 flex items-center gap-2">
-                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${colors.progress}`} style={{ width: `${card.completion}%` }} /></div>
-                                <span className="text-[10px] font-bold text-slate-500">{card.completion}%</span>
-                              </div>
-                              {card.completion >= 99 ? (
-                                <div className="mt-2 flex items-center gap-2"><span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 animate-pulse">100% · Concluído</span><span className="text-[10px] text-emerald-600">card em «Concluído»</span></div>
-                              ) : null}
-                              <div className="mt-2.5">
-                                <input type="range" min="0" max="100" value={card.completion} onChange={(event) => handleCompletionChange(card, Number(event.target.value))} className="w-full accent-indigo-600 cursor-pointer" />
-                                <div className="flex justify-between text-[10px] text-slate-400">
-                                  <span>0%</span>
-                                  <span>Avanço físico</span>
-                                  <span>100%</span>
+        <div className="mt-5 flex gap-4 overflow-x-auto pb-4 scrollbar-none safe-pb snap-x snap-mandatory xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0">
+          {visible.map((column) => {
+            const colMeta = COLUMN_STYLE[column.id];
+            return (
+              <Droppable droppableId={column.id} key={column.id}>
+                {(provided, snapshot) => (
+                  <section
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`w-[85vw] sm:w-[320px] shrink-0 snap-center xl:w-auto xl:shrink min-h-[480px] rounded-2xl border p-3.5 transition-colors ${
+                      colMeta.tone
+                    } ${snapshot.isDraggingOver ? "ring-2 ring-blue-400 bg-blue-50/70" : ""}`}
+                  >
+                    {/* Header da Coluna */}
+                    <header className="mb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2.5 w-2.5 rounded-full ${colMeta.dotColor}`} />
+                          <h2 className="text-xs font-bold text-slate-900 tracking-tight">
+                            {colMeta.label}
+                          </h2>
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-mono font-bold ${colMeta.headerBadge}`}>
+                          {column.cards.length}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-slate-400 font-medium pl-4.5">
+                        {colMeta.sublabel}
+                      </p>
+                    </header>
+
+                    {/* Lista de Cards da Coluna */}
+                    <div className="space-y-3">
+                      {column.cards.map((card, index) => {
+                        const due = deadline(card);
+                        const colors =
+                          DISCIPLINE_STYLE[card.discipline ?? ""] ?? {
+                            badge: "border-slate-200 bg-slate-50 text-slate-600",
+                            border: "border-l-slate-400",
+                            progress: "bg-slate-500",
+                          };
+
+                        const completedChecklists = (card.checklists || []).filter((c) => c.isCompleted).length;
+                        const totalChecklists = (card.checklists || []).length;
+
+                        return (
+                          <Draggable draggableId={card.id} index={index} key={card.id}>
+                            {(dragProvided, dragSnapshot) => (
+                              <article
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                {...dragProvided.dragHandleProps}
+                                onClick={() => setSelected(card)}
+                                className={`group cursor-grab rounded-2xl border border-slate-200/90 border-l-4 bg-white p-3.5 shadow-2xs backdrop-blur-xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:cursor-grabbing ${
+                                  colors.border
+                                } ${
+                                  dragSnapshot.isDragging
+                                    ? "scale-[1.02] rotate-1 border-blue-500 shadow-md ring-2 ring-blue-400/30"
+                                    : ""
+                                }`}
+                              >
+                                {/* Header do Card: Edificação & Fase Normativa */}
+                                <div className="flex items-center justify-between gap-1 border-b border-slate-100 pb-2 mb-2">
+                                  <span className="truncate text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                                    🏢 {card.projectName || board.project.name || "Residência de Praia - Pedro"}
+                                  </span>
+                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-semibold text-slate-500 shrink-0">
+                                    {card.phase || "Projeto Executivo"}
+                                  </span>
                                 </div>
-                              </div>
-                              {/* Botões rápidos contextuais para Mobile (< lg) */}
-                              <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 lg:hidden">
-                                <span className="text-[10px] font-medium text-slate-400">Mover:</span>
-                                <div className="flex gap-1.5">
-                                  {column.id !== "NOT_STARTED" && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => { e.stopPropagation(); handleCompletionChange(card, 0); }}
-                                      className="min-h-[34px] px-2.5 py-1 text-[11px] font-medium text-slate-700 bg-slate-100 rounded-lg active:scale-95 transition"
-                                    >
-                                      A iniciar
-                                    </button>
-                                  )}
-                                  {column.id !== "IN_PROGRESS" && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => { e.stopPropagation(); handleCompletionChange(card, 50); }}
-                                      className="min-h-[34px] px-2.5 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 rounded-lg active:scale-95 transition"
-                                    >
-                                      Em andamento
-                                    </button>
-                                  )}
-                                  {column.id !== "COMPLETED" && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => { e.stopPropagation(); handleCompletionChange(card, 100); }}
-                                      className="min-h-[34px] px-2.5 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded-lg active:scale-95 transition"
-                                    >
-                                      Concluído
-                                    </button>
+
+                                {/* Disciplina & Prioridade */}
+                                <div className="flex items-center justify-between gap-2">
+                                  <span
+                                    className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${colors.badge}`}
+                                  >
+                                    {card.discipline ?? "Geral"}
+                                  </span>
+                                  {card.alert.overdue ? (
+                                    <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 animate-pulse">
+                                      ⚠️ ATRASO
+                                    </span>
+                                  ) : card.alert.dueSoon ? (
+                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                                      ⏳ VENCE LOGO
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-semibold text-slate-400">
+                                      {due.text}
+                                    </span>
                                   )}
                                 </div>
-                              </div>
-                            </article>
-                          )}
-                        </Draggable>
-                      );
-                    })}
-                  </div>
-                  {provided.placeholder}
-                </section>
-              )}
-            </Droppable>
-          ))}
+
+                                {/* Título da Atividade */}
+                                <h3 className="mt-2 text-xs font-bold leading-snug text-slate-900 group-hover:text-blue-600 transition">
+                                  {card.name}
+                                </h3>
+
+                                {card.description && (
+                                  <p className="mt-1 text-[11px] leading-4 text-slate-500 line-clamp-2">
+                                    {card.description}
+                                  </p>
+                                )}
+
+                                {/* Checklists Inline Interativos (Optimistic) */}
+                                {card.checklists && card.checklists.length > 0 && (
+                                  <div className="mt-2.5 rounded-xl bg-slate-50/80 p-2 border border-slate-100 space-y-1.5">
+                                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
+                                      <span className="flex items-center gap-1">
+                                        ☑️ Checklists
+                                      </span>
+                                      <span className="font-mono text-slate-500">
+                                        {completedChecklists}/{totalChecklists}
+                                      </span>
+                                    </div>
+
+                                    {/* 2 primeiros itens de checklist clicáveis com área tátil confortável */}
+                                    <div className="space-y-1">
+                                      {card.checklists.slice(0, 2).map((item) => (
+                                        <label
+                                          key={item.id}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="flex min-h-[44px] items-center gap-2.5 px-2 text-xs text-slate-700 cursor-pointer rounded-lg hover:bg-slate-100/80 active:scale-[0.98] transition-transform duration-75 select-none"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={item.isCompleted}
+                                            onChange={() =>
+                                              handleChecklistToggle(card.id, item.id, item.isCompleted)
+                                            }
+                                            className="h-4 w-4 rounded text-blue-600 focus:ring-0 shrink-0"
+                                          />
+                                          <span
+                                            className={`truncate ${
+                                              item.isCompleted
+                                                ? "line-through text-slate-400 font-normal"
+                                                : "font-medium"
+                                            }`}
+                                          >
+                                            {item.task}
+                                          </span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Badges de Rodapé: Pranchas Vinculadas & Responsável com Avatar */}
+                                <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs">
+                                  {/* Badge de Pranchas */}
+                                  <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                    📐 {card.deliverablesCount || 0} pranchas
+                                  </span>
+
+                                  {/* Responsável com Avatar */}
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      title={card.designer ?? "Eduardo Marques"}
+                                      className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold shadow-2xs ${getAvatarColor(
+                                        card.designer,
+                                      )}`}
+                                    >
+                                      {initials(card.designer)}
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-slate-600 max-w-[90px] truncate">
+                                      {card.designer ? card.designer.split(" ")[0] : "Eduardo"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Barra de Progresso & Slider Interativo */}
+                                <div className="mt-2.5 space-y-1">
+                                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
+                                    <span>Avanço</span>
+                                    <span className="font-mono text-slate-700">{card.completion}%</span>
+                                  </div>
+                                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-200 ${colors.progress}`}
+                                      style={{ width: `${card.completion}%` }}
+                                    />
+                                  </div>
+
+                                  <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="range"
+                                      min="0"
+                                      max="100"
+                                      value={card.completion}
+                                      onChange={(event) =>
+                                        handleCompletionChange(card, Number(event.target.value))
+                                      }
+                                      className="w-full accent-blue-600 cursor-pointer h-1"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Ações Rápidas de Movimentação Mobile (< xl) */}
+                                <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 xl:hidden">
+                                  <span className="text-[9px] font-bold uppercase text-slate-400">
+                                    Mover:
+                                  </span>
+                                  <div className="flex gap-1">
+                                    {column.id !== "NOT_STARTED" && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCompletionChange(card, 0);
+                                        }}
+                                        className="rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-700 bg-slate-100 active:scale-95"
+                                      >
+                                        A Iniciar
+                                      </button>
+                                    )}
+                                    {column.id !== "IN_PROGRESS" && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCompletionChange(card, 50);
+                                        }}
+                                        className="rounded px-1.5 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 active:scale-95"
+                                      >
+                                        Produção
+                                      </button>
+                                    )}
+                                    {column.id !== "REVIEW" && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCompletionChange(card, 85);
+                                        }}
+                                        className="rounded px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 active:scale-95"
+                                      >
+                                        Revisão
+                                      </button>
+                                    )}
+                                    {column.id !== "COMPLETED" && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCompletionChange(card, 100);
+                                        }}
+                                        className="rounded px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 active:scale-95"
+                                      >
+                                        Liberar
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </article>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+                    </div>
+                    {provided.placeholder}
+                  </section>
+                )}
+              </Droppable>
+            );
+          })}
         </div>
       </DragDropContext>
-      {selected ? <StageDrawer projectId={projectId} card={selected} onClose={() => setSelected(null)} onSaved={(patch) => {
-        setColumns((current) => {
-          const updated = { ...selected, ...patch };
-          const target = columnForCompletion(updated.completion);
-          const without = current.map((column) => ({ ...column, cards: column.cards.filter((item) => item.id !== selected.id) }));
-          const destination = without.find((column) => column.id === target);
-          if (destination) destination.cards.push(updated);
-          return without;
-        });
-      }} /> : null}
+
+      {/* Modal / Drawer de Detalhes da Etapa */}
+      {selected ? (
+        <StageDrawer
+          projectId={projectId}
+          card={selected}
+          onClose={() => setSelected(null)}
+          onDuplicate={(stageCard) => {
+            setSelected(null);
+            setEditingStage({
+              name: `${stageCard.name} (Cópia)`,
+              discipline: stageCard.discipline,
+              designer: stageCard.designer,
+              dueDate: stageCard.dueDate,
+              completion: 0,
+            });
+            setIsCreatingStage(true);
+          }}
+          onSaved={(patch) => {
+            setColumns((current) =>
+              current.map((col) => ({
+                ...col,
+                cards: col.cards.map((c) => (c.id === selected.id ? { ...c, ...patch } : c)),
+              })),
+            );
+          }}
+        />
+      ) : null}
 
       <StageFormModal
         projectId={projectId}
+        initialStage={editingStage}
         isOpen={isCreatingStage}
-        onClose={() => setIsCreatingStage(false)}
+        onClose={() => {
+          setIsCreatingStage(false);
+          setEditingStage(null);
+        }}
       />
     </>
   );
 }
 
-function StageDrawer({ projectId, card, onClose, onSaved }: { projectId: string; card: KanbanCard; onClose: () => void; onSaved: (patch: Partial<KanbanCard>) => void }) {
+function StageDrawer({
+  projectId,
+  card,
+  onClose,
+  onDuplicate,
+  onSaved,
+}: {
+  projectId: string;
+  card: KanbanCard;
+  onClose: () => void;
+  onDuplicate: (card: KanbanCard) => void;
+  onSaved: (patch: Partial<KanbanCard>) => void;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -295,13 +709,28 @@ function StageDrawer({ projectId, card, onClose, onSaved }: { projectId: string;
       designer: String(form.get("designer") ?? "").trim() || null,
       startDate: String(form.get("startDate") ?? "").trim() || null,
       dueDate: String(form.get("dueDate") ?? "").trim() || null,
-      notes: [String(form.get("notes") ?? "").trim(), checklist.dwg ? "[x] Enviar prancha em DWG" : "[ ] Enviar prancha em DWG", checklist.approval ? "[x] Aprovação do cliente" : "[ ] Aprovação do cliente"].filter(Boolean).join("\n"),
+      notes: [
+        String(form.get("notes") ?? "").trim(),
+        checklist.dwg ? "[x] Enviar prancha em DWG" : "[ ] Enviar prancha em DWG",
+        checklist.approval ? "[x] Aprovação do cliente" : "[ ] Aprovação do cliente",
+      ]
+        .filter(Boolean)
+        .join("\n"),
       completion,
     };
     startTransition(async () => {
       try {
         await editScheduleStageAction(card.id, input);
-        onSaved({ name: input.name, description: input.description, discipline: input.discipline, designer: input.designer, startDate: input.startDate ? new Date(input.startDate) : null, dueDate: input.dueDate ? new Date(input.dueDate) : null, notes: input.notes, completion });
+        onSaved({
+          name: input.name,
+          description: input.description,
+          discipline: input.discipline,
+          designer: input.designer,
+          startDate: input.startDate ? new Date(input.startDate) : null,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          notes: input.notes,
+          completion,
+        });
         onClose();
         router.refresh();
       } catch (reason) {
@@ -311,7 +740,7 @@ function StageDrawer({ projectId, card, onClose, onSaved }: { projectId: string;
   }
 
   function remove() {
-    if (!window.confirm("Excluir esta etapa do cronograma?")) return;
+    if (!window.confirm("Excluir esta atividade do cronograma?")) return;
     startTransition(async () => {
       await deleteScheduleStageAction(card.id);
       onClose();
@@ -320,23 +749,155 @@ function StageDrawer({ projectId, card, onClose, onSaved }: { projectId: string;
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <aside className="h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl">
-        <div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">Edição rápida</p><h2 className="mt-1 text-lg font-bold text-slate-900">{card.name}</h2></div><button type="button" onClick={onClose} className="text-2xl text-slate-400" aria-label="Fechar">×</button></div>
-        <form action={save} className="mt-6 space-y-4">
-          <label className="block text-xs font-semibold text-slate-600">Nome<input name="name" defaultValue={card.name} required className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-          <label className="block text-xs font-semibold text-slate-600">Descrição técnica<textarea name="description" defaultValue={card.description ?? ""} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-          <label className="block text-xs font-semibold text-slate-600">Disciplina<input name="discipline" defaultValue={card.discipline ?? ""} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-          <label className="block text-xs font-semibold text-slate-600">Responsável<input name="designer" defaultValue={card.designer ?? ""} list="stage-assignees" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-          <datalist id="stage-assignees"><option>Eduardo Marques</option><option>Luan Almeida</option><option>Erick Santiago</option></datalist>
-          <div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold text-slate-600">Início<input name="startDate" type="date" defaultValue={card.startDate ? new Date(card.startDate).toISOString().slice(0, 10) : ""} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label><label className="text-xs font-semibold text-slate-600">Prazo<input name="dueDate" type="date" defaultValue={card.dueDate ? new Date(card.dueDate).toISOString().slice(0, 10) : ""} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label></div>
-          <label className="block text-xs font-semibold text-slate-600">Avanço · {completion}%<input type="range" min="0" max="100" value={completion} onChange={(event) => setCompletion(Number(event.target.value))} className="mt-3 w-full accent-blue-600" /></label>
-          <fieldset className="space-y-2"><legend className="text-xs font-semibold text-slate-600">Pendências rápidas</legend><label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={checklist.dwg} onChange={(event) => setChecklist((current) => ({ ...current, dwg: event.target.checked }))} /> Enviar prancha em DWG</label><label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={checklist.approval} onChange={(event) => setChecklist((current) => ({ ...current, approval: event.target.checked }))} /> Aprovação do cliente</label></fieldset>
-          <label className="block text-xs font-semibold text-slate-600">Notas técnicas<textarea name="notes" defaultValue={card.notes ?? ""} rows={4} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-          {error ? <p className="text-sm font-semibold text-rose-700">{error}</p> : null}
-          <button type="submit" disabled={pending} className="w-full rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{pending ? "Salvando..." : "Salvar alterações"}</button>
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-xs"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <aside className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl animate-in slide-in-from-right duration-200">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+              Detalhes da Atividade
+            </span>
+            <h2 className="mt-1 text-base font-bold text-slate-900">{card.name}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            aria-label="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Resumo da Edificação & Fase */}
+        <div className="mt-4 rounded-xl bg-slate-50 p-3 border border-slate-100 space-y-1">
+          <p className="text-xs text-slate-600 font-semibold">
+            🏢 Edificação: <span className="text-slate-900">{card.projectName || "Residência de Praia - Pedro"}</span>
+          </p>
+          <p className="text-xs text-slate-600 font-semibold">
+            📐 Fase Normativa: <span className="text-slate-900">{card.phase || "Projeto Executivo"}</span>
+          </p>
+          <p className="text-xs text-slate-600 font-semibold">
+            🏛️ Disciplina: <span className="text-slate-900">{card.discipline || "Geral"}</span>
+          </p>
+          <p className="text-xs text-slate-600 font-semibold">
+            📄 Pranchas vinculadas: <span className="text-slate-900">{card.deliverablesCount || 0} pranchas</span>
+          </p>
+        </div>
+
+        <form action={save} className="mt-5 space-y-4">
+          <label className="block text-xs font-semibold text-slate-700">
+            Título
+            <input
+              name="name"
+              defaultValue={card.name}
+              required
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900"
+            />
+          </label>
+
+          <label className="block text-xs font-semibold text-slate-700">
+            Descrição Técnica
+            <textarea
+              name="description"
+              defaultValue={card.description ?? ""}
+              rows={3}
+              className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-800"
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs font-semibold text-slate-700">
+              Disciplina
+              <input
+                name="discipline"
+                defaultValue={card.discipline ?? ""}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700">
+              Responsável
+              <input
+                name="designer"
+                defaultValue={card.designer ?? ""}
+                list="stage-assignees"
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800"
+              />
+            </label>
+          </div>
+
+          <datalist id="stage-assignees">
+            <option>Eduardo Marques</option>
+            <option>Emanoel Luan</option>
+            <option>Erick</option>
+          </datalist>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-semibold text-slate-700">
+              Início
+              <input
+                name="startDate"
+                type="date"
+                defaultValue={card.startDate ? new Date(card.startDate).toISOString().slice(0, 10) : ""}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800"
+              />
+            </label>
+            <label className="text-xs font-semibold text-slate-700">
+              Prazo Final
+              <input
+                name="dueDate"
+                type="date"
+                defaultValue={card.dueDate ? new Date(card.dueDate).toISOString().slice(0, 10) : ""}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800"
+              />
+            </label>
+          </div>
+
+          <label className="block text-xs font-semibold text-slate-700">
+            Avanço Físico · {completion}%
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={completion}
+              onChange={(event) => setCompletion(Number(event.target.value))}
+              className="mt-2 w-full accent-blue-600"
+            />
+          </label>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={remove}
+              disabled={pending}
+              className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition active:scale-95"
+            >
+              Excluir
+            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onDuplicate(card)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition active:scale-95"
+              >
+                Duplicar
+              </button>
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition active:scale-95"
+              >
+                {pending ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+          {error && <p className="text-xs font-bold text-rose-600">{error}</p>}
         </form>
-        <button type="button" disabled={pending} onClick={remove} className="mt-8 text-sm font-semibold text-rose-600 hover:text-rose-700">Excluir etapa</button>
       </aside>
     </div>
   );

@@ -94,52 +94,33 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <AppShell eyebrow="Centro operacional">
-      <div className="mx-auto max-w-7xl font-sans">
-        <Link href="/admin/projetos" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
-          ← Voltar para projetos
-        </Link>
-        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between border-b border-slate-200/80 pb-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                Edificação
-              </span>
-              <span className="text-xs font-semibold text-slate-400">· ArqVértice Studio</span>
-            </div>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{project.name}</h1>
-            <p className="mt-1 text-xs text-slate-500">
-              Cliente: <strong className="text-slate-800">{project.client?.name ?? "Não informado"}</strong> · {project.type ?? "Residencial Alto Padrão"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <Link
-              href={`/admin/projetos/${id}/relatorio`}
-              className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-sm"
-            >
-              Relatório Executivo
-            </Link>
-            <Badge tone={project.status === "IN_PROGRESS" ? "blue" : project.status === "COMPLETED" ? "green" : "amber"}>
-              {project.status === "IN_PROGRESS" ? "Em Execução" : project.status === "COMPLETED" ? "Concluído" : project.status}
-            </Badge>
-          </div>
+      <div className="mx-auto max-w-7xl font-sans space-y-4">
+        {/* Breadcrumb e navegação de retorno */}
+        <div className="flex items-center gap-2 text-xs">
+          <Link
+            href="/admin/projetos"
+            className="font-semibold text-blue-600 hover:text-blue-700 transition flex items-center gap-1"
+          >
+            ← Voltar para projetos
+          </Link>
+          <span className="text-zinc-300">/</span>
+          <span className="text-zinc-500 truncate max-w-[240px] sm:max-w-none">{project.name}</span>
         </div>
 
-        {/* Submenu por Abas da Edificação e Conteúdo Dinâmico */}
-        <div className="mt-4">
-          <ProjectDetailTabs
-            project={projectData}
-            linkStatus={linkStatus}
-            reports={reports.map((r) => ({ id: r.id, title: r.title, status: r.status as "PREPARING" | "INTERNAL" | "RELEASED" | "ARCHIVED" }))}
-            documents={documents}
-            commercial={commercial}
-            board={board}
-            installments={installmentsList}
-            deliverables={deliverablesList}
-            deliverableMatrix={deliverableMatrix}
-            stages={stages}
-            checklistItems={checklistItems}
-          />
-        </div>
+        {/* Record Page Header do Salesforce LDS & Submenus da Edificação */}
+        <ProjectDetailTabs
+          project={projectData}
+          linkStatus={linkStatus}
+          reports={reports.map((r) => ({ id: r.id, title: r.title, status: r.status as "PREPARING" | "INTERNAL" | "RELEASED" | "ARCHIVED" }))}
+          documents={documents}
+          commercial={commercial}
+          board={board}
+          installments={installmentsList}
+          deliverables={deliverablesList}
+          deliverableMatrix={deliverableMatrix}
+          stages={stages}
+          checklistItems={checklistItems}
+        />
       </div>
     </AppShell>
   );

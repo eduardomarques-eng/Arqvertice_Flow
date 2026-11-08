@@ -6,7 +6,7 @@ import { DomainError } from "./errors";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { canOperateSchedule } from "@/lib/schedule-roles";
 
-export type AuthRole = "ADMIN" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "OPERATOR" | "CLIENT";
+export type AuthRole = "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "OPERATOR" | "CLIENT";
 const COOKIE = "arqvertice_session";
 const LIFETIME = 1000 * 60 * 60 * 24 * 7;
 
@@ -48,8 +48,12 @@ export async function requireRole(role: AuthRole) {
   return user;
 }
 
-export function isTeamRole(role: string): role is "EQUIPE" | "OPERADOR" {
-  return role === "EQUIPE" || role === "OPERADOR";
+export function isTeamRole(role: string): role is "EQUIPE" | "OPERADOR" | "ARQUITETO" | "ENGENHEIRO" {
+  return role === "EQUIPE" || role === "OPERADOR" || role === "ARQUITETO" || role === "ENGENHEIRO";
+}
+
+export function isTechnicalRole(role: string): role is "ADMIN" | "ARQUITETO" | "ENGENHEIRO" {
+  return role === "ADMIN" || role === "ARQUITETO" || role === "ENGENHEIRO";
 }
 
 export function isClientRole(role: string): role is "CLIENTE" | "CLIENT" {

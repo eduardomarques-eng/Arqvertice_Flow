@@ -10,9 +10,9 @@
  * (`ProjectAccess`), não aqui. Aqui responde-se só: este PAPEL pode operar?
  */
 
-export type ScheduleRole = "ADMIN" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "CLIENT";
+export type ScheduleRole = "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "CLIENT";
 
-const SCHEDULE_OPERATORS: readonly ScheduleRole[] = ["ADMIN", "EQUIPE", "OPERADOR"];
+const SCHEDULE_OPERATORS: readonly ScheduleRole[] = ["ADMIN", "ARQUITETO", "ENGENHEIRO", "EQUIPE", "OPERADOR"];
 
 /** true se o papel pode operar o cronograma (mover/editar etapas). */
 export function canOperateSchedule(role: string): role is "ADMIN" | "OPERADOR" {

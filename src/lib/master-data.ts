@@ -1,0 +1,223 @@
+/**
+ * CENTRAL DE CADASTROS MESTRES (Single Source of Truth)
+ * ====================================================
+ * Define a parametrização normativa e corporativa do estúdio ArqVértice Flow.
+ * Alimenta automaticamente selects, modais, tabelas, filtros e dashboards da aplicação.
+ */
+
+export interface MasterDiscipline {
+  key: string;
+  name: string;
+  shortName: string;
+  lead: string;
+  tool: string;
+  icon: string;
+  color: string;
+  badgeTone: "neutral" | "blue" | "green" | "amber" | "red";
+}
+
+export interface MasterPhase {
+  key: "PROJETO_PRELIMINAR" | "PROJETO_LEGAL" | "PROJETO_EXECUTIVO";
+  order: number;
+  label: string;
+  shortLabel: string;
+  icon: string;
+  description: string;
+  badgeTone: "neutral" | "blue" | "green" | "amber" | "red";
+}
+
+export interface MasterRole {
+  role: "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR";
+  label: string;
+  designation: string;
+  referencePerson: string;
+  description: string;
+  badgeTone: "neutral" | "blue" | "green" | "amber" | "red";
+  defaultCanEdit: boolean;
+}
+
+/**
+ * 1. DISCIPLINAS PADRÃO DO ESTÚDIO
+ */
+export const MASTER_DISCIPLINES: MasterDiscipline[] = [
+  {
+    key: "ARQUITETURA",
+    name: "Arquitetura",
+    shortName: "ARQ",
+    lead: "Eduardo Marques",
+    tool: "AutoCAD / SketchUp",
+    icon: "🏛️",
+    color: "indigo",
+    badgeTone: "blue",
+  },
+  {
+    key: "ESTRUTURAL",
+    name: "Estrutural TQS",
+    shortName: "EST",
+    lead: "Eng. Emanoel Luan",
+    tool: "TQS Concreto Armado",
+    icon: "🏗️",
+    color: "amber",
+    badgeTone: "amber",
+  },
+  {
+    key: "HIDROSSANITARIO",
+    name: "Hidrossanitário Revit",
+    shortName: "HID",
+    lead: "Equipe Técnica",
+    tool: "Autodesk Revit MEP",
+    icon: "💧",
+    color: "sky",
+    badgeTone: "blue",
+  },
+  {
+    key: "ELETRICO",
+    name: "Elétrico Revit",
+    shortName: "ELE",
+    lead: "Equipe Técnica",
+    tool: "Autodesk Revit MEP",
+    icon: "⚡",
+    color: "yellow",
+    badgeTone: "amber",
+  },
+  {
+    key: "COMBATE_INCENDIO",
+    name: "Combate a Incêndio",
+    shortName: "INC",
+    lead: "Equipe Técnica",
+    tool: "Autodesk Revit MEP",
+    icon: "🔥",
+    color: "rose",
+    badgeTone: "red",
+  },
+  {
+    key: "RENDER_3D",
+    name: "3D Corona",
+    shortName: "3D",
+    lead: "Visualização 3D",
+    tool: "Corona Renderer / 3ds Max",
+    icon: "🎨",
+    color: "fuchsia",
+    badgeTone: "neutral",
+  },
+  {
+    key: "LEGAL_APROVACAO",
+    name: "Aprovação Legal / ART",
+    shortName: "LEG",
+    lead: "Eng. Emanoel Luan",
+    tool: "CREA / CAU / Prefeitura",
+    icon: "📜",
+    color: "slate",
+    badgeTone: "neutral",
+  },
+];
+
+/**
+ * 2. FASES NORMATIVAS PADRONIZADAS
+ */
+export const MASTER_PHASES: MasterPhase[] = [
+  {
+    key: "PROJETO_PRELIMINAR",
+    order: 1,
+    label: "Projeto Preliminar",
+    shortLabel: "Preliminar",
+    icon: "📐",
+    description: "Estudos preliminares, plantas conceituais e definições de layout",
+    badgeTone: "blue",
+  },
+  {
+    key: "PROJETO_LEGAL",
+    order: 2,
+    label: "Projeto Legal",
+    shortLabel: "Legal",
+    icon: "🏛️",
+    description: "Pranchas para aprovação em Prefeitura, Condomínio e órgãos reguladores",
+    badgeTone: "amber",
+  },
+  {
+    key: "PROJETO_EXECUTIVO",
+    order: 3,
+    label: "Projeto Executivo",
+    shortLabel: "Executivo",
+    icon: "🏗️",
+    description: "Detalhamentos construtivos, compatibilização e especificações de obra",
+    badgeTone: "green",
+  },
+];
+
+/**
+ * 3. PAPÉIS CORPORATIVOS E PERFIS DE ACESSO (RBAC)
+ */
+export const MASTER_ROLES: MasterRole[] = [
+  {
+    role: "ADMIN",
+    label: "ADMIN / Arquiteto Titular",
+    designation: "Arquiteto Titular & Diretor Executivo",
+    referencePerson: "Eduardo Marques",
+    description: "Acesso irrestrito a governança corporativa, cadastros mestres, financeiro e homologação de projetos.",
+    badgeTone: "blue",
+    defaultCanEdit: true,
+  },
+  {
+    role: "ENGENHEIRO",
+    label: "ENGENHEIRO / Estrutural TQS",
+    designation: "Engenheiro Calculista & Compatibilizador",
+    referencePerson: "Emanoel Luan Almeida da Rocha",
+    description: "Gestão técnica de cálculo estrutural TQS, pranchas complementares Revit, ARTs e checklists de integridade.",
+    badgeTone: "amber",
+    defaultCanEdit: true,
+  },
+  {
+    role: "EQUIPE",
+    label: "EQUIPE / Fullstack & Sistemas",
+    designation: "Engenheiro de Sistemas & Operações",
+    referencePerson: "Erick",
+    description: "Operação técnica de cronograma, automação de fluxos, integração de dados e suporte operacional.",
+    badgeTone: "green",
+    defaultCanEdit: true,
+  },
+  {
+    role: "CLIENTE",
+    label: "CLIENTE / Residência de Praia",
+    designation: "Contratante / Proprietário",
+    referencePerson: "Pedro",
+    description: "Acesso ao portal exclusivo do cliente, visualização das pranchas liberadas e relatórios de avanço.",
+    badgeTone: "neutral",
+    defaultCanEdit: false,
+  },
+  {
+    role: "ARQUITETO",
+    label: "ARQUITETO / Co-autor",
+    designation: "Arquiteto Desenvolvedor",
+    referencePerson: "Eduardo Marques",
+    description: "Elaboração de pranchas arquitetônicas, layouts de interiores e modelagem de volumetria 3D.",
+    badgeTone: "blue",
+    defaultCanEdit: true,
+  },
+];
+
+/**
+ * Funções utilitárias auxiliares para selects, modais e filtros
+ */
+export function getDisciplineMaster(key: string | null | undefined): MasterDiscipline {
+  if (!key) return MASTER_DISCIPLINES[0];
+  const normalized = key.toUpperCase().trim();
+  const found = MASTER_DISCIPLINES.find(
+    (d) => d.key === normalized || d.name.toUpperCase() === normalized || d.shortName === normalized
+  );
+  return found || MASTER_DISCIPLINES[0];
+}
+
+export function getPhaseMaster(key: string | null | undefined): MasterPhase {
+  if (!key) return MASTER_PHASES[2]; // Default: Executivo
+  const normalized = key.toUpperCase().trim();
+  const found = MASTER_PHASES.find((p) => p.key === normalized || p.label.toUpperCase() === normalized);
+  return found || MASTER_PHASES[2];
+}
+
+export function getRoleMaster(role: string | null | undefined): MasterRole {
+  if (!role) return MASTER_ROLES[3]; // Default: CLIENTE
+  const normalized = role.toUpperCase().trim();
+  const found = MASTER_ROLES.find((r) => r.role === normalized);
+  return found || MASTER_ROLES[3];
+}

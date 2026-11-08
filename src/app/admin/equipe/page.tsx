@@ -21,17 +21,14 @@ export default async function EquipePage() {
   return (
     <AppShell eyebrow="Equipa">
       <SectionHeading
-        title="Equipe e acesso ao cronograma"
-        description="Funcionários com acesso restrito. Cada um opera apenas os projetos atribuídos aqui."
+        title="Painel de Controle de Acesso (RBAC) & Equipe"
+        description="Gerenciamento enterprise de privilégios e papéis: ADMIN, ARQUITETO, ENGENHEIRO, EQUIPE e CLIENTE."
       />
 
       {operadores.length === 0 ? (
         <Card className="mt-6 border-dashed text-center">
           <p className="py-8 text-sm text-slate-500">
-            Ainda não há funcionários (OPERADOR). Crie a conta no seed definindo{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">SEED_OPERADOR_EMAIL</code> e{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">SEED_OPERADOR_PASSWORD</code> e executando{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">npm run db:seed</code>.
+            Ainda não há usuários cadastrados.
           </p>
         </Card>
       ) : (
@@ -42,6 +39,9 @@ export default async function EquipePage() {
               operatorId={operador.id}
               operatorName={operador.name}
               operatorEmail={operador.email}
+              initialRole={operador.role}
+              initialIsActive={operador.isActive ?? true}
+              initialCanEdit={operador.projectAccess.some((a) => a.canEdit)}
               assignedProjectIds={operador.projectAccess.map((access) => access.projectId)}
               projects={projects.map((project) => ({
                 id: project.id,

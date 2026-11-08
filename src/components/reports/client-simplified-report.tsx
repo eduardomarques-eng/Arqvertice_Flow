@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -126,7 +127,7 @@ export function ClientSimplifiedReport({
         sheetTitle,
       });
     } catch (err) {
-      console.warn("Log VIEW não gravado:", err);
+      console.error("[ClientSimplifiedReport] Falha ao registrar log de VIEW:", err);
     }
   };
 
@@ -146,7 +147,7 @@ export function ClientSimplifiedReport({
         sheetTitle,
       });
     } catch (err) {
-      console.warn("Log DOWNLOAD não gravado:", err);
+      console.error("[ClientSimplifiedReport] Falha ao registrar log de DOWNLOAD:", err);
     }
 
     const cleanCode = item.sheetCode ? item.sheetCode.replace(/[\/\\]/g, "-") : "DOC";
@@ -285,6 +286,41 @@ export function ClientSimplifiedReport({
           </div>
         </div>
       </Card>
+
+      {/* ============================================================== */}
+      {/* BANNER / CARD DE ACESSO IMERSIVO 3D: ARQVÉRTICE PROJECT 3D    */}
+      {/* ============================================================== */}
+      <div className="relative overflow-hidden rounded-3xl border border-blue-950/20 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-6 sm:p-8 text-white shadow-xl">
+        <div className="absolute right-0 top-0 -mt-6 -mr-6 h-48 w-48 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="max-w-2xl space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-300 border border-blue-400/30">
+                Maquete Digital & BIM
+              </span>
+              <span className="text-xs text-blue-300/80 font-medium">· Tour Virtual Interativo</span>
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-white sm:text-2xl flex items-center gap-2">
+              <span>🌐</span> ArqVértice Project 3D Imersivo
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Explore o modelo volumétrico, insolação costeira, distribuição de ambientes e acabamentos arquitetônicos em tempo real com renderização fluida no navegador.
+            </p>
+          </div>
+
+          <div className="shrink-0">
+            <a
+              href="https://arqvertic-project-3d.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-indigo-500 transition-all duration-200 active:scale-95 group"
+            >
+              <span>Acessar Projeto 3D em Nova Aba</span>
+              <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </a>
+          </div>
+        </div>
+      </div>
 
       {/* ============================================================== */}
       {/* 2. PARECER TÉCNICO EM TEMPO REAL (ITEM 4 ATUALIZADO)           */}
@@ -652,14 +688,17 @@ export function ClientSimplifiedReport({
                       onClick={() => handleOpenPreview(item)}
                       className="relative aspect-video w-full cursor-pointer bg-slate-900 overflow-hidden group/thumb"
                     >
-                      <img
+                      <Image
                         src={fileStreamUrl}
                         alt={item.subject}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
                         loading="lazy"
+                        className="object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+                        unoptimized={fileStreamUrl.startsWith("/api/")}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent opacity-80" />
-                      <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white">
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent opacity-80 pointer-events-none" />
+                      <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white pointer-events-none">
                         <span className="rounded-md bg-blue-600/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">
                           Render 3D HD
                         </span>

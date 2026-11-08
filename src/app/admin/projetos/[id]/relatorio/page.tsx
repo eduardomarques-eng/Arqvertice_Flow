@@ -3,9 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { requirePageProjectAccess, currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { getScheduleReport } from "@/server/services/schedule-report-service";
-import { getDeliverableMatrix } from "@/server/services/deliverable-service";
-import { getProjectAccessLogs } from "@/server/actions/deliverables";
-import { AdminGeneralReport, type AdminDeliverableItem, type AdminAccessLogItem } from "@/components/reports/admin-general-report";
+import { UnifiedScheduleReport } from "@/components/reports/schedule-report-unified";
 
 export const dynamic = "force-dynamic";
 
@@ -22,18 +20,8 @@ export default async function ProjectReportPage({ params }: { params: Promise<{ 
     if (!released) notFound();
   }
 
-  const [bundle, deliverableMatrix, rawDeliverables, accessLogs, projectDb] = await Promise.all([
+  const [bundle, projectDb] = await Promise.all([
     getScheduleReport(id),
-    getDeliverableMatrix(id, user?.role === "CLIENT" || user?.role === "CLIENTE"),
-    prisma.projectDeliverable.findMany({
-      where: { projectId: id },
-      orderBy: [{ phaseFolder: "asc" }, { discipline: "asc" }, { sheetCode: "asc" }],
-      include: {
-        stage: { select: { name: true } },
-        environment: { select: { name: true } },
-      },
-    }),
-    getProjectAccessLogs(id),
     prisma.project.findUnique({
       where: { id },
       select: {
@@ -72,37 +60,15 @@ export default async function ProjectReportPage({ params }: { params: Promise<{ 
     order: inst.order,
   }));
 
-  const deliverablesFormatted: AdminDeliverableItem[] = rawDeliverables.map((d) => ({
-    id: d.id,
-    sheetCode: d.sheetCode,
-    title: d.title,
-    subtitle: d.subtitle,
-    subject: d.subject,
-    discipline: d.discipline,
-    phaseFolder: d.phaseFolder,
-    category: d.category,
-    version: d.version,
-    isClientView: d.isClientView,
-    status: d.status,
-    fileUrl: d.fileUrl,
-    fileSize: d.fileSize,
-    createdAt: d.createdAt,
-    stage: d.stage,
-    environment: d.environment,
-  }));
-
   return (
-    <AppShell eyebrow="Relatório Técnico Executivo">
-      <AdminGeneralReport
+    <AppShell eyebrow="Relatório Oficial do Cronograma">
+      <UnifiedScheduleReport
         projectId={id}
         projectName={bundle.projectName}
         client={clientInfo}
         initialPayments={initialPayments}
-        financialRows={report.financial.rows}
+        financialRows={report.financial?.rows || []}
         report={report}
-        deliverableMatrix={deliverableMatrix}
-        deliverables={deliverablesFormatted}
-        initialAccessLogs={accessLogs as unknown as AdminAccessLogItem[]}
         pdfUrl={pdfUrl}
       />
     </AppShell>

@@ -50,13 +50,51 @@ export async function listOperationProjects(userId: string, role: "ADMIN" | "EQU
  * o mesmo mecanismo que isola o cliente, e é essa linha que a operação lê.
  */
 
-/** Operadores existentes (funcionários da equipa), para o ADMIN gerir. */
+/** Operadores e membros de equipe existentes, para o ADMIN gerir. */
 export async function listOperadores() {
   await requireRole("ADMIN");
   return prisma.user.findMany({
-    where: { role: "OPERADOR" },
-    select: { id: true, name: true, email: true, createdAt: true, projectAccess: { select: { projectId: true } } },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+      projectAccess: { select: { projectId: true, canEdit: true } },
+    },
     orderBy: { name: "asc" },
+  });
+}
+
+/** Lista completa de usuários para o painel RBAC */
+export async function listAllTeamMembers() {
+  await requireRole("ADMIN");
+  return prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      phone: true,
+      isActive: true,
+      createdAt: true,
+      projectAccess: { select: { projectId: true, canEdit: true } },
+    },
+    orderBy: [{ role: "asc" }, { name: "asc" }],
+  });
+}
+
+/** Atualiza papel (RBAC) e status de ativação do usuário */
+export async function updateUserRoleAndStatus(
+  userId: string,
+  role: "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR",
+  isActive: boolean,
+) {
+  await requireRole("ADMIN");
+  return prisma.user.update({
+    where: { id: userId },
+    data: { role, isActive },
   });
 }
 
@@ -75,11 +113,15 @@ export async function listAssignableProjects() {
  * não um acrescento sem fim. IDs inválidos são ignorados pela constraint do
  * banco; a unicidade [projectId, userId] impede duplicados.
  */
-export async function setOperatorProjectAccess(userId: string, projectIds: readonly string[]) {
+export async function setOperatorProjectAccess(
+  userId: string,
+  projectIds: readonly string[],
+  canEdit: boolean = false,
+) {
   await requireRole("ADMIN");
 
-  const operador = await prisma.user.findFirst({ where: { id: userId, role: "OPERADOR" }, select: { id: true } });
-  if (!operador) throw new DomainError("Operador não encontrado.", "NOT_FOUND");
+  const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!targetUser) throw new DomainError("Usuário não encontrado.", "NOT_FOUND");
 
   const uniqueProjectIds = [...new Set(projectIds)];
   const validProjects = await prisma.project.findMany({
@@ -92,7 +134,7 @@ export async function setOperatorProjectAccess(userId: string, projectIds: reado
     await tx.projectAccess.deleteMany({ where: { userId } });
     if (validIds.length > 0) {
       await tx.projectAccess.createMany({
-        data: validIds.map((projectId) => ({ userId, projectId })),
+        data: validIds.map((projectId) => ({ userId, projectId, canEdit })),
         skipDuplicates: true,
       });
     }

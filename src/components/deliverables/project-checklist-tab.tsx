@@ -314,14 +314,15 @@ export function ProjectChecklistTab({
                           <button
                             type="button"
                             onClick={() => handleToggle(item)}
-                            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border text-white transition-all duration-150 ${
+                            className={`flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border text-white active:scale-[0.98] transition-transform duration-75 select-none ${
                               item.isCompleted
                                 ? "border-blue-600 bg-blue-600 shadow-sm"
                                 : "border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50"
                             }`}
+                            aria-label={`Alternar conclusão de ${item.task}`}
                           >
                             {item.isCompleted && (
-                              <svg className="h-3.5 w-3.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-4 w-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
                             )}

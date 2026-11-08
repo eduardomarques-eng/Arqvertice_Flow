@@ -343,8 +343,8 @@ export function SheetMetadataModal({
   const suggestedFolders = DEFAULT_FOLDERS_BY_DISCIPLINE[discipline] || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200 font-sans">
-      <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4 animate-in fade-in duration-150 font-sans">
+      <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-zinc-900/10 animate-in fade-in zoom-in-95 duration-150">
         {/* Cabeçalho do Modal Split */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/90">
           <div>

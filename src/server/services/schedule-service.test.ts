@@ -34,8 +34,8 @@ describe("colunas do quadro", () => {
 
   it("todas as colunas são estados que o modelo conhece", () => {
     const ids = KANBAN_COLUMNS.map((column) => column.id);
-    expect(ids).toEqual(["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]);
-    const doModelo: KanbanColumnId[] = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"];
+    expect(ids).toEqual(["NOT_STARTED", "IN_PROGRESS", "REVIEW", "COMPLETED"]);
+    const doModelo: KanbanColumnId[] = ["NOT_STARTED", "IN_PROGRESS", "REVIEW", "COMPLETED"];
     expect(ids).toEqual(doModelo);
   });
 });

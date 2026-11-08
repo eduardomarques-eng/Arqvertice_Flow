@@ -43,7 +43,7 @@ export function MobileNav({ links, environment = "admin", areaLabel, groupLabel 
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm active:scale-[0.98] transition-transform duration-75 select-none hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
         aria-label={isOpen ? "Fechar menu" : "Abrir menu"}
         aria-expanded={isOpen}
       >
@@ -66,7 +66,7 @@ export function MobileNav({ links, environment = "admin", areaLabel, groupLabel 
       {isOpen && (
         <div
           onClick={() => setIsOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs transition-opacity"
           aria-hidden="true"
         />
       )}
@@ -86,7 +86,7 @@ export function MobileNav({ links, environment = "admin", areaLabel, groupLabel 
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 active:scale-[0.98] transition-transform duration-75 select-none"
             aria-label="Fechar navegação"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -102,7 +102,7 @@ export function MobileNav({ links, environment = "admin", areaLabel, groupLabel 
           </p>
         </div>
 
-        <nav className="mt-3 flex-1 overflow-y-auto px-4 py-2 space-y-1" aria-label="Navegação móvel">
+        <nav className="mt-3 flex-1 overflow-y-auto px-4 py-2 space-y-1.5" aria-label="Navegação móvel">
           {links.map(([label, href]) => {
             const isActive = pathname === href || (href !== "/admin" && pathname.startsWith(href));
             return (
@@ -110,7 +110,7 @@ export function MobileNav({ links, environment = "admin", areaLabel, groupLabel 
                 key={href}
                 href={href}
                 onClick={() => setIsOpen(false)}
-                className={`flex items-center rounded-xl px-4 py-3 text-sm font-medium transition ${
+                className={`flex min-h-[44px] items-center rounded-xl px-4 py-2.5 text-sm font-medium active:scale-[0.98] transition-transform duration-75 select-none ${
                   isActive
                     ? isClientEnv
                       ? "bg-blue-600 text-white font-semibold"

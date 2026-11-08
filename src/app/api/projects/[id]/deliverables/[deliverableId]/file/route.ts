@@ -34,7 +34,7 @@ export async function GET(
       action: isDownload ? "DOWNLOAD" : "VIEW",
       sheetTitle: deliverable.subtitle ? `${deliverable.title} - ${deliverable.subtitle}` : deliverable.title,
     }).catch((err) => {
-      console.warn("Falha não bloqueante ao registrar log de acesso da prancha:", err);
+      console.error("[DeliverableFileRoute] Falha ao registrar log de acesso da prancha:", err);
     });
 
     let storageKey = deliverable.fileUrl;

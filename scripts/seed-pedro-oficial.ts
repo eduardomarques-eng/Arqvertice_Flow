@@ -288,6 +288,225 @@ async function main() {
     },
   });
   console.log("Briefing atualizado com as 28 perguntas estruturadas!");
+
+  // 8. Sincronizar Entregáveis do Acervo Técnico Distribuídos nas 3 Fases Normativas
+  console.log("Sincronizando pranchas e documentos do Acervo Técnico nas 3 fases...");
+  await prisma.deliverableAccessLog.deleteMany({ where: { projectId: project.id } });
+  await prisma.projectDeliverable.deleteMany({ where: { projectId: project.id } });
+
+  const createdStages = await prisma.scheduleStage.findMany({ where: { projectId: project.id } });
+  const findStage = (name: string) => createdStages.find((s) => s.name === name)?.id || null;
+
+  const deliverablesData = [
+    // --- FASE 1: PROJETO PRELIMINAR ---
+    {
+      sheetCode: "ARQ-EST-01",
+      title: "Estudo Preliminar de Layout e Volumetria 3D",
+      subtitle: "Plantas conceituais, fluxos e maquete eletrônica inicial",
+      subject: "Estudo Preliminar e Volumetria",
+      discipline: "ARQUITETURA" as const,
+      phaseFolder: "PROJETO_PRELIMINAR" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PLANTA_BAIXA" as const,
+      version: "R00",
+      fileSize: "4.2 MB",
+      fileUrl: "/demo-files/ARQ-EST-01_Estudo_Preliminar_Layout_R00.pdf",
+      status: "APROVADO_CLIENTE" as const,
+      stageId: findStage("Estudo Preliminar"),
+      isClientView: true,
+      isRequired: true,
+      description: "Estudo preliminar conceitual com diretrizes de volumetria, setorização e fluxo integrado.",
+    },
+    {
+      sheetCode: "ARQ-EST-02",
+      title: "Quadro de Áreas e Estudos de Insolação Costeira",
+      subtitle: "Análise bioclimática, carta solar e índices urbanísticos",
+      subject: "Quadro de Áreas e Insolação",
+      discipline: "ARQUITETURA" as const,
+      phaseFolder: "PROJETO_PRELIMINAR" as const,
+      category: "DOCUMENTACAO_MEMORIAL" as const,
+      type: "MEMORIAL_DESCRITIVO" as const,
+      version: "R00",
+      fileSize: "2.8 MB",
+      fileUrl: "/demo-files/ARQ-EST-02_Quadro_Areas_Insolacao_R00.pdf",
+      status: "APROVADO_CLIENTE" as const,
+      stageId: findStage("Estudo Preliminar"),
+      isClientView: true,
+      isRequired: true,
+      description: "Memorial descritivo de áreas computáveis e não computáveis, insolação e ventos predominantes.",
+    },
+
+    // --- FASE 2: PROJETO LEGAL ---
+    {
+      sheetCode: "LEG-PM-01",
+      title: "Planta de Situação, Alinhamentos e Recuos Municipais",
+      subtitle: "Prancha padrão para protocolo na Prefeitura e Condomínio",
+      subject: "Aprovação Legal e Urbanística",
+      discipline: "LEGAL_APROVACAO" as const,
+      phaseFolder: "PROJETO_LEGAL" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PLANTA_BAIXA" as const,
+      version: "R00",
+      fileSize: "3.5 MB",
+      fileUrl: "/demo-files/LEG-PM-01_Situacao_Recuos_Municipais_R00.pdf",
+      status: "APROVADO_INTERNO" as const,
+      stageId: findStage("Projeto Básico"),
+      isClientView: true,
+      isRequired: true,
+      description: "Prancha legal em formato padrão da Prefeitura Municipal de Litoral Sul com taxas de ocupação.",
+    },
+    {
+      sheetCode: "DOC-ART-01",
+      title: "Anotação de Responsabilidade Técnica (ART) - Eng. Emanoel Luan",
+      subtitle: "RRT/ART de autoria do projeto arquitetônico e cálculo estrutural",
+      subject: "Anotação de Responsabilidade Técnica",
+      discipline: "LEGAL_APROVACAO" as const,
+      phaseFolder: "PROJETO_LEGAL" as const,
+      category: "DOCUMENTACAO_MEMORIAL" as const,
+      type: "MEMORIAL_DESCRITIVO" as const,
+      version: "R00",
+      fileSize: "1.1 MB",
+      fileUrl: "/demo-files/DOC-ART-01_Anotacao_Responsabilidade_Tecnica_R00.pdf",
+      status: "APROVADO_INTERNO" as const,
+      stageId: findStage("Projeto Básico"),
+      isClientView: true,
+      isRequired: true,
+      description: "Registro profissional junto ao CREA/CAU garantindo a responsabilidade técnica do projeto.",
+    },
+
+    // --- FASE 3: PROJETO EXECUTIVO ---
+    {
+      sheetCode: "ARQ-01",
+      title: "Planta Baixa Térreo",
+      subtitle: "Layout, cotas executivas e alvenarias",
+      subject: "Planta Baixa e Layout",
+      discipline: "ARQUITETURA" as const,
+      phaseFolder: "PROJETO_EXECUTIVO" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PRANCHA_EXECUTIVA" as const,
+      version: "R01",
+      fileSize: "5.1 MB",
+      fileUrl: "/demo-files/ARQ-01_Planta_Baixa_Terreo_R01.pdf",
+      status: "APROVADO_CLIENTE" as const,
+      stageId: findStage("Projeto Executivo"),
+      isClientView: true,
+      isRequired: true,
+      description: "Prancha executiva com cotas completas, esquadrias e níveis do pavimento térreo.",
+    },
+    {
+      sheetCode: "ARQ-02",
+      title: "Planta Baixa Pavimento Superior",
+      subtitle: "Suítes, circulação íntima e ampliações de banheiros",
+      subject: "Planta Baixa e Ampliações",
+      discipline: "ARQUITETURA" as const,
+      phaseFolder: "PROJETO_EXECUTIVO" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PRANCHA_EXECUTIVA" as const,
+      version: "R00",
+      fileSize: "4.8 MB",
+      fileUrl: "/demo-files/ARQ-02_Planta_Baixa_Superior_R00.pdf",
+      status: "APROVADO_CLIENTE" as const,
+      stageId: findStage("Projeto Executivo"),
+      isClientView: true,
+      isRequired: true,
+      description: "Detalhamento executivo do pavimento superior com ampliações de áreas molhadas.",
+    },
+    {
+      sheetCode: "EST-01",
+      title: "Locação de Fundações e Cargas — TQS",
+      subtitle: "Eixos estruturais, estacas e blocos de coroamento",
+      subject: "Fundações e Locação",
+      discipline: "ESTRUTURAL" as const,
+      phaseFolder: "PROJETO_EXECUTIVO" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PRANCHA_EXECUTIVA" as const,
+      version: "R00",
+      fileSize: "3.9 MB",
+      fileUrl: "/demo-files/EST-01_Locacao_Fundacoes_TQS_R00.pdf",
+      status: "APROVADO_INTERNO" as const,
+      stageId: findStage("Projeto Fundação"),
+      isClientView: true,
+      isRequired: true,
+      description: "Prancha de locação de estacas moldadas in loco e blocos em concreto armado gerada em TQS.",
+    },
+    {
+      sheetCode: "EST-02",
+      title: "Formas e Armaduras Pavimento Térreo — TQS",
+      subtitle: "Vigas, lajes nervuradas e detalhes de ancoragem",
+      subject: "Formas e Armaduras",
+      discipline: "ESTRUTURAL" as const,
+      phaseFolder: "PROJETO_EXECUTIVO" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PRANCHA_EXECUTIVA" as const,
+      version: "R00",
+      fileSize: "6.2 MB",
+      fileUrl: "/demo-files/EST-02_Formas_Armaduras_Terreo_TQS_R00.pdf",
+      status: "APROVADO_INTERNO" as const,
+      stageId: findStage("Projeto Formas Finais"),
+      isClientView: true,
+      isRequired: true,
+      description: "Formas e armações positivas/negativas das vigas e laje do piso térreo calculadas em TQS.",
+    },
+    {
+      sheetCode: "HID-01",
+      title: "Instalações Hidráulicas e Esgoto Sanitário — Revit",
+      subtitle: "Distribuição de água fria/quente, barriletes e caixas de gordura",
+      subject: "Instalações Hidrossanitárias",
+      discipline: "HIDROSSANITARIO" as const,
+      phaseFolder: "PROJETO_EXECUTIVO" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PRANCHA_EXECUTIVA" as const,
+      version: "R00",
+      fileSize: "4.5 MB",
+      fileUrl: "/demo-files/HID-01_Instalacoes_Hidraulicas_Revit_R00.pdf",
+      status: "APROVADO_INTERNO" as const,
+      stageId: findStage("Projeto Hidrossanitário - Esgotamento"),
+      isClientView: true,
+      isRequired: true,
+      description: "Modelagem BIM em Revit de prumadas, ramais de descarga e reservatório superior.",
+    },
+    {
+      sheetCode: "ELE-01",
+      title: "Distribuição de Força, Iluminação e Quadro de Cargas — Revit",
+      subtitle: "Circuitos terminais, diagramas unifilares e infraestrutura de automação",
+      subject: "Instalações Elétricas e Iluminação",
+      discipline: "ELETRICO" as const,
+      phaseFolder: "PROJETO_EXECUTIVO" as const,
+      category: "PLANTA_TECNICA_PDF" as const,
+      type: "PRANCHA_EXECUTIVA" as const,
+      version: "R00",
+      fileSize: "5.4 MB",
+      fileUrl: "/demo-files/ELE-01_Distribuicao_Forca_Iluminacao_Revit_R00.pdf",
+      status: "APROVADO_INTERNO" as const,
+      stageId: findStage("Projeto Elétrico"),
+      isClientView: true,
+      isRequired: true,
+      description: "Projeto elétrico em Revit MEP com dimensionamento de disjuntores e balanceamento de fases.",
+    },
+  ];
+
+  for (const item of deliverablesData) {
+    const created = await prisma.projectDeliverable.create({
+      data: {
+        projectId: project.id,
+        ...item,
+      },
+    });
+
+    // Registra um log inicial de auditoria
+    await prisma.deliverableAccessLog.create({
+      data: {
+        projectId: project.id,
+        deliverableId: created.id,
+        userName: "Sistema (Inicialização)",
+        userRole: "ADMIN",
+        action: "VIEW",
+        sheetTitle: `${item.sheetCode} · ${item.title}`,
+      },
+    });
+  }
+
+  console.log(`${deliverablesData.length} entregáveis cadastrados e distribuídos nas 3 fases normativas!`);
   console.log("=== Sincronização Concluída com Sucesso! ===");
 }
 

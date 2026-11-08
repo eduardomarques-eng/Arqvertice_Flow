@@ -23,12 +23,13 @@ import { notifyStageCompleted } from "@/server/services/notification-dispatch-se
  * percentual. O status persistido continua disponível para transições e PDF;
  * a coluna é uma projeção visual estável do avanço.
  */
-export type KanbanColumnId = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+export type KanbanColumnId = "NOT_STARTED" | "IN_PROGRESS" | "REVIEW" | "COMPLETED";
 
 export const KANBAN_COLUMNS: { id: KanbanColumnId; label: string }[] = [
-  { id: "NOT_STARTED", label: "Não iniciado / A iniciar" },
-  { id: "IN_PROGRESS", label: "Em andamento" },
-  { id: "COMPLETED", label: "Finalizado / Concluído" },
+  { id: "NOT_STARTED", label: "A Iniciar / Backlog" },
+  { id: "IN_PROGRESS", label: "Em Modelagem / Produção" },
+  { id: "REVIEW", label: "Revisão Técnica / Compatibilização" },
+  { id: "COMPLETED", label: "Concluído / Liberado" },
 ];
 
 export type KanbanCard = {
@@ -54,6 +55,10 @@ export type KanbanCard = {
   dependencyStatus: string | null;
   /** Transições que o backend aceita a partir do estado atual. */
   allowedTransitions: readonly ScheduleStatus[];
+  projectName?: string;
+  phase?: string;
+  deliverablesCount?: number;
+  checklists?: Array<{ id: string; task: string; isCompleted: boolean }>;
 };
 
 export type KanbanBoard = {
@@ -76,8 +81,9 @@ export function columnFor(
   now: Date,
 ): KanbanColumnId {
   stageAlert({ status: stage.status, dueDate: stage.dueDate }, now);
-  if (stage.completion >= 99) return "COMPLETED";
-  if (stage.completion <= 5) return "NOT_STARTED";
+  if (stage.status === "COMPLETED" || stage.completion >= 99) return "COMPLETED";
+  if (stage.status === "REVIEW") return "REVIEW";
+  if (stage.status === "NOT_STARTED" || stage.completion <= 5) return "NOT_STARTED";
   return "IN_PROGRESS";
 }
 
@@ -92,7 +98,11 @@ export async function kanbanBoard(projectId: string): Promise<KanbanBoard> {
   const stages = await prisma.scheduleStage.findMany({
     where: { projectId },
     orderBy: { order: "asc" },
-    include: { dependency: { select: { name: true, status: true } } },
+    include: {
+      dependency: { select: { name: true, status: true } },
+      checklists: { select: { id: true, task: true, isCompleted: true }, orderBy: { createdAt: "asc" } },
+      deliverables: { select: { id: true, sheetCode: true, title: true } },
+    },
   });
   const assignees = await listAssignees(projectId);
 
@@ -104,6 +114,8 @@ export async function kanbanBoard(projectId: string): Promise<KanbanBoard> {
       { status: stage.status, dueDate: stage.dueDate, dependencyName, dependencyStatus },
       now,
     );
+    const phaseMatch = stage.notes?.match(/\[FASE:\s*(.*?)\]/)?.[1] || "Projeto Executivo";
+
     return {
       id: stage.id,
       order: stage.order,
@@ -122,6 +134,14 @@ export async function kanbanBoard(projectId: string): Promise<KanbanBoard> {
       dependencyName,
       dependencyStatus,
       allowedTransitions: SCHEDULE_TRANSITIONS[stage.status],
+      projectName: project.name,
+      phase: phaseMatch,
+      deliverablesCount: stage.deliverables.length,
+      checklists: stage.checklists.map((c) => ({
+        id: c.id,
+        task: c.task,
+        isCompleted: c.isCompleted,
+      })),
     };
 
     function technicalDescription(name: string): string | null {

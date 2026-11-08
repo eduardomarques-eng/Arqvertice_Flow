@@ -30,7 +30,7 @@ import { advanceSignatureStatus, requestContractSignature } from "@/server/servi
 import { convertApprovedProposal, getConversionReadiness } from "@/server/services/conversion-service";
 import { listAuditTrail } from "@/server/audit";
 import { resolveClientKey } from "@/lib/proposal-access";
-import { setOperatorProjectAccess } from "@/server/services/operation-service";
+import { setOperatorProjectAccess, updateUserRoleAndStatus } from "@/server/services/operation-service";
 import type { SignatureStatusName } from "@/lib/signature";
 import { prisma } from "@/server/db";
 
@@ -443,8 +443,19 @@ export async function listAuditTrailAction(entity: string, entityId: string) {
  * ADMIN é provada no serviço (`setOperatorProjectAccess`), não aqui. A lista de
  * `projectIds` é a fonte da verdade: o que não estiver nela perde o acesso.
  */
-export async function setOperatorProjectAccessAction(userId: string, projectIds: string[]) {
-  const result = await setOperatorProjectAccess(userId, projectIds);
+export async function setOperatorProjectAccessAction(userId: string, projectIds: string[], canEdit: boolean = false) {
+  const result = await setOperatorProjectAccess(userId, projectIds, canEdit);
+  revalidatePath("/admin/equipe");
+  revalidatePath("/operacao");
+  return result;
+}
+
+export async function updateUserRoleAndStatusAction(
+  userId: string,
+  role: "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR",
+  isActive: boolean,
+) {
+  const result = await updateUserRoleAndStatus(userId, role, isActive);
   revalidatePath("/admin/equipe");
   revalidatePath("/operacao");
   return result;
