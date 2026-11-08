@@ -4,6 +4,7 @@ import {
   buildScheduleReport,
   type ReportPayment,
   type ReportStage,
+  type ReportDeliverable,
   type ScheduleReport,
   type ScheduleReportInput,
 } from "@/lib/schedule-report";
@@ -37,8 +38,11 @@ export type ScheduleReportBundle = {
 export async function getScheduleReport(
   projectId: string,
   emittedAt: Date = new Date(),
+  options?: { skipAuth?: boolean },
 ): Promise<ScheduleReportBundle | null> {
-  await requireProjectAccess(projectId);
+  if (!options?.skipAuth) {
+    await requireProjectAccess(projectId);
+  }
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -50,6 +54,13 @@ export async function getScheduleReport(
       },
       payments: { orderBy: { order: "asc" }, include: { scheduleStage: { select: { name: true } } } },
       installments: { orderBy: { order: "asc" } },
+      deliverables: {
+        orderBy: [{ discipline: "asc" }, { sheetCode: "asc" }],
+        include: {
+          environment: { select: { name: true } },
+          stage: { select: { designer: true, dueDate: true } },
+        },
+      },
     },
   });
   if (!project) return null;
@@ -90,6 +101,21 @@ export async function getScheduleReport(
   }));
   const financialPayments = installments.length > 0 ? installments : payments;
 
+  const deliverables: ReportDeliverable[] = (project.deliverables || []).map((d) => ({
+    id: d.id,
+    sheetCode: d.sheetCode,
+    subject: d.subject,
+    discipline: d.discipline,
+    type: d.type,
+    version: d.version,
+    status: d.status,
+    environmentName: d.environment?.name ?? null,
+    designer: d.stage?.designer ?? null,
+    dueDate: d.stage?.dueDate ?? null,
+    updatedAt: d.updatedAt,
+    isClientView: d.isClientView,
+  }));
+
   const input: ScheduleReportInput = {
     project: {
       id: project.id,
@@ -110,6 +136,7 @@ export async function getScheduleReport(
     },
     stages,
     payments: financialPayments,
+    deliverables,
     budget: project.totalValue ?? (financialPayments.length ? financialPayments.reduce((sum, payment) => sum + payment.amount, 0) : project.budget === null ? null : Number(project.budget)),
     emittedAt,
   };

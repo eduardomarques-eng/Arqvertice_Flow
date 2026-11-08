@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { editScheduleStageAction, deleteScheduleStageAction } from "@/app/actions/domain-actions";
 import type { KanbanBoard, KanbanCard, KanbanColumnId } from "@/server/services/schedule-service";
+import { StageFormModal } from "./stage-form-modal";
 
 const DISCIPLINE_STYLE: Record<string, { badge: string; border: string; progress: string }> = {
   Arquitetura: { badge: "border-indigo-200 bg-indigo-50 text-indigo-700", border: "border-l-indigo-600", progress: "bg-indigo-600" },
@@ -54,6 +55,7 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
   const [assignee, setAssignee] = useState("");
   const [discipline, setDiscipline] = useState("");
   const [selected, setSelected] = useState<KanbanCard | null>(null);
+  const [isCreatingStage, setIsCreatingStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -143,16 +145,25 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
 
   return (
     <>
-      <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar etapa..." className="min-w-52 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
-        <select value={assignee} onChange={(event) => setAssignee(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-          <option value="">Todos os responsáveis</option>
-          {board.assignees.map((name) => <option key={name}>{name}</option>)}
-        </select>
-        <select value={discipline} onChange={(event) => setDiscipline(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-          <option value="">Todas as disciplinas</option>
-          {["Arquitetura", "Estrutura", "Projeto 3D", "Complementares", "Obra", "Execução de Obra"].map((name) => <option key={name}>{name}</option>)}
-        </select>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 flex-1">
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar etapa..." className="min-w-44 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
+          <select value={assignee} onChange={(event) => setAssignee(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+            <option value="">Todos os responsáveis</option>
+            {board.assignees.map((name) => <option key={name}>{name}</option>)}
+          </select>
+          <select value={discipline} onChange={(event) => setDiscipline(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+            <option value="">Todas as disciplinas</option>
+            {["Arquitetura", "Estrutura", "Projeto 3D", "Complementares", "Obra", "Execução de Obra"].map((name) => <option key={name}>{name}</option>)}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsCreatingStage(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 transition active:scale-95 shrink-0"
+        >
+          <span className="text-sm font-light">+</span> Nova Etapa (14 Canônicas)
+        </button>
       </div>
       {error ? <p className="mt-2 text-sm font-semibold text-rose-700">{error}</p> : null}
       <DragDropContext onDragEnd={onDragEnd}>
@@ -259,6 +270,12 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
           return without;
         });
       }} /> : null}
+
+      <StageFormModal
+        projectId={projectId}
+        isOpen={isCreatingStage}
+        onClose={() => setIsCreatingStage(false)}
+      />
     </>
   );
 }

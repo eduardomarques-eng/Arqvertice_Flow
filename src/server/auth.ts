@@ -6,7 +6,7 @@ import { DomainError } from "./errors";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { canOperateSchedule } from "@/lib/schedule-roles";
 
-export type AuthRole = "ADMIN" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "CLIENT";
+export type AuthRole = "ADMIN" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "OPERATOR" | "CLIENT";
 const COOKIE = "arqvertice_session";
 const LIFETIME = 1000 * 60 * 60 * 24 * 7;
 

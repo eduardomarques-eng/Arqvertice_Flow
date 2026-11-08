@@ -12,6 +12,12 @@ import {
 import { prisma } from "@/server/db";
 import { completionOf, progressByDiscipline } from "@/lib/progress";
 import { disciplineColor } from "@/lib/discipline-colors";
+import { getDeliverableMatrix } from "@/server/services/deliverable-service";
+import { SheetMatrixView } from "@/components/deliverables/sheet-matrix-view";
+import {
+  ClientDeliverablesGallery,
+  type ClientDeliverableItem,
+} from "@/components/deliverables/client-deliverables-gallery";
 
 export const dynamic = "force-dynamic";
 
@@ -41,27 +47,35 @@ export default async function ClientPortalPage({
   const { id } = await params;
   await requirePageClientPortal();
   const user = await requirePageProjectAccess(id);
-  const project = await prisma.project.findFirst({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      expectedEndDate: true,
-      status: true,
-      client: { select: { name: true } },
-      stages: {
-        orderBy: { order: "asc" },
-        select: {
-          name: true,
-          discipline: true,
-          completion: true,
-          dueDate: true,
-          status: true,
+  const [project, deliverableMatrix, rawDeliverables] = await Promise.all([
+    prisma.project.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        expectedEndDate: true,
+        status: true,
+        client: { select: { name: true } },
+        stages: {
+          orderBy: { order: "asc" },
+          select: {
+            name: true,
+            discipline: true,
+            completion: true,
+            dueDate: true,
+            status: true,
+          },
         },
       },
-    },
-  });
+    }),
+    getDeliverableMatrix(id, true),
+    prisma.projectDeliverable.findMany({
+      where: { projectId: id, isClientView: true },
+      include: { environment: { select: { name: true } } },
+      orderBy: [{ discipline: "asc" }, { sheetCode: "asc" }, { createdAt: "desc" }],
+    }),
+  ]);
   if (!project) {
     return (
       <AppShell eyebrow="Portal do cliente" environment="client">
@@ -80,6 +94,20 @@ export default async function ClientPortalPage({
   }));
   const visibleStages = project.stages.slice(0, 5);
   const isClient = isClientRole(user.role);
+
+  const deliverablesList: ClientDeliverableItem[] = (rawDeliverables || []).map((d) => ({
+    id: d.id,
+    sheetCode: d.sheetCode,
+    subject: d.subject,
+    title: d.title,
+    discipline: d.discipline,
+    type: d.type,
+    version: d.version,
+    fileUrl: d.fileUrl,
+    fileSize: d.fileSize,
+    environmentName: d.environment?.name ?? null,
+    updatedAt: d.updatedAt,
+  }));
 
   return (
     <AppShell eyebrow="Portal do cliente" environment="client" role={user.role}>
@@ -182,6 +210,28 @@ export default async function ClientPortalPage({
                 </Badge>
               </div>
             ))}
+          </div>
+        </Card>
+
+        <Card className="mt-5 border-slate-200 bg-white/90">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="font-semibold text-slate-950">Plantas Técnicas & Pranchas do Empreendimento</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Acompanhe as pranchas executivas homologadas e liberadas pelo estúdio.
+              </p>
+            </div>
+            <Badge tone="blue">{deliverableMatrix.delivered} de {deliverableMatrix.total} prancha(s) liberadas</Badge>
+          </div>
+          <div className="mt-4">
+            <SheetMatrixView matrix={deliverableMatrix} projectId={id} isClientView={true} />
+          </div>
+
+          <div className="mt-8 border-t border-slate-100 pt-6">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
+              Galeria de Pranchas Executivas & Renders 3D Homologados
+            </h3>
+            <ClientDeliverablesGallery projectId={id} deliverables={deliverablesList} />
           </div>
         </Card>
 

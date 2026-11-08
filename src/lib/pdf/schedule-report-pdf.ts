@@ -65,20 +65,109 @@ export function renderScheduleReportPdf(report: ScheduleReport): Uint8Array {
   writer.heading("4. PARECER TÉCNICO EXECUTIVO DO CRONOGRAMA");
   for (const paragraph of report.parecer) writer.paragraph(paragraph);
 
-  writer.heading("5. RESUMO DE AVANÇO FÍSICO POR DISCIPLINA");
-  writer.labelledList(
-    [
-      {
-        label: "Progresso geral",
-        value: `${report.overall.progress}% · ${report.overall.completed} de ${report.overall.total} etapas concluídas`,
-      },
-      ...report.disciplines.map((discipline) => ({
-        label: discipline.discipline,
-        value: `${discipline.progress}% · ${discipline.completed}/${discipline.total} concluídas`,
-      })),
-    ],
-    { size: 9 },
+  writer.heading("5. SÍNTESE DE ENTREGAS, PRAZOS E ALINHAMENTO TÉCNICO");
+  writer.flowText(
+    `Avanço físico ponderado: ${report.overall.weightedProgress}% · Avanço linear médio: ${report.overall.progress}% (${report.overall.completed} de ${report.overall.total} etapas concluídas)`,
+    { size: 9, bold: true, color: "#0f172a", gapAfter: 6 }
   );
+
+  writer.labelledList(
+    report.sinteseEntregas.disciplines.map((discipline) => ({
+      label: discipline.discipline,
+      value: `${discipline.progress}% · ${discipline.completed}/${discipline.total} etapas concluídas`,
+    })),
+    { size: 8.5 },
+  );
+
+  writer.table({
+    columns: [
+      { title: "Descrição / Etapa", weight: 26 },
+      { title: "Disciplina", weight: 14 },
+      { title: "Responsável Técnico", weight: 17 },
+      { title: "Data Limite", weight: 13 },
+      { title: "Avanço Físico", weight: 15 },
+      { title: "Status", weight: 15 },
+    ],
+    rows: report.sinteseEntregas.stages.map((stage) => [
+      stage.name,
+      stage.discipline,
+      stage.designer,
+      stage.dueDate,
+      "",
+      stage.alertDetail,
+    ]),
+    progressColumn: 4,
+    progressValues: report.sinteseEntregas.stages.map((stage) => stage.completion),
+  });
+
+  if (report.sinteseEntregas.alertRows.length === 0) {
+    writer.paragraph("Alinhamento Operacional: Todas as etapas em conformidade técnica com o cronograma pactuado.", {
+      color: "#15803d",
+      size: 8.5,
+    });
+  } else {
+    writer.flowText("Alertas e Pendências do Cronograma:", { bold: true, size: 8.5, color: "#b91c1c", gapAfter: 4 });
+    writer.table({
+      columns: [
+        { title: "Etapa", weight: 44 },
+        { title: "Situação Operacional", weight: 36 },
+        { title: "Prioridade", weight: 20 },
+      ],
+      rows: report.sinteseEntregas.alertRows.map((row) => [row.stage, row.detail, row.priority]),
+      headerFill: "#b91c1c",
+    });
+  }
+
+  // Seção da Matriz de Pranchas Técnicas
+  if (report.matrizPranchas.total > 0) {
+    writer.heading("5.4 MATRIZ DE ENTREGÁVEIS & PRANCHAS TÉCNICAS");
+    writer.flowText(
+      `Total: ${report.matrizPranchas.total} prancha(s) · ${report.matrizPranchas.entregues} liberada(s) (${report.matrizPranchas.taxa}%) · ${report.matrizPranchas.pendentes} em desenvolvimento`,
+      { size: 8.5, bold: true, color: "#0f172a", gapAfter: 6 }
+    );
+
+    if (report.matrizPranchas.concluidas.length > 0) {
+      writer.flowText("Pranchas Concluídas & Liberadas:", { size: 8, bold: true, color: "#15803d", gapAfter: 4 });
+      writer.table({
+        columns: [
+          { title: "Código", weight: 16 },
+          { title: "Assunto", weight: 36 },
+          { title: "Disciplina", weight: 20 },
+          { title: "Versão", weight: 12, align: "center" },
+          { title: "Data Homologação", weight: 16, align: "center" },
+        ],
+        rows: report.matrizPranchas.concluidas.map((p) => [
+          p.sheetCode,
+          p.subject,
+          p.discipline,
+          p.version,
+          p.data,
+        ]),
+        headerFill: "#15803d",
+      });
+    }
+
+    if (report.matrizPranchas.emDesenvolvimento.length > 0) {
+      writer.flowText("Pranchas em Desenvolvimento & Previstas:", { size: 8, bold: true, color: "#0369a1", gapAfter: 4 });
+      writer.table({
+        columns: [
+          { title: "Código / Ref.", weight: 18 },
+          { title: "Assunto Previsto", weight: 36 },
+          { title: "Disciplina", weight: 20 },
+          { title: "Responsável", weight: 14 },
+          { title: "Prazo Estimado", weight: 12, align: "center" },
+        ],
+        rows: report.matrizPranchas.emDesenvolvimento.map((p) => [
+          p.sheetCode,
+          p.subject,
+          p.discipline,
+          p.responsavel,
+          p.prazo,
+        ]),
+        headerFill: "#0369a1",
+      });
+    }
+  }
 
   writer.heading("6. RESUMO FINANCEIRO & CRONOGRAMA DE DESEMBOLSO");
   writer.labelledList(report.financial.rows);
@@ -102,52 +191,34 @@ export function renderScheduleReportPdf(report: ScheduleReport): Uint8Array {
     ]),
   });
 
-  writer.heading("7. QUADRO CONSOLIDADO DE ETAPAS & ENTREGAS");
-  writer.table({
-    columns: [
-      { title: "Descrição / Etapa", weight: 26 },
-      { title: "Disciplina", weight: 14 },
-      { title: "Responsável Técnico", weight: 17 },
-      { title: "Data Limite", weight: 13 },
-      { title: "Avanço Físico", weight: 15 },
-      { title: "Status", weight: 15 },
-    ],
-    rows: report.stages.map((stage) => [
-      stage.name,
-      stage.discipline,
-      stage.designer,
-      stage.dueDate,
-      "",
-      stage.alertDetail,
-    ]),
-    progressColumn: 4,
-    progressValues: report.stages.map((stage) => stage.completion),
-  });
-
-  writer.heading("8. CRITÉRIOS OFICIAIS DE ACOMPANHAMENTO");
-  writer.labelledList(
-    report.criteria.map((criterion) => ({ label: criterion.label, value: criterion.description })),
-    { size: 8 },
-  );
-
-  writer.heading("8.1 ALERTAS DO CRONOGRAMA", { gapAfter: 4 });
-  if (report.alertRows.length === 0) {
-    writer.paragraph("Nenhuma etapa em atraso, bloqueada ou com prazo próximo.", { color: "#15803d" });
-  } else {
-    writer.table({
-      columns: [
-        { title: "Etapa", weight: 44 },
-        { title: "Situação", weight: 36 },
-        { title: "Prioridade", weight: 20 },
-      ],
-      rows: report.alertRows.map((row) => [row.stage, row.detail, row.priority]),
-      headerFill: "#b91c1c",
-    });
-  }
-
-  signatures(writer, report);
+  institutionalFooter(writer, report);
   writer.stampFooters(REPORT_DOCUMENT_KIND);
   return writer.build();
+}
+
+function institutionalFooter(writer: PdfWriter, report: ScheduleReport): void {
+  writer.ensure(50);
+  writer.rect(writer.margin, writer.y, writer.contentWidth, 1.2, { fill: "#0f172a" });
+  writer.y += 12;
+  writer.drawText(
+    "ArqVértice Studio · Relatório Técnico de Acompanhamento Físico",
+    writer.width / 2,
+    writer.y + 4,
+    { size: 9, bold: true, color: "#0f172a", align: "center" },
+  );
+  writer.drawText(
+    `Emissão: ${report.emittedAtLabel} · Versão 2.4 Oficial · Hash: ${report.documentHash}`,
+    writer.width / 2,
+    writer.y + 16,
+    { size: 7.5, bold: true, color: "#0f172a", align: "center" },
+  );
+  writer.drawText(
+    "Documento oficial certificado digitalmente pelo Sistema ArqVértice Flow. Dispensa assinaturas manuscritas.",
+    writer.width / 2,
+    writer.y + 26,
+    { size: 6.5, color: "#64748b", align: "center" },
+  );
+  writer.y += 36;
 }
 
 function header(writer: PdfWriter, report: ScheduleReport): void {
@@ -183,23 +254,4 @@ function header(writer: PdfWriter, report: ScheduleReport): void {
   writer.y += 12;
 }
 
-function signatures(writer: PdfWriter, report: ScheduleReport): void {
-  writer.ensure(80);
-  writer.rect(writer.margin, writer.y, writer.contentWidth, 0.8, { fill: "#0f172a" });
-  writer.y += 14;
-  const column = writer.contentWidth / 2;
-  report.signatures.forEach((person, index) => {
-    const left = writer.margin + (index % 2) * column;
-    const top = writer.y + Math.floor(index / 2) * 34;
-    writer.rect(left + 8, top + 18, column - 24, 0.7, { fill: "#0f172a" });
-    writer.drawText(person.name, left + 8, top + 13, { size: 9, bold: true, color: "#0f172a" });
-    writer.drawText(person.role, left + 8, top + 3, { size: 7.5, color: "#475569" });
-  });
-  writer.y += Math.ceil(report.signatures.length / 2) * 34 + 6;
-  writer.drawText(
-    "Documento de acompanhamento físico · ArqVértice · gerado a partir dos dados registados no sistema",
-    writer.width / 2,
-    writer.y + 8,
-    { size: 7.5, color: "#64748b", align: "center" },
-  );
-}
+
