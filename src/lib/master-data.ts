@@ -199,6 +199,34 @@ export const MASTER_ROLES: MasterRole[] = [
 /**
  * Funções utilitárias auxiliares para selects, modais e filtros
  */
+/**
+ * Menus Suspensos Padronizados Oficiais - ArqVértice Flow
+ */
+export const STANDARDIZED_RESPONSIBLES = [
+  "Eduardo Marques",
+  "Emanoel Luan",
+  "Erick",
+] as const;
+
+export const STANDARDIZED_DISCIPLINES = [
+  "Arquitetura",
+  "Engenharia Estrutural",
+  "Instalações Prediais",
+  "Modelagem 3D & Imagens",
+] as const;
+
+export const STANDARDIZED_PHASES = [
+  "Projeto Preliminar",
+  "Projeto Legal",
+  "Projeto Executivo",
+] as const;
+
+export const STANDARDIZED_FINANCIAL_STATUSES = [
+  { value: "PENDING", label: "Pendente" },
+  { value: "PAID", label: "Pago" },
+  { value: "OVERDUE", label: "Atrasado" },
+] as const;
+
 export function getDisciplineMaster(key: string | null | undefined): MasterDiscipline {
   if (!key) return MASTER_DISCIPLINES[0];
   const normalized = key.toUpperCase().trim();

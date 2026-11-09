@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProjectFinanceManager } from "./project-finance-manager";
+import { formatDateBR, formatCurrencyBRL } from "@/lib/formatters";
 import { CommercialSummary } from "@/components/proposals/commercial-summary";
 import { ProposalActions } from "@/components/proposals/proposal-actions";
 import { BriefingLinkManager } from "@/components/briefing/briefing-link-manager";
@@ -193,7 +194,7 @@ export function ProjectDetailTabs({
   const loteQuadra = addressObj.loteQuadra || addressObj.lote || "Lote 14, Quadra B";
   const areaConstruida = addressObj.areaConstruida || addressObj.area || "385,00 m²";
   const formattedBudget = project.budget
-    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(project.budget)
+    ? formatCurrencyBRL(project.budget)
     : "R$ 30.000,00";
 
   return (
@@ -572,7 +573,7 @@ export function ProjectDetailTabs({
                           </td>
                           <td className="py-2.5 px-2 text-slate-600">{c.designer || "Eduardo Marques"}</td>
                           <td className="py-2.5 px-2 font-medium text-slate-600">
-                            {c.dueDate ? new Date(c.dueDate).toLocaleDateString("pt-BR") : "—"}
+                            {formatDateBR(c.dueDate)}
                           </td>
                           <td className="py-2.5 px-2">
                             <div className="flex items-center gap-2">

@@ -3,8 +3,12 @@
 import { useState, useTransition, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { saveScheduleStageAction, editScheduleStageAction } from "@/server/actions/schedule";
-import { MASTER_PHASES, MASTER_DISCIPLINES } from "@/lib/master-data";
-import { toISODateInput } from "@/lib/formatters";
+import {
+  STANDARDIZED_PHASES,
+  STANDARDIZED_DISCIPLINES,
+  STANDARDIZED_RESPONSIBLES,
+} from "@/lib/master-data";
+import { toInputDateFormat } from "@/lib/formatters";
 
 export interface StageFormData {
   id?: string;
@@ -53,12 +57,12 @@ export function StageFormModal({
   const [designer, setDesigner] = useState(initialStage?.designer ?? "Eduardo Marques");
   const [startDate, setStartDate] = useState(
     initialStage?.startDate
-      ? toISODateInput(initialStage.startDate)
+      ? toInputDateFormat(initialStage.startDate)
       : new Date().toISOString().slice(0, 10)
   );
   const [dueDate, setDueDate] = useState(
     initialStage?.dueDate
-      ? toISODateInput(initialStage.dueDate)
+      ? toInputDateFormat(initialStage.dueDate)
       : new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10)
   );
   const [description, setDescription] = useState(initialStage?.description ?? "");
@@ -84,12 +88,12 @@ export function StageFormModal({
       );
       setStartDate(
         initialStage.startDate
-          ? toISODateInput(initialStage.startDate)
+          ? toInputDateFormat(initialStage.startDate)
           : new Date().toISOString().slice(0, 10)
       );
       setDueDate(
         initialStage.dueDate
-          ? toISODateInput(initialStage.dueDate)
+          ? toInputDateFormat(initialStage.dueDate)
           : new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10)
       );
       setDescription(initialStage.description ?? "");
@@ -239,9 +243,9 @@ export function StageFormModal({
                   onChange={(e) => setPhase(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-white font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
-                  {MASTER_PHASES.map((p) => (
-                    <option key={p.key} value={p.label}>
-                      {p.label}
+                  {STANDARDIZED_PHASES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
                     </option>
                   ))}
                 </select>
@@ -257,12 +261,11 @@ export function StageFormModal({
                   onChange={(e) => setDiscipline(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-white font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
-                  {MASTER_DISCIPLINES.map((d) => (
-                    <option key={d.key} value={d.name}>
-                      {d.name}
+                  {STANDARDIZED_DISCIPLINES.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
                     </option>
                   ))}
-                  <option value="Execução de Obra">Execução de Obra</option>
                 </select>
               </div>
 
@@ -276,9 +279,11 @@ export function StageFormModal({
                   onChange={(e) => setDesigner(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-white font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
-                  <option value="Eduardo Marques">Eduardo Marques</option>
-                  <option value="Emanoel Luan">Emanoel Luan</option>
-                  <option value="Erick">Erick</option>
+                  {STANDARDIZED_RESPONSIBLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
                 </select>
               </div>
 

@@ -1,102 +1,99 @@
 /**
  * Utilitários Oficiais de Formatação Regional (pt-BR) - ArqVértice Flow
  * Padroniza datas (DD/MM/AAAA) e valores monetários (R$ 1.234,56),
- * prevenindo erros comuns como "Invalid Date" ao receber formatos variados.
+ * prevenindo erros de "Invalid Date" e desvios de fuso horário (UTC offset).
  */
 
-/**
- * Formata qualquer representação de data (ISO, Date, DD/MM/AAAA) para o padrão estrito brasileiro (DD/MM/AAAA).
- */
-export function formatDateBR(value: string | Date | null | undefined): string {
-  if (!value || value === "—") return "—";
-
-  if (value instanceof Date) {
-    if (isNaN(value.getTime())) return "—";
-    const day = String(value.getUTCDate()).padStart(2, "0");
-    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
-    const year = value.getUTCFullYear();
-    return `${day}/${month}/${year}`;
-  }
-
-  const str = String(value).trim();
-
-  // Caso 1: Já está no formato DD/MM/AAAA
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-    return str;
-  }
-
-  // Caso 2: Formato ISO YYYY-MM-DD
-  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-  }
-
-  // Caso 3: Parse com Date
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    const day = String(d.getUTCDate()).padStart(2, "0");
-    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const year = d.getUTCFullYear();
-    return `${day}/${month}/${year}`;
-  }
-
-  return str;
+export function formatCurrencyBRL(value: number | string | null | undefined): string {
+  const num = typeof value === "string" ? parseFloat(value) : (value ?? 0);
+  if (isNaN(num)) return "R$ 0,00";
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(num);
 }
 
-/**
- * Converte qualquer representação de data para o padrão YYYY-MM-DD exigido por inputs do tipo date (<input type="date">).
- */
-export function toISODateInput(value: string | Date | null | undefined): string {
-  if (!value) return new Date().toISOString().slice(0, 10);
+export function formatDateBR(date: string | Date | null | undefined): string {
+  if (!date || date === "—") return "—";
 
-  if (value instanceof Date) {
-    if (isNaN(value.getTime())) return new Date().toISOString().slice(0, 10);
-    return value.toISOString().slice(0, 10);
+  // Tratamento seguro para strings no formato YYYY-MM-DD ou ISO
+  let d: Date;
+  if (typeof date === "string") {
+    const trimmed = date.trim();
+    // Se já estiver no formato DD/MM/AAAA
+    const brParts = trimmed.split("/");
+    if (brParts.length === 3 && brParts[0].length === 2 && brParts[2].length === 4) {
+      d = new Date(parseInt(brParts[2], 10), parseInt(brParts[1], 10) - 1, parseInt(brParts[0], 10));
+    } else {
+      // Trata formato YYYY-MM-DD sem shift de timezone UTC
+      const parts = trimmed.split("T")[0].split("-");
+      if (parts.length === 3 && parts[0].length === 4) {
+        d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      } else {
+        d = new Date(date);
+      }
+    }
+  } else {
+    d = date;
   }
 
-  const str = String(value).trim();
+  if (isNaN(d.getTime())) return "—";
 
-  // Se for DD/MM/AAAA -> converter para YYYY-MM-DD
-  const brMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (brMatch) {
-    return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
-  }
-
-  // Se já for ISO YYYY-MM-DD
-  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (isoMatch) {
-    return isoMatch[1];
-  }
-
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().slice(0, 10);
-  }
-
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(d);
 }
 
-/**
- * Converte de forma segura qualquer formato de data para objeto Date nativo.
- */
+export function toInputDateFormat(date: string | Date | null | undefined): string {
+  if (!date) return "";
+
+  if (typeof date === "string") {
+    const trimmed = date.trim();
+    // Se for formato DD/MM/AAAA
+    const brParts = trimmed.split("/");
+    if (brParts.length === 3 && brParts[0].length === 2 && brParts[2].length === 4) {
+      return `${brParts[2]}-${brParts[1].padStart(2, "0")}-${brParts[0].padStart(2, "0")}`;
+    }
+    // Se for formato YYYY-MM-DD ou ISO
+    const parts = trimmed.split("T")[0].split("-");
+    if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+    }
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  if (isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Alias de compatibilidade
+export const toISODateInput = toInputDateFormat;
+
 export function parseDateSafe(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
 
   const str = String(value).trim();
+  const brParts = str.split("/");
+  if (brParts.length === 3 && brParts[0].length === 2 && brParts[2].length === 4) {
+    return new Date(parseInt(brParts[2], 10), parseInt(brParts[1], 10) - 1, parseInt(brParts[0], 10));
+  }
 
-  const brMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (brMatch) {
-    return new Date(Date.UTC(Number(brMatch[3]), Number(brMatch[2]) - 1, Number(brMatch[1])));
+  const isoParts = str.split("T")[0].split("-");
+  if (isoParts.length === 3 && isoParts[0].length === 4) {
+    return new Date(parseInt(isoParts[0], 10), parseInt(isoParts[1], 10) - 1, parseInt(isoParts[2], 10));
   }
 
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
-}
-
-/**
- * Formata valores numéricos para o padrão monetário brasileiro (R$ 1.234,56).
- */
-export function formatCurrencyBRL(amount: number | null | undefined): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount || 0);
 }

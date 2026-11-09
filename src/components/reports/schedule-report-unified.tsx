@@ -95,13 +95,13 @@ export function UnifiedScheduleReport({
     const contractVal = contractRow
       ? contractRow.value
       : totalAmount > 0
-      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalAmount)
+      ? formatCurrencyBRL(totalAmount)
       : "R$ 30.000,00";
 
     return {
       totalContractValueFormatted: contractVal,
-      paidFormatted: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(paidAmount),
-      pendingFormatted: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(pendingAmount),
+      paidFormatted: formatCurrencyBRL(paidAmount),
+      pendingFormatted: formatCurrencyBRL(pendingAmount),
     };
   }, [initialPayments, finalFinancialRows]);
 

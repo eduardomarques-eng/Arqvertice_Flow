@@ -4,10 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   formatDateBR,
-  toISODateInput,
+  toInputDateFormat,
   parseDateSafe,
   formatCurrencyBRL,
 } from "@/lib/formatters";
+import {
+  STANDARDIZED_DISCIPLINES,
+  STANDARDIZED_FINANCIAL_STATUSES,
+} from "@/lib/master-data";
 
 export type Installment = {
   id: string;
@@ -22,12 +26,7 @@ export type Installment = {
 
 export type Stage = { id: string; name: string };
 
-export const PREDEFINED_DISCIPLINES = [
-  "Projeto Arquitetônico",
-  "Projeto Estrutural",
-  "Projetos Complementares",
-  "Projeto 3D Modelagem e Imagens",
-];
+export const PREDEFINED_DISCIPLINES = STANDARDIZED_DISCIPLINES;
 
 export function ProjectFinanceManager({
   projectId,
@@ -388,7 +387,7 @@ export function ProjectFinanceManager({
                   type="number"
                   step="0.01"
                   min="0"
-                  defaultValue={editing.amount || ""}
+                  defaultValue={editing.amount !== undefined ? editing.amount : ""}
                   required
                   placeholder="0.00"
                   className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none"
@@ -401,7 +400,7 @@ export function ProjectFinanceManager({
                 <input
                   name="dueDate"
                   type="date"
-                  defaultValue={toISODateInput(editing.dueDate)}
+                  defaultValue={toInputDateFormat(editing.dueDate)}
                   required
                   className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none"
                 />
@@ -436,9 +435,11 @@ export function ProjectFinanceManager({
                   defaultValue={editing.status === "Liquidado" ? "PAID" : editing.status === "Pendente" ? "PENDING" : editing.status}
                   className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                 >
-                  <option value="PENDING">Pendente</option>
-                  <option value="PAID">Pago</option>
-                  <option value="OVERDUE">Atrasado</option>
+                  {STANDARDIZED_FINANCIAL_STATUSES.map((st) => (
+                    <option key={st.value} value={st.value}>
+                      {st.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
