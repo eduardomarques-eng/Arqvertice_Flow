@@ -4,12 +4,12 @@
 
 @layer base {
   html, body {
-    max-width: 100vw;
+    max-width: 100%;
     overflow-x: clip;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* Elimina atraso de toque em navegadores móveis */
+    /* Elimina atraso de toque de 300ms em navegadores móveis */
     touch-action: manipulation;
   }
 }
@@ -161,7 +161,7 @@ textarea:focus-visible {
   }
 }
 
-/* Mobile Safe Area & Touch Comfort (Apple HIG) */
+/* Mobile Safe Area & Touch Comfort (Apple HIG / 60 FPS) */
 .safe-pb,
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 1rem);
@@ -172,4 +172,16 @@ textarea:focus-visible {
 .touch-target {
   min-height: 44px;
   min-width: 44px;
+}
+.btn-touch {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-touch:active,
+.active-tactile:active {
+  transform: scale(0.98);
 }

@@ -6,25 +6,37 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ProjectFinanceManager } from "./project-finance-manager";
+import dynamic from "next/dynamic";
 import { formatDateBR, formatCurrencyBRL } from "@/lib/formatters";
 import { CommercialSummary } from "@/components/proposals/commercial-summary";
 import { ProposalActions } from "@/components/proposals/proposal-actions";
 import { BriefingLinkManager } from "@/components/briefing/briefing-link-manager";
-import { ProjectAcervoTab } from "@/components/deliverables/project-acervo-tab";
 import type { DeliverableCardItem } from "@/components/deliverables/deliverable-card";
-import { ProjectChecklistTab } from "@/components/deliverables/project-checklist-tab";
 import { DocumentUploader } from "@/components/documents/document-uploader";
 import { DocumentList } from "@/components/documents/document-list";
-import dynamic from "next/dynamic";
 import { ReportVisibilityControl } from "@/components/reports/report-visibility-control";
 import type { StageFormData } from "@/components/schedule/stage-form-modal";
 import type { DeliverableMatrix } from "@/server/services/deliverable-service";
 import type { ChecklistItemData } from "@/server/actions/checklist";
 
-// Modal de Criação / Edição de Etapas carregado dinamicamente sob demanda
+// Code splitting com next/dynamic (ssr: false) para abas e modais pesados
 const StageFormModal = dynamic(
   () => import("@/components/schedule/stage-form-modal").then((mod) => mod.StageFormModal),
+  { ssr: false }
+);
+
+const ProjectFinanceManager = dynamic(
+  () => import("./project-finance-manager").then((mod) => mod.ProjectFinanceManager),
+  { ssr: false }
+);
+
+const ProjectAcervoTab = dynamic(
+  () => import("@/components/deliverables/project-acervo-tab").then((mod) => mod.ProjectAcervoTab),
+  { ssr: false }
+);
+
+const ProjectChecklistTab = dynamic(
+  () => import("@/components/deliverables/project-checklist-tab").then((mod) => mod.ProjectChecklistTab),
   { ssr: false }
 );
 

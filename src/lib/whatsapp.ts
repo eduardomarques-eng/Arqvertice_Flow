@@ -93,7 +93,6 @@ export async function sendWhatsAppMessage({ phone, message }: WhatsAppMessagePay
     }
   }
 
-  console.log("[WHATSAPP wa.me] Link gerado.", { phone: sanitizePhoneNumber(phone), url: directUrl });
   return { success: true, url: directUrl };
 }
 

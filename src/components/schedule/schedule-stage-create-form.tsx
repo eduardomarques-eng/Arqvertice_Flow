@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { StageFormModal } from "./stage-form-modal";
+import dynamic from "next/dynamic";
+
+const StageFormModal = dynamic(
+  () => import("./stage-form-modal").then((mod) => mod.StageFormModal),
+  { ssr: false }
+);
 
 export function ScheduleStageCreateForm({ projectId }: { projectId: string }) {
   const [isOpen, setIsOpen] = useState(false);

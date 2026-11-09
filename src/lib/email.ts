@@ -78,10 +78,6 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
     }
   }
 
-  console.log("[email] Nenhum provider configurado; e-mail registrado apenas no console.", {
-    recipient: input.to,
-    subject: input.subject,
-  });
   return { ok: false, configured: false, provider: "none", error: "Nenhum provider de e-mail configurado." };
 }
 
