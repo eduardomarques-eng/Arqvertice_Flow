@@ -28,7 +28,7 @@ const StageFormModal = dynamic(
   { ssr: false }
 );
 
-export type TabKey = "plantas" | "cronograma" | "geral" | "financeiro" | "checklist" | "pranchas";
+export type TabKey = "acervo" | "plantas" | "cronograma" | "geral" | "financeiro" | "checklist" | "pranchas" | "etapas";
 export type MainModuleKey = "plantas" | "cronograma";
 export type CronoSubTabKey = "etapas" | "financeiro" | "checklist";
 
@@ -80,9 +80,9 @@ export function ProjectDetailTabs({
 
   // Determina o módulo principal ativo
   const resolveMainModule = (param: TabKey | null): MainModuleKey => {
-    if (param === "pranchas" || param === "plantas") return "plantas";
-    if (param === "cronograma" || param === "geral" || param === "financeiro" || param === "checklist") return "cronograma";
-    return "plantas"; // Padrão: Módulo 1 (Plantas Cadastradas)
+    if (param === "acervo" || param === "pranchas" || param === "plantas") return "plantas";
+    if (param === "cronograma" || param === "etapas" || param === "geral" || param === "financeiro" || param === "checklist") return "cronograma";
+    return "plantas"; // Padrão: Módulo 1 (Acervo Técnico)
   };
 
   // Determina a sub-aba do cronograma ativa
@@ -115,7 +115,7 @@ export function ProjectDetailTabs({
 
   const switchMainModule = (mod: MainModuleKey) => {
     setMainModule(mod);
-    const targetTab = mod === "plantas" ? "plantas" : cronoSubTab === "financeiro" ? "financeiro" : cronoSubTab === "checklist" ? "checklist" : "cronograma";
+    const targetTab = mod === "plantas" ? "acervo" : cronoSubTab === "financeiro" ? "financeiro" : cronoSubTab === "checklist" ? "checklist" : "cronograma";
     const url = new URL(window.location.href);
     url.searchParams.set("tab", targetTab);
     window.history.replaceState({}, "", url.toString());
@@ -351,10 +351,10 @@ export function ProjectDetailTabs({
               </span>
             </div>
             <h3 className="mt-1 text-base font-bold text-slate-900 group-hover:text-blue-600 transition truncate">
-              Plantas Cadastradas (Acervo Técnico)
+              Acervo Técnico
             </h3>
             <p className="mt-0.5 text-xs text-slate-500 line-clamp-1">
-              Pranchas normativas, memoriais de cálculo e renders 3D em alta resolução
+              Repositório por Disciplina e Fases · Pranchas normativas, memoriais e renders 3D
             </p>
           </div>
         </button>
@@ -446,7 +446,7 @@ export function ProjectDetailTabs({
               {[
                 { key: "etapas" as CronoSubTabKey, label: "Avanço Físico & Etapas", icon: "📈", badge: `${completion}%` },
                 { key: "financeiro" as CronoSubTabKey, label: "Gestão Financeira", icon: "💰", badge: `${installments.length} parcelas` },
-                { key: "checklist" as CronoSubTabKey, label: "Checklist de Obra", icon: "✅", badge: `${checklistRate}%` },
+                { key: "checklist" as CronoSubTabKey, label: "Checklist & Liberações", icon: "✅", badge: `${checklistRate}%` },
               ].map((sub) => {
                 const active = cronoSubTab === sub.key;
                 return (

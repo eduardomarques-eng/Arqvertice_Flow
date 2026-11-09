@@ -206,7 +206,12 @@ export function UnifiedScheduleReport({
           </div>
 
           <div className="flex shrink-0 items-center gap-2.5 print-hidden">
-            {/* TAREFA 3: Botão Único Oficial de Impressão / Salvar PDF */}
+            <Link
+              href={`/admin/projetos/${projectId}?tab=financeiro`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-50 hover:border-zinc-400 transition active:scale-95 shadow-xs"
+            >
+              <span>💰</span> Gerenciar Financeiro
+            </Link>
             <PrintButton />
           </div>
         </div>
@@ -495,7 +500,17 @@ export function UnifiedScheduleReport({
       {/* 4. GESTÃO FINANCEIRA: CRONOGRAMA DE PARCELAS & QUITAÇÃO        */}
       {/* ============================================================== */}
       {sectionsVisibility.financeiro && (
-        <ReportCardSection title="4. Gestão Financeira: Cronograma de Parcelas & Quitação">
+        <ReportCardSection
+          title="4. Gestão Financeira: Cronograma de Parcelas & Quitação"
+          action={
+            <Link
+              href={`/admin/projetos/${projectId}?tab=financeiro`}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition active:scale-95 shadow-xs"
+            >
+              <span>💰</span> Gerenciar Financeiro →
+            </Link>
+          }
+        >
           <FinancialManagement
             projectId={projectId}
             initialInstallments={initialInstallments}
@@ -571,12 +586,23 @@ export function UnifiedScheduleReport({
   );
 }
 
-function ReportCardSection({ title, children }: { title: string; children: React.ReactNode }) {
+function ReportCardSection({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <Card className="break-inside-avoid rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm overflow-hidden print-avoid-break print:p-2.5 print:my-2 print:rounded-xl">
-      <h2 className="border-l-4 border-blue-600 pl-3 text-xs font-bold uppercase tracking-wider text-slate-900 print:text-[10.5px] print:pl-2">
-        {title}
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="border-l-4 border-blue-600 pl-3 text-xs font-bold uppercase tracking-wider text-slate-900 print:text-[10.5px] print:pl-2">
+          {title}
+        </h2>
+        {action ? <div className="print:hidden">{action}</div> : null}
+      </div>
       <div className="mt-4 print:mt-2">{children}</div>
     </Card>
   );
