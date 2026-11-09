@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { formatDateBR } from "@/lib/formatters";
 
 interface InstallmentItem {
   id: string;
@@ -56,9 +57,7 @@ export function ReportClientFinanceCard({
           ? {
               ...p,
               status: nextStatus === "PAID" ? "Liquidado" : "Pendente",
-              paidAt: nextPaidDate
-                ? new Date(nextPaidDate).toLocaleDateString("pt-BR")
-                : "—",
+              paidAt: nextPaidDate ? formatDateBR(nextPaidDate) : "—",
             }
           : p,
       ),
@@ -203,7 +202,7 @@ export function ReportClientFinanceCard({
                       </td>
 
                       <td className="w-[14%] py-3 p-2 font-mono text-zinc-600 whitespace-nowrap">
-                        {p.dueDate}
+                        {formatDateBR(p.dueDate)}
                       </td>
 
                       <td className="w-[14%] py-3 p-2 text-right font-mono font-semibold text-zinc-900 whitespace-nowrap">

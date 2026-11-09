@@ -89,19 +89,45 @@ textarea:focus-visible {
 }
 
 @media print {
-  * {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm; /* Margens limpas e econômicas */
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #09090b !important;
+    font-size: 11px !important; /* Fonte base reduzida para preenchimento equilibrado */
+    line-height: 1.3 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  @page {
-    margin: 12mm 15mm;
-    size: A4 portrait;
-  }
-  .print-hidden,
-  aside,
-  header {
+
+  /* Ocultar elementos estritamente da interface web */
+  header, nav, aside, .print\:hidden, button, a[href^="http"]:not(.print-keep-link) {
     display: none !important;
   }
+
+  /* Evitar quebra no meio de blocos executivos */
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Forçar quebra de página consciente onde necessário */
+  .print-page-break {
+    break-before: page !important;
+    page-break-before: page !important;
+  }
+
+  /* Compactar espaçamentos verticais na impressão */
+  .print-compact {
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
   body,
   main {
     background: white !important;

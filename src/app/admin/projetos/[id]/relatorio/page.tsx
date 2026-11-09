@@ -4,6 +4,7 @@ import { requirePageProjectAccess, currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { getScheduleReport } from "@/server/services/schedule-report-service";
 import { UnifiedScheduleReport } from "@/components/reports/schedule-report-unified";
+import { formatCurrencyBRL, formatDateBR } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
 
@@ -51,10 +52,10 @@ export default async function ProjectReportPage({ params }: { params: Promise<{ 
   const initialPayments = (projectDb?.installments || []).map((inst) => ({
     id: inst.id,
     name: inst.description,
-    amount: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(inst.amount)),
+    amount: formatCurrencyBRL(Number(inst.amount)),
     amountNumber: Number(inst.amount),
-    dueDate: new Date(inst.dueDate).toLocaleDateString("pt-BR"),
-    paidAt: inst.paidDate ? new Date(inst.paidDate).toLocaleDateString("pt-BR") : "—",
+    dueDate: inst.dueDate ? new Date(inst.dueDate).toISOString().slice(0, 10) : "",
+    paidAt: inst.paidDate ? formatDateBR(inst.paidDate) : "—",
     stage: inst.linkedStageId || "—",
     status: inst.status === "PAID" ? "Liquidado" : "Pendente",
     order: inst.order,

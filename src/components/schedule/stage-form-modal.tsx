@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { saveScheduleStageAction, editScheduleStageAction } from "@/server/actions/schedule";
 import { MASTER_PHASES, MASTER_DISCIPLINES } from "@/lib/master-data";
+import { toISODateInput } from "@/lib/formatters";
 
 export interface StageFormData {
   id?: string;
@@ -52,12 +53,12 @@ export function StageFormModal({
   const [designer, setDesigner] = useState(initialStage?.designer ?? "Eduardo Marques");
   const [startDate, setStartDate] = useState(
     initialStage?.startDate
-      ? new Date(initialStage.startDate).toISOString().slice(0, 10)
+      ? toISODateInput(initialStage.startDate)
       : new Date().toISOString().slice(0, 10)
   );
   const [dueDate, setDueDate] = useState(
     initialStage?.dueDate
-      ? new Date(initialStage.dueDate).toISOString().slice(0, 10)
+      ? toISODateInput(initialStage.dueDate)
       : new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10)
   );
   const [description, setDescription] = useState(initialStage?.description ?? "");
@@ -83,12 +84,12 @@ export function StageFormModal({
       );
       setStartDate(
         initialStage.startDate
-          ? new Date(initialStage.startDate).toISOString().slice(0, 10)
+          ? toISODateInput(initialStage.startDate)
           : new Date().toISOString().slice(0, 10)
       );
       setDueDate(
         initialStage.dueDate
-          ? new Date(initialStage.dueDate).toISOString().slice(0, 10)
+          ? toISODateInput(initialStage.dueDate)
           : new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10)
       );
       setDescription(initialStage.description ?? "");

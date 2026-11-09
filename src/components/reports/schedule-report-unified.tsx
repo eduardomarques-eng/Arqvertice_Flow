@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { PrintButton } from "@/components/print-button";
 import { FinancialManagement, type Installment, type Stage } from "@/components/financial/financial-management";
 import type { ScheduleReport } from "@/lib/schedule-report";
+import { formatDateBR, formatCurrencyBRL } from "@/lib/formatters";
 
 export interface UnifiedScheduleReportProps {
   projectId: string;
@@ -179,27 +180,27 @@ export function UnifiedScheduleReport({
   }, [sanitizedStages]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 font-sans space-y-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 font-sans space-y-8 print:p-0 print:space-y-3">
       {/* ============================================================== */}
       {/* 1. CABEÇALHO EXECUTIVO E CONTRATUAL GERAL (Metadados + Resumo)  */}
       {/* ============================================================== */}
-      <section className="space-y-6">
+      <section className="space-y-6 print:space-y-2">
         {/* Barra de Título Superior & Ação Única Oficial (Print / PDF)   */}
-        <div className="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-start sm:justify-between print:pb-2 print:gap-1">
           <div>
             <div className="flex items-center gap-2">
-              <span className="rounded-md bg-zinc-950 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs">
+              <span className="rounded-md bg-zinc-950 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs print:text-[9px] print:px-1.5 print:py-0.5">
                 ArqVértice Studio
               </span>
-              <span className="text-xs font-semibold text-zinc-400">· Flow Engineering v2.4</span>
-              <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+              <span className="text-xs font-semibold text-zinc-400 print:text-[9px]">· Flow Engineering v2.4</span>
+              <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider print:text-[8px] print:px-1.5">
                 Relatório Oficial
               </span>
             </div>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-zinc-900 sm:text-3xl">
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-zinc-900 sm:text-3xl print:text-lg print:mt-1">
               Relatório Oficial do Cronograma
             </h1>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 print:text-[9px] print:mt-0.5">
               Acompanhamento Físico-Financeiro, Avanço das Disciplinas e Prazos Operacionais
             </p>
           </div>
@@ -211,41 +212,41 @@ export function UnifiedScheduleReport({
         </div>
 
         {/* Identificação Completa da Edificação & Contratante */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs print:p-2.5 print:rounded-lg print:border-zinc-300">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
+            <div className="space-y-1 print:space-y-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 print:text-[8.5px]">
                 Empreendimento / Projeto
               </span>
-              <p className="text-base font-extrabold text-slate-900">{projectName}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-base font-extrabold text-slate-900 print:text-xs">{projectName}</p>
+              <p className="text-xs text-slate-500 print:text-[9px]">
                 Cliente: <strong className="text-slate-800">{client.name}</strong>
               </p>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="space-y-1 print:space-y-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 print:text-[8.5px]">
                 Área Total Construída
               </span>
-              <p className="text-base font-extrabold text-slate-900">{client.areaConstruida || "385,00 m²"}</p>
-              <p className="text-xs text-slate-500">{client.loteQuadra || "Loteamento Litoral"}</p>
+              <p className="text-base font-extrabold text-slate-900 print:text-xs">{client.areaConstruida || "385,00 m²"}</p>
+              <p className="text-xs text-slate-500 print:text-[9px]">{client.loteQuadra || "Loteamento Litoral"}</p>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="space-y-1 print:space-y-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 print:text-[8.5px]">
                 Tipologia Arquitetônica
               </span>
-              <p className="text-base font-extrabold text-slate-900">Residencial Unifamiliar</p>
-              <p className="text-xs text-slate-500">Padrão Construtivo Litorâneo</p>
+              <p className="text-base font-extrabold text-slate-900 print:text-xs">Residencial Unifamiliar</p>
+              <p className="text-xs text-slate-500 print:text-[9px]">Padrão Construtivo Litorâneo</p>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="space-y-1 print:space-y-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 print:text-[8.5px]">
                 Data de Emissão & Sincronização
               </span>
-              <p className="text-base font-extrabold text-slate-900">{report.emittedAtLabel}</p>
-              <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-base font-extrabold text-slate-900 print:text-xs">{report.emittedAtLabel}</p>
+              <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold print:text-[8.5px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 <span>Base Neon Conectada</span>
               </div>
             </div>
@@ -253,69 +254,69 @@ export function UnifiedScheduleReport({
         </div>
 
         {/* Painel de Indicadores Físico-Operacionais (Grid Superior de 4 Cards - Puro Técnico) */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
           {/* Card 1: Progresso Global Ponderado */}
-          <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 via-white to-white p-4 shadow-2xs">
+          <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 via-white to-white p-4 shadow-2xs print:p-2 print:rounded-lg print:border-emerald-300 print:bg-emerald-50/30">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 print:text-[8.5px]">
                 Progresso Global
               </span>
-              <Badge tone="green" className="text-[10px]">Ponderado</Badge>
+              <Badge tone="green" className="text-[10px] print:text-[8px] print:px-1 print:py-0">Ponderado</Badge>
             </div>
-            <p className="mt-2 text-2xl font-black text-emerald-950 font-mono">
+            <p className="mt-2 text-2xl font-black text-emerald-950 font-mono print:text-sm print:mt-0.5">
               {report.overall.weightedProgress}% Concluído
             </p>
-            <div className="mt-2.5 w-full bg-emerald-100 rounded-full h-2 overflow-hidden">
+            <div className="mt-2.5 w-full bg-emerald-100 rounded-full h-2 overflow-hidden print:mt-1 print:h-1.5">
               <div
-                className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                className="bg-emerald-500 h-full rounded-full"
                 style={{ width: `${Math.min(100, Math.max(0, report.overall.weightedProgress))}%` }}
               />
             </div>
           </div>
 
           {/* Card 2: Entregas Técnicas Homologadas */}
-          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/70 via-white to-white p-4 shadow-2xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/70 via-white to-white p-4 shadow-2xs print:p-2 print:rounded-lg print:border-zinc-300 print:bg-zinc-50/30">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 print:text-[8.5px]">
               Entregas Homologadas
             </span>
-            <p className="mt-2 text-2xl font-black text-slate-900 font-mono">
-              {doneStages.length} <span className="text-sm font-semibold text-slate-500">de {sanitizedStages.length}</span>
+            <p className="mt-2 text-2xl font-black text-slate-900 font-mono print:text-sm print:mt-0.5">
+              {doneStages.length} <span className="text-sm font-semibold text-slate-500 print:text-xs">de {sanitizedStages.length}</span>
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 print:text-[8.5px] print:mt-0.5">
               {runningStages.length} em andamento ativo
             </p>
           </div>
 
           {/* Card 3: Disciplina em Curso */}
-          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/70 via-white to-white p-4 shadow-2xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/70 via-white to-white p-4 shadow-2xs print:p-2 print:rounded-lg print:border-zinc-300 print:bg-zinc-50/30">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 print:text-[8.5px]">
               Disciplina em Curso
             </span>
-            <p className="mt-2 text-base font-bold text-slate-900 truncate" title={currentDiscipline.name}>
+            <p className="mt-2 text-base font-bold text-slate-900 truncate print:text-xs print:mt-0.5" title={currentDiscipline.name}>
               {currentDiscipline.name}
             </p>
-            <p className="mt-1 text-xs text-slate-500 font-mono">
+            <p className="mt-1 text-xs text-slate-500 font-mono print:text-[8.5px] print:mt-0.5">
               {currentDiscipline.progress}% avanço ({currentDiscipline.completed}/{currentDiscipline.total})
             </p>
           </div>
 
           {/* Card 4: Status do Prazo */}
-          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/70 via-white to-white p-4 shadow-2xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/70 via-white to-white p-4 shadow-2xs print:p-2 print:rounded-lg print:border-zinc-300 print:bg-zinc-50/30">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 print:text-[8.5px]">
               Status do Prazo
             </span>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2 print:mt-0.5">
               <span
-                className={`w-3 h-3 rounded-full shrink-0 ${
-                  hasOverdue ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  hasOverdue ? "bg-amber-500" : "bg-emerald-500"
                 }`}
               />
-              <p className="text-sm font-bold text-slate-900">
-                {hasOverdue ? "Atenção a Prazos" : "No Prazo (Sem Atrasos)"}
+              <p className="text-sm font-bold text-slate-900 print:text-xs">
+                {hasOverdue ? "Atenção a Prazos" : "No Prazo"}
               </p>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {hasOverdue ? "Etapas em regime de alinhamento" : "Ritmo de entregas em dia"}
+            <p className="mt-1 text-xs text-slate-500 print:text-[8.5px] print:mt-0.5">
+              {hasOverdue ? "Etapas em alinhamento" : "Ritmo de entregas em dia"}
             </p>
           </div>
         </div>
@@ -389,16 +390,16 @@ export function UnifiedScheduleReport({
       {/* 2. PARECER TÉCNICO EXECUTIVO DINÂMICO (LAYOUT FIEL À REFERÊNCIA)*/}
       {/* ============================================================== */}
       {sectionsVisibility.parecer && (
-        <section className="rounded-2xl border border-zinc-800/80 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-zinc-800/80 bg-white p-6 shadow-sm print-avoid-break print:p-3 print:my-2 print:border-zinc-300">
           {/* Título do bloco com marcador vertical em negrito */}
-          <div className="flex items-center gap-3 mb-4">
-            <span className="w-1.5 h-6 bg-zinc-950 rounded-sm" />
-            <h3 className="text-base font-extrabold tracking-wide uppercase text-zinc-950 font-mono">
+          <div className="flex items-center gap-3 mb-4 print:mb-2">
+            <span className="w-1.5 h-6 bg-zinc-950 rounded-sm print:h-4" />
+            <h3 className="text-base font-extrabold tracking-wide uppercase text-zinc-950 font-mono print:text-xs">
               PARECER TÉCNICO EXECUTIVO DO CRONOGRAMA
             </h3>
           </div>
 
-          <div className="space-y-3.5 text-sm leading-relaxed text-zinc-800">
+          <div className="space-y-3.5 text-sm leading-relaxed text-zinc-800 print:text-[10px] print:leading-normal print:space-y-1.5">
             {/* Parágrafo 1: Contexto Oficial */}
             <p>
               Prezado cliente <strong>{client.name}</strong>, o presente relatório consolida o acompanhamento físico de projetos e o planejamento executivo da sua <strong>{projectName}</strong>.
@@ -410,7 +411,7 @@ export function UnifiedScheduleReport({
             </p>
 
             {/* Listas Semânticas com Bolding Estrito */}
-            <div className="space-y-2 pt-1 font-normal">
+            <div className="space-y-2 pt-1 font-normal print:space-y-1 print:pt-0">
               <p>
                 • <strong className="text-emerald-700">Etapas concluídas (100%):</strong>{" "}
                 {doneStages.length > 0
@@ -442,58 +443,45 @@ export function UnifiedScheduleReport({
       {sectionsVisibility.disciplinas && (
         <ReportCardSection title="3. Cronograma Físico Detalhado por Disciplinas">
           <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white">
-            <table className="w-full border-collapse text-left text-xs">
+            <table className="w-full border-collapse text-left text-xs table-fixed print:text-[9.5px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <th className="py-2.5 pl-3 pr-2 font-mono">#</th>
-                  <th className="py-2.5 px-2">Descrição da Etapa</th>
-                  <th className="py-2.5 px-2">Disciplina</th>
-                  <th className="py-2.5 px-2">Responsável</th>
-                  <th className="py-2.5 px-2">Data Limite</th>
-                  <th className="py-2.5 px-2 w-32">Avanço Físico</th>
-                  <th className="py-2.5 pr-3 pl-2">Status Operacional</th>
+                <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-500 print:text-[9px] print:bg-transparent">
+                  <th className="py-2.5 pl-3 pr-2 font-mono w-[6%] print:py-1 print:pl-1.5 print:pr-1">#</th>
+                  <th className="py-2.5 px-2 w-[34%] print:py-1 print:px-1.5">Descrição da Etapa</th>
+                  <th className="py-2.5 px-2 w-[20%] print:py-1 print:px-1.5">Disciplina</th>
+                  <th className="py-2.5 px-2 w-[18%] print:py-1 print:px-1.5">Responsável</th>
+                  <th className="py-2.5 px-2 w-[12%] whitespace-nowrap print:py-1 print:px-1.5">Data Limite</th>
+                  <th className="py-2.5 px-2 w-[10%] text-right print:py-1 print:px-1.5">Avanço</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-sans">
+              <tbody className="divide-y divide-slate-100 font-sans print:divide-zinc-200">
                 {sanitizedStages.map((stage) => (
-                  <tr key={stage.order} className="hover:bg-slate-50/60 transition">
-                    <td className="py-2.5 pl-3 pr-2 font-mono text-[11px] text-slate-400">
+                  <tr key={stage.order} className="hover:bg-slate-50/60 transition print-avoid-break print:hover:bg-transparent">
+                    <td className="py-2.5 pl-3 pr-2 font-mono text-[11px] text-slate-400 print:py-1 print:pl-1.5 print:pr-1 print:text-[9px]">
                       {String(stage.order).padStart(2, "0")}
                     </td>
-                    <td className="py-2.5 px-2 font-semibold text-slate-900">
+                    <td className="py-2.5 px-2 font-semibold text-slate-900 print:py-1 print:px-1.5 print:text-[9.5px]">
                       {stage.name}
                     </td>
-                    <td className="py-2.5 px-2 text-slate-600">
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                    <td className="py-2.5 px-2 text-slate-600 print:py-1 print:px-1.5">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 print:bg-transparent print:p-0 print:text-[9px]">
                         {stage.discipline}
                       </span>
                     </td>
-                    <td className="py-2.5 px-2 text-slate-600">{stage.designer}</td>
-                    <td className="py-2.5 px-2 text-slate-600 font-medium">{stage.dueDate}</td>
-                    <td className="py-2.5 px-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16">
+                    <td className="py-2.5 px-2 text-slate-600 print:py-1 print:px-1.5 print:text-[9px]">{stage.designer}</td>
+                    <td className="py-2.5 px-2 text-slate-600 font-medium whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
+                      {formatDateBR(stage.dueDate)}
+                    </td>
+                    <td className="py-2.5 px-2 text-right print:py-1 print:px-1.5">
+                      <div className="flex items-center justify-end gap-2 print:hidden">
+                        <div className="w-14">
                           <Progress value={stage.completion} />
                         </div>
-                        <span className="font-semibold text-slate-900 text-[11px]">{stage.completion}%</span>
+                        <span className="font-semibold text-slate-900 text-[11px] font-mono">{stage.completion}%</span>
                       </div>
-                    </td>
-                    <td className="py-2.5 pr-3 pl-2">
-                      <Badge
-                        tone={
-                          stage.completion === 100
-                            ? "green"
-                            : stage.alert.overdue
-                            ? "red"
-                            : stage.alert.blocked
-                            ? "amber"
-                            : stage.completion > 0
-                            ? "blue"
-                            : "neutral"
-                        }
-                      >
-                        {stage.statusLabel} {stage.alertDetail ? `· ${stage.alertDetail}` : ""}
-                      </Badge>
+                      <span className="hidden print:inline font-bold text-slate-900 text-[9.5px] font-mono">
+                        {stage.completion}%
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -507,11 +495,12 @@ export function UnifiedScheduleReport({
       {/* 4. GESTÃO FINANCEIRA: CRONOGRAMA DE PARCELAS & QUITAÇÃO        */}
       {/* ============================================================== */}
       {sectionsVisibility.financeiro && (
-        <ReportCardSection title="4. Gestão Financeira: Cronograma de Parcelas & Quitação Interativa">
+        <ReportCardSection title="4. Gestão Financeira: Cronograma de Parcelas & Quitação">
           <FinancialManagement
             projectId={projectId}
             initialInstallments={initialInstallments}
             stages={stagesForFinance}
+            readOnly={true}
           />
         </ReportCardSection>
       )}
@@ -552,17 +541,17 @@ export function UnifiedScheduleReport({
       {/* ============================================================== */}
       {/* 6. CHANCELA INSTITUCIONAL / RODAPÉ                             */}
       {/* ============================================================== */}
-      <footer className="border-t border-slate-200 pt-6">
-        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 text-center sm:flex sm:items-center sm:justify-between sm:text-left">
+      <footer className="border-t border-slate-200 pt-6 print:pt-2 print:border-zinc-300 print-avoid-break">
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 text-center sm:flex sm:items-center sm:justify-between sm:text-left print:p-2 print:rounded-lg print:bg-transparent">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-900">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-900 print:text-[9px]">
               ArqVértice Studio · Arquitetura, Estrutura & Engenharia
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 print:text-[8px] print:mt-0.5">
               Relatório Oficial do Cronograma · Emissão em {report.emittedAtLabel} · Versão 2.4 Oficial · Hash:{" "}
               <strong className="font-mono text-slate-800">{report.documentHash}</strong>
             </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">
+            <p className="mt-0.5 text-[11px] text-slate-400 print:text-[7.5px] print:mt-0">
               Documento oficial gerado e certificado digitalmente pelo Sistema ArqVértice Flow. Dispensa assinaturas manuscritas.
             </p>
           </div>
@@ -584,11 +573,11 @@ export function UnifiedScheduleReport({
 
 function ReportCardSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Card className="break-inside-avoid rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm overflow-hidden">
-      <h2 className="border-l-4 border-blue-600 pl-3 text-xs font-bold uppercase tracking-wider text-slate-900">
+    <Card className="break-inside-avoid rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm overflow-hidden print-avoid-break print:p-2.5 print:my-2 print:rounded-xl">
+      <h2 className="border-l-4 border-blue-600 pl-3 text-xs font-bold uppercase tracking-wider text-slate-900 print:text-[10.5px] print:pl-2">
         {title}
       </h2>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 print:mt-2">{children}</div>
     </Card>
   );
 }

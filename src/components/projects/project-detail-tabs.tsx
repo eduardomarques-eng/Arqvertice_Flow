@@ -27,7 +27,7 @@ const StageFormModal = dynamic(
   { ssr: false }
 );
 
-export type TabKey = "plantas" | "cronograma" | "geral" | "checklist" | "pranchas";
+export type TabKey = "plantas" | "cronograma" | "geral" | "financeiro" | "checklist" | "pranchas";
 export type MainModuleKey = "plantas" | "cronograma";
 export type CronoSubTabKey = "etapas" | "financeiro" | "checklist";
 
@@ -80,13 +80,13 @@ export function ProjectDetailTabs({
   // Determina o módulo principal ativo
   const resolveMainModule = (param: TabKey | null): MainModuleKey => {
     if (param === "pranchas" || param === "plantas") return "plantas";
-    if (param === "cronograma" || param === "geral" || param === "checklist") return "cronograma";
+    if (param === "cronograma" || param === "geral" || param === "financeiro" || param === "checklist") return "cronograma";
     return "plantas"; // Padrão: Módulo 1 (Plantas Cadastradas)
   };
 
   // Determina a sub-aba do cronograma ativa
   const resolveCronoSubTab = (param: TabKey | null): CronoSubTabKey => {
-    if (param === "geral") return "financeiro";
+    if (param === "financeiro" || param === "geral") return "financeiro";
     if (param === "checklist") return "checklist";
     return "etapas";
   };
@@ -114,7 +114,7 @@ export function ProjectDetailTabs({
 
   const switchMainModule = (mod: MainModuleKey) => {
     setMainModule(mod);
-    const targetTab = mod === "plantas" ? "plantas" : cronoSubTab === "financeiro" ? "geral" : cronoSubTab === "checklist" ? "checklist" : "cronograma";
+    const targetTab = mod === "plantas" ? "plantas" : cronoSubTab === "financeiro" ? "financeiro" : cronoSubTab === "checklist" ? "checklist" : "cronograma";
     const url = new URL(window.location.href);
     url.searchParams.set("tab", targetTab);
     window.history.replaceState({}, "", url.toString());
@@ -122,7 +122,7 @@ export function ProjectDetailTabs({
 
   const switchCronoSubTab = (sub: CronoSubTabKey) => {
     setCronoSubTab(sub);
-    const targetTab = sub === "financeiro" ? "geral" : sub === "checklist" ? "checklist" : "cronograma";
+    const targetTab = sub === "financeiro" ? "financeiro" : sub === "checklist" ? "checklist" : "cronograma";
     const url = new URL(window.location.href);
     url.searchParams.set("tab", targetTab);
     window.history.replaceState({}, "", url.toString());
@@ -444,7 +444,7 @@ export function ProjectDetailTabs({
             <div className="flex space-x-1 rounded-2xl bg-slate-200/70 p-1.5 shadow-inner overflow-x-auto scrollbar-none flex-nowrap -mx-4 px-4 sm:mx-0 sm:px-0 max-w-full">
               {[
                 { key: "etapas" as CronoSubTabKey, label: "Avanço Físico & Etapas", icon: "📈", badge: `${completion}%` },
-                { key: "financeiro" as CronoSubTabKey, label: "Visão Geral & Financeiro", icon: "💰", badge: `${installments.length} parcelas` },
+                { key: "financeiro" as CronoSubTabKey, label: "Gestão Financeira", icon: "💰", badge: `${installments.length} parcelas` },
                 { key: "checklist" as CronoSubTabKey, label: "Checklist de Obra", icon: "✅", badge: `${checklistRate}%` },
               ].map((sub) => {
                 const active = cronoSubTab === sub.key;
@@ -623,40 +623,10 @@ export function ProjectDetailTabs({
             </div>
           )}
 
-          {/* Sub-Aba 2: Visão Geral & Financeiro */}
+          {/* Sub-Aba 2: Gestão Financeira */}
           {cronoSubTab === "financeiro" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Card de Ficha Rápida da Edificação */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Localização / Lote</p>
-                  <p className="mt-1.5 text-sm font-bold text-slate-900">{loteQuadra}</p>
-                  <p className="text-xs text-slate-500 line-clamp-1">{addressFormatted}</p>
-                </Card>
-
-                <Card className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Área Construída</p>
-                  <p className="mt-1.5 text-sm font-bold text-slate-900">{areaConstruida}</p>
-                  <p className="text-xs text-slate-500">{project.type || "Residencial Alto Padrão"}</p>
-                </Card>
-
-                <Card className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Cliente / Contratante</p>
-                  <p className="mt-1.5 text-sm font-bold text-slate-900">{project.client?.name || "Não informado"}</p>
-                  <p className="text-xs text-slate-500">{project.client?.phone || project.client?.email || "Contato cadastrado"}</p>
-                </Card>
-
-                <Card className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Status Operacional</p>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-sm font-bold text-slate-900">Em Execução Ativa</span>
-                  </div>
-                  <p className="text-xs text-slate-500">{completion}% do escopo físico concluído</p>
-                </Card>
-              </div>
-
-              {/* Módulo Financeiro com toggles de parcelas */}
+              {/* Módulo Financeiro com criação e edição de parcelas */}
               <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
