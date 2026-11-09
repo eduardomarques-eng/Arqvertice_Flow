@@ -2,7 +2,7 @@ export interface CanonicalStageTemplate {
   id: string;
   order: number;
   name: string;
-  discipline: "Arquitetura" | "Estrutura" | "Projeto 3D" | "Complementares" | "Execução de Obra";
+  discipline: "Arquitetura" | "Estrutura" | "Projeto 3D" | "Complementares";
   designer: "Eduardo Marques" | "Luan Almeida" | "Erick Santiago";
   weight: number; // Peso ponderado (em %)
   durationDays: number;
@@ -83,12 +83,12 @@ export const CANONICAL_STAGES: CanonicalStageTemplate[] = [
   {
     id: "projeto-armaduras",
     order: 8,
-    name: "Detalhamento Estrutural (Armaduras)",
+    name: "Projeto de Armaduras",
     discipline: "Estrutura",
     designer: "Luan Almeida",
-    weight: 10,
+    weight: 15,
     durationDays: 20,
-    scopeDescription: "Cálculo no TQS, pranchas de armação de pilares, vigas, lajes e resumo quantitativo de aço CA-50.",
+    scopeDescription: "Cálculo Estrutural e Concreto Armado, pranchas de armação de pilares, vigas, lajes e resumo quantitativo de aço CA-50.",
   },
   {
     id: "projeto-fundacao",
@@ -96,7 +96,7 @@ export const CANONICAL_STAGES: CanonicalStageTemplate[] = [
     name: "Projeto Fundação",
     discipline: "Estrutura",
     designer: "Luan Almeida",
-    weight: 5,
+    weight: 10,
     durationDays: 10,
     scopeDescription: "Dimensionamento geotécnico e estrutural de sapatas ou estacas com base no laudo técnico de sondagem SPT.",
   },
@@ -121,18 +121,8 @@ export const CANONICAL_STAGES: CanonicalStageTemplate[] = [
     scopeDescription: "Traçado de tubulações de esgoto primário e secundário, caixas sifonadas, coluna de ventilação e fossa/sumidouro.",
   },
   {
-    id: "execucao-obras",
-    order: 12,
-    name: "Execução de Obras / Acompanhamento Técnico",
-    discipline: "Execução de Obra",
-    designer: "Erick Santiago",
-    weight: 10,
-    durationDays: 30,
-    scopeDescription: "Acompanhamento técnico presencial, controle de qualidade de concretagem, gestão de canteiro e controle de cronograma físico.",
-  },
-  {
     id: "hidrossanitario-abastecimento",
-    order: 13,
+    order: 12,
     name: "Hidrossanitário - Abastecimento",
     discipline: "Complementares",
     designer: "Eduardo Marques",
@@ -142,7 +132,7 @@ export const CANONICAL_STAGES: CanonicalStageTemplate[] = [
   },
   {
     id: "hidrossanitario-drenagem",
-    order: 14,
+    order: 13,
     name: "Hidrossanitário - Drenagem Pluvial",
     discipline: "Complementares",
     designer: "Eduardo Marques",

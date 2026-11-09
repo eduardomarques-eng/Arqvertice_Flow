@@ -145,7 +145,7 @@ export function parseSheetFileName(fileName: string): ParsedSheetMetadata {
     else suggestedStageName = "Projeto Executivo";
   } else if (discipline === "ESTRUTURAL") {
     if (/Fundação|Fundacao|SPT|Sapata/i.test(subject)) suggestedStageName = "Projeto Fundação";
-    else if (/Armadura|Aço|TQS/i.test(subject)) suggestedStageName = "Projeto Armaduras";
+    else if (/Armadura|Aço|Estrutural/i.test(subject)) suggestedStageName = "Projeto de Armaduras";
     else if (/Pré Formas|Pre Formas/i.test(subject)) suggestedStageName = "Projeto Pré Formas";
     else suggestedStageName = "Projeto Formas Finais";
   } else if (discipline === "ELETRICO") {

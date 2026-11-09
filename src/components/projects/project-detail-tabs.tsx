@@ -48,7 +48,7 @@ interface ProjectDetailTabsProps {
   documents: Array<{ id: string; name: string; mimeType: string | null; sizeBytes: bigint | null; visibility: "INTERNAL" | "CLIENT"; createdAt: Date }>;
   commercial: unknown;
   board: {
-    columns: Array<{ id: string; label: string; cards: Array<{ id: string; name: string; discipline: string | null; completion: number; dueDate: Date | string | null; designer: string | null; status: string }> }>;
+    columns: Array<{ id: string; label: string; cards: Array<{ id: string; name: string; discipline: string | null; completion: number; dueDate: Date | string | null; designer: string | null; status: string; isVisibleInKanban?: boolean }> }>;
     totals: { stages: number; completion: number; overdue: number };
   } | null;
   installments: Array<{ id: string; description: string; amount: number; dueDate: Date; paidDate: Date | null; status: string; linkedStageId: string | null; order: number }>;
@@ -132,6 +132,55 @@ export function ProjectDetailTabs({
   const completion = board?.totals?.completion ?? 0;
   const overdue = board?.totals?.overdue ?? 0;
   const allCards = (board?.columns || []).flatMap((c) => c.cards || []);
+
+  // Estados com reatividade otimista em tempo real
+  const [stagesList, setStagesList] = useState(allCards);
+  const [liveCompletion, setLiveCompletion] = useState(completion);
+
+  useEffect(() => {
+    const fresh = (board?.columns || []).flatMap((c) => c.cards || []);
+    setStagesList(fresh);
+    setLiveCompletion(board?.totals?.completion ?? 0);
+  }, [board]);
+
+  const handleStageSaved = (savedStage: {
+    id?: string;
+    name: string;
+    completion?: number;
+    discipline?: string | null;
+    designer?: string | null;
+    dueDate?: string | Date | null;
+    isVisibleInKanban?: boolean;
+  }) => {
+    setStagesList((current) => {
+      const existingIdx = current.findIndex((s) => s.id === savedStage.id);
+      let nextList = [...current];
+      if (existingIdx >= 0) {
+        nextList[existingIdx] = {
+          ...nextList[existingIdx],
+          ...savedStage,
+          dueDate: savedStage.dueDate ? new Date(savedStage.dueDate) : nextList[existingIdx].dueDate,
+          completion: savedStage.completion ?? nextList[existingIdx].completion,
+        };
+      } else {
+        nextList.push({
+          id: savedStage.id || `temp-${Date.now()}`,
+          name: savedStage.name,
+          discipline: savedStage.discipline || null,
+          designer: savedStage.designer || null,
+          dueDate: savedStage.dueDate ? new Date(savedStage.dueDate) : null,
+          completion: savedStage.completion ?? 0,
+          status: (savedStage.completion ?? 0) === 100 ? "COMPLETED" : (savedStage.completion ?? 0) > 0 ? "IN_PROGRESS" : "NOT_STARTED",
+          isVisibleInKanban: savedStage.isVisibleInKanban ?? true,
+        });
+      }
+      const newCompletion = Math.round(
+        nextList.reduce((acc, s) => acc + s.completion, 0) / (nextList.length || 1)
+      );
+      setLiveCompletion(newCompletion);
+      return nextList;
+    });
+  };
 
   // Métricas do Checklist de Obra
   const totalChecklist = checklistItems.length;
@@ -229,11 +278,11 @@ export function ProjectDetailTabs({
               <div className="w-16 h-2 rounded-full bg-zinc-200 overflow-hidden">
                 <div
                   className="h-full bg-blue-600 rounded-full transition-all duration-500"
-                  style={{ width: `${completion}%` }}
+                  style={{ width: `${liveCompletion}%` }}
                 />
               </div>
               <span className="font-mono text-xs font-bold text-zinc-900">
-                {completion}% Concluído
+                {liveCompletion}% Concluído
               </span>
             </div>
           </div>
@@ -453,7 +502,7 @@ export function ProjectDetailTabs({
                       Avanço Físico das Etapas do Cronograma
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {totalStages} etapa(s) cadastradas · {completion}% de avanço linear médio ponderado
+                      {stagesList.length} etapa(s) cadastradas · {liveCompletion}% de avanço linear médio ponderado
                     </p>
                   </div>
 
@@ -480,9 +529,9 @@ export function ProjectDetailTabs({
                 <div className="mt-4">
                   <div className="flex justify-between text-xs text-slate-600 mb-1.5 font-semibold">
                     <span>Progresso Consolidado do Empreendimento</span>
-                    <span className="text-blue-600 font-bold">{completion}%</span>
+                    <span className="text-blue-600 font-bold">{liveCompletion}%</span>
                   </div>
-                  <Progress value={completion} />
+                  <Progress value={liveCompletion} />
                 </div>
 
                 {overdue > 0 && (
@@ -510,7 +559,7 @@ export function ProjectDetailTabs({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-sans">
-                      {allCards.map((c, idx) => (
+                      {stagesList.map((c, idx) => (
                         <tr key={c.id} className="hover:bg-slate-50/70 transition">
                           <td className="py-2.5 pl-3 pr-2 font-mono text-[11px] text-slate-400">
                             {String(idx + 1).padStart(2, "0")}
@@ -701,6 +750,7 @@ export function ProjectDetailTabs({
           setIsStageModalOpen(false);
           setSelectedStageToEdit(null);
         }}
+        onSaved={handleStageSaved}
       />
     </div>
   );

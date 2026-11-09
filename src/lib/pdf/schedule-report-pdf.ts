@@ -140,6 +140,12 @@ export function renderScheduleReportPdf(report: ScheduleReport): Uint8Array {
     ]),
   });
 
+  writer.heading("7. AMBIENTE IMERSIVO: ARQVÉRTICE PROJECT 3D");
+  writer.paragraph(
+    "Gêmeo digital tridimensional da edificação com maquete virtual em tempo real, navegação interativa e volumetria fotorrealista disponível em: https://arqvertic-project-3d.vercel.app/",
+    { color: "#0f172a", size: 8.5 },
+  );
+
   institutionalFooter(writer, report);
   writer.stampFooters(REPORT_DOCUMENT_KIND);
   return writer.build();

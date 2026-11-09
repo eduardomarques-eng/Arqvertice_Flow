@@ -211,7 +211,7 @@ export function ProjectChecklistTab({
               Checklist de Obra & Liberação Técnica
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Conferência mandatória de ARTs, memoriais, compatibilizações TQS x Revit e locação de fundações.
+              Conferência mandatória de ARTs, memoriais, compatibilizações estruturais e de instalações prediais e locação de fundações.
             </p>
           </div>
 

@@ -52,6 +52,7 @@ export const scheduleStageSchema = z.object({
   completion: z.number().int().min(0).max(100).default(0),
   dependencyId: uuid.optional().nullable(),
   notes: optionalText,
+  isVisibleInKanban: z.boolean().optional(),
 });
 export const scheduleStageUpdateSchema = scheduleStageSchema.omit({ projectId: true }).partial();
 

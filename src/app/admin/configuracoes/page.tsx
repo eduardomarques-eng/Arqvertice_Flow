@@ -17,12 +17,12 @@ const STANDARD_PROJECT_TYPES = [
 ];
 
 const STANDARD_DISCIPLINES = [
-  { name: "Arquitetura", lead: "Arq. Eduardo Marques", tool: "AutoCAD / SketchUp", color: "indigo" },
-  { name: "Estrutural (TQS)", lead: "Eng. Emanoel Luan", tool: "TQS Concreto Armado", color: "amber" },
-  { name: "Hidrossanitário", lead: "Equipe Técnica", tool: "Autodesk Revit MEP", color: "sky" },
-  { name: "Elétrico & Iluminação", lead: "Equipe Técnica", tool: "Autodesk Revit MEP", color: "yellow" },
-  { name: "Combate a Incêndio", lead: "Equipe Técnica", tool: "Autodesk Revit MEP", color: "rose" },
-  { name: "Renders 3D Realistas", lead: "Visualização 3D", tool: "Corona Renderer / 3ds Max", color: "fuchsia" },
+  { name: "Arquitetura", lead: "Arq. Eduardo Marques", tool: "Desenho Técnico e Plantas Executivas", color: "indigo" },
+  { name: "Engenharia Estrutural", lead: "Eng. Emanoel Luan", tool: "Cálculo Estrutural e Concreto Armado", color: "amber" },
+  { name: "Hidrossanitário", lead: "Equipe Técnica", tool: "Modelagem e Instalações Prediais", color: "sky" },
+  { name: "Elétrico & Iluminação", lead: "Equipe Técnica", tool: "Modelagem e Instalações Prediais", color: "yellow" },
+  { name: "Combate a Incêndio", lead: "Equipe Técnica", tool: "Modelagem e Instalações Prediais", color: "rose" },
+  { name: "Modelagem 3D e Imagens Finais", lead: "Visualização 3D", tool: "Renderização e Iluminação Fotorrealista", color: "fuchsia" },
   { name: "Aprovação Legal / ART", lead: "Eng. Emanoel Luan", tool: "CREA / CAU / Prefeituras", color: "slate" },
 ];
 
@@ -50,7 +50,7 @@ const STANDARD_PHASES = [
 const RBAC_PROFILES = [
   { role: "ADMIN", label: "Administrador Geral", access: "Acesso total: financeiro, parametrização, contratos, auditoria e usuários." },
   { role: "ARQUITETO", label: "Arquiteto", access: "Gestão do acervo de arquitetura, aprovação de briefings, cronograma e relatórios." },
-  { role: "ENGENHEIRO", label: "Engenheiro", access: "Gestão de memoriais de cálculo, pranchas TQS/Revit e checklist de integridade." },
+  { role: "ENGENHEIRO", label: "Engenheiro", access: "Gestão de memoriais de cálculo, pranchas estruturais, projetos complementares e checklist de integridade." },
   { role: "EQUIPE", label: "Equipe Operacional", access: "Acompanhamento do cronograma, atualização de avanço de etapas atribuídas." },
   { role: "CLIENTE", label: "Cliente", access: "Portal exclusivo do cliente, visualização de pranchas liberadas e relatório executivo." },
 ];

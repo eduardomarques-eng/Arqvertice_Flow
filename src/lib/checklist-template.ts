@@ -17,7 +17,7 @@ export const CANONICAL_CHECKLIST_TEMPLATE = [
   // 2. Compatibilização Técnica (Estrutura x MEP)
   {
     category: "Compatibilização Técnica (Estrutura x MEP)",
-    task: "Compatibilização de vigas TQS com shafts e prumadas de esgoto Revit",
+    task: "Compatibilização de vigas estruturais com shafts e prumadas de esgoto predial",
     notes: "Conferência de furos em vigas para prumadas de esgoto do piso superior.",
     isCompleted: false,
     verifiedBy: null,

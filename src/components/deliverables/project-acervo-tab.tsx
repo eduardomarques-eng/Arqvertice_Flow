@@ -78,7 +78,7 @@ const CANONICAL_DISCIPLINES: Array<{
   { key: "ARQUITETURA", label: "Arquitetura", icon: "🏛️", match: (d) => d === "ARQUITETURA" },
   {
     key: "ESTRUTURAL",
-    label: "Estrutural (TQS)",
+    label: "Engenharia Estrutural",
     icon: "🏗️",
     match: (d) => d === "ESTRUTURAL" || d === "ESTRUTURA",
   },
@@ -102,7 +102,7 @@ const CANONICAL_DISCIPLINES: Array<{
   },
   {
     key: "RENDER_3D",
-    label: "3D Renders",
+    label: "Modelagem 3D & Imagens",
     icon: "🎨",
     match: (d) => d === "RENDER_3D",
   },
@@ -557,7 +557,7 @@ export function ProjectAcervoTab({
           Arraste e solte arquivos PDF, imagens ou DWG aqui para catalogar no acervo
         </p>
         <p className="text-[11px] text-zinc-400 mt-0.5">
-          Suporte a pranchas de arquitetura, estrutural TQS, instalações e renders
+          Suporte a pranchas de arquitetura, engenharia estrutural, instalações prediais e visualização 3D
         </p>
       </div>
 

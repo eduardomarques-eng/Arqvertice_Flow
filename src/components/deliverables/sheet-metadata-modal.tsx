@@ -108,14 +108,14 @@ const DEFAULT_ENVIRONMENTS = [
 
 const DEFAULT_FOLDERS_BY_DISCIPLINE: Record<ProjectDiscipline, string[]> = {
   ARQUITETURA: ["01. Plantas & Layout", "02. Cortes & Fachadas", "03. Detalhamento Executivo"],
-  ESTRUTURAL: ["01. Pré-Formas", "02. Formas Finais TQS", "03. Armaduras CA-50", "04. Fundações SPT"],
+  ESTRUTURAL: ["01. Pré-Formas", "02. Formas Finais Estruturais", "03. Armaduras CA-50", "04. Fundações SPT"],
   ELETRICO: ["01. Iluminação & Força", "02. Diagramas Unifilares", "03. Entrada de Energia"],
   HIDROSSANITARIO: ["01. Esgoto & Ventilação", "02. Abastecimento & Água", "03. Drenagem Pluvial"],
   HVAC: ["01. Climatização VRF/Split", "02. Exaustão & Ventilação"],
   INTERIORES: ["01. Marcenaria Detalhada", "02. Paginação de Revestimentos", "03. Forro & Iluminação"],
   COMPATIBILIZACAO: ["01. Matriz BIM & Clashes", "02. Relatórios de Compatibilização"],
   EXECUCAO_OBRA: ["01. Canteiro & Locação", "02. Liberações de Concretagem"],
-  ESTRUTURA: ["01. Pré-Formas", "02. Formas Finais TQS", "03. Armaduras CA-50", "04. Fundações SPT"],
+  ESTRUTURA: ["01. Pré-Formas", "02. Formas Finais Estruturais", "03. Armaduras CA-50", "04. Fundações SPT"],
   COMBATE_INCENDIO: ["01. Hidrantes & Extintores", "02. Sinalização de Emergência", "03. Alarme & Detecção"],
   RENDER_3D: ["01. Renders Externos", "02. Renders Internos", "03. Plantas Humanizadas"],
   LEGAL_APROVACAO: ["01. Pranchas de Prefeitura", "02. Memorial de Aprovação", "03. Licenças & Alvarás"],

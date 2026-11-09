@@ -26,10 +26,10 @@ import { notifyStageCompleted } from "@/server/services/notification-dispatch-se
 export type KanbanColumnId = "NOT_STARTED" | "IN_PROGRESS" | "REVIEW" | "COMPLETED";
 
 export const KANBAN_COLUMNS: { id: KanbanColumnId; label: string }[] = [
-  { id: "NOT_STARTED", label: "A Iniciar / Backlog" },
-  { id: "IN_PROGRESS", label: "Em Modelagem / Produção" },
+  { id: "NOT_STARTED", label: "Não Iniciado" },
+  { id: "IN_PROGRESS", label: "Em Andamento" },
   { id: "REVIEW", label: "Revisão Técnica / Compatibilização" },
-  { id: "COMPLETED", label: "Concluído / Liberado" },
+  { id: "COMPLETED", label: "Concluído" },
 ];
 
 export type KanbanCard = {
@@ -45,6 +45,7 @@ export type KanbanCard = {
   startDate: Date | null;
   dueDate: Date | null;
   notes: string | null;
+  isVisibleInKanban?: boolean;
   /** Alerta único, calculado pela regra de `@/lib/schedule-alerts`. */
   alert: StageAlert;
   /** Prioridade derivada da regra de alertas — não é coluna na base. */
@@ -136,6 +137,7 @@ export async function kanbanBoard(projectId: string): Promise<KanbanBoard> {
       allowedTransitions: SCHEDULE_TRANSITIONS[stage.status],
       projectName: project.name,
       phase: phaseMatch,
+      isVisibleInKanban: stage.isVisibleInKanban ?? true,
       deliverablesCount: stage.deliverables.length,
       checklists: stage.checklists.map((c) => ({
         id: c.id,
@@ -148,7 +150,7 @@ export async function kanbanBoard(projectId: string): Promise<KanbanBoard> {
       const descriptions: Record<string, string> = {
         "Estudo Preliminar": "Conceituação espacial, zoneamento do terreno e volumetria básica.",
         "Projeto Básico": "Plantas baixas, cortes esquemáticos, cotas gerais e layout preliminar.",
-        "Projeto Pré Formas": "Lançamento de pilares e vigas no TQS para compatibilização inicial.",
+        "Projeto Pré Formas": "Lançamento de pilares e vigas para cálculo estrutural e compatibilização inicial.",
         "Projeto Formas Finais": "Definição de seções, eixos, rebaixos e furações estruturais definitivas.",
         "Modelagem 3D": "Construção de malha tridimensional, enquadramentos e aplicação de texturas.",
         "Renderização 3D (Imagens Finais)": "Iluminação fotorrealista, ambientação paisagística e pós-produção das cenas.",
@@ -407,3 +409,19 @@ export async function updateScheduleStageStatus(id: string, status: string, comp
   }
   return updated;
 }
+
+export async function toggleScheduleStageVisibility(id: string, isVisibleInKanban: boolean) {
+  const user = await requireScheduleRole();
+  const stage = await prisma.scheduleStage.findUnique({
+    where: { id },
+    select: { projectId: true },
+  });
+  if (!stage) return notFound("Etapa");
+  await requireScheduleWrite(user, stage.projectId, "Etapa");
+
+  return prisma.scheduleStage.update({
+    where: { id },
+    data: { isVisibleInKanban },
+  });
+}
+

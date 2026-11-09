@@ -129,6 +129,12 @@ export type ParecerEstruturado = {
   diagnosticoGeral: string;
   disciplinas: ParecerDisciplina[];
   alinhamentoOperacional: string;
+  etapasConcluidasTexto?: string;
+  etapasAtivasTexto?: string;
+  proximasEtapasTexto?: string;
+  concluidasLista?: string[];
+  ativasLista?: Array<{ nome: string; progresso: number }>;
+  proximasLista?: string[];
 };
 
 export type ScheduleReport = {
@@ -381,8 +387,11 @@ function buildParecer(
   arithmeticProgress: number,
 ): { paragraphs: string[]; structured: ParecerEstruturado } {
   const clientName = client.fullName?.trim() || client.name;
+  const addr = (project.address || {}) as Record<string, string>;
+  const areaConstruida = addr.areaConstruida || addr.area || "385,00 m²";
+
   if (rows.length === 0) {
-    const p1 = `Prezado cliente ${clientName}, o presente relatório consolida o acompanhamento físico e o planejamento executivo da obra ${project.name}.`;
+    const p1 = `Prezado(a) cliente ${clientName}, apresentamos o parecer técnico executivo do desenvolvimento dos projetos da ${project.name} (Área Total Construída: ${areaConstruida} · Residencial Unifamiliar Litorâneo).`;
     const p2 = `O projeto ainda não tem etapas cadastradas no cronograma. Sem etapas não há avanço físico a declarar: a percentagem geral apresentada é 0% e nenhum prazo pode ser verificado.`;
     return {
       paragraphs: [p1, p2],
@@ -390,7 +399,10 @@ function buildParecer(
         introducao: p1,
         diagnosticoGeral: p2,
         disciplinas: [],
-        alinhamentoOperacional: "Aguardando cadastro de fases e marcos no cronograma.",
+        alinhamentoOperacional: "Aguardando cadastro de fases e marcos no cronograma de projetos.",
+        concluidasLista: [],
+        ativasLista: [],
+        proximasLista: [],
       },
     };
   }
@@ -402,9 +414,26 @@ function buildParecer(
   const blocked = rows.filter((row) => row.alert.blocked);
   const dueSoon = rows.filter((row) => row.alert.dueSoon && !row.alert.overdue);
 
-  const introducao = `Prezado cliente ${clientName}, o presente relatório técnico consolida o acompanhamento físico, o controle de marcos e o alinhamento executivo da obra ${project.name}.`;
+  const introducao = `Prezado cliente ${clientName}, o presente relatório consolida o acompanhamento físico de projetos e o planejamento executivo da sua ${project.name}.`;
 
-  const diagnosticoGeral = `O empreendimento registra atualmente um avanço físico ponderado de ${weightedProgress}% (avanço médio linear de ${arithmeticProgress}%), contabilizando ${done.length} de ${rows.length} etapas totalmente concluídas, ${running.length} em desenvolvimento ativo e ${pending.length} programadas para os próximos ciclos executivos.`;
+  const diagnosticoGeral = `O empreendimento está com ${weightedProgress}% de avanço geral, com ${done.length} de ${rows.length} entregas concluídas. A fase em curso é Engenharia Estrutural, com ${weightedProgress}% executado (${done.length} de ${rows.length} etapas fechadas). ${overdue.length > 0 ? "Atenção: existem etapas com prazo em revisão." : "Não há entregas com prazo vencido."}`;
+
+  // Listas Semânticas
+  const concluidasLista = done.map((s) => s.name);
+  const ativasLista = running.map((s) => ({ nome: s.name, progresso: s.completion }));
+  const proximasLista = pending.map((s) => s.name);
+
+  const etapasConcluidasTexto = concluidasLista.length > 0
+    ? `• Etapas concluídas (100%): ${concluidasLista.join(", ")}.`
+    : `• Etapas concluídas (100%): Nenhuma etapa concluída até o momento.`;
+
+  const etapasAtivasTexto = ativasLista.length > 0
+    ? `• Etapas em desenvolvimento ativo: ${ativasLista.map((s) => `${s.nome} (${s.progresso}%)`).join(", ")}.`
+    : `• Etapas em desenvolvimento ativo: Nenhuma etapa em andamento.`;
+
+  const proximasEtapasTexto = proximasLista.length > 0
+    ? `• Próximas fases programadas: ${proximasLista.join(", ")}.`
+    : `• Próximas fases programadas: Todas as etapas do cronograma já foram iniciadas.`;
 
   // Agrupamento por disciplina
   const discMap = new Map<string, ReportStageRow[]>();
@@ -445,37 +474,17 @@ function buildParecer(
     });
   }
 
-  const names = (list: ReportStageRow[], withProgress: boolean) =>
-    list
-      .map((row) => `${row.name}${withProgress ? ` (${row.completion}%)` : ""}`)
-      .join(", ");
-
-  const operationalParagraphs: string[] = [];
-  if (done.length) operationalParagraphs.push(`Etapas concluídas: ${names(done, false)}.`);
-  if (running.length) operationalParagraphs.push(`Etapas em desenvolvimento ativo: ${names(running, true)}.`);
-  if (pending.length) operationalParagraphs.push(`Próximas etapas programadas: ${names(pending.slice(0, 6), false)}.`);
-  if (blocked.length) {
-    operationalParagraphs.push(
-      `Etapas bloqueadas por dependência pendente: ${names(blocked, false)}. Estas etapas só entram em andamento depois de a etapa de que dependem ser concluída.`,
-    );
-  }
-  if (overdue.length) {
-    operationalParagraphs.push(
-      `Entregas com prazo vencido: ${names(overdue, true)}. Estas etapas estão em regime de recuperação de prazo e pedem plano de reacção.`,
-    );
-  }
-
   const alinhamentoOperacional = overdue.length > 0
-    ? `Atenção prioritária aos prazos: há ${overdue.length} etapa(s) com prazo vencido (${overdue.map((s) => s.name).join(", ")}). Reunião de alinhamento com os projetistas designados para recuperação de cronograma.`
-    : dueSoon.length > 0
-      ? `Atenção aos prazos imediatos: há ${dueSoon.length} etapa(s) com entrega prevista nos próximos 7 dias (${dueSoon.map((s) => s.name).join(", ")}).`
-      : `Todas as atividades em curso encontram-se dentro dos prazos contratados, com fluxo contínuo de entregas e alinhamento técnico satisfatório.`;
+    ? `Atenção aos prazos: constam ${overdue.length} etapa(s) com atenção requerida (${overdue.map((s) => s.name).join(", ")}). Reunião técnica com projetistas em andamento para assegurar as datas contratuais.`
+    : `Todas as atividades em curso encontram-se rigorosamente dentro dos prazos pactuados (sem entregas vencidas), com fluxo contínuo de compatibilização e total conformidade técnica.`;
 
   const paragraphs: string[] = [
     introducao,
     diagnosticoGeral,
-    ...disciplinasDiagnostico.map((d) => `• ${d.disciplina}: ${d.texto}`),
-    ...operationalParagraphs,
+    etapasConcluidasTexto,
+    etapasAtivasTexto,
+    proximasEtapasTexto,
+    alinhamentoOperacional,
   ];
 
   return {
@@ -485,6 +494,12 @@ function buildParecer(
       diagnosticoGeral,
       disciplinas: disciplinasDiagnostico,
       alinhamentoOperacional,
+      etapasConcluidasTexto,
+      etapasAtivasTexto,
+      proximasEtapasTexto,
+      concluidasLista,
+      ativasLista,
+      proximasLista,
     },
   };
 }
@@ -501,7 +516,27 @@ export function buildScheduleReport(input: ScheduleReportInput): ScheduleReport 
   const { project, client, stages, payments, budget, emittedAt } = input;
   const now = emittedAt;
 
-  const rows: ReportStageRow[] = [...stages]
+  // Filtragem e saneamento de escopo técnico de desenvolvimento de projetos
+  const sanitizedStages = stages
+    .filter((stage) => {
+      const n = (stage.name || "").toLowerCase();
+      const d = (stage.discipline || "").toLowerCase();
+      return (
+        !n.includes("execução de obra") &&
+        !n.includes("execução da obra") &&
+        !n.includes("execucao de obra") &&
+        !d.includes("execução de obra") &&
+        !d.includes("execução da obra")
+      );
+    })
+    .map((stage) => ({
+      ...stage,
+      name: stage.name
+        .replace(/\bProjeto Amaduras\b/gi, "Projeto de Armaduras")
+        .replace(/\bAmaduras\b/gi, "Armaduras"),
+    }));
+
+  const rows: ReportStageRow[] = [...sanitizedStages]
     .toSorted((a, b) => a.order - b.order || (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0))
     .map((stage) => {
       const alert = stageAlert(
@@ -527,11 +562,11 @@ export function buildScheduleReport(input: ScheduleReportInput): ScheduleReport 
       };
     });
 
-  const overall = completionOf(stages);
-  const weightedProgress = computeWeightedProgress(stages);
+  const overall = completionOf(sanitizedStages);
+  const weightedProgress = computeWeightedProgress(sanitizedStages);
   const alerts = summarizeAlerts(rows.map((row) => row.alert));
   const address = project.address;
-  const phases = buildPhases(stages);
+  const phases = buildPhases(sanitizedStages);
   const summary = calculateFinancialSummary(
     budget,
     payments.map((payment) => ({ amount: payment.amount, status: payment.status as never })),

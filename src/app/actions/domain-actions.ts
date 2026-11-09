@@ -105,18 +105,26 @@ export async function moveStageStatusAction(stageId: string, status: string) {
   }
 }
 
-export async function editScheduleStageAction(id: string, input: unknown) {
+export async function editScheduleStageAction(id: string, input: unknown, projectId?: string) {
   await requireScheduleRole();
   const result = await updateScheduleStage(id, input);
+  if (projectId) {
+    revalidatePath(`/admin/projetos/${projectId}`);
+    revalidatePath(`/admin/projetos/${projectId}/cronograma`);
+  }
   revalidatePath("/admin/projetos");
   revalidatePath("/admin");
   revalidatePath("/operacao");
   return result;
 }
 
-export async function deleteScheduleStageAction(id: string) {
+export async function deleteScheduleStageAction(id: string, projectId?: string) {
   await requireScheduleRole();
   const result = await deleteScheduleStage(id);
+  if (projectId) {
+    revalidatePath(`/admin/projetos/${projectId}`);
+    revalidatePath(`/admin/projetos/${projectId}/cronograma`);
+  }
   revalidatePath("/admin/projetos");
   revalidatePath("/admin");
   revalidatePath("/operacao");

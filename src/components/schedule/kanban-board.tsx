@@ -1,25 +1,32 @@
 "use client";
 
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { editScheduleStageAction, deleteScheduleStageAction } from "@/app/actions/domain-actions";
+import { toggleStageVisibilityAction } from "@/server/actions/schedule";
 import { toggleChecklistItem } from "@/server/actions/checklist";
 import type { KanbanBoard, KanbanCard, KanbanColumnId } from "@/server/services/schedule-service";
-import { StageFormModal, type StageFormData } from "./stage-form-modal";
+import type { StageFormData } from "./stage-form-modal";
 import { MASTER_DISCIPLINES } from "@/lib/master-data";
+
+const StageFormModal = dynamic(
+  () => import("./stage-form-modal").then((mod) => mod.StageFormModal),
+  { ssr: false }
+);
 
 const DISCIPLINE_STYLE: Record<string, { badge: string; border: string; progress: string }> = {
   Arquitetura: { badge: "border-indigo-200 bg-indigo-50 text-indigo-700", border: "border-l-indigo-600", progress: "bg-indigo-600" },
   Estrutura: { badge: "border-amber-200 bg-amber-50 text-amber-700", border: "border-l-amber-500", progress: "bg-amber-500" },
   Estrutural: { badge: "border-amber-200 bg-amber-50 text-amber-700", border: "border-l-amber-500", progress: "bg-amber-500" },
-  "Estrutural TQS": { badge: "border-amber-200 bg-amber-50 text-amber-700", border: "border-l-amber-500", progress: "bg-amber-500" },
+  "Engenharia Estrutural": { badge: "border-amber-200 bg-amber-50 text-amber-700", border: "border-l-amber-500", progress: "bg-amber-500" },
   "3D": { badge: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", border: "border-l-fuchsia-500", progress: "bg-fuchsia-600" },
   "Projeto 3D": { badge: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", border: "border-l-fuchsia-500", progress: "bg-fuchsia-600" },
-  "3D Corona": { badge: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", border: "border-l-fuchsia-500", progress: "bg-fuchsia-600" },
+  "Modelagem 3D e Imagens Finais": { badge: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700", border: "border-l-fuchsia-500", progress: "bg-fuchsia-600" },
   Complementares: { badge: "border-sky-200 bg-sky-50 text-sky-700", border: "border-l-sky-500", progress: "bg-sky-500" },
-  "Hidrossanitário Revit": { badge: "border-sky-200 bg-sky-50 text-sky-700", border: "border-l-sky-500", progress: "bg-sky-500" },
-  "Elétrico Revit": { badge: "border-yellow-200 bg-yellow-50 text-yellow-800", border: "border-l-yellow-500", progress: "bg-yellow-500" },
+  "Instalações Hidrossanitárias": { badge: "border-sky-200 bg-sky-50 text-sky-700", border: "border-l-sky-500", progress: "bg-sky-500" },
+  "Instalações Elétricas": { badge: "border-yellow-200 bg-yellow-50 text-yellow-800", border: "border-l-yellow-500", progress: "bg-yellow-500" },
   "Combate a Incêndio": { badge: "border-rose-200 bg-rose-50 text-rose-700", border: "border-l-rose-500", progress: "bg-rose-500" },
   Obra: { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", border: "border-l-emerald-500", progress: "bg-emerald-600" },
   Obras: { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", border: "border-l-emerald-500", progress: "bg-emerald-600" },
@@ -31,14 +38,14 @@ const COLUMN_STYLE: Record<
   { label: string; tone: string; dotColor: string; headerBadge: string; sublabel: string }
 > = {
   NOT_STARTED: {
-    label: "A Iniciar / Backlog",
+    label: "Não Iniciado",
     sublabel: "Fase de planejamento e requisitos",
     tone: "border-slate-200 bg-slate-50/70",
     dotColor: "bg-slate-400",
     headerBadge: "bg-slate-200 text-slate-700",
   },
   IN_PROGRESS: {
-    label: "Em Modelagem / Produção",
+    label: "Em Andamento",
     sublabel: "Desenvolvimento ativo de pranchas",
     tone: "border-blue-200 bg-blue-50/40",
     dotColor: "bg-blue-600",
@@ -52,7 +59,7 @@ const COLUMN_STYLE: Record<
     headerBadge: "bg-amber-100 text-amber-800",
   },
   COMPLETED: {
-    label: "Concluído / Liberado",
+    label: "Concluído",
     sublabel: "Pronto para entrega ao cliente",
     tone: "border-emerald-200 bg-emerald-50/40",
     dotColor: "bg-emerald-600",
@@ -114,17 +121,68 @@ function columnForCompletion(completion: number, currentStatus?: string): Kanban
   return "IN_PROGRESS";
 }
 
-export function KanbanBoardView({ projectId, board }: { projectId: string; board: KanbanBoard }) {
+export function KanbanBoardView({
+  projectId,
+  board,
+  onBoardTotalsChange,
+}: {
+  projectId: string;
+  board: KanbanBoard;
+  onBoardTotalsChange?: (completion: number) => void;
+}) {
   const router = useRouter();
   const [columns, setColumns] = useState(board.columns);
   const [query, setQuery] = useState("");
   const [assignee, setAssignee] = useState("");
   const [discipline, setDiscipline] = useState("");
   const [filterAlertOnly, setFilterAlertOnly] = useState(false);
+  const [showHiddenCards, setShowHiddenCards] = useState(false);
   const [selected, setSelected] = useState<KanbanCard | null>(null);
   const [editingStage, setEditingStage] = useState<StageFormData | null>(null);
   const [isCreatingStage, setIsCreatingStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Todas as etapas na memória para cálculo contínuo
+  const allCards = useMemo(() => columns.flatMap((c) => c.cards), [columns]);
+  const hiddenCardsCount = useMemo(
+    () => allCards.filter((c) => c.isVisibleInKanban === false).length,
+    [allCards],
+  );
+
+  // Cálculo contínuo do progresso consolidado global (incluindo cards ocultados)
+  const overallCompletion = useMemo(() => {
+    return Math.round(allCards.reduce((acc, c) => acc + c.completion, 0) / (allCards.length || 1));
+  }, [allCards]);
+
+  useEffect(() => {
+    if (onBoardTotalsChange) {
+      onBoardTotalsChange(overallCompletion);
+    }
+  }, [overallCompletion, onBoardTotalsChange]);
+
+  /**
+   * Alternância instantânea de visibilidade (Optimistic UI)
+   */
+  async function handleToggleVisibility(card: KanbanCard) {
+    const nextVal = !(card.isVisibleInKanban !== false);
+    setColumns((current) =>
+      current.map((col) => ({
+        ...col,
+        cards: col.cards.map((c) => (c.id === card.id ? { ...c, isVisibleInKanban: nextVal } : c)),
+      })),
+    );
+    try {
+      await toggleStageVisibilityAction(card.id, nextVal, projectId);
+    } catch (reason) {
+      setColumns((current) =>
+        current.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) => (c.id === card.id ? { ...c, isVisibleInKanban: !nextVal } : c)),
+        })),
+      );
+      setError(reason instanceof Error ? reason.message : "Não foi possível alterar a visibilidade.");
+    }
+  }
 
   /**
    * Mudança de avanço físico que move o card de coluna instantaneamente (Optimistic).
@@ -207,13 +265,14 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
         ...column,
         cards: column.cards.filter(
           (card) =>
+            (showHiddenCards || card.isVisibleInKanban !== false) &&
             (!query || card.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
             (!assignee || card.designer === assignee) &&
             (!discipline || card.discipline === discipline) &&
             (!filterAlertOnly || card.alert.overdue || card.alert.dueSoon),
         ),
       })),
-    [columns, query, assignee, discipline, filterAlertOnly],
+    [columns, showHiddenCards, query, assignee, discipline, filterAlertOnly],
   );
 
   async function onDragEnd(result: DropResult) {
@@ -289,9 +348,8 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
     { label: "Todas as Disciplinas", value: "" },
     ...MASTER_DISCIPLINES.map((d) => ({
       label: d.name,
-      value: d.name === "Estrutural TQS" ? "Estrutura" : d.name === "3D Corona" ? "Projeto 3D" : d.name,
+      value: d.name === "Engenharia Estrutural" ? "Estrutura" : d.name === "Modelagem 3D e Imagens Finais" ? "Projeto 3D" : d.name,
     })),
-    { label: "Execução de Obra", value: "Obra" },
   ];
 
   return (
@@ -366,6 +424,18 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
           >
             <span>⚠️ Atenção / Prazos</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowHiddenCards(!showHiddenCards)}
+            className={`min-h-[44px] rounded-xl px-3.5 py-1.5 text-xs font-bold whitespace-nowrap active:scale-[0.98] transition-transform duration-75 select-none flex items-center gap-1.5 ${
+              showHiddenCards
+                ? "bg-zinc-900 text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80"
+            }`}
+          >
+            <span>{showHiddenCards ? "👁️ Mostrando Ocultos" : `👁️‍🗨️ Ocultos (${hiddenCardsCount})`}</span>
+          </button>
         </div>
       </div>
 
@@ -434,14 +504,31 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
                                     : ""
                                 }`}
                               >
-                                {/* Header do Card: Edificação & Fase Normativa */}
+                                {/* Header do Card: Edificação & Fase Normativa & Visibilidade */}
                                 <div className="flex items-center justify-between gap-1 border-b border-slate-100 pb-2 mb-2">
                                   <span className="truncate text-[10px] font-bold text-slate-600 flex items-center gap-1">
                                     🏢 {card.projectName || board.project.name || "Residência de Praia - Pedro"}
                                   </span>
-                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-semibold text-slate-500 shrink-0">
-                                    {card.phase || "Projeto Executivo"}
-                                  </span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-semibold text-slate-500 shrink-0">
+                                      {card.phase || "Projeto Executivo"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleVisibility(card);
+                                      }}
+                                      title={card.isVisibleInKanban === false ? "Exibir no Kanban" : "Ocultar do Kanban"}
+                                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold transition flex items-center gap-1 active:scale-95 ${
+                                        card.isVisibleInKanban === false
+                                          ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                                          : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                      }`}
+                                    >
+                                      {card.isVisibleInKanban === false ? "👁️‍🗨️ Oculto" : "👁️"}
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {/* Disciplina & Prioridade */}
@@ -585,7 +672,7 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
                                         }}
                                         className="rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-700 bg-slate-100 active:scale-95"
                                       >
-                                        A Iniciar
+                                        Não Iniciado
                                       </button>
                                     )}
                                     {column.id !== "IN_PROGRESS" && (
@@ -597,7 +684,7 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
                                         }}
                                         className="rounded px-1.5 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 active:scale-95"
                                       >
-                                        Produção
+                                        Em Andamento
                                       </button>
                                     )}
                                     {column.id !== "REVIEW" && (
@@ -609,7 +696,7 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
                                         }}
                                         className="rounded px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 active:scale-95"
                                       >
-                                        Revisão
+                                        Revisão Técnica
                                       </button>
                                     )}
                                     {column.id !== "COMPLETED" && (
@@ -621,7 +708,7 @@ export function KanbanBoardView({ projectId, board }: { projectId: string; board
                                         }}
                                         className="rounded px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 active:scale-95"
                                       >
-                                        Liberar
+                                        Concluído
                                       </button>
                                     )}
                                   </div>
@@ -699,6 +786,7 @@ function StageDrawer({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [completion, setCompletion] = useState(card.completion);
+  const [isVisibleInKanban, setIsVisibleInKanban] = useState(card.isVisibleInKanban ?? true);
   const [checklist, setChecklist] = useState({ dwg: false, approval: false });
 
   function save(form: FormData) {
@@ -709,6 +797,7 @@ function StageDrawer({
       designer: String(form.get("designer") ?? "").trim() || null,
       startDate: String(form.get("startDate") ?? "").trim() || null,
       dueDate: String(form.get("dueDate") ?? "").trim() || null,
+      isVisibleInKanban,
       notes: [
         String(form.get("notes") ?? "").trim(),
         checklist.dwg ? "[x] Enviar prancha em DWG" : "[ ] Enviar prancha em DWG",
@@ -720,7 +809,7 @@ function StageDrawer({
     };
     startTransition(async () => {
       try {
-        await editScheduleStageAction(card.id, input);
+        await editScheduleStageAction(card.id, input, projectId);
         onSaved({
           name: input.name,
           description: input.description,
@@ -730,6 +819,7 @@ function StageDrawer({
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
           notes: input.notes,
           completion,
+          isVisibleInKanban,
         });
         onClose();
         router.refresh();
@@ -869,6 +959,29 @@ function StageDrawer({
             />
           </label>
 
+          {/* Toggle de Visibilidade no Kanban */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <div>
+              <span className="text-xs font-bold text-slate-800 block">
+                Exibir no Kanban
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                {isVisibleInKanban ? "Card visível no quadro" : "Card oculto do quadro visual"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsVisibleInKanban(!isVisibleInKanban)}
+              className={`min-h-[36px] px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 active:scale-95 ${
+                isVisibleInKanban
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-slate-200 text-slate-700"
+              }`}
+            >
+              <span>{isVisibleInKanban ? "👁️ Visível" : "👁️‍🗨️ Oculto"}</span>
+            </button>
+          </div>
+
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
             <button
               type="button"
@@ -880,6 +993,27 @@ function StageDrawer({
             </button>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const start = card.dueDate ? new Date(card.dueDate) : new Date();
+                  const y = start.getUTCFullYear();
+                  const m = String(start.getUTCMonth() + 1).padStart(2, "0");
+                  const d = String(start.getUTCDate()).padStart(2, "0");
+                  const dateStr = `${y}${m}${d}`;
+                  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
+                    card.name
+                  )}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(
+                    `Edificação: ${card.projectName || "Projeto"}\nDisciplina: ${card.discipline || "Geral"}\nResponsável: ${card.designer || "Eduardo Marques"}\nAvanço: ${completion}%`
+                  )}`;
+                  window.open(url, "_blank");
+                }}
+                className="rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition active:scale-95"
+                title="Adicionar ao Google Agenda"
+              >
+                📅 Google Agenda
+              </button>
+
               <button
                 type="button"
                 onClick={() => onDuplicate(card)}

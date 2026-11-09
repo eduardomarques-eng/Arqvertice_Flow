@@ -29,6 +29,8 @@ interface ReportClientFinanceCardProps {
   client: ClientInfo;
   initialPayments: InstallmentItem[];
   financialRows: Array<{ label: string; value: string }>;
+  hideClientMetadata?: boolean;
+  hideFinancialSummary?: boolean;
 }
 
 export function ReportClientFinanceCard({
@@ -36,6 +38,8 @@ export function ReportClientFinanceCard({
   client,
   initialPayments,
   financialRows,
+  hideClientMetadata = false,
+  hideFinancialSummary = false,
 }: ReportClientFinanceCardProps) {
   const [payments, setPayments] = useState<InstallmentItem[]>(initialPayments);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -90,47 +94,53 @@ export function ReportClientFinanceCard({
 
   return (
     <div className="space-y-5 font-sans">
-      {/* 1. Dados Cadastrais do Cliente e da Edificação */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Cliente / Contratante
-          </p>
-          <p className="mt-1 text-sm font-bold text-slate-900">{client.name}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{client.phone || client.email || "Contato oficial"}</p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Localização / Lote
-          </p>
-          <p className="mt-1 text-sm font-bold text-slate-900">{client.loteQuadra || "Loteamento praia bela"}</p>
-          <p className="mt-0.5 text-xs text-slate-500 line-clamp-1">{client.address || "Endereço cadastrado"}</p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Área Construída Homologada
-          </p>
-          <p className="mt-1 text-sm font-bold text-slate-900">{client.areaConstruida || "385,00 m²"}</p>
-          <p className="mt-0.5 text-xs text-slate-500">Edificação Residencial Unifamiliar</p>
-        </div>
-      </div>
-
-      {/* 2. Resumo de Desembolso Financeiro */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {financialRows.map((row) => (
-          <div
-            key={row.label}
-            className="rounded-2xl bg-slate-50/70 p-3.5 ring-1 ring-inset ring-slate-100"
-          >
-            <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              {row.label}
-            </dt>
-            <dd className="mt-1 text-sm font-bold text-slate-900">{row.value}</dd>
+      {/* 1. Dados Cadastrais do Cliente e da Edificação (opcional) */}
+      {!hideClientMetadata && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Cliente / Contratante
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-900">{client.name}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{client.phone || client.email || "Contato oficial"}</p>
           </div>
-        ))}
-      </div>
+
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Localização / Lote
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-900">{client.loteQuadra || "Loteamento praia bela"}</p>
+            <p className="mt-0.5 text-xs text-slate-500 line-clamp-1">{client.address || "Endereço cadastrado"}</p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Área Construída Homologada
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-900">{client.areaConstruida || "385,00 m²"}</p>
+            <p className="mt-0.5 text-xs text-slate-500">Edificação Residencial Unifamiliar</p>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Resumo de Desembolso Financeiro Consolidado */}
+      {!hideFinancialSummary && financialRows && financialRows.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {financialRows.map((row) => (
+            <div
+              key={row.label}
+              className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/80 via-white to-white p-4 shadow-2xs"
+            >
+              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                {row.label}
+              </dt>
+              <dd className="mt-2 text-xl font-black text-slate-900 font-mono tracking-tight">
+                {row.value}
+              </dd>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 3. Tabela Financeira com Checkboxes Interativos Apple HIG */}
       {payments.length > 0 && (

@@ -62,7 +62,7 @@ export async function getCorporateGestaoData() {
       name: "Emanoel Luan Almeida da Rocha",
       email: "luan@arqvertice.com",
       role: "ENGENHEIRO" as const,
-      designation: "Estrutural TQS",
+      designation: "Engenharia Estrutural",
       canEdit: true,
     },
     {
@@ -120,7 +120,7 @@ export async function getCorporateGestaoData() {
   const mappedMembers: CorporateUserMember[] = users.map((u) => {
     let designation = "Profissional do Estúdio";
     if (u.name.toLowerCase().includes("eduardo")) designation = "Arquiteto Titular";
-    else if (u.name.toLowerCase().includes("luan") || u.role === "ENGENHEIRO") designation = "Estrutural TQS";
+    else if (u.name.toLowerCase().includes("luan") || u.role === "ENGENHEIRO") designation = "Engenharia Estrutural";
     else if (u.name.toLowerCase().includes("erick") || u.role === "EQUIPE") designation = "Fullstack & Sistemas";
     else if (u.name.toLowerCase().includes("pedro") || u.role === "CLIENTE" || (u.role as string) === "CLIENT") designation = "Residência de Praia";
 

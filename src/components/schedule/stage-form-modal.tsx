@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { saveScheduleStageAction } from "@/app/actions/domain-actions";
+import { saveScheduleStageAction, editScheduleStageAction } from "@/server/actions/schedule";
 import { MASTER_PHASES, MASTER_DISCIPLINES } from "@/lib/master-data";
 
 export interface StageFormData {
@@ -18,6 +18,7 @@ export interface StageFormData {
   weight?: number;
   phase?: string | null;
   notes?: string | null;
+  isVisibleInKanban?: boolean;
 }
 
 interface StageFormModalProps {
@@ -25,7 +26,7 @@ interface StageFormModalProps {
   initialStage?: StageFormData | null;
   isOpen: boolean;
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: (savedStage: StageFormData) => void;
 }
 
 export function StageFormModal({
@@ -60,6 +61,8 @@ export function StageFormModal({
       : new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10)
   );
   const [description, setDescription] = useState(initialStage?.description ?? "");
+  const [completion, setCompletion] = useState(initialStage?.completion ?? 0);
+  const [isVisibleInKanban, setIsVisibleInKanban] = useState(initialStage?.isVisibleInKanban ?? true);
 
   // Sincroniza quando o modal abre com novo initialStage
   useEffect(() => {
@@ -89,6 +92,8 @@ export function StageFormModal({
           : new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10)
       );
       setDescription(initialStage.description ?? "");
+      setCompletion(initialStage.completion ?? 0);
+      setIsVisibleInKanban(initialStage.isVisibleInKanban ?? true);
       setIsDuplicating(false);
     } else {
       setName("");
@@ -98,6 +103,8 @@ export function StageFormModal({
       setStartDate(new Date().toISOString().slice(0, 10));
       setDueDate(new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10));
       setDescription("");
+      setCompletion(0);
+      setIsVisibleInKanban(true);
       setIsDuplicating(false);
     }
     setError(null);
@@ -121,7 +128,7 @@ export function StageFormModal({
       .trim();
     const finalNotes = cleanNotes ? `${phaseTag} ${cleanNotes}` : phaseTag;
 
-    const payload = {
+    const payload: StageFormData & { projectId: string } = {
       // Se estiver em modo de duplicação, omitir o id para gerar novo registro no banco
       id: isDuplicating ? undefined : initialStage?.id,
       projectId,
@@ -134,15 +141,25 @@ export function StageFormModal({
       // Peso e ordem atribuídos em background de forma transparente
       order: isDuplicating ? Math.floor(Date.now() / 1000) % 10000 : Number(initialStage?.order ?? 999),
       weight: Number(initialStage?.weight ?? 10),
-      completion: isDuplicating ? 0 : (initialStage?.completion ?? 0),
+      completion: isDuplicating ? 0 : Number(completion),
+      isVisibleInKanban,
       notes: finalNotes,
+      phase,
     };
+
+    // Callback otimista síncrono para recálculo instantâneo no cliente
+    if (onSaved) {
+      onSaved(payload);
+    }
 
     startTransition(async () => {
       try {
-        await saveScheduleStageAction(payload);
+        if (initialStage?.id && !isDuplicating) {
+          await editScheduleStageAction(initialStage.id, payload, projectId);
+        } else {
+          await saveScheduleStageAction(payload);
+        }
         router.refresh();
-        if (onSaved) onSaved();
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Falha ao gravar etapa.");
@@ -290,6 +307,70 @@ export function StageFormModal({
                 />
               </div>
             </div>
+
+            {/* Avanço Físico (%) e Visibilidade no Kanban */}
+            <div className="border-t border-slate-100 pt-4 space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Avanço Físico Concluído
+                  </label>
+                  <span className="font-mono text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    {completion}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={completion}
+                  onChange={(e) => setCompletion(Number(e.target.value))}
+                  className="w-full accent-blue-600 cursor-pointer h-2 bg-slate-100 rounded-lg"
+                />
+                <div className="flex gap-1.5 mt-2">
+                  {[0, 25, 50, 75, 100].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setCompletion(val)}
+                      className={`min-h-[36px] flex-1 rounded-lg text-[11px] font-bold border transition ${
+                        completion === val
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      {val}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Toggle de Visibilidade no Kanban */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">
+                    Visibilidade no Quadro Kanban
+                  </span>
+                  <span className="text-[11px] text-slate-500 block">
+                    {isVisibleInKanban
+                      ? "O card será exibido nas colunas do Kanban"
+                      : "O card fica oculto do quadro visual (suas métricas continuam no cálculo global)"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsVisibleInKanban(!isVisibleInKanban)}
+                  className={`min-h-[44px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-[0.98] select-none ${
+                    isVisibleInKanban
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
+                  }`}
+                >
+                  <span>{isVisibleInKanban ? "👁️ Visível" : "👁️‍🗨️ Oculto"}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* 3. DESCRIÇÃO DO ESCOPO */}
@@ -308,17 +389,40 @@ export function StageFormModal({
 
           {/* Footer de Ações Apple HIG */}
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-slate-100">
-            {/* Botão de Duplicação */}
-            <div>
+            {/* Botão de Duplicação e Google Agenda */}
+            <div className="flex items-center gap-2">
               {initialStage?.id && !isDuplicating && (
-                <button
-                  type="button"
-                  onClick={handleDuplicate}
-                  disabled={isPending}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95 shadow-xs"
-                >
-                  <span>📑</span> Duplicar Etapa
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDuplicate}
+                    disabled={isPending}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95 shadow-xs"
+                  >
+                    <span>📑</span> Duplicar Etapa
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const start = dueDate ? new Date(dueDate) : new Date();
+                      const y = start.getUTCFullYear();
+                      const m = String(start.getUTCMonth() + 1).padStart(2, "0");
+                      const d = String(start.getUTCDate()).padStart(2, "0");
+                      const dateStr = `${y}${m}${d}`;
+                      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
+                        name
+                      )}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(
+                        `Disciplina: ${discipline || "Geral"}\nResponsável: ${designer || "Eduardo Marques"}\nAvanço: ${completion}%`
+                      )}`;
+                      window.open(url, "_blank");
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition active:scale-95 shadow-xs"
+                    title="Adicionar esta etapa ao Google Agenda"
+                  >
+                    <span>🗓️</span> Google Agenda
+                  </button>
+                </>
               )}
             </div>
 

@@ -281,7 +281,7 @@ export function DeliverableCard({
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
               <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white pointer-events-none">
                 <span className="rounded bg-blue-600/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider backdrop-blur-xs">
-                  Render 3D Corona
+                  Imagem Fotorrealista 3D
                 </span>
                 <span className="text-[10px] font-medium opacity-90">🔍 Ver Imagem</span>
               </div>
