@@ -125,16 +125,13 @@ export function ReportClientFinanceCard({
 
       {/* 2. Resumo de Desembolso Financeiro Consolidado */}
       {!hideFinancialSummary && financialRows && financialRows.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-zinc-50/70 p-4 rounded-xl border border-zinc-200/80 print:grid-cols-4 print:p-3 print:gap-2 print:border-zinc-300 print:bg-zinc-50/40">
           {financialRows.map((row) => (
-            <div
-              key={row.label}
-              className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50/80 via-white to-white p-4 shadow-2xs"
-            >
-              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <div key={row.label} className="rounded-lg p-1">
+              <dt className="text-[11px] uppercase tracking-wider text-zinc-500 font-mono">
                 {row.label}
               </dt>
-              <dd className="mt-2 text-xl font-black text-slate-900 font-mono tracking-tight">
+              <dd className="mt-1 text-base font-bold text-zinc-900 font-mono">
                 {row.value}
               </dd>
             </div>
@@ -144,74 +141,85 @@ export function ReportClientFinanceCard({
 
       {/* 3. Tabela Financeira com Checkboxes Interativos Apple HIG */}
       {payments.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
-          <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+        <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white break-inside-avoid">
+          <div className="bg-zinc-50/80 px-4 py-3 border-b border-zinc-200 flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-700">
               Cronograma de Parcelas & Quitação Interativa
             </span>
-            <span className="text-[11px] text-slate-500">
-              Clique na caixa de seleção para alternar status (Pago / Pendente)
+            <span className="text-[11px] text-zinc-500 print:hidden">
+              Clique no checkbox para alternar status (Pago / Pendente)
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  <th className="py-2.5 pl-4 pr-2 w-12 text-center">Status</th>
-                  <th className="py-2.5 px-2">Parcela / Marco</th>
-                  <th className="py-2.5 px-2">Vencimento</th>
-                  <th className="py-2.5 px-2">Data Quitação</th>
-                  <th className="py-2.5 px-2">Etapa Vinculada</th>
-                  <th className="py-2.5 pr-4 pl-2 text-right">Valor</th>
+              <thead className="border-b border-zinc-200 bg-zinc-50/60 text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
+                <tr>
+                  <th className="py-2.5 pl-3 pr-2 w-8 text-center print:hidden">#</th>
+                  <th className="w-[10%] py-2.5 p-2 text-left font-bold text-zinc-700">Parcela</th>
+                  <th className="w-[32%] py-2.5 p-2 text-left font-medium text-zinc-900">Descrição</th>
+                  <th className="w-[20%] py-2.5 p-2 text-left text-zinc-500">Etapa Vinculada</th>
+                  <th className="w-[14%] py-2.5 p-2 text-left font-mono whitespace-nowrap">Vencimento</th>
+                  <th className="w-[14%] py-2.5 p-2 text-right font-mono font-semibold text-zinc-900 whitespace-nowrap">Valor</th>
+                  <th className="w-[10%] py-2.5 p-2 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {payments.map((p) => {
+              <tbody className="divide-y divide-zinc-100">
+                {payments.map((p, index) => {
                   const isPaid = p.status === "Liquidado" || p.status === "PAID";
                   const isLoading = loadingId === p.id;
+                  const totalInstallments = String(payments.length).padStart(2, "0");
+                  const currentInstallment = String(index + 1).padStart(2, "0");
+                  const installmentCode = `${currentInstallment}/${totalInstallments}`;
 
                   return (
                     <tr
-                      key={p.id || p.name}
-                      className={`transition ${
-                        isPaid ? "bg-emerald-50/20" : "hover:bg-slate-50/60"
+                      key={p.id || p.name || index}
+                      className={`transition break-inside-avoid ${
+                        isPaid ? "bg-emerald-50/20" : "hover:bg-zinc-50/60"
                       }`}
                     >
-                      <td className="py-3 pl-4 pr-2 text-center">
+                      <td className="py-3 pl-3 pr-2 text-center print:hidden">
                         <input
                           type="checkbox"
                           checked={isPaid}
                           disabled={isLoading}
                           onChange={() => togglePayment(p)}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                          className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
                           title="Clique para alternar entre Pago e Pendente"
                         />
                       </td>
 
-                      <td className="py-3 px-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900">{p.name}</span>
-                          <Badge tone={isPaid ? "green" : "neutral"} className="text-[10px]">
-                            {isPaid ? "Liquidado" : "Pendente"}
-                          </Badge>
-                        </div>
+                      <td className="w-[10%] py-3 p-2 font-mono font-bold text-zinc-700">
+                        {installmentCode}
                       </td>
 
-                      <td className="py-3 px-2 font-mono text-slate-600">
+                      <td className="w-[32%] py-3 p-2 font-medium text-zinc-900">
+                        {p.name}
+                      </td>
+
+                      <td className="w-[20%] py-3 p-2 text-zinc-500 text-xs">
+                        {p.stage || "—"}
+                      </td>
+
+                      <td className="w-[14%] py-3 p-2 font-mono text-zinc-600 whitespace-nowrap">
                         {p.dueDate}
                       </td>
 
-                      <td className="py-3 px-2 font-mono text-slate-600">
-                        {p.paidAt}
-                      </td>
-
-                      <td className="py-3 px-2 text-slate-600">
-                        {p.stage}
-                      </td>
-
-                      <td className="py-3 pr-4 pl-2 text-right font-bold text-slate-900">
+                      <td className="w-[14%] py-3 p-2 text-right font-mono font-semibold text-zinc-900 whitespace-nowrap">
                         {p.amount}
+                      </td>
+
+                      <td className="w-[10%] py-3 p-2 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold inline-block ${
+                            isPaid
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {isPaid ? "Pago" : "Pendente"}
+                        </span>
                       </td>
                     </tr>
                   );

@@ -136,7 +136,7 @@ export function ProjectFinanceManager({
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm break-inside-avoid">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold text-slate-900">Financeiro & Condições Comerciais</h2>
@@ -158,13 +158,14 @@ export function ProjectFinanceManager({
               order: items.length + 1,
             })
           }
-          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 active:scale-95 transition"
+          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 active:scale-95 transition print:hidden"
         >
           + Adicionar Parcela
         </button>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-4">
+      {/* Grid de Resumo Financeiro Superior */}
+      <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3 bg-zinc-50/70 p-4 rounded-xl border border-zinc-200/80 print:grid-cols-4 print:p-3 print:gap-2 print:border-zinc-300 print:bg-zinc-50/40">
         {[
           ["Valor global", money.format(total)],
           ["Total recebido", money.format(paid)],
@@ -174,9 +175,9 @@ export function ProjectFinanceManager({
             next ? `${date(next.dueDate)} · ${money.format(next.amount)}` : "—",
           ],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs text-slate-500">{label}</p>
-            <strong className="mt-1 block text-sm text-slate-900">{value}</strong>
+          <div key={label} className="rounded-lg p-1">
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500 font-mono">{label}</p>
+            <strong className="mt-1 block text-base font-bold text-zinc-900 font-mono">{value}</strong>
           </div>
         ))}
       </div>
@@ -184,71 +185,85 @@ export function ProjectFinanceManager({
       {error ? <p className="mt-3 text-sm font-semibold text-rose-700">{error}</p> : null}
 
       <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="text-xs uppercase text-slate-500">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="text-[11px] uppercase font-bold tracking-wider text-zinc-500 border-b border-zinc-200 bg-zinc-50/60">
             <tr>
-              <th className="p-2">Parcela</th>
-              <th className="p-2">Descrição</th>
-              <th className="p-2">Etapa Vinculada</th>
-              <th className="p-2">Vencimento</th>
-              <th className="p-2">Valor</th>
-              <th className="p-2">Status</th>
-              <th className="p-2">Ações</th>
+              <th className="w-[10%] p-2.5 text-left font-mono font-bold text-zinc-700">Parcela</th>
+              <th className="w-[32%] p-2.5 text-left font-medium text-zinc-900">Descrição</th>
+              <th className="w-[20%] p-2.5 text-left text-zinc-500">Etapa Vinculada</th>
+              <th className="w-[14%] p-2.5 text-left font-mono whitespace-nowrap">Vencimento</th>
+              <th className="w-[14%] p-2.5 text-right font-mono font-semibold text-zinc-900 whitespace-nowrap">Valor</th>
+              <th className="w-[10%] p-2.5 text-center">Status</th>
+              <th className="p-2.5 text-center print:hidden">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition">
-                <td className="p-2 font-semibold">
-                  {String(item.order).padStart(2, "0")}/{items.length.toString().padStart(2, "0")}
-                </td>
-                <td className="p-2 font-medium text-slate-900">{item.description}</td>
-                <td className="p-2 text-slate-600">
-                  {stages.find((stage) => stage.id === item.linkedStageId)?.name ?? "—"}
-                </td>
-                <td
-                  className={`p-2 ${item.status === "OVERDUE" ? "font-bold text-rose-600" : ""}`}
+            {items.map((item, index) => {
+              const totalInstallments = String(items.length).padStart(2, "0");
+              const currentInstallment = String(index + 1).padStart(2, "0");
+              const installmentCode = `${currentInstallment}/${totalInstallments}`;
+              const isOverdue = item.status === "OVERDUE" || (item.status === "PENDING" && new Date(item.dueDate) < new Date());
+
+              return (
+                <tr
+                  key={item.id || index}
+                  className="border-t border-zinc-100 hover:bg-zinc-50/50 transition break-inside-avoid"
                 >
-                  {date(item.dueDate)}
-                </td>
-                <td className="p-2 font-mono font-semibold">{money.format(item.amount)}</td>
-                <td className="p-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleStatus(item)}
-                    className={`rounded-full px-2.5 py-1 text-xs font-bold transition active:scale-95 ${
-                      item.status === "PAID"
-                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                        : item.status === "OVERDUE"
-                        ? "bg-rose-100 text-rose-700 hover:bg-rose-200"
-                        : "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                    }`}
-                  >
-                    {item.status === "PAID"
-                      ? "Pago"
-                      : item.status === "OVERDUE"
-                      ? "Atrasado"
-                      : "Pendente"}
-                  </button>
-                </td>
-                <td className="p-2">
-                  <button
-                    type="button"
-                    onClick={() => openModal(item)}
-                    className="mr-2 font-semibold text-blue-600 hover:text-blue-800"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => remove(item.id)}
-                    className="font-semibold text-rose-600 hover:text-rose-800"
-                  >
-                    Excluir
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  <td className="w-[10%] p-2.5 text-left font-mono font-bold text-zinc-700">
+                    {installmentCode}
+                  </td>
+                  <td className="w-[32%] p-2.5 text-left font-medium text-zinc-900">
+                    {item.description}
+                  </td>
+                  <td className="w-[20%] p-2.5 text-left text-zinc-500 text-xs">
+                    {stages.find((stage) => stage.id === item.linkedStageId)?.name ?? "—"}
+                  </td>
+                  <td className="w-[14%] p-2.5 text-left font-mono whitespace-nowrap">
+                    <span className={isOverdue ? "text-rose-600 bg-rose-50/60 font-semibold px-1 py-0.5 rounded" : "text-zinc-600"}>
+                      {date(item.dueDate)}
+                    </span>
+                  </td>
+                  <td className="w-[14%] p-2.5 text-right font-mono font-semibold text-zinc-900 whitespace-nowrap">
+                    {money.format(item.amount)}
+                  </td>
+                  <td className="w-[10%] p-2.5 text-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleStatus(item)}
+                      className={`px-2 py-0.5 rounded-full text-xs font-semibold transition active:scale-95 inline-block ${
+                        item.status === "PAID"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : isOverdue
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {item.status === "PAID"
+                        ? "Pago"
+                        : isOverdue
+                        ? "Atrasado"
+                        : "Pendente"}
+                    </button>
+                  </td>
+                  <td className="p-2.5 text-center whitespace-nowrap print:hidden">
+                    <button
+                      type="button"
+                      onClick={() => openModal(item)}
+                      className="mr-2.5 font-semibold text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remove(item.id)}
+                      className="font-semibold text-xs text-rose-600 hover:text-rose-800"
+                    >
+                      Excluir
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {items.length === 0 ? (

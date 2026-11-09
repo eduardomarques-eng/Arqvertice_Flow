@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { PrintButton } from "@/components/print-button";
-import { ReportClientFinanceCard } from "./report-client-finance-card";
+import { FinancialManagement, type Installment, type Stage } from "@/components/financial/financial-management";
 import type { ScheduleReport } from "@/lib/schedule-report";
 
 export interface UnifiedScheduleReportProps {
@@ -155,6 +155,27 @@ export function UnifiedScheduleReport({
       completed: discCompleted,
       total: discTotal,
     };
+  }, [sanitizedStages]);
+
+  // Parcelas e Etapas estruturadas para o FinancialManagement na Seção 4
+  const initialInstallments: Installment[] = useMemo(() => {
+    return initialPayments.map((p, index) => ({
+      id: p.id || `inst-${index}`,
+      description: p.name,
+      amount: p.amountNumber || 0,
+      dueDate: p.dueDate || new Date().toISOString().slice(0, 10),
+      paidDate: p.paidAt && p.paidAt !== "—" ? p.paidAt : null,
+      status: p.status === "Liquidado" || p.status === "PAID" ? "PAID" : p.status === "OVERDUE" ? "OVERDUE" : "PENDING",
+      linkedStageId: p.stage ? p.stage : null,
+      order: index + 1,
+    }));
+  }, [initialPayments]);
+
+  const stagesForFinance: Stage[] = useMemo(() => {
+    return sanitizedStages.map((s) => ({
+      id: s.name,
+      name: s.name,
+    }));
   }, [sanitizedStages]);
 
   return (
@@ -487,13 +508,10 @@ export function UnifiedScheduleReport({
       {/* ============================================================== */}
       {sectionsVisibility.financeiro && (
         <ReportCardSection title="4. Gestão Financeira: Cronograma de Parcelas & Quitação Interativa">
-          <ReportClientFinanceCard
+          <FinancialManagement
             projectId={projectId}
-            client={client}
-            initialPayments={initialPayments}
-            financialRows={finalFinancialRows}
-            hideClientMetadata={true}
-            hideFinancialSummary={false}
+            initialInstallments={initialInstallments}
+            stages={stagesForFinance}
           />
         </ReportCardSection>
       )}
@@ -566,7 +584,7 @@ export function UnifiedScheduleReport({
 
 function ReportCardSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Card className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm overflow-hidden">
+    <Card className="break-inside-avoid rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm overflow-hidden">
       <h2 className="border-l-4 border-blue-600 pl-3 text-xs font-bold uppercase tracking-wider text-slate-900">
         {title}
       </h2>
