@@ -103,6 +103,15 @@ async function main() {
   for (const profile of OFFICIAL_PROFILES) {
     const passwordHash = await hash(profile.password, 12);
 
+    const initialPermissions =
+      profile.role === "ADMIN"
+        ? ["dashboard", "cronograma", "projetos", "financeiro", "clientes", "equipe"]
+        : profile.role === "ARQUITETO"
+        ? ["dashboard", "cronograma", "projetos", "clientes"]
+        : profile.role === "ENGENHEIRO"
+        ? ["dashboard", "cronograma", "projetos"]
+        : ["dashboard", "cronograma", "projetos"];
+
     const user = await prisma.user.upsert({
       where: { email: profile.email.toLowerCase().trim() },
       update: {
@@ -112,6 +121,7 @@ async function main() {
         phone: profile.whatsapp,
         specialty: profile.specialty,
         role: profile.role,
+        permissions: initialPermissions,
         isActive: true,
       },
       create: {
@@ -122,11 +132,12 @@ async function main() {
         phone: profile.whatsapp,
         specialty: profile.specialty,
         role: profile.role,
+        permissions: initialPermissions,
         isActive: true,
       },
     });
 
-    console.log(`[Perfil Homologado] ${user.name} (${user.role}) - ${user.email}`);
+    console.log(`[Perfil Homologado] ${user.name} (${user.role}) - ${user.email} -> Permissões: ${initialPermissions.join(", ")}`);
 
     // Garante acesso a todos os projetos cadastrados
     for (const proj of allProjects) {

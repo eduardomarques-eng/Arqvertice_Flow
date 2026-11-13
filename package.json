@@ -20,6 +20,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "whatsapp:cli": "node scripts/whatsapp-bridge.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

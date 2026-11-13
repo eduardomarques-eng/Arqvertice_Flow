@@ -1,69 +1,106 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 
 export function SessionGuard() {
-  const router = useRouter();
-  const [forcedLogoutModal, setForcedLogoutModal] = useState<string | null>(null);
+  const pathname = usePathname();
+  const [invalidReason, setInvalidReason] = useState<
+    "PERMISSIONS_UPDATED" | "ACCOUNT_DISABLED" | "UNAUTHENTICATED" | null
+  >(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function checkSession() {
-      try {
-        const res = await fetch("/api/auth/session-guard", { cache: "no-store" });
-        if (res.status === 401 && !isCancelled) {
-          const data = await res.json().catch(() => ({}));
-          setForcedLogoutModal(
-            data.reason ||
-              "Sua sessão foi encerrada pelo Administrador devido a alterações em seus privilégios ou credenciais."
-          );
-        }
-      } catch {
-        // Ignora erro de rede temporário
+  const checkSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/session-status", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-store" },
+      });
+      if (res.status === 401) {
+        const data = await res.json().catch(() => ({}));
+        const reason = data.reason || "PERMISSIONS_UPDATED";
+        setInvalidReason(reason);
       }
+    } catch {
+      // Ignora erro transitório de rede
     }
-
-    // Checa a cada 20 segundos e sempre que a aba voltar ao foco
-    const interval = setInterval(checkSession, 20000);
-    const onFocus = () => checkSession();
-    window.addEventListener("focus", onFocus);
-
-    return () => {
-      isCancelled = true;
-      clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-    };
   }, []);
 
-  const handleRedirect = () => {
-    window.location.href = "/login";
+  useEffect(() => {
+    // 1. Verificação inicial e periódica a cada 10 segundos
+    checkSession();
+    const interval = setInterval(checkSession, 10000);
+
+    // 2. Verificação ao focar a janela ou mudar visibilidade
+    const onFocus = () => checkSession();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") checkSession();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [checkSession]);
+
+  // 3. Verificação a cada mudança de rota
+  useEffect(() => {
+    checkSession();
+  }, [pathname, checkSession]);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout?reason=FORCED_LOGOUT", {
+        method: "POST",
+      }).catch(() => null);
+    } finally {
+      window.location.href = "/login?updated=1";
+    }
   };
 
-  if (!forcedLogoutModal) return null;
+  if (!invalidReason) return null;
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-rose-200 text-center space-y-4">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-2xl text-rose-600">
-          🔒
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-zinc-950/90 backdrop-blur-xl p-4 animate-in fade-in duration-300">
+      <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl border border-zinc-200 text-center space-y-5">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-3xl text-amber-600 border border-amber-200">
+          🛡️
         </div>
-        <div>
-          <h3 className="text-lg font-bold text-slate-900">Sessão Encerrada pelo Administrador</h3>
-          <p className="mt-2 text-xs text-slate-600 leading-relaxed">{forcedLogoutModal}</p>
+
+        <div className="space-y-2">
+          <h3 className="text-xl font-bold tracking-tight text-zinc-900">
+            Atualização de Permissões e Governança
+          </h3>
+          <p className="text-xs text-zinc-600 leading-relaxed">
+            {invalidReason === "ACCOUNT_DISABLED"
+              ? "Esta conta foi desativada pelo Administrador. Para mais informações, entre em contato com a gestão."
+              : "O administrador atualizou suas permissões de acesso, atribuições ou credenciais. Para garantir a consistência dos dados e carregar seu painel atualizado, encerre esta sessão e entre novamente."}
+          </p>
         </div>
+
         <div className="pt-2">
           <button
             type="button"
-            onClick={handleRedirect}
-            className="w-full min-h-[44px] rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-bold text-white hover:bg-slate-800 active:scale-[0.98] transition shadow-md"
+            disabled={isLoggingOut}
+            onClick={handleLogout}
+            className="w-full min-h-[44px] rounded-xl bg-zinc-950 px-5 py-3 text-xs font-bold text-white hover:bg-zinc-800 active:scale-[0.98] transition shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            Fazer Login Novamente →
+            {isLoggingOut ? (
+              <span>Encerrando sessão...</span>
+            ) : (
+              <>
+                <span>Sair e Entrar Novamente</span>
+                <span>→</span>
+              </>
+            )}
           </button>
         </div>
       </div>
     </div>
   );
 }
-

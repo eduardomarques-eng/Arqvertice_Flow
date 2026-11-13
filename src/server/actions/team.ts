@@ -8,6 +8,8 @@ import { hash } from "bcryptjs";
 import type { UserRole, CommChannel, CommRecipientType } from "@prisma/client";
 import { sendTransactionalEmail } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendArqVerticeEmail } from "@/lib/email/resend-service";
+import { sendArqVerticeWhatsApp } from "@/lib/whatsapp/whatsapp-service";
 
 export interface UpdateProfileInput {
   userId: string;
@@ -73,21 +75,20 @@ export async function updateTeamMemberProfileAction(input: UpdateProfileInput) {
     whatsapp: string | null;
     phone: string | null;
     passwordHash?: string;
-    sessionVersion?: { increment: number };
-    permissionsUpdatedAt?: Date;
+    sessionVersion: { increment: number };
+    permissionsUpdatedAt: Date;
   } = {
     name: input.name.trim(),
     email: cleanEmail,
     specialty: input.specialty?.trim() || null,
     whatsapp: input.whatsapp?.trim() || null,
     phone: input.whatsapp?.trim() || null,
+    sessionVersion: { increment: 1 },
+    permissionsUpdatedAt: new Date(),
   };
 
   if (input.newPassword && input.newPassword.trim().length >= 8) {
     updateData.passwordHash = await hash(input.newPassword.trim(), 12);
-    // Força renovação da sessão ao mudar senha
-    updateData.sessionVersion = { increment: 1 };
-    updateData.permissionsUpdatedAt = new Date();
   }
 
   const updated = await prisma.user.update({
@@ -205,40 +206,31 @@ export async function dispatchCommunicationAction(input: DispatchCommunicationIn
   let directLinkUrl: string | undefined = undefined;
 
   if (input.channel === "EMAIL") {
-    const result = await sendTransactionalEmail({
+    const result = await sendArqVerticeEmail({
       to: input.recipientContact.trim(),
+      recipientName: input.recipientName,
+      category: input.category,
       subject: input.subject || `ArqVértice Flow — Notificação Oficial`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px;">
-          <h2 style="color: #0f172a; margin-top: 0;">ArqVértice Flow</h2>
-          <p style="font-size: 14px; color: #475569;">Olá, <strong>${input.recipientName}</strong>,</p>
-          <div style="background-color: #f8fafc; padding: 16px; border-radius: 12px; font-size: 14px; color: #1e293b; margin: 16px 0; white-space: pre-wrap;">
-${input.messageBody}
-          </div>
-          ${input.projectName ? `<p style="font-size: 12px; color: #64748b;">Referente ao empreendimento: <strong>${input.projectName}</strong></p>` : ""}
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="font-size: 11px; color: #94a3b8;">Notificação oficial emitida pelo Estúdio ArqVértice Flow.</p>
-        </div>
-      `,
-      text: input.messageBody,
+      messageBody: input.messageBody,
+      projectName: input.projectName || undefined,
     });
 
-    deliveryMethod = result.provider === "resend" ? "RESEND_API" : result.provider === "smtp" ? "SMTP" : "NONE";
-    externalId = result.externalId;
-    if (!result.ok) {
+    deliveryMethod = result.success ? "RESEND_API" : result.fallbackMailto ? "MAILTO_FALLBACK" : "NONE";
+    externalId = result.messageId;
+    if (!result.success) {
       status = "FALHA";
       errorMessage = result.error;
     }
   } else if (input.channel === "WHATSAPP") {
-    const result = await sendWhatsAppMessage({
+    const result = await sendArqVerticeWhatsApp({
       phone: input.recipientContact,
       message: input.messageBody,
     });
 
-    deliveryMethod = result.deliveryMethod;
-    externalId = result.externalId;
-    directLinkUrl = result.url;
-    status = result.deliveryMethod === "WHATSAPP_CLI_BRIDGE" ? "ENVIADO" : "DISPARADO_LINK";
+    deliveryMethod = result.method;
+    externalId = result.messageId;
+    directLinkUrl = result.fallbackUrl;
+    status = result.method === "WHATSAPP_CLI_BRIDGE" ? "ENVIADO" : "DISPARADO_LINK";
   }
 
   // Registra no banco de dados

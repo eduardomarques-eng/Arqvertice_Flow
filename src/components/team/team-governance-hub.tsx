@@ -13,6 +13,7 @@ import {
   type DispatchCommunicationInput,
 } from "@/server/actions/team";
 import { formatDateBR } from "@/lib/formatters";
+import { ROLE_PERMISSION_PRESETS, type AppModule } from "@/lib/rbac";
 
 export interface TeamMemberStage {
   id: string;
@@ -183,6 +184,9 @@ export function TeamGovernanceHub({
   const [dispatchSubject, setDispatchSubject] = useState("");
   const [dispatchMessage, setDispatchMessage] = useState("");
   const [dispatchProjectId, setDispatchProjectId] = useState("");
+
+  const [trafficUserFilter, setTrafficUserFilter] = useState<string>("ALL");
+  const [trafficEventFilter, setTrafficEventFilter] = useState<string>("ALL");
 
   const openDrawer = (member: TeamMemberData, defaultTab: "profile" | "rbac" | "reminders" = "profile") => {
     setSelectedMember(member);
@@ -546,13 +550,25 @@ export function TeamGovernanceHub({
       {/* ============================================================== */}
       {mainView === "dispatcher" && (
         <Card className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-6 animate-in fade-in duration-150">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              📡 Central de Disparos de Comunicação (WhatsApp & E-mail)
-            </h2>
-            <p className="text-xs text-slate-500">
-              Envio real de e-mails via Resend e mensagens de WhatsApp gratuitas para profissionais e clientes.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                📡 Central de Disparos de Comunicação (WhatsApp & E-mail)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Envio real de e-mails via Resend e mensagens de WhatsApp gratuitas para profissionais e clientes.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                WhatsApp CLI: Conectado / Link Direto
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="h-2 w-2 rounded-full bg-blue-500" />
+                E-mail Resend: Ativo
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -689,6 +705,114 @@ export function TeamGovernanceHub({
                 </div>
               )}
 
+              {/* Templates Editáveis de 1 Clique */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Templates Oficiais de 1 Clique:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {dispatchType === "PROFISSIONAL" ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = members.find((m) => m.id === dispatchRecipientId);
+                          const name = target ? target.name.split(" ")[0] : "[Nome]";
+                          const proj = projects.find((p) => p.id === dispatchProjectId);
+                          const projName = proj ? proj.name : "[Projeto]";
+                          setDispatchSubject(`Lembrete de Prazo — ${projName}`);
+                          setDispatchMessage(
+                            `Olá, ${name}! Lembrete técnico do ArqVértice Flow: a etapa [Etapa] do projeto ${projName} tem entrega prevista para [Data] (avanço atual: 50%). Por favor, revise os prazos.`
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition"
+                      >
+                        ⚡ Prazo de Etapa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = members.find((m) => m.id === dispatchRecipientId);
+                          const name = target ? target.name.split(" ")[0] : "[Nome]";
+                          const proj = projects.find((p) => p.id === dispatchProjectId);
+                          const projName = proj ? proj.name : "[Projeto]";
+                          setDispatchSubject(`⚠️ Alerta de Atraso — ${projName}`);
+                          setDispatchMessage(
+                            `Atenção, ${name}: a etapa [Etapa] (${projName}) ultrapassou o prazo de [Data]. Por favor, atualize o status no Kanban e no sistema.`
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[11px] font-semibold text-rose-800 transition"
+                      >
+                        ⚠️ Etapa em Atraso
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = members.find((m) => m.id === dispatchRecipientId);
+                          const name = target ? target.name.split(" ")[0] : "[Nome]";
+                          setDispatchSubject(`Acesso Atualizado — ArqVértice Flow`);
+                          setDispatchMessage(
+                            `Olá, ${name}! Suas permissões de acesso no ArqVértice Flow foram atualizadas pelo Administrador. Acesse: https://arqvertice-flow.vercel.app/login`
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition"
+                      >
+                        🔑 Credenciais & Acesso
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = clients.find((c) => c.id === dispatchRecipientId);
+                          const name = target ? target.name.split(" ")[0] : "[Cliente]";
+                          const proj = projects.find((p) => p.id === dispatchProjectId);
+                          const projName = proj ? proj.name : target?.projectName || "[Projeto]";
+                          setDispatchSubject(`Relatório Oficial do Cronograma — ${projName}`);
+                          setDispatchMessage(
+                            `Olá, ${name}! O Relatório Oficial atualizado do cronograma do projeto ${projName} já está disponível para consulta técnica. Avanço global atual: 75%.`
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition"
+                      >
+                        📄 Relatório de Cronograma
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = clients.find((c) => c.id === dispatchRecipientId);
+                          const name = target ? target.name.split(" ")[0] : "[Cliente]";
+                          const proj = projects.find((p) => p.id === dispatchProjectId);
+                          const projName = proj ? proj.name : target?.projectName || "[Projeto]";
+                          setDispatchSubject(`Novas Pranchas Liberadas — ${projName}`);
+                          setDispatchMessage(
+                            `Olá, ${name}! Novas pranchas técnicas da disciplina de Arquitetura/Estrutural foram homologadas e liberadas no portal do projeto ${projName}.`
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition"
+                      >
+                        📐 Liberação de Pranchas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = clients.find((c) => c.id === dispatchRecipientId);
+                          const name = target ? target.name.split(" ")[0] : "[Cliente]";
+                          setDispatchSubject(`Lembrete de Parcela Contratual — ArqVértice`);
+                          setDispatchMessage(
+                            `Olá, ${name}! Lembramos que a parcela [Parcela] referente a [Descrição] no valor de [Valor] vence em [Data]. O comprovante pode ser anexado diretamente no portal.`
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-[11px] font-semibold text-emerald-800 transition"
+                      >
+                        💰 Parcela Contratual
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Corpo da Mensagem</label>
                 <textarea
@@ -727,18 +851,45 @@ export function TeamGovernanceHub({
       {/* ============================================================== */}
       {mainView === "traffic" && (
         <Card className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-4 animate-in fade-in duration-150">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
               <h2 className="text-base font-bold text-slate-900">
                 📊 Auditoria de Tráfego: Logins, Logouts e Sessões
               </h2>
               <p className="text-xs text-slate-500">
-                Registro detalhado de entrada e saída por IP, dispositivo e horário no padrão pt-BR.
+                Registro detalhado de entrada e saída por IP, dispositivo e horário no fuso America/Fortaleza.
               </p>
             </div>
-            <span className="text-xs font-bold text-slate-500">
-              Total: {trafficLogs.length} registro(s)
-            </span>
+            <div className="flex items-center gap-2">
+              <select
+                value={trafficUserFilter}
+                onChange={(e) => setTrafficUserFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                <option value="ALL">Todos os Usuários</option>
+                {Array.from(new Set(trafficLogs.map((l) => l.userName))).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={trafficEventFilter}
+                onChange={(e) => setTrafficEventFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                <option value="ALL">Todos os Eventos</option>
+                <option value="LOGIN">LOGIN (Entrada)</option>
+                <option value="LOGOUT">LOGOUT (Saída Manual)</option>
+                <option value="FORCED_LOGOUT">FORCED_LOGOUT (Expulsão/RBAC)</option>
+                <option value="SESSION_EXPIRED">SESSION_EXPIRED (Expirada)</option>
+              </select>
+
+              <span className="text-xs font-bold text-slate-500 shrink-0">
+                Total: {trafficLogs.length}
+              </span>
+            </div>
           </div>
 
           {trafficLogs.length === 0 ? (
@@ -760,7 +911,13 @@ export function TeamGovernanceHub({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans">
-                  {trafficLogs.map((log) => {
+                  {trafficLogs
+                    .filter((log) => {
+                      if (trafficUserFilter !== "ALL" && log.userName !== trafficUserFilter) return false;
+                      if (trafficEventFilter !== "ALL" && log.eventType !== trafficEventFilter) return false;
+                      return true;
+                    })
+                    .map((log) => {
                     const isForced = log.eventType === "FORCED_LOGOUT";
                     const isLogin = log.eventType === "LOGIN";
 
@@ -956,7 +1113,14 @@ export function TeamGovernanceHub({
                       </label>
                       <select
                         value={editRole}
-                        onChange={(e) => setEditRole(e.target.value as TeamMemberData["role"])}
+                        onChange={(e) => {
+                          const newRole = e.target.value as TeamMemberData["role"];
+                          setEditRole(newRole);
+                          const preset = ROLE_PERMISSION_PRESETS[newRole];
+                          if (preset) {
+                            setEditPermissions(preset);
+                          }
+                        }}
                         className="w-full min-h-[44px] rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       >
                         <option value="ADMIN">ADMIN (Acesso irrestrito a tudo)</option>

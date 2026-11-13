@@ -63,7 +63,7 @@ export async function signIn(email: string, password: string) {
   return { id: user.id, name: user.name, role: user.role };
 }
 
-export async function signOut() {
+export async function signOut(reason?: string) {
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
   if (token) {
@@ -72,12 +72,13 @@ export async function signOut() {
       include: { user: true },
     });
     if (session) {
+      const eventType = reason === "FORCED_LOGOUT" ? "FORCED_LOGOUT" : "LOGOUT";
       await logUserTrafficEvent({
         userId: session.user.id,
         userName: session.user.name,
         userEmail: session.user.email,
         userRole: session.user.role,
-        eventType: "LOGOUT",
+        eventType,
       });
       await prisma.session.delete({ where: { id: session.id } });
     }
