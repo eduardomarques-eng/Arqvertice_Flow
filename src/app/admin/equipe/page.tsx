@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
-import { requirePageRole } from "@/server/auth";
+import { currentUser, isTeamRole } from "@/server/auth";
+import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import {
   TeamGovernanceHub,
@@ -16,9 +17,13 @@ export const metadata = { title: "Equipe & Governança — ArqVértice Flow" };
 export const dynamic = "force-dynamic";
 
 export default async function EquipePage() {
-  await requirePageRole("ADMIN");
-
   const now = new Date();
+  const user = await currentUser();
+  if (!user) redirect("/");
+
+  // 3. ARQUITETO | ENGENHEIRO | EQUIPE | OPERADOR → /equipe
+  // Antigo: requirePageRole("ADMIN")
+  if (!isTeamRole(user.role)) redirect("/");
 
   // 1. Busca usuários, projetos, etapas, clientes, logs de acesso e de comunicação
   const [users, rawProjects, rawStages, rawLogs, rawClients, rawTrafficLogs, rawCommLogs] =

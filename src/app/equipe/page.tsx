@@ -46,7 +46,9 @@ function formatAreas(project: { address: unknown }) {
 
 export default async function TeamPortalPage() {
   const user = await requirePageTeamRole();
-  const role = user.role === "ADMIN" ? "ADMIN" : user.role === "EQUIPE" ? "EQUIPE" : "OPERADOR";
+  // ENGENHEIRO e ARQUITETO têm acesso equivalente ao OPERADOR no contexto de equipe
+  const role: "ADMIN" | "EQUIPE" | "OPERADOR" =
+    user.role === "ADMIN" ? "ADMIN" : user.role === "EQUIPE" ? "EQUIPE" : "OPERADOR";
   const projects = await listOperationProjects(user.id, role);
 
   const now = new Date();
