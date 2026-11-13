@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 export function SessionGuard() {
@@ -9,13 +9,17 @@ export function SessionGuard() {
     "PERMISSIONS_UPDATED" | "ACCOUNT_DISABLED" | "UNAUTHENTICATED" | null
   >(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const hasMounted = useRef(false);
 
   const checkSession = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/session-status", {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-store" },
-      });
+      const res = await fetch(
+        `/api/auth/session-status?t=${Date.now()}`,
+        {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-store" },
+        }
+      );
       if (res.status === 401) {
         const data = await res.json().catch(() => ({}));
         const reason = data.reason || "PERMISSIONS_UPDATED";
@@ -27,11 +31,19 @@ export function SessionGuard() {
   }, []);
 
   useEffect(() => {
-    // 1. Verificação inicial e periódica a cada 10 segundos
-    checkSession();
+    // Não executar na página de login (/) para evitar loop de redirecionamento
+    if (pathname === "/") return;
+
+    // 1. Delay de 1000ms antes da primeira verificação para garantir que
+    //    os cookies do login já estejam consolidados no navegador.
+    const timer = setTimeout(() => {
+      checkSession();
+    }, 1000);
+
+    // 2. Verificação periódica a cada 10 segundos
     const interval = setInterval(checkSession, 10000);
 
-    // 2. Verificação ao focar a janela ou mudar visibilidade
+    // 3. Verificação ao focar a janela ou mudar visibilidade
     const onFocus = () => checkSession();
     const onVisibility = () => {
       if (document.visibilityState === "visible") checkSession();
@@ -41,14 +53,16 @@ export function SessionGuard() {
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
+      clearTimeout(timer);
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [checkSession]);
+  }, [pathname, checkSession]);
 
-  // 3. Verificação a cada mudança de rota
+  // 4. Verificação a cada mudança de rota (exceto /)
   useEffect(() => {
+    if (pathname === "/") return;
     checkSession();
   }, [pathname, checkSession]);
 

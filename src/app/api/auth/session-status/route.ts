@@ -13,7 +13,7 @@ function tokenHash(token: string): string {
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get("av_session")?.value;
+    const token = cookieStore.get("arqvertice_session")?.value;
 
     if (!token) {
       return NextResponse.json(
