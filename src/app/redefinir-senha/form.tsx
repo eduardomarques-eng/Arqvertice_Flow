@@ -30,7 +30,7 @@ export function RedefinirSenhaForm({ token }: { token: string }) {
       if (!response.ok) setError((await response.json().catch(() => ({}))).error ?? "Não foi possível redefinir a senha.");
       else {
         setDone(true);
-        setTimeout(() => router.push("/login"), 2500);
+        setTimeout(() => router.push("/"), 2500);
       }
     } catch {
       setError("Não foi possível redefinir a senha. Tente novamente.");
@@ -60,7 +60,7 @@ export function RedefinirSenhaForm({ token }: { token: string }) {
             <p className="mt-3 text-sm leading-relaxed text-emerald-700">
               Senha alterada com sucesso. Por segurança, as sessões abertas foram encerradas. A redireccionar para o início de sessão…
             </p>
-            <Link href="/login" className="mt-6 block text-center text-sm font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700">
+            <Link href="/" className="mt-6 block text-center text-sm font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700">
               Entrar agora
             </Link>
           </>

@@ -43,7 +43,7 @@ export default function RecuperarSenhaPage() {
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
               Se existir uma conta com este e-mail, enviámos as instruções para redefinir a senha. Verifique também a pasta de spam.
             </p>
-            <Link href="/login" className="mt-6 block text-center text-sm font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700">
+            <Link href="/" className="mt-6 block text-center text-sm font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700">
               Voltar ao início de sessão
             </Link>
           </>
@@ -69,7 +69,7 @@ export default function RecuperarSenhaPage() {
               <Button type="submit" disabled={pending} className="mt-6 w-full">{pending ? "Enviando…" : "Enviar link"}</Button>
             </form>
 
-            <Link href="/login" className="mt-5 block text-center text-sm text-slate-500 underline underline-offset-2 hover:text-slate-700">
+            <Link href="/" className="mt-5 block text-center text-sm text-slate-500 underline underline-offset-2 hover:text-slate-700">
               Voltar ao início de sessão
             </Link>
           </>

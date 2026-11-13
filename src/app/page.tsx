@@ -3,24 +3,31 @@ import { redirect } from "next/navigation";
 import { Brand } from "@/components/brand";
 import { currentUser } from "@/server/auth";
 import { checkDatabase } from "@/server/services/database-status";
+import { LoginForm } from "@/components/auth/login-form";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Entrada da aplicação. Só decide o destino — não tem painel.
+ * Entrada da aplicação com autenticação unificada.
  *
- * Antes esta rota tinha um segundo painel com métricas fixas ("—"), enquanto o
- * painel real vivia em /admin: dois dashboards, um deles mentindo. Agora quem
- * tem sessão é redireccionado para a sua área e esta página desaparece.
+ * - Utilizador com sessão: redirecionado automaticamente para o seu painel.
+ * - Sem sessão: formulário de acesso único (E-mail + Senha) renderizado inline
+ *   nesta mesma página /, sem navegar para /login.
+ * - Query `?updated=1`: exibe banner discreto acima dos inputs.
  */
 export default async function HomePage() {
   const user = await currentUser();
+
   if (user?.role === "CLIENT" || user?.role === "CLIENTE") redirect("/portal");
-  if (user?.role === "ADMIN") redirect("/admin");
-  // Funcionário da equipa: vai direto para a operação do cronograma, sem passar
-  // pelo painel comercial. O destino é só conveniência — a fronteira real está
-  // em requirePageScheduleRole/requireScheduleRole no servidor.
-  if (user?.role === "OPERADOR" || user?.role === "EQUIPE") redirect("/equipe");
+  if (
+    user?.role === "ADMIN" ||
+    user?.role === "ARQUITETO" ||
+    user?.role === "ENGENHEIRO" ||
+    user?.role === "EQUIPE" ||
+    user?.role === "OPERADOR"
+  ) {
+    redirect("/admin");
+  }
 
   // Sem sessão: a base de dados está ligada? O diagnóstico técnico só aparece
   // aqui, nunca no painel do ADMIN.
@@ -47,10 +54,10 @@ export default async function HomePage() {
           </div>
         ) : null}
 
+        {/* FORMULÁRIO ÚNICO DE AUTENTICAÇÃO — inline na página / */}
+        <LoginForm />
+
         <div className="mt-8 space-y-3">
-          <Link href="/login" className="flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
-            Entrar
-          </Link>
           <Link href="/cadastro" className="flex min-h-12 w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50">
             Criar conta de cliente
           </Link>

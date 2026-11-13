@@ -161,7 +161,7 @@ export async function AppShell({
                   action={async () => {
                     "use server";
                     await signOut();
-                    redirect("/login");
+                    redirect("/");
                   }}
                 >
                   <button
@@ -174,7 +174,7 @@ export async function AppShell({
               </div>
             ) : (
               <Link
-                href="/login"
+                href="/"
                 className="text-sm font-semibold text-blue-600 hover:text-blue-700"
               >
                 Entrar →

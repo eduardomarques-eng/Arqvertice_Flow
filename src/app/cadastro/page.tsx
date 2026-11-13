@@ -51,7 +51,7 @@ export default function CadastroPage() {
         setError((await response.json().catch(() => ({}))).error ?? "Não foi possível criar a conta.");
       } else {
         setOk(true);
-        setTimeout(() => router.push("/login"), 1800);
+        setTimeout(() => router.push("/"), 1800);
       }
     } catch {
       setError("Não foi possível criar a conta. Tente novamente.");
@@ -105,7 +105,7 @@ export default function CadastroPage() {
 
         <p className="mt-5 text-center text-sm text-slate-500">
           Já tem conta?{" "}
-          <Link href="/login" className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700">
+          <Link href="/" className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700">
             Entrar
           </Link>
         </p>

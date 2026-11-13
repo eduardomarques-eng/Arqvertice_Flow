@@ -47,7 +47,7 @@ function Arrow() {
 
 export default async function AdminDashboardPage() {
   const user = await currentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   // Se cliente, redirecionar para o portal
   if (user.role === "CLIENTE" || (user.role as string) === "CLIENT") {

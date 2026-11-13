@@ -59,7 +59,7 @@ export function SessionGuard() {
         method: "POST",
       }).catch(() => null);
     } finally {
-      window.location.href = "/login?updated=1";
+      window.location.href = "/?updated=1";
     }
   };
 

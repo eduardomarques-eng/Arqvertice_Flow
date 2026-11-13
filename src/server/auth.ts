@@ -170,7 +170,7 @@ export function isClientRole(role: string): role is "CLIENTE" | "CLIENT" {
 
 export async function requirePageRole(role: AuthRole) {
   const user = await currentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
   if (user.role !== role) redirect("/");
   return user;
 }
@@ -182,7 +182,7 @@ export async function requirePageRole(role: AuthRole) {
  */
 export async function requirePageScheduleRole() {
   const user = await currentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
   if (!canOperateSchedule(user.role)) redirect("/");
   return user;
 }
@@ -219,14 +219,14 @@ export async function requireProjectAccess(projectId: string) {
 
 export async function requirePageClientPortal() {
   const user = await currentUser();
-  if (!user) redirect("/login?next=%2Fportal");
+  if (!user) redirect("/?next=%2Fportal");
   if (!isClientRole(user.role) && user.role !== "ADMIN") redirect("/");
   return user;
 }
 
 export async function requirePageTeamRole() {
   const user = await currentUser();
-  if (!user) redirect("/login?next=%2Fequipe");
+  if (!user) redirect("/?next=%2Fequipe");
   if (!isTeamRole(user.role) && user.role !== "ADMIN") redirect("/");
   return user;
 }
@@ -238,7 +238,7 @@ export async function requirePageTeamRole() {
  */
 export async function requirePageAdminRole() {
   const user = await currentUser();
-  if (!user) redirect("/login?next=/admin");
+  if (!user) redirect("/?next=/admin");
   if (user.role !== "ADMIN") {
     const target = isTeamRole(user.role) ? "/equipe" : "/portal";
     redirect(target);
@@ -248,7 +248,7 @@ export async function requirePageAdminRole() {
 
 export async function requirePageProjectAccess(projectId: string) {
   const user = await currentUser();
-  if (!user) redirect(`/login?next=/portal/${encodeURIComponent(projectId)}`);
+  if (!user) redirect(`/?next=/portal/${encodeURIComponent(projectId)}`);
   try {
     return await requireProjectAccess(projectId);
   } catch (error) {
