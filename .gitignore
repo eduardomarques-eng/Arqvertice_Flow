@@ -32,3 +32,6 @@ test-results/
 
 desktop.ini
 *.ini
+
+# Agente local — skills de auditoria e workspace do agent (não versionar)
+.agents/

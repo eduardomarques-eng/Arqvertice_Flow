@@ -1,5 +1,7 @@
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { currentUser, requireRole } from "@/server/auth";
+import { DomainError } from "@/server/errors";
+import { getEffectivePermissions } from "@/lib/rbac";
 import { averageCompletion, completionOf, progressByDiscipline, stageCompletion } from "@/lib/progress";
 import { stageAlert, summarizeAlerts } from "@/lib/schedule-alerts";
 
@@ -128,36 +130,95 @@ export type ExecutiveDashboardData = {
 };
 
 export async function executiveDashboardData(): Promise<ExecutiveDashboardData> {
-  await requireRole("ADMIN");
+  const user = await currentUser();
+  if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
+
+  const effectivePermissions = getEffectivePermissions({
+    role: user.role,
+    permissions: user.permissions,
+  });
+
+  if (!effectivePermissions.includes("dashboard")) {
+    throw new DomainError("Você não tem permissão para acessar o dashboard.", "NOT_FOUND");
+  }
+
+  const canViewFinancial =
+    user.role === "ADMIN" || effectivePermissions.includes("financeiro");
+
   const now = new Date();
   const horizon = new Date(now);
   horizon.setDate(horizon.getDate() + 14);
 
-  const [metrics, projects, deliveries, installments, briefings, users, stages, funnel, clients] = await Promise.all([
-    dashboardMetrics(),
-    projectSnapshots(8),
-    prisma.scheduleStage.findMany({
-      where: { dueDate: { not: null, lte: horizon }, status: { not: "COMPLETED" } },
-      orderBy: { dueDate: "asc" },
-      take: 12,
-      select: {
-        id: true, name: true, projectId: true, dueDate: true, completion: true, status: true, designer: true,
-        project: { select: { name: true } },
-      },
-    }),
-    prisma.projectInstallment.findMany({ select: { amount: true, status: true } }),
-    prisma.briefing.findMany({ select: { id: true, projectId: true, status: true, project: { select: { name: true, client: { select: { name: true } } } } }, orderBy: { updatedAt: "desc" }, take: 8 }),
-    prisma.user.findMany({ where: { role: { in: ["ADMIN", "OPERADOR"] } }, select: { name: true, role: true } }),
-    prisma.scheduleStage.findMany({ select: { designer: true, completion: true, status: true } }),
-    Promise.all([
-      prisma.proposal.count({ where: { status: { in: ["DRAFT", "IN_REVIEW", "NEGOTIATING"] } } }),
-      prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED"] } } }),
-      prisma.proposal.count({ where: { status: "APPROVED" } }),
-      prisma.proposal.count({ where: { status: "CONVERTED" } }),
-    ]),
-    prisma.client.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  const [
+    clientsCount,
+    projectsCount,
+    activeProjectsCount,
+    pendingProposalsCount,
+    approvedProposalsCount,
+    contractsCount,
+    pendingPaymentsCount,
+    paidPaymentsAgg,
+    tasksInProgressCount,
+    delayedStagesCount,
+    stagesWithoutOwnerCount,
+  ] = await Promise.all([
+    prisma.client.count({ where: { status: "ACTIVE" } }),
+    prisma.project.count(),
+    prisma.project.count({ where: { status: { in: ["PLANNING", "IN_PROGRESS", "PAUSED"] } } }),
+    prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED", "IN_REVIEW"] } } }),
+    prisma.proposal.count({ where: { status: { in: ["APPROVED", "CONVERTED"] } } }),
+    prisma.contract.count(),
+    prisma.payment.count({ where: { status: { not: "PAID" } } }),
+    prisma.payment.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
+    prisma.scheduleStage.count({ where: { status: "IN_PROGRESS" } }),
+    prisma.scheduleStage.count({ where: { status: { not: "COMPLETED" }, dueDate: { lt: now } } }),
+    prisma.scheduleStage.count({ where: { status: { not: "COMPLETED" }, designer: null } }),
   ]);
 
+  const projects = await projectSnapshots(8);
+
+  const deliveries = await prisma.scheduleStage.findMany({
+    where: { dueDate: { not: null, lte: horizon }, status: { not: "COMPLETED" } },
+    orderBy: { dueDate: "asc" },
+    take: 12,
+    select: {
+      id: true, name: true, projectId: true, dueDate: true, completion: true, status: true, designer: true,
+      project: { select: { name: true } },
+    },
+  });
+
+  const installments = await prisma.projectInstallment.findMany({ select: { amount: true, status: true } });
+
+  const briefings = await prisma.briefing.findMany({
+    select: {
+      id: true, projectId: true, status: true,
+      project: { select: { name: true, client: { select: { name: true } } } },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+  });
+
+  const users = await prisma.user.findMany({
+    where: { role: { in: ["ADMIN", "OPERADOR"] } },
+    select: { name: true, role: true },
+  });
+
+  const stages = await prisma.scheduleStage.findMany({
+    select: { designer: true, completion: true, status: true },
+  });
+
+  const funnel = await Promise.all([
+    prisma.proposal.count({ where: { status: { in: ["DRAFT", "IN_REVIEW", "NEGOTIATING"] } } }),
+    prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED"] } } }),
+    prisma.proposal.count({ where: { status: "APPROVED" } }),
+    prisma.proposal.count({ where: { status: "CONVERTED" } }),
+  ]);
+
+  const clients = await prisma.client.findMany({
+    where: { status: "ACTIVE" },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
   const contractedTotal = installments.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   const installmentsReceived = installments
     .filter((item) => item.status === "PAID")
@@ -186,20 +247,46 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
     select: { amount: true, dueDate: true },
   });
 
+  const metrics: DashboardMetrics & {
+    contractedTotal: number;
+    installmentsReceived: number;
+    openBalance: number;
+    finalizedBriefings: number;
+    pendingBriefings: number;
+    averageProgress: number;
+    completedStages: number;
+    totalStages: number;
+    dueSoon: number;
+    nextInstallment: { amount: number; dueDate: Date } | null;
+  } = {
+    clients: clientsCount,
+    projects: projectsCount,
+    activeProjects: activeProjectsCount,
+    pendingProposals: pendingProposalsCount,
+    approvedProposals: approvedProposalsCount,
+    contracts: contractsCount,
+    pendingPayments: pendingPaymentsCount,
+    receivedTotal: canViewFinancial ? Number(paidPaymentsAgg._sum.amount ?? 0) : 0,
+    tasksInProgress: tasksInProgressCount,
+    delayedStages: delayedStagesCount,
+    stagesWithoutOwner: stagesWithoutOwnerCount,
+    contractedTotal: canViewFinancial ? contractedTotal : 0,
+    installmentsReceived: canViewFinancial ? installmentsReceived : 0,
+    openBalance: canViewFinancial ? Math.max(0, contractedTotal - installmentsReceived) : 0,
+    finalizedBriefings: briefings.filter((briefing) => briefing.status === "FINALIZED").length,
+    pendingBriefings: briefings.filter((briefing) => briefing.status !== "FINALIZED").length,
+    averageProgress,
+    completedStages,
+    totalStages,
+    dueSoon: deliveries
+      .filter((delivery) => delivery.dueDate !== null && delivery.dueDate >= now && delivery.dueDate <= new Date(now.getTime() + 7 * 86400000)).length,
+    nextInstallment: canViewFinancial && nextInstallment
+      ? { amount: Number(nextInstallment.amount), dueDate: nextInstallment.dueDate }
+      : null,
+  };
+
   return {
-    metrics: {
-      ...metrics,
-      contractedTotal,
-      installmentsReceived,
-      openBalance: Math.max(0, contractedTotal - installmentsReceived),
-      finalizedBriefings: briefings.filter((briefing) => briefing.status === "FINALIZED").length,
-      pendingBriefings: briefings.filter((briefing) => briefing.status !== "FINALIZED").length,
-      averageProgress,
-      completedStages,
-      totalStages,
-      dueSoon: deliveries.filter((delivery) => delivery.dueDate !== null && delivery.dueDate >= now && delivery.dueDate <= new Date(now.getTime() + 7 * 86400000)).length,
-      nextInstallment: nextInstallment ? { amount: Number(nextInstallment.amount), dueDate: nextInstallment.dueDate } : null,
-    },
+    metrics,
     projects,
     deliveries: deliveries
       .filter((stage): stage is typeof stage & { dueDate: Date } => stage.dueDate !== null)
