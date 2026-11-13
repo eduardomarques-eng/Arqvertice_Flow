@@ -163,7 +163,7 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
     .filter((item) => item.status === "PAID")
     .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   const team = users.map((user) => {
-    const assigned = stages.filter((stage) => stage.designer?.trim() === user.name.trim());
+    const assigned = stages.filter((stage) => stage.designer?.trim() === (user.name ?? "").trim());
     const completion = assigned.length
       ? Math.round(assigned.reduce((sum, stage) => sum + stageCompletion(stage), 0) / assigned.length)
       : 0;
@@ -205,22 +205,22 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
       .filter((stage): stage is typeof stage & { dueDate: Date } => stage.dueDate !== null)
       .map((stage) => ({
         ...stage,
-        projectName: stage.project.name,
+        projectName: stage.project?.name ?? "Sem projeto",
         overdue: stage.dueDate < now,
       })),
     team,
     proposalFunnel: [
-      { label: "Em preparação", value: funnel[0], tone: "neutral" },
-      { label: "Em análise", value: funnel[1], tone: "blue" },
-      { label: "Aprovadas", value: funnel[2], tone: "violet" },
-      { label: "Convertidas", value: funnel[3], tone: "emerald" },
+      { label: "Em preparação", value: funnel?.[0] ?? 0, tone: "neutral" },
+      { label: "Em análise", value: funnel?.[1] ?? 0, tone: "blue" },
+      { label: "Aprovadas", value: funnel?.[2] ?? 0, tone: "violet" },
+      { label: "Convertidas", value: funnel?.[3] ?? 0, tone: "emerald" },
     ],
     clients,
     briefings: briefings.map((briefing) => ({
       id: briefing.id,
       projectId: briefing.projectId,
-      projectName: briefing.project.name,
-      clientName: briefing.project.client.name,
+      projectName: briefing.project?.name ?? "Sem projeto",
+      clientName: briefing.project?.client?.name ?? "Sem cliente",
       status: briefing.status,
     })),
   };

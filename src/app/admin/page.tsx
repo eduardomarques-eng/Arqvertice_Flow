@@ -74,15 +74,26 @@ export default async function AdminDashboardPage() {
   try {
     data = await executiveDashboardData();
   } catch (error) {
-    console.error("Falha ao carregar dados do painel administrativo.", error);
+    console.error(
+      "[DASHBOARD_CRASH] Erro ao buscar dados para o usuário:",
+      user?.id,
+      user?.role,
+      error,
+    );
     return (
       <AppShell eyebrow="Executive Command Center">
         <Card className="border-amber-200 bg-amber-50/80">
-          <p className="text-sm font-semibold text-amber-900">Painel temporariamente indisponível</p>
-          <p className="mt-1 text-sm text-amber-800">
-            Não foi possível carregar os dados do estúdio. Tente novamente em alguns instantes.
+          <p className="text-sm font-semibold text-amber-900">
+            Painel temporariamente indisponível
           </p>
-          <Link href="/admin" className="mt-4 inline-flex text-sm font-semibold text-amber-900 underline">
+          <p className="mt-1 text-sm text-amber-800">
+            Não foi possível carregar os dados do estúdio. Tente novamente em
+            alguns instantes.
+          </p>
+          <Link
+            href="/admin"
+            className="mt-4 inline-flex text-sm font-semibold text-amber-900 underline"
+          >
             Tentar novamente
           </Link>
         </Card>
