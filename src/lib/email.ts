@@ -12,11 +12,16 @@ export type TransactionalEmailResult = {
   ok: boolean;
   configured: boolean;
   provider: "resend" | "smtp" | "none";
+  externalId?: string;
   error?: string;
 };
 
 function configuredFrom() {
-  return process.env.EMAIL_FROM?.trim() || "ArqVértice Studio <contato@arqvertice.com.br>";
+  return (
+    process.env.RESEND_FROM_EMAIL?.trim() ||
+    process.env.EMAIL_FROM?.trim() ||
+    "ArqVértice Studio <onboarding@resend.dev>"
+  );
 }
 
 /**
@@ -30,18 +35,19 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
   const smtpUser = process.env.SMTP_USER?.trim();
   const smtpPass = process.env.SMTP_PASS;
 
-  if (resendKey) {
+  if (resendKey && resendKey !== "re_sua_chave_aqui") {
     try {
-      const { error } = await new Resend(resendKey).emails.send({
+      const response = await new Resend(resendKey).emails.send({
         from: configuredFrom(),
         to: input.to,
         subject: input.subject,
         html: input.html,
         text: input.text,
       });
-      return error
-        ? { ok: false, configured: true, provider: "resend", error: error.message }
-        : { ok: true, configured: true, provider: "resend" };
+      if (response.error) {
+        return { ok: false, configured: true, provider: "resend", error: response.error.message };
+      }
+      return { ok: true, configured: true, provider: "resend", externalId: response.data?.id };
     } catch (error) {
       return {
         ok: false,

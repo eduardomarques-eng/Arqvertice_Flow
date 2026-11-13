@@ -300,9 +300,11 @@ function buildEquipe(stages: ReportStage[]): ScheduleReport["equipe"] {
     byDesigner.set(name, entry);
   }
   const roleByName: Record<string, string> = {
-    "Erick Santiago": "Engenheiro de Obra · Gestão de Campo e Canteiro",
-    "Luan Almeida": "Engenheiro Calculista · Fundações, Formas e Armaduras",
-    "Eduardo Marques": "Arquiteto Projetista · Projeto Executivo, Modelagem/Render 3D, Elétrico e Hidrossanitário",
+    "Eduardo Marques": "Arquiteto Projetista · Coordenação Geral, Executivo e Modelagem 3D",
+    "Luan Almeida": "Engenheiro Calculista · Estrutura, Fundações e Concreto Armado",
+    "Erick Santiago": "Arquiteto de Obra · Gestão Executiva e Canteiro",
+    "Claudio Marrocos": "Arquiteto Projetista · Detalhamentos Construtivos e Interiores",
+    "Wagner Silva": "Engenheiro Projetista · Instalações Prediais e Compatibilização",
   };
   return [...byDesigner.entries()]
     .map(([name, entry]) => ({

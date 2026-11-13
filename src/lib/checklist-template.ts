@@ -32,10 +32,10 @@ export const CANONICAL_CHECKLIST_TEMPLATE = [
   // 3. Responsabilidade Técnica & ARTs
   {
     category: "Responsabilidade Técnica & ARTs",
-    task: "Emissão e assinatura da ART de Estrutura (Eng. Emanoel Luan Almeida da Rocha)",
+    task: "Emissão e assinatura da ART de Estrutura (Eng. Luan Almeida)",
     notes: "CREA ativo com recolhimento de taxa e liberação do memorial de cálculo.",
     isCompleted: true,
-    verifiedBy: "Emanoel Luan (CREA)",
+    verifiedBy: "Luan Almeida (CREA)",
   },
   {
     category: "Responsabilidade Técnica & ARTs",

@@ -13,6 +13,10 @@ node_modules
 .private-storage/
 test-results/
 
+# WhatsApp CLI / Baileys Local Session
+.whatsapp-session/
+*.session
+
 # Ambiente e segredos — mantenha apenas .env.example versionado.
 .env
 .env.*

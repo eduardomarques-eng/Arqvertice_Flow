@@ -206,12 +206,6 @@ export function UnifiedScheduleReport({
           </div>
 
           <div className="flex shrink-0 items-center gap-2.5 print-hidden">
-            <Link
-              href={`/admin/projetos/${projectId}?tab=financeiro`}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-50 hover:border-zinc-400 transition active:scale-95 shadow-xs"
-            >
-              <span>💰</span> Gerenciar Financeiro
-            </Link>
             <PrintButton />
           </div>
         </div>
@@ -502,14 +496,6 @@ export function UnifiedScheduleReport({
       {sectionsVisibility.financeiro && (
         <ReportCardSection
           title="4. Gestão Financeira: Cronograma de Parcelas & Quitação"
-          action={
-            <Link
-              href={`/admin/projetos/${projectId}?tab=financeiro`}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition active:scale-95 shadow-xs"
-            >
-              <span>💰</span> Gerenciar Financeiro →
-            </Link>
-          }
         >
           <FinancialManagement
             projectId={projectId}

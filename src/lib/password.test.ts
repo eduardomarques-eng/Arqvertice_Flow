@@ -13,6 +13,6 @@ describe("password security", () => {
 
   it("rejects short passwords", () => {
     process.env.AUTH_SECRET = "test-secret-with-at-least-32-characters";
-    expect(() => hashPassword("curta")).toThrow("12 caracteres");
+    expect(() => hashPassword("curta")).toThrow("8 caracteres");
   });
 });

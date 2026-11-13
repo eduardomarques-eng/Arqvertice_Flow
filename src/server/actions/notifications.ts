@@ -133,17 +133,23 @@ export async function getReminderDashboardData() {
       }
     }
 
-    // Telefone e e-mail padrão do responsável técnico
+    // Telefone e e-mail oficiais do responsável técnico
     const designerName = s.designer?.trim() || "Eduardo Marques";
-    let designerPhone = "85999990000";
-    let designerEmail = "contato@arqvertice.com.br";
+    let designerPhone = "85 98590 2642";
+    let designerEmail = "eduardo.marques.arq@gmail.com";
 
     if (designerName.toLowerCase().includes("luan")) {
-      designerPhone = "85988880001";
-      designerEmail = "luan.engenharia@arqvertice.com.br";
+      designerPhone = "85 98668 2426";
+      designerEmail = "luan.almeida@arqvertice.com.br";
     } else if (designerName.toLowerCase().includes("erick")) {
-      designerPhone = "85988880002";
-      designerEmail = "erick.operacoes@arqvertice.com.br";
+      designerPhone = "85 98902 1759";
+      designerEmail = "erick.santiago@arqvertice.com.br";
+    } else if (designerName.toLowerCase().includes("claudio")) {
+      designerPhone = "85 98643-2084";
+      designerEmail = "claudiomarrocos2018@gmail.com";
+    } else if (designerName.toLowerCase().includes("wagner")) {
+      designerPhone = "85 9866-4738";
+      designerEmail = "wagner.silva@arqvertice.com.br";
     }
 
     return {

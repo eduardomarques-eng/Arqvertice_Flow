@@ -11,7 +11,6 @@ import { listProjectDeliverables, getDeliverableMatrix } from "@/server/services
 import { getProjectCommercialSummary } from "@/server/services/commercial-service";
 import { kanbanBoard } from "@/server/services/schedule-service";
 import { listProjectInstallments } from "@/server/services/installment-service";
-import { getProjectChecklist } from "@/server/actions/checklist";
 import { ProjectDetailTabs } from "@/components/projects/project-detail-tabs";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +27,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   if (!project) notFound();
 
   const linkStatus = await getBriefingLinkStatus(id);
-  const [reports, documents, commercial, board, installments, deliverables, deliverableMatrix, checklistItems] = await Promise.all([
+  const [reports, documents, commercial, board, installments, deliverables, deliverableMatrix] = await Promise.all([
     listProjectReports(id),
     listProjectDocuments(id),
     getProjectCommercialSummary(id),
@@ -36,7 +35,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     listProjectInstallments(id),
     listProjectDeliverables(id),
     getDeliverableMatrix(id),
-    getProjectChecklist(id),
   ]);
 
   const stages = (board?.columns || []).flatMap((column) => column?.cards || []).map((card) => ({
@@ -107,19 +105,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <span className="text-zinc-500 truncate max-w-[240px] sm:max-w-none">{project.name}</span>
         </div>
 
-        {/* Record Page Header do Salesforce LDS & Submenus da Edificação */}
+        {/* Record Page Header & Acervo Técnico Focado */}
         <ProjectDetailTabs
           project={projectData}
-          linkStatus={linkStatus}
-          reports={reports.map((r) => ({ id: r.id, title: r.title, status: r.status as "PREPARING" | "INTERNAL" | "RELEASED" | "ARCHIVED" }))}
           documents={documents}
-          commercial={commercial}
-          board={board}
-          installments={installmentsList}
           deliverables={deliverablesList}
           deliverableMatrix={deliverableMatrix}
           stages={stages}
-          checklistItems={checklistItems}
+          completion={board?.totals?.completion ?? 0}
+          overdueCount={board?.totals?.overdue ?? 0}
         />
       </div>
     </AppShell>

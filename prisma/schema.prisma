@@ -154,11 +154,20 @@ model User {
   name         String
   role         UserRole  @default(CLIENTE)
   phone        String?
-  isActive     Boolean   @default(true)
+  whatsapp     String?    @db.VarChar(255)
+   specialty    String?    @db.VarChar(100)
+   isActive     Boolean   @default(true)
+  permissions          String[]          @default([])
+  sessionVersion       Int               @default(1)
+  permissionsUpdatedAt DateTime          @default(now())
+  lastSeenAt           DateTime?
   clientId     String?   @db.Uuid
   client       Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sessions     Session[]
   auditLogs    AuditLog[]
+  accessLogs   UserAccessLog[]
+  sentInternalMessages     InternalMessage[] @relation("SentInternalMessages")
+  receivedInternalMessages InternalMessage[] @relation("ReceivedInternalMessages")
   proposalVersions ProposalVersion[]
   projectAccess ProjectAccess[]
   passwordResetTokens PasswordResetToken[]
@@ -170,14 +179,95 @@ model User {
 }
 
 model Session {
-  id        String   @id @default(uuid()) @db.Uuid
-  tokenHash String   @unique
-  userId    String   @db.Uuid
-  expiresAt DateTime
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid()) @db.Uuid
+  tokenHash      String   @unique
+  userId         String   @db.Uuid
+  sessionVersion Int      @default(1)
+  expiresAt      DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt      DateTime @default(now())
 
   @@index([userId, expiresAt])
+}
+
+enum AccessEventType {
+  LOGIN
+  LOGOUT
+  FORCED_LOGOUT
+  SESSION_EXPIRED
+}
+
+model UserAccessLog {
+  id         String          @id @default(uuid())
+  userId     String          @db.Uuid
+  userName   String
+  userEmail  String
+  userRole   String
+  eventType  AccessEventType
+  ipAddress  String?
+  userAgent  String?
+  deviceInfo String?
+  createdAt  DateTime        @default(now())
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum CommChannel {
+  WHATSAPP
+  EMAIL
+}
+
+enum CommRecipientType {
+  PROFISSIONAL
+  CLIENTE
+}
+
+enum CommStatus {
+  ENVIADO
+  DISPARADO_LINK
+  FALHA
+}
+
+model CommunicationLog {
+  id               String            @id @default(uuid())
+  recipientType    CommRecipientType
+  recipientId      String?
+  recipientName    String
+  recipientContact String
+  projectId        String?
+  projectName      String?
+  channel          CommChannel
+  category         String
+  subject          String?
+  messageBody      String
+  deliveryMethod   String?
+  externalId       String?
+  status           CommStatus        @default(ENVIADO)
+  errorMessage     String?
+  sentBy           String
+  createdAt        DateTime          @default(now())
+
+  @@index([recipientType])
+  @@index([createdAt])
+}
+
+model InternalMessage {
+  id         String   @id @default(uuid())
+  senderId   String   @db.Uuid
+  receiverId String   @db.Uuid
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender     User     @relation("SentInternalMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedInternalMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, isRead])
+  @@index([createdAt])
 }
 
 /**

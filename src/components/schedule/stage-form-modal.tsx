@@ -79,13 +79,7 @@ export function StageFormModal({
           "Projeto Executivo"
       );
       setDiscipline(initialStage.discipline ?? "Arquitetura");
-      setDesigner(
-        initialStage.designer === "Luan Almeida"
-          ? "Emanoel Luan"
-          : initialStage.designer === "Erick Santiago"
-          ? "Erick"
-          : initialStage.designer ?? "Eduardo Marques"
-      );
+      setDesigner(initialStage.designer ?? "Eduardo Marques");
       setStartDate(
         initialStage.startDate
           ? toInputDateFormat(initialStage.startDate)

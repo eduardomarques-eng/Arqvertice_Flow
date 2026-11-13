@@ -3,7 +3,7 @@ export interface CanonicalStageTemplate {
   order: number;
   name: string;
   discipline: "Arquitetura" | "Estrutura" | "Projeto 3D" | "Complementares";
-  designer: "Eduardo Marques" | "Luan Almeida" | "Erick Santiago";
+  designer: "Eduardo Marques" | "Luan Almeida" | "Erick Santiago" | "Claudio Marrocos" | "Wagner Silva";
   weight: number; // Peso ponderado (em %)
   durationDays: number;
   scopeDescription: string;

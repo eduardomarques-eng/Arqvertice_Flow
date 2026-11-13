@@ -49,27 +49,41 @@ export async function getCorporateGestaoData() {
     orderBy: [{ role: "asc" }, { name: "asc" }],
   });
 
-  // 3. Garantir os 4 perfis corporativos essenciais (Eduardo, Emanoel Luan, Erick, Pedro)
+  // 3. Garantir os 5 perfis corporativos essenciais + cliente
   const defaultAccounts = [
     {
       name: "Eduardo Marques",
-      email: "eduardo@arqvertice.com",
+      email: "eduardo.marques.arq@gmail.com",
       role: "ADMIN" as const,
-      designation: "Arquiteto Titular",
+      designation: "Arquiteto Projetista",
       canEdit: true,
     },
     {
-      name: "Emanoel Luan Almeida da Rocha",
-      email: "luan@arqvertice.com",
+      name: "Luan Almeida",
+      email: "luan.almeida@arqvertice.com.br",
       role: "ENGENHEIRO" as const,
-      designation: "Engenharia Estrutural",
+      designation: "Engenheiro Calculista",
       canEdit: true,
     },
     {
-      name: "Erick",
-      email: "erick@arqvertice.com",
-      role: "EQUIPE" as const,
-      designation: "Fullstack & Sistemas",
+      name: "Erick Santiago",
+      email: "erick.santiago@arqvertice.com.br",
+      role: "ARQUITETO" as const,
+      designation: "Arquiteto de Obra",
+      canEdit: true,
+    },
+    {
+      name: "Claudio Marrocos",
+      email: "claudiomarrocos2018@gmail.com",
+      role: "ARQUITETO" as const,
+      designation: "Arquiteto Projetista",
+      canEdit: true,
+    },
+    {
+      name: "Wagner Silva",
+      email: "wagner.silva@arqvertice.com.br",
+      role: "ENGENHEIRO" as const,
+      designation: "Engenheiro Projetista",
       canEdit: true,
     },
     {

@@ -5,6 +5,7 @@ import { prisma } from "@/server/db";
 import { DomainError } from "./errors";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { canOperateSchedule } from "@/lib/schedule-roles";
+import { logUserTrafficEvent } from "./traffic-log";
 
 export type AuthRole = "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "OPERATOR" | "CLIENT";
 const COOKIE = "arqvertice_session";
@@ -16,28 +17,134 @@ const tokenHash = (token: string) => createHash("sha256").update(token).digest("
 
 export async function signIn(email: string, password: string) {
   const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-  if (!user || !verifyPassword(password, user.passwordHash)) throw new DomainError("E-mail ou senha inválidos.", "VALIDATION");
+  if (!user || !verifyPassword(password, user.passwordHash)) {
+    throw new DomainError("E-mail ou senha inválidos.", "VALIDATION");
+  }
+
+  if (!user.isActive) {
+    await logUserTrafficEvent({
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: user.role,
+      eventType: "FORCED_LOGOUT",
+      deviceInfo: "Tentativa de login com conta inativa",
+    });
+    throw new DomainError("Esta conta foi desativada pelo Administrador.", "INTEGRITY");
+  }
+
   const token = randomBytes(32).toString("hex");
-  await prisma.session.create({ data: { tokenHash: tokenHash(token), userId: user.id, expiresAt: new Date(Date.now() + LIFETIME) } });
-  (await cookies()).set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: LIFETIME / 1000 });
+  await prisma.session.create({
+    data: {
+      tokenHash: tokenHash(token),
+      userId: user.id,
+      sessionVersion: user.sessionVersion,
+      expiresAt: new Date(Date.now() + LIFETIME),
+    },
+  });
+
+  // Registra Log de Entrada (LOGIN)
+  await logUserTrafficEvent({
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    userRole: user.role,
+    eventType: "LOGIN",
+  });
+
+  (await cookies()).set(COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: LIFETIME / 1000,
+  });
+
   return { id: user.id, name: user.name, role: user.role };
 }
 
 export async function signOut() {
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
-  if (token) await prisma.session.deleteMany({ where: { tokenHash: tokenHash(token) } });
+  if (token) {
+    const session = await prisma.session.findUnique({
+      where: { tokenHash: tokenHash(token) },
+      include: { user: true },
+    });
+    if (session) {
+      await logUserTrafficEvent({
+        userId: session.user.id,
+        userName: session.user.name,
+        userEmail: session.user.email,
+        userRole: session.user.role,
+        eventType: "LOGOUT",
+      });
+      await prisma.session.delete({ where: { id: session.id } });
+    }
+  }
   store.delete(COOKIE);
 }
 
 export async function currentUser() {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
-  const session = await prisma.session.findUnique({ where: { tokenHash: tokenHash(token) }, include: { user: true } });
-  if (!session || session.expiresAt <= new Date()) {
-    if (session) await prisma.session.delete({ where: { id: session.id } });
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: tokenHash(token) },
+    include: { user: true },
+  });
+
+  if (!session) return null;
+
+  // 1. Sessão expirada
+  if (session.expiresAt <= new Date()) {
+    await logUserTrafficEvent({
+      userId: session.user.id,
+      userName: session.user.name,
+      userEmail: session.user.email,
+      userRole: session.user.role,
+      eventType: "SESSION_EXPIRED",
+    });
+    await prisma.session.delete({ where: { id: session.id } });
     return null;
   }
+
+  // 2. Conta desativada pelo Admin -> FORCED_LOGOUT imediato
+  if (!session.user.isActive) {
+    await logUserTrafficEvent({
+      userId: session.user.id,
+      userName: session.user.name,
+      userEmail: session.user.email,
+      userRole: session.user.role,
+      eventType: "FORCED_LOGOUT",
+      deviceInfo: "Conta desativada pelo Administrador",
+    });
+    await prisma.session.delete({ where: { id: session.id } });
+    return null;
+  }
+
+  // 3. Permissões, senha ou cargo alterados pelo Admin -> FORCED_LOGOUT imediato
+  if (session.sessionVersion !== session.user.sessionVersion) {
+    await logUserTrafficEvent({
+      userId: session.user.id,
+      userName: session.user.name,
+      userEmail: session.user.email,
+      userRole: session.user.role,
+      eventType: "FORCED_LOGOUT",
+      deviceInfo: "Permissões ou credenciais atualizadas pelo Administrador",
+    });
+    await prisma.session.delete({ where: { id: session.id } });
+    return null;
+  }
+
+  // Heartbeat de Presença (atualiza a cada 30 segundos)
+  const now = new Date();
+  if (!session.user.lastSeenAt || now.getTime() - session.user.lastSeenAt.getTime() > 30000) {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { lastSeenAt: now },
+    }).catch(() => null);
+  }
+
   return session.user;
 }
 

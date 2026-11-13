@@ -54,7 +54,7 @@ export const MASTER_DISCIPLINES: MasterDiscipline[] = [
     key: "ESTRUTURAL",
     name: "Engenharia Estrutural",
     shortName: "EST",
-    lead: "Eng. Emanoel Luan",
+    lead: "Eng. Luan Almeida",
     tool: "Cálculo Estrutural e Concreto Armado",
     icon: "🏗️",
     color: "amber",
@@ -104,7 +104,7 @@ export const MASTER_DISCIPLINES: MasterDiscipline[] = [
     key: "LEGAL_APROVACAO",
     name: "Aprovação Legal / ART",
     shortName: "LEG",
-    lead: "Eng. Emanoel Luan",
+    lead: "Eng. Luan Almeida",
     tool: "CREA / CAU / Prefeitura",
     icon: "📜",
     color: "slate",
@@ -162,17 +162,17 @@ export const MASTER_ROLES: MasterRole[] = [
     role: "ENGENHEIRO",
     label: "ENGENHEIRO / Engenharia Estrutural",
     designation: "Engenheiro Calculista & Compatibilizador",
-    referencePerson: "Emanoel Luan Almeida da Rocha",
+    referencePerson: "Luan Almeida",
     description: "Gestão técnica de cálculo estrutural, pranchas complementares prediais, ARTs e checklists de integridade.",
     badgeTone: "amber",
     defaultCanEdit: true,
   },
   {
     role: "EQUIPE",
-    label: "EQUIPE / Fullstack & Sistemas",
-    designation: "Engenheiro de Sistemas & Operações",
-    referencePerson: "Erick",
-    description: "Operação técnica de cronograma, automação de fluxos, integração de dados e suporte operacional.",
+    label: "EQUIPE / Engenharia & Operações",
+    designation: "Engenheiro Projetista",
+    referencePerson: "Wagner Silva",
+    description: "Operação técnica de cronograma, desenvolvimento de projetos complementares e suporte de engenharia.",
     badgeTone: "green",
     defaultCanEdit: true,
   },
@@ -187,10 +187,10 @@ export const MASTER_ROLES: MasterRole[] = [
   },
   {
     role: "ARQUITETO",
-    label: "ARQUITETO / Co-autor",
-    designation: "Arquiteto Desenvolvedor",
-    referencePerson: "Eduardo Marques",
-    description: "Elaboração de pranchas arquitetônicas, layouts de interiores e modelagem de volumetria 3D.",
+    label: "ARQUITETO / Arquitetura & Obra",
+    designation: "Arquiteto de Obra",
+    referencePerson: "Erick Santiago",
+    description: "Acompanhamento executivo de obras, compatibilização técnica in loco e projetos de arquitetura.",
     badgeTone: "blue",
     defaultCanEdit: true,
   },
@@ -201,11 +201,14 @@ export const MASTER_ROLES: MasterRole[] = [
  */
 /**
  * Menus Suspensos Padronizados Oficiais - ArqVértice Flow
+ * Reflete estritamente os 5 profissionais oficiais do estúdio
  */
 export const STANDARDIZED_RESPONSIBLES = [
   "Eduardo Marques",
-  "Emanoel Luan",
-  "Erick",
+  "Luan Almeida",
+  "Erick Santiago",
+  "Claudio Marrocos",
+  "Wagner Silva",
 ] as const;
 
 export const STANDARDIZED_DISCIPLINES = [
