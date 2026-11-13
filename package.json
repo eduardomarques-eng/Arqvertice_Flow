@@ -21,6 +21,9 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "whatsapp:cli": "node scripts/whatsapp-bridge.mjs",
+    "wagner:setup": "node scripts/setup-wagner.mjs",
+    "wagner:reset": "node scripts/reset-wagner.mjs",
+    "sync:credentials": "node scripts/sync-credentials.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

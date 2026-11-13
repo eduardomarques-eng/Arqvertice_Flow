@@ -4,7 +4,8 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { briefingSchema, briefingUpdateSchema } from "@/lib/validation";
 import { notFound, DomainError } from "@/server/errors";
-import { requireProjectAccess, requireRole } from "@/server/auth";
+import { requireProjectAccess } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { resolveBriefingToken } from "./briefing-link-service";
 import { recordAudit, type AuditActorContext } from "@/server/audit";
 import {
@@ -50,7 +51,7 @@ export async function startBriefing(projectId: string) {
 }
 
 export async function getBriefingQuestions(projectId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const briefing = await prisma.briefing.upsert({
     where: { projectId },
     create: { projectId, responses: {}, questions: OFFICIAL_BRIEFING_QUESTIONS },
@@ -61,7 +62,7 @@ export async function getBriefingQuestions(projectId: string) {
 }
 
 export async function saveBriefingQuestions(projectId: string, input: { title: string; questions: unknown }) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const questions = briefingQuestionsFromJson(input.questions);
   if (!questions.length) throw new DomainError("O briefing precisa ter pelo menos uma pergunta.", "VALIDATION");
   return prisma.briefing.upsert({
@@ -180,7 +181,7 @@ export async function getConsolidatedBriefing(projectId: string): Promise<Briefi
 }
 
 export async function updateBriefing(projectId: string, input: unknown) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const data = briefingUpdateSchema.parse(input);
   const { responses, ...rest } = data;
   const existing = await prisma.briefing.findUnique({
@@ -274,12 +275,12 @@ export async function finishBriefingByToken(token: string) {
 }
 
 export async function reopenBriefing(projectId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   return prisma.briefing.update({ where: { projectId }, data: { status: "DRAFT", submittedAt: null, finalizedAt: null, version: { increment: 1 } } });
 }
 
 export async function listVisualOptions(questionId?: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   return prisma.briefingVisualOption.findMany({ where: questionId ? { questionId } : undefined, orderBy: [{ questionId: "asc" }, { sortOrder: "asc" }] });
 }
 
@@ -294,7 +295,7 @@ export async function saveVisualOption(input: {
   sortOrder?: number;
   active?: boolean;
 }) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const { id, ...data } = input;
   return id
     ? prisma.briefingVisualOption.update({ where: { id }, data })
@@ -302,6 +303,7 @@ export async function saveVisualOption(input: {
 }
 
 export async function removeVisualOption(id: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   return prisma.briefingVisualOption.delete({ where: { id } });
 }
+

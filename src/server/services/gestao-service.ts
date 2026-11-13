@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { currentUser } from "@/server/auth";
 import { DomainError } from "@/server/errors";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { MASTER_DISCIPLINES, MASTER_PHASES, MASTER_ROLES } from "@/lib/master-data";
 import { hashPassword } from "@/lib/password";
 
@@ -21,7 +22,7 @@ export interface CorporateUserMember {
  * Se algum membro padrão não estiver na base, garante sua criação de forma segura.
  */
 export async function getCorporateGestaoData() {
-  await requireRole("ADMIN");
+  await requireModuleAccess("equipe");
 
   // 1. Busca todos os projetos para seleção
   const projects = await prisma.project.findMany({
@@ -179,7 +180,7 @@ export async function updateCorporateUserPermissions(
     projectIds?: string[];
   },
 ) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("equipe");
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new DomainError("Usuário corporativo não localizado.", "NOT_FOUND");
@@ -229,4 +230,7 @@ export async function updateCorporateUserPermissions(
 
   return { success: true, userId };
 }
+
+
+
 

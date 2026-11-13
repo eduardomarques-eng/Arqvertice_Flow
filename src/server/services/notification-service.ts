@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { createHmac } from "node:crypto";
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import {
   NOTIFICATION_CHANNEL,
   NOTIFICATION_STATUS,
@@ -80,7 +80,7 @@ async function notifyWebhook(event: {
 }
 
 export async function listNotificationEvents(entityId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("dashboard");
   return prisma.notificationEvent.findMany({
     where: { entityId },
     orderBy: { occurredAt: "desc" },
@@ -89,3 +89,4 @@ export async function listNotificationEvents(entityId: string) {
 }
 
 export { NOTIFICATION_CHANNEL, NOTIFICATION_STATUS };
+

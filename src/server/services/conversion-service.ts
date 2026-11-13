@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { notFound } from "@/server/errors";
 import { recordAudit, systemActor } from "@/server/audit";
 import { recordNotification } from "@/server/services/notification-service";
@@ -116,7 +116,7 @@ async function storeCommercialDocuments(input: {
  *     os índices únicos do banco são a rede de segurança final.
  */
 export async function convertApprovedProposal(proposalId: string): Promise<ConversionOutcome> {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
 
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
@@ -318,7 +318,7 @@ export async function convertApprovedProposal(proposalId: string): Promise<Conve
  * Usado pela interface para mostrar o botão apenas quando faz sentido.
  */
 export async function getConversionReadiness(proposalId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -359,5 +359,7 @@ export async function getConversionReadiness(proposalId: string) {
     total: Number(version?.total ?? 0),
   };
 }
+
+
 
 

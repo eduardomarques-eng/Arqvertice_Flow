@@ -1,5 +1,6 @@
 import { prisma } from "@/server/db";
-import { requireProjectAccess, requireRole } from "@/server/auth";
+import { requireProjectAccess } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { notFound } from "@/server/errors";
 import type {
   ProjectDiscipline,
@@ -39,7 +40,7 @@ export async function listProjectDeliverables(projectId: string, clientVisibleOn
   if (clientVisibleOnly) {
     await requireProjectAccess(projectId);
   } else {
-    await requireRole("ADMIN");
+    await requireModuleAccess("projetos");
   }
 
   return prisma.projectDeliverable.findMany({
@@ -78,7 +79,7 @@ export async function getDeliverableById(id: string) {
 }
 
 export async function createProjectDeliverable(input: CreateDeliverableInput) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
 
   // Se o environmentId for string com texto e não UUID, ou se precisar criar ambiente novo
   let finalEnvId = input.environmentId;
@@ -128,7 +129,7 @@ export async function createProjectDeliverable(input: CreateDeliverableInput) {
 }
 
 export async function updateProjectDeliverable(id: string, input: UpdateDeliverableInput) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
 
   const existing = await prisma.projectDeliverable.findUnique({ where: { id } });
   if (!existing) return notFound("Prancha / Entregável");
@@ -179,7 +180,7 @@ export async function updateProjectDeliverable(id: string, input: UpdateDelivera
 }
 
 export async function deleteProjectDeliverable(id: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const existing = await prisma.projectDeliverable.findUnique({ where: { id } });
   if (!existing) return notFound("Prancha / Entregável");
   return prisma.projectDeliverable.delete({ where: { id } });
@@ -276,4 +277,7 @@ export async function getDeliverableMatrix(projectId: string, clientVisibleOnly 
     byDiscipline,
   };
 }
+
+
+
 

@@ -1,14 +1,15 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { currentUser } from "@/server/auth";
 import { notFound } from "@/server/errors";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { recordAudit } from "@/server/audit";
 import { NOTIFICATION_CHANNEL, type NotificationChannel } from "@/lib/commercial-events";
 import { findTemplateByKey } from "@/lib/template-registry";
 import { extractTemplateKeys, renderTemplate } from "@/lib/template-engine";
 
 export async function listMessageTemplates() {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("dashboard");
   return prisma.messageTemplate.findMany({ orderBy: [{ channel: "asc" }, { key: "asc" }] });
 }
 
@@ -164,7 +165,7 @@ export async function messageTemplateExists(key: string): Promise<boolean> {
 }
 
 export async function updateMessageTemplate(key: string, input: { name?: string; body: string; active?: boolean }) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("dashboard");
   const body = input.body.trim();
   if (!body) throw new Error("O corpo do template é obrigatório.");
   const existing = await prisma.messageTemplate.findUnique({ where: { key } });
@@ -200,7 +201,7 @@ export async function upsertMessageTemplate(input: {
 }
 
 export async function listContractTemplates() {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("dashboard");
   return prisma.contractTemplate.findMany({ orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }] });
 }
 
@@ -225,7 +226,7 @@ export async function updateContractTemplate(
   id: string,
   input: { name?: string; body: string; clauses: unknown },
 ) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("dashboard");
   const body = input.body.trim();
   if (!body) throw new Error("O corpo do template contratual é obrigatório.");
   const existing = await prisma.contractTemplate.findUnique({ where: { id } });
@@ -246,3 +247,6 @@ export async function updateContractTemplate(
 }
 
 export { NOTIFICATION_CHANNEL };
+
+
+

@@ -6,10 +6,12 @@ import { usePathname } from "next/navigation";
 export function SessionGuard() {
   const pathname = usePathname();
   const [invalidReason, setInvalidReason] = useState<
-    "PERMISSIONS_UPDATED" | "ACCOUNT_DISABLED" | "UNAUTHENTICATED" | null
+    "PERMISSIONS_UPDATED" | "ACCOUNT_DISABLED" | "UNAUTHENTICATED" | "TAB_CLOSED" | null
   >(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const hasMounted = useRef(false);
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
 
   const checkSession = useCallback(async () => {
     try {
@@ -34,16 +36,25 @@ export function SessionGuard() {
     // Não executar na página de login (/) para evitar loop de redirecionamento
     if (pathname === "/") return;
 
-    // 1. Delay de 1000ms antes da primeira verificação para garantir que
+    // 1. Tab guard: se a aba foi fechada e reaberta, ou não existe flag de autenticação,
+    //    exige novo login (fechou a página = exige novo login).
+    const tabSession = sessionStorage.getItem("arqvertice_active_tab_session");
+    const tabAuth = sessionStorage.getItem("arqvertice_tab_authenticated");
+    if (!tabSession || tabAuth !== "true") {
+      setInvalidReason("TAB_CLOSED");
+      return;
+    }
+
+    // 2. Delay de 1000ms antes da primeira verificação para garantir que
     //    os cookies do login já estejam consolidados no navegador.
     const timer = setTimeout(() => {
       checkSession();
     }, 1000);
 
-    // 2. Verificação periódica a cada 10 segundos
+    // 3. Verificação periódica a cada 10 segundos
     const interval = setInterval(checkSession, 10000);
 
-    // 3. Verificação ao focar a janela ou mudar visibilidade
+    // 4. Verificação ao focar a janela ou mudar visibilidade
     const onFocus = () => checkSession();
     const onVisibility = () => {
       if (document.visibilityState === "visible") checkSession();
@@ -52,13 +63,27 @@ export function SessionGuard() {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
 
+    // 5. Timeout por inatividade: 30 minutos sem interação encerra a sessão
+    const resetInactivity = () => {
+      sessionStorage.setItem("arqvertice_last_activity", String(Date.now()));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = setTimeout(() => {
+        setInvalidReason("UNAUTHENTICATED");
+      }, INACTIVITY_MS);
+    };
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+    events.forEach((evt) => window.addEventListener(evt, resetInactivity));
+    resetInactivity();
+
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
+      events.forEach((evt) => window.removeEventListener(evt, resetInactivity));
     };
-  }, [pathname, checkSession]);
+  }, [pathname, checkSession, INACTIVITY_MS]);
 
   // 4. Verificação a cada mudança de rota (exceto /)
   useEffect(() => {
@@ -68,6 +93,7 @@ export function SessionGuard() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    sessionStorage.removeItem("arqvertice_active_tab_session");
     try {
       await fetch("/api/auth/logout?reason=FORCED_LOGOUT", {
         method: "POST",
@@ -91,7 +117,9 @@ export function SessionGuard() {
             Atualização de Permissões e Governança
           </h3>
           <p className="text-xs text-zinc-600 leading-relaxed">
-            {invalidReason === "ACCOUNT_DISABLED"
+            {invalidReason === "TAB_CLOSED"
+              ? "Esta aba ou janela foi fechada. Por motivos de segurança, é necessário fazer login novamente para acessar o ArqVértice Flow."
+              : invalidReason === "ACCOUNT_DISABLED"
               ? "Esta conta foi desativada pelo Administrador. Para mais informações, entre em contato com a gestão."
               : "O administrador atualizou suas permissões de acesso, atribuições ou credenciais. Para garantir a consistência dos dados e carregar seu painel atualizado, encerre esta sessão e entre novamente."}
           </p>

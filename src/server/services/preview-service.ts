@@ -1,5 +1,5 @@
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { notFound } from "@/server/errors";
 import { resolveProposalAccess } from "@/server/services/proposal-service";
 import { generateProposalDocument, type GeneratorInput, type GeneratedDocument } from "@/lib/document-generator";
@@ -187,7 +187,7 @@ export async function previewProposalDocument(
   proposalId: string,
   versionNumber?: number,
 ): Promise<GeneratedDocument & { planSource: "CONGELADO" | "LEGACY_DERIVED"; planWarnings: string[] }> {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const input = await buildGeneratorInput(proposalId, versionNumber);
   const document = generateProposalDocument(input);
   return { ...document, planSource: input.planSource, planWarnings: input.planWarnings };
@@ -298,5 +298,7 @@ export async function loadPublicProposalDocument(input: {
     expired,
   };
 }
+
+
 
 

@@ -1,6 +1,6 @@
 import { prisma } from "@/server/db";
 import { DomainError, notFound } from "@/server/errors";
-import { requireRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { createBriefingToken, hashBriefingToken } from "@/lib/briefing-token";
 import { notifyBriefingLink } from "@/server/services/notification-dispatch-service";
 import { appUrl } from "@/lib/email";
@@ -58,7 +58,7 @@ export async function generateSecureToken(briefingIdOrProjectId: string, originH
 }
 
 export async function createBriefingLink(projectId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const result = await generateSecureToken(projectId);
 
   let notification: { url: string | null; whatsapp: string | null } = { url: null, whatsapp: null };
@@ -77,14 +77,14 @@ export async function createBriefingLink(projectId: string) {
 }
 
 export async function revokeBriefingLink(projectId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const briefing = await prisma.briefing.findUnique({ where: { projectId }, select: { id: true } });
   if (!briefing) return notFound("Briefing");
   return prisma.briefingAccessLink.updateMany({ where: { briefingId: briefing.id, revokedAt: null }, data: { revokedAt: new Date() } });
 }
 
 export async function getBriefingLinkStatus(projectId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const briefing = await prisma.briefing.findUnique({
     where: { projectId },
     include: { accessLinks: { orderBy: { createdAt: "desc" }, take: 1 } },
@@ -120,3 +120,5 @@ export async function resolveBriefingToken(token: string) {
   });
   return link;
 }
+
+

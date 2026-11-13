@@ -2,7 +2,8 @@ import { prisma } from "@/server/db";
 import { DomainError } from "@/server/errors";
 import { stageAlert } from "@/lib/schedule-alerts";
 import { completionOf } from "@/lib/progress";
-import { requireRole } from "@/server/auth";
+import { currentUser } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 
 /**
  * Operação do cronograma pelo funcionário da equipa (OPERADOR).
@@ -52,7 +53,7 @@ export async function listOperationProjects(userId: string, role: "ADMIN" | "EQU
 
 /** Operadores e membros de equipe existentes, para o ADMIN gerir. */
 export async function listOperadores() {
-  await requireRole("ADMIN");
+  await requireModuleAccess("equipe");
   return prisma.user.findMany({
     select: {
       id: true,
@@ -69,7 +70,7 @@ export async function listOperadores() {
 
 /** Lista completa de usuários para o painel RBAC */
 export async function listAllTeamMembers() {
-  await requireRole("ADMIN");
+  await requireModuleAccess("equipe");
   return prisma.user.findMany({
     select: {
       id: true,
@@ -91,7 +92,7 @@ export async function updateUserRoleAndStatus(
   role: "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR",
   isActive: boolean,
 ) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("equipe");
   return prisma.user.update({
     where: { id: userId },
     data: { role, isActive },
@@ -100,7 +101,7 @@ export async function updateUserRoleAndStatus(
 
 /** Projetos disponíveis para atribuir (id + nome + cliente). */
 export async function listAssignableProjects() {
-  await requireRole("ADMIN");
+  await requireModuleAccess("equipe");
   return prisma.project.findMany({
     select: { id: true, name: true, client: { select: { name: true } } },
     orderBy: { updatedAt: "desc" },
@@ -118,7 +119,7 @@ export async function setOperatorProjectAccess(
   projectIds: readonly string[],
   canEdit: boolean = false,
 ) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("equipe");
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!targetUser) throw new DomainError("Usuário não encontrado.", "NOT_FOUND");
@@ -142,3 +143,5 @@ export async function setOperatorProjectAccess(
 
   return { userId, projectIds: validIds };
 }
+
+

@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { currentUser } from "@/server/auth";
 import { notFound } from "@/server/errors";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { recordAudit } from "@/server/audit";
 import { diffStudioDecks, type StudioEditOrigin } from "@/lib/studio-audit";
 import { AUDIT_ENTITY, type AuditAction } from "@/lib/audit-events";
@@ -147,7 +148,7 @@ async function nextProposalCode(tx: Prisma.TransactionClient, now: Date): Promis
  * é derivado do que o frontend envia (item 65).
  */
 export async function getProjectCommercialInput(projectId: string): Promise<ProjectCommercialInput | null> {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: { client: true, briefing: true },
@@ -237,7 +238,7 @@ export async function getProposalSuggestions(projectId: string, level: PricingLe
  * contaria a mesma oportunidade duas vezes (item 71).
  */
 export async function createProposal(projectId: string) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: { client: true, briefing: true },
@@ -367,7 +368,7 @@ export async function createProposal(projectId: string) {
 }
 
 export async function listProposals() {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   return prisma.proposal.findMany({
     orderBy: { updatedAt: "desc" },
     include: { project: { select: { id: true, name: true, client: { select: { name: true } } } }, versions: { orderBy: { version: "desc" }, take: 1 } },
@@ -375,7 +376,7 @@ export async function listProposals() {
 }
 
 export async function getProposal(id: string) {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id },
     include: {
@@ -456,7 +457,7 @@ export type ProposalVersionInput = {
  * próxima versão herdar um preço que o ADMIN já pode ter mudado de propósito.
  */
 export async function saveProposalVersion(proposalId: string, input: ProposalVersionInput) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     select: { id: true, currentVersion: true, status: true, projectId: true },
@@ -690,7 +691,7 @@ export async function saveProposalPresentation(
   proposalId: string,
   raw: unknown,
 ): Promise<{ version: number; slides: number }> {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     select: { id: true, currentVersion: true, status: true },
@@ -793,7 +794,7 @@ function commercialSlotsOf(resolved: Awaited<ReturnType<typeof getProposal>>): C
  * o servidor recusaria — e essa diferença seria sempre um bug difícil de ver.
  */
 export async function getProposalReadiness(proposalId: string): Promise<PublicationReadiness> {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -840,7 +841,7 @@ export async function getProposalReadiness(proposalId: string): Promise<Publicat
  *     que já não é a vigente.
  */
 export async function createProposalLink(proposalId: string) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     select: { id: true, expiresAt: true, status: true, currentVersion: true, code: true },
@@ -1229,7 +1230,7 @@ export async function decideProposal(token: string, decision: "APPROVED" | "REJE
   return updated;
 }
 export async function sendProposalWhatsApp(proposalId: string) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -1319,7 +1320,7 @@ export async function sendProposalWhatsApp(proposalId: string) {
  * o PDF também é usado internamente como conferência antes do envio.
  */
 export async function getProposalPdfInput(proposalId: string, versionNumber?: number) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: { project: { include: { client: true } } },
@@ -1390,7 +1391,7 @@ export function proposalPublicUrl(token: string): string {
 
 /** FASE 4C, item 51 — envio da proposta por e-mail. */
 export async function sendProposalEmail(proposalId: string) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
 
   // A proposta tem de estar PUBLICADA para haver link a enviar. Sem esta
   // verificação, o e-mail sairia com um link que abre a recusa "expirou ou foi
@@ -1488,7 +1489,7 @@ export async function sendProposalEmail(proposalId: string) {
 }
 
 export async function generateContract(proposalId: string) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -1613,3 +1614,7 @@ export async function generateContract(proposalId: string) {
   await recordAudit("CONTRACT_GENERATED", "Contract", contract.id, user.id, { proposalId, version: version.version });
   return contract;
 }
+
+
+
+

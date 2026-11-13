@@ -1,5 +1,5 @@
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { buildCommercialTimeline } from "@/lib/commercial-timeline";
 import { deriveCommercialInsights } from "@/lib/commercial-insights";
 import { SIGNATURE_STATUS_LABELS } from "@/lib/signature";
@@ -17,7 +17,7 @@ const SERVICE_LABELS: Record<string, string> = {
  * proposta, contrato, assinatura, serviço e linha do tempo.
  */
 export async function getProjectCommercialSummary(projectId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { id: true, status: true, briefing: { select: { id: true, status: true } } },
@@ -84,7 +84,7 @@ export async function getProjectCommercialSummary(projectId: string) {
 
 /** Tópico 30 — recomendações determinísticas com a origem explicitada. */
 export async function getProposalCommercialInsights(proposalId: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -104,3 +104,4 @@ export async function getProposalCommercialInsights(proposalId: string) {
     contractScopeMatched: Array.isArray(content.disciplines) ? (content.disciplines as string[]) : [],
   });
 }
+

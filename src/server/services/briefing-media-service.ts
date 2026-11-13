@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@/server/db";
-import { requireProjectAccess, requireRole } from "@/server/auth";
+import { requireProjectAccess } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { DomainError, notFound } from "@/server/errors";
 import { getStoredObject, putStoredObject, storageKeyFor } from "@/server/storage";
 import { resolveBriefingToken } from "./briefing-link-service";
@@ -345,7 +346,7 @@ export async function readAudioFile(access: BriefingAccess, noteId: string) {
 
 /** O ADMIN anota a referência sem alterar o que o cliente disse. */
 export async function addProfessionalNote(referenceId: string, note: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const reference = await prisma.briefingReference.findUnique({
     where: { id: referenceId },
     select: { id: true },
@@ -356,3 +357,5 @@ export async function addProfessionalNote(referenceId: string, note: string) {
     data: { professionalNote: note.trim() || null },
   });
 }
+
+

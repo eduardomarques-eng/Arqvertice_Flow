@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/server/db";
-import { requireProjectAccess, requireRole } from "@/server/auth";
+import { requireProjectAccess } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { DomainError, notFound } from "@/server/errors";
 import {
   getStoredObject,
@@ -21,7 +22,9 @@ function assertFile(file: UploadFile) {
 
 export async function listProjectDocuments(projectId: string, clientVisible = false) {
   if (clientVisible) await requireProjectAccess(projectId);
-  else await requireRole("ADMIN");
+  else {
+    await requireModuleAccess("projetos");
+  }
   return prisma.projectDocument.findMany({
     where: { projectId, status: "ACTIVE", ...(clientVisible ? { visibility: "CLIENT" } : {}) },
     select: { id: true, name: true, mimeType: true, sizeBytes: true, visibility: true, createdAt: true, releasedAt: true },
@@ -30,7 +33,7 @@ export async function listProjectDocuments(projectId: string, clientVisible = fa
 }
 
 export async function uploadProjectDocument(projectId: string, file: UploadFile, visibility: "INTERNAL" | "CLIENT") {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   assertFile(file);
   const key = `${projectId}/${randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -40,7 +43,7 @@ export async function uploadProjectDocument(projectId: string, file: UploadFile,
 }
 
 export async function archiveProjectDocument(id: string) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
   const document = await prisma.projectDocument.findUnique({ where: { id } });
   if (!document) return notFound("Documento");
   return prisma.projectDocument.update({ where: { id }, data: { status: "ARCHIVED", archivedAt: new Date() } });
@@ -80,7 +83,7 @@ type StoredCommercialDocument = {
  * documento já existente em vez de criar um duplicado.
  */
 export async function storeCommercialDocument(input: StoredCommercialDocument) {
-  await requireRole("ADMIN");
+  await requireModuleAccess("projetos");
 
   // Chave já usada: o artefato existe. Devolvemos o registo atual.
   const existing = await prisma.projectDocument.findUnique({ where: { sourceKey: input.sourceKey } });
@@ -122,4 +125,7 @@ export async function storeCommercialDocument(input: StoredCommercialDocument) {
     throw error;
   }
 }
+
+
+
 

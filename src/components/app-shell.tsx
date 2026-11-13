@@ -26,6 +26,15 @@ const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }>
   { label: "Configurações", href: "/admin/configuracoes", module: "equipe" },
 ];
 
+/** Links exclusivos da Equipe Técnica (ENGENHEIRO | ARQUITETO | EQUIPE | OPERADOR).
+ * Nunca apontam para /admin: os ambientes /admin e /equipe são 100% separados.
+ */
+const TEAM_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
+  { label: "Painel Técnico", href: "/equipe", icon: "ðŸ", module: "dashboard" },
+  { label: "Projetos", href: "/equipe/projetos", icon: "ðŸ­", module: "projetos" },
+  { label: "Cronograma", href: "/equipe/cronograma", icon: "ðŸ“…", module: "cronograma" },
+];
+
 export async function AppShell({
   children,
   eyebrow = "Estúdio",
@@ -62,16 +71,14 @@ export async function AppShell({
       icon: item.icon,
     }));
   } else {
-    // Filtragem estrita pelas permissões do usuário
-    const primary = ALL_ADMIN_LINKS.filter((item) => effectivePermissions.includes(item.module));
-    const secondary = SECONDARY_LINKS.filter((item) => effectivePermissions.includes(item.module));
+    // Equipe tÃ©cnica: links apontam exclusivamente para /equipe/* (nunca /admin/*).
+    // O filtro por mÃ³dulo preserva o menor-privilÃ©gio; o fallback Ã© /equipe, nunca /admin.
+    const primary = TEAM_LINKS.filter((item) => effectivePermissions.includes(item.module));
 
-    allowedLinks = primary
-      .map((item) => [item.label, item.href] as const)
-      .concat(secondary.map((item) => [item.label, item.href] as const));
+    allowedLinks = primary.map((item) => [item.label, item.href] as const);
 
     if (allowedLinks.length === 0) {
-      allowedLinks = [["Painel", "/admin"]];
+      allowedLinks = [["Painel", "/equipe"]];
     }
 
     bottomNavLinks = primary.slice(0, 4).map((item) => ({

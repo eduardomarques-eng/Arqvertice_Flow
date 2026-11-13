@@ -9,7 +9,11 @@ import { logUserTrafficEvent } from "./traffic-log";
 
 export type AuthRole = "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "OPERATOR" | "CLIENT";
 const COOKIE = "arqvertice_session";
-const LIFETIME = 1000 * 60 * 60 * 24 * 7;
+// Cookie de papel (somente leitura na borda/middleware): isolamento de rota
+// antecipado (/admin vs /equipe vs /portal) sem consulta ao banco.
+const ROLE_COOKIE = "arqvertice_role";
+// Session cookie: expira ao fechar o navegador (sem maxAge/expires no cookie).
+const SESSION_EXPIRES_MS = 1000 * 60 * 60 * 2; // 2 horas
 
 export { hashPassword, verifyPassword };
 
@@ -39,7 +43,7 @@ export async function signIn(email: string, password: string) {
       tokenHash: tokenHash(token),
       userId: user.id,
       sessionVersion: user.sessionVersion,
-      expiresAt: new Date(Date.now() + LIFETIME),
+      expiresAt: new Date(Date.now() + SESSION_EXPIRES_MS),
     },
   });
 
@@ -57,7 +61,13 @@ export async function signIn(email: string, password: string) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: LIFETIME / 1000,
+  });
+  // Cookie de papel para isolamento antecipado de rotas na borda (middleware).
+  (await cookies()).set(ROLE_COOKIE, user.role, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
   });
 
   return { id: user.id, name: user.name, role: user.role };
@@ -84,6 +94,7 @@ export async function signOut(reason?: string) {
     }
   }
   store.delete(COOKIE);
+  store.delete(ROLE_COOKIE);
 }
 
 export async function currentUser() {
@@ -227,7 +238,7 @@ export async function requirePageClientPortal() {
 export async function requirePageTeamRole() {
   const user = await currentUser();
   if (!user) redirect("/?next=%2Fequipe");
-  if (!isTeamRole(user.role) && user.role !== "ADMIN") redirect("/");
+  if (!isTeamRole(user.role)) redirect("/");
   return user;
 }
 
@@ -322,3 +333,7 @@ export async function requireContractAccess(contractId: string) {
   if (!contract) throw new DomainError("Contrato não encontrado.", "NOT_FOUND");
   return user;
 }
+
+
+
+

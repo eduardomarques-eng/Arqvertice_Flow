@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { executiveDashboardData } from "@/server/services/dashboard-service";
-import { currentUser } from "@/server/auth";
+import { requirePageAdminRole } from "@/server/auth";
 import { QuickProjectAction } from "@/components/dashboard/quick-project-action";
 import { getEffectivePermissions } from "@/lib/rbac";
 
@@ -46,13 +46,7 @@ function Arrow() {
 }
 
 export default async function AdminDashboardPage() {
-  const user = await currentUser();
-  if (!user) redirect("/");
-
-  // Se cliente, redirecionar para o portal
-  if (user.role === "CLIENTE" || (user.role as string) === "CLIENT") {
-    redirect("/portal");
-  }
+  const user = await requirePageAdminRole();
 
   const effectivePermissions = getEffectivePermissions({
     role: user.role,

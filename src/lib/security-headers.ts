@@ -123,6 +123,7 @@ export function buildSecurityHeaders(options: SecurityHeaderOptions = {}): Recor
  */
 export const PROTECTED_ROUTE_PREFIXES = [
   "/admin",
+  "/equipe",
   "/clientes",
   "/projetos",
   "/propostas",

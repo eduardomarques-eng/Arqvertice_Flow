@@ -3,10 +3,12 @@ import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import { PackageEditor, ServiceCatalogAdmin } from "@/components/proposals/service-catalog-admin";
 import { listCommercialPackages, listServiceCatalog } from "@/server/services/service-catalog-service";
+import { requirePageAdminRole } from "@/server/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminServicesPage() {
+  await requirePageAdminRole();
   const [services, packages] = await Promise.all([
     listServiceCatalog({ includeInactive: true }),
     listCommercialPackages(),

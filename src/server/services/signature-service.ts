@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { notFound } from "@/server/errors";
 import { recordAudit } from "@/server/audit";
 import { recordNotification } from "@/server/services/notification-service";
@@ -135,7 +135,7 @@ async function recordEvent(
 }
 
 export async function requestContractSignature(contractId: string) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const contract = await prisma.contract.findUnique({
     where: { id: contractId },
     include: { proposal: { include: { project: { include: { client: true } } } }, signature: true },
@@ -208,7 +208,7 @@ export async function advanceSignatureStatus(
   status: SignatureStatusName,
   evidence?: Record<string, unknown>,
 ) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const current = await prisma.contractSignature.findUnique({ where: { contractId } });
   if (!current) return notFound("Solicitação de assinatura");
   assertSignatureTransition(current.status, status);
@@ -231,3 +231,5 @@ export async function advanceSignatureStatus(
   await recordAudit("CONTRACT_SIGNATURE_UPDATED", "ContractSignature", signature.id, user.id, { status });
   return signature;
 }
+
+

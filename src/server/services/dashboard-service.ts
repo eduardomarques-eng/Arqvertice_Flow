@@ -34,7 +34,15 @@ export type DashboardMetrics = {
  * componente. `ADMIN` obrigatório: são dados do estúdio inteiro.
  */
 export async function dashboardMetrics(): Promise<DashboardMetrics> {
-  await requireRole("ADMIN");
+  const user = await currentUser();
+  if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
+  const effectivePermissions = getEffectivePermissions({
+    role: user.role,
+    permissions: user.permissions,
+  });
+  if (!effectivePermissions.includes("dashboard")) {
+    throw new DomainError("Você não tem permissão para acessar o dashboard.", "NOT_FOUND");
+  }
 
   const now = new Date();
   const [
@@ -315,7 +323,15 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
 
 /** Projetos com progresso e etapa atual, para o painel e para o cronograma. */
 export async function projectSnapshots(limit = 6): Promise<ProjectSnapshot[]> {
-  await requireRole("ADMIN");
+  const user = await currentUser();
+  if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
+  const effectivePermissions = getEffectivePermissions({
+    role: user.role,
+    permissions: user.permissions,
+  });
+  if (!effectivePermissions.includes("dashboard") && !effectivePermissions.includes("projetos")) {
+    throw new DomainError("Você não tem permissão para acessar os projetos.", "NOT_FOUND");
+  }
   const now = new Date();
 
   const projects = await prisma.project.findMany({

@@ -6,8 +6,12 @@ import {
   isPublicTokenPath,
   SECURITY_HEADER_NAMES,
 } from "@/lib/security-headers";
+import { resolveRedirectForPath } from "@/lib/route-isolation";
 
 const SESSION_COOKIE = "arqvertice_session";
+// Cookie de papel (somente leitura na borda): usado para isolamento antecipado
+// de ambiente sem consulta ao banco. Definido em signIn() e limpo em signOut().
+const ROLE_COOKIE = "arqvertice_role";
 
 const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/health"] as const;
 
@@ -56,10 +60,24 @@ export function middleware(request: NextRequest) {
     requestHeaders.set(name, value);
   }
 
-  if (!isPublicPath(pathname) && isProtectedPath(pathname) && !request.cookies.get(SESSION_COOKIE)) {
-    const target = new URL("/login", request.url);
-    target.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(target);
+  if (!isPublicPath(pathname) && isProtectedPath(pathname)) {
+    const sessionCookie = request.cookies.get(SESSION_COOKIE);
+    if (!sessionCookie) {
+      const target = new URL("/login", request.url);
+      target.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+      return NextResponse.redirect(target);
+    }
+
+    // Isolamento de ambiente por papel na borda (defesa em profundidade).
+    // A prova definitiva de autorizacao continua nas paginas (requirePage*),
+    // porque o middleware nao consulta o banco. O cookie de papel impede que um
+    // tecnico pouse em /admin, um admin em /equipe ou um cliente em qualquer um
+    // dos dois, já no primeiro byte da resposta.
+    const role = request.cookies.get(ROLE_COOKIE)?.value ?? null;
+    const redirectTo = resolveRedirectForPath(pathname, role);
+    if (redirectTo) {
+      return NextResponse.redirect(new URL(redirectTo, request.url));
+    }
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });

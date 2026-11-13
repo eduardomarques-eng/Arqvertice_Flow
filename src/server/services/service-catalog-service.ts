@@ -1,6 +1,6 @@
 import { Prisma, type ServiceItem } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { requireRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { notFound } from "@/server/errors";
 import { recordAudit } from "@/server/audit";
 import type { CatalogService, PricingLevelName, ServiceUnitName } from "@/lib/pricing";
@@ -33,7 +33,7 @@ export function toCatalogService(record: ServiceItem): CatalogService {
 }
 
 export async function listServiceCatalog(options: { discipline?: string; includeInactive?: boolean } = {}) {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const records = await prisma.serviceItem.findMany({
     where: {
       ...(options.discipline ? { discipline: options.discipline } : {}),
@@ -53,7 +53,7 @@ export async function loadPricingCatalog(): Promise<CatalogService[]> {
 }
 
 export async function listServicePriceHistory(serviceId: string) {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   return prisma.servicePriceHistory.findMany({
     where: { serviceId },
     orderBy: { createdAt: "desc" },
@@ -62,7 +62,7 @@ export async function listServicePriceHistory(serviceId: string) {
 }
 
 export async function listCommercialPackages() {
-  await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   return prisma.commercialPackage.findMany({
     orderBy: { name: "asc" },
     include: { items: { orderBy: { displayOrder: "asc" }, include: { service: true } } },
@@ -120,7 +120,7 @@ function buildUpdateData(input: ServiceWriteInput): Prisma.ServiceItemUpdateInpu
 }
 
 export async function createServiceItem(input: ServiceWriteInput & { name: string; discipline: string; unit: ServiceUnitName }) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const created = await prisma.serviceItem.create({
     data: {
       name: input.name.trim(),
@@ -153,7 +153,7 @@ export async function createServiceItem(input: ServiceWriteInput & { name: strin
 
 /** Tópico 4: toda alteração de preço fica registrada com valor anterior e motivo. */
 export async function updateServiceItem(id: string, input: ServiceWriteInput) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const existing = await prisma.serviceItem.findUnique({ where: { id } });
   if (!existing) return notFound("Serviço");
 
@@ -200,7 +200,7 @@ export async function replacePackageItems(
   packageId: string,
   serviceIds: string[],
 ) {
-  const user = await requireRole("ADMIN");
+  const user = await requireModuleAccess("projetos");
   const existing = await prisma.commercialPackage.findUnique({ where: { id: packageId } });
   if (!existing) return notFound("Pacote comercial");
   const items = serviceIds.map((serviceId, index) => ({ packageId, serviceId, displayOrder: index }));
@@ -211,3 +211,5 @@ export async function replacePackageItems(
   await recordAudit("PACKAGE_ITEMS_REPLACED", "CommercialPackage", packageId, user.id, { count: items.length });
   return listCommercialPackages();
 }
+
+

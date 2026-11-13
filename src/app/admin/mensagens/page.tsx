@@ -5,10 +5,12 @@ import { ContractTemplateEditor, MessageTemplateEditor } from "@/components/prop
 import { listContractTemplates, listMessageTemplates } from "@/server/services/message-template-service";
 import { WHATSAPP_VARIABLES } from "@/lib/whatsapp";
 import { CONTRACT_CLAUSE_SECTIONS, CONTRACT_VARIABLES } from "@/lib/contract-template";
+import { requirePageAdminRole } from "@/server/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminMessagesPage() {
+  await requirePageAdminRole();
   const [templates, contractTemplates] = await Promise.all([listMessageTemplates(), listContractTemplates()]);
   return (
     <AppShell eyebrow="Configuração">
