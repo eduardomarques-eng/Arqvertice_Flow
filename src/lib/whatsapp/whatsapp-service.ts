@@ -2,8 +2,8 @@
  * ArqVértice Flow — Disparo Híbrido de WhatsApp
  * 
  * 1. Sanitização com prefixo 55 obrigatório.
- * 2. Tentativa 1 (Automática via CLI Bridge Local na porta 3001).
- * 3. Tentativa 2 (Fallback Transparente com deep link web).
+ * 2. Em ambiente de nuvem (Vercel) ou sem Bridge externa configurada, aciona imediatamente o fallback de link direto.
+ * 3. Em ambiente local com Bridge na porta 3001, tenta envio direto com timeout estrito de 1.5s.
  */
 
 export interface WhatsAppDispatchParams {
@@ -59,42 +59,43 @@ export async function sendArqVerticeWhatsApp({
   }
 
   const deepLink = buildWhatsAppDeepLink(cleanPhone, message);
-  const bridgeUrl = process.env.WHATSAPP_BRIDGE_URL || "http://127.0.0.1:3001";
+  const bridgeUrl = process.env.WHATSAPP_BRIDGE_URL;
   const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET || "arqvertice-bridge-secret";
+  const isVercel = process.env.VERCEL === "1";
 
-  // Tentativa 1: Envio automático via Bridge Local (Baileys) com timeout curto de 3000ms
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+  // Se estiver na Vercel e o bridgeUrl for localhost ou não estiver configurado, vai direto para o deep link
+  const isLocalBridge = !bridgeUrl || bridgeUrl.includes("localhost") || bridgeUrl.includes("127.0.0.1");
 
-    const response = await fetch(`${bridgeUrl}/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-bridge-secret": bridgeSecret,
-      },
-      body: JSON.stringify({ phone: cleanPhone, message }),
-      signal: controller.signal,
-    });
+  if (!isVercel || (!isLocalBridge && bridgeUrl)) {
+    const targetUrl = bridgeUrl || "http://127.0.0.1:3001";
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout estrito
 
-    clearTimeout(timeoutId);
+      const response = await fetch(`${targetUrl}/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-bridge-secret": bridgeSecret,
+        },
+        body: JSON.stringify({ phone: cleanPhone, message }),
+        signal: controller.signal,
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        success: true,
-        method: "WHATSAPP_CLI_BRIDGE",
-        messageId: data.messageId,
-      };
-    } else {
-      const errData = await response.json().catch(() => ({}));
-      console.warn(
-        `[WhatsAppService] Bridge retornou status ${response.status}: ${errData.error || "Falha no envio"}`
-      );
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          success: true,
+          method: "WHATSAPP_CLI_BRIDGE",
+          messageId: data.messageId,
+        };
+      }
+    } catch {
+      // Bridge offline, porta indisponível ou timeout atingido
+      // Segue para a Tentativa 2 de forma 100% transparente
     }
-  } catch (err: any) {
-    // Bridge offline, porta indisponível ou timeout atingido
-    // Segue para a Tentativa 2 de forma 100% transparente
   }
 
   // Tentativa 2: Fallback Transparente via Deep Link
@@ -104,4 +105,3 @@ export async function sendArqVerticeWhatsApp({
     fallbackUrl: deepLink,
   };
 }
-
