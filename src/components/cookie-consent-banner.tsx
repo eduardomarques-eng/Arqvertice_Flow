@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Card, Button } from "@/components/ui";
+import { Card, Button } from "@/components/ui/button";
 import {
   COOKIE_CATEGORIES,
   PRIVACY_POLICY_VERSION,
