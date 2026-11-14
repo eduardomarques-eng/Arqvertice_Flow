@@ -14,6 +14,7 @@ export interface ViewerRfiItem {
   coordX?: number | null;
   coordY?: number | null;
   pageNumber?: number | null;
+  geometryJson?: string | null;
   answer?: string | null;
   createdAt: string | Date;
   createdBy?: { name: string; role: string } | null;
@@ -58,11 +59,29 @@ export function CdeOnlineViewerModal({
   const [newPinCoord, setNewPinCoord] = useState<{ x: number; y: number } | null>(null);
   const [newRfiTitle, setNewRfiTitle] = useState("");
   const [newRfiDesc, setNewRfiDesc] = useState("");
+  const [fieldPhoto, setFieldPhoto] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"RFIS" | "LAYERS" | "METADATA">("RFIS");
   const [answerInput, setAnswerInput] = useState("");
   const [isSavingRfi, setIsSavingRfi] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert("A foto excede o limite recomendado de 8MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const result = uploadEvent.target?.result;
+      if (typeof result === "string") {
+        setFieldPhoto(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
 
   // Carrega RFIs da revisão
   useEffect(() => {
@@ -103,6 +122,10 @@ export function CdeOnlineViewerModal({
 
     setIsSavingRfi(true);
     try {
+      const geometryPayload = fieldPhoto
+        ? JSON.stringify({ pin: newPinCoord, photoUrl: fieldPhoto })
+        : JSON.stringify({ pin: newPinCoord });
+
       const res = await fetch(`/api/acervo/revisions/${revision.id}/rfi`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,6 +135,7 @@ export function CdeOnlineViewerModal({
           markupType: "PIN",
           coordX: newPinCoord.x,
           coordY: newPinCoord.y,
+          geometryJson: geometryPayload,
         }),
       });
       const data = await res.json();
@@ -120,6 +144,7 @@ export function CdeOnlineViewerModal({
         setNewPinCoord(null);
         setNewRfiTitle("");
         setNewRfiDesc("");
+        setFieldPhoto(null);
       } else {
         alert(data.error || "Erro ao registrar RFI.");
       }
@@ -384,6 +409,41 @@ export function CdeOnlineViewerModal({
                   />
                 </div>
 
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Foto de Canteiro / Não Conformidade (Opcional)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 cursor-pointer transition">
+                      <span>📷 Tirar Foto / Anexar</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handlePhotoUpload}
+                      />
+                    </label>
+                    {fieldPhoto && (
+                      <div className="relative group">
+                        <img
+                          src={fieldPhoto}
+                          alt="Foto do canteiro"
+                          className="h-9 w-9 rounded-lg object-cover border border-slate-700"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFieldPhoto(null)}
+                          className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] text-white"
+                          title="Remover foto"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <Button
                     type="button"
@@ -437,6 +497,31 @@ export function CdeOnlineViewerModal({
                         {/* Detalhes expandidos ao selecionar */}
                         {isSelected && (
                           <div className="mt-3 border-t border-slate-700/80 pt-2 space-y-2">
+                            {rfi.geometryJson && (() => {
+                              try {
+                                const parsed = JSON.parse(rfi.geometryJson);
+                                if (parsed.photoUrl) {
+                                  return (
+                                    <div className="rounded-lg overflow-hidden border border-slate-700 bg-slate-900/80">
+                                      <p className="text-[10px] uppercase font-semibold text-slate-400 px-2 py-1">
+                                        Foto do Canteiro
+                                      </p>
+                                      <img
+                                        src={parsed.photoUrl}
+                                        alt="Evidência de canteiro"
+                                        className="w-full max-h-44 object-cover cursor-pointer hover:opacity-95"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(parsed.photoUrl, "_blank");
+                                        }}
+                                      />
+                                    </div>
+                                  );
+                                }
+                              } catch {}
+                              return null;
+                            })()}
+
                             {rfi.answer ? (
                               <div className="rounded-lg bg-emerald-950/50 border border-emerald-800/60 p-2 text-xs">
                                 <span className="font-semibold text-emerald-300">Resposta:</span>
