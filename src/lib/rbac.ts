@@ -84,11 +84,11 @@ export const APP_MODULES: AppModuleDefinition[] = [
  * Presets de permissão atribuídos automaticamente conforme o Cargo (Role)
  */
 export const ROLE_PERMISSION_PRESETS: Record<string, AppModule[]> = {
-  ADMIN: ["dashboard", "cronograma", "projetos", "financeiro", "clientes", "equipe"],
-  ARQUITETO: ["dashboard", "cronograma", "projetos", "clientes"],
-  ENGENHEIRO: ["dashboard", "cronograma", "projetos"],
-  EQUIPE: ["dashboard", "cronograma", "projetos"],
-  OPERADOR: ["dashboard", "cronograma", "projetos"],
+  ADMIN: ["dashboard", "cronograma", "projetos", "acervo", "financeiro", "clientes", "equipe"],
+  ARQUITETO: ["dashboard", "cronograma", "projetos", "acervo", "clientes"],
+  ENGENHEIRO: ["dashboard", "cronograma", "projetos", "acervo"],
+  EQUIPE: ["dashboard", "cronograma", "projetos", "acervo"],
+  OPERADOR: ["dashboard", "cronograma", "projetos", "acervo"],
   CLIENTE: ["portal"],
   CLIENT: ["portal"],
 };
