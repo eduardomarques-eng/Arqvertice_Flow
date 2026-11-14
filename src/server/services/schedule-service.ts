@@ -269,8 +269,8 @@ export async function updateScheduleStage(id: string, input: unknown) {
   };
   try {
     const updated = await prisma.scheduleStage.update({ where: { id }, data: update });
-    // Cálculo de prazos integrado: quando a data limite de uma etapa vinculada a
-    // parcela(s) muda, propaga o novo vencimento para essas parcelas automaticamente.
+    // Sincronização e Automação: Gestão Financeira ↔ Cronograma de Pagamentos
+    // 1. Quando o prazo (dueDate) de uma etapa muda, propaga automaticamente para as parcelas vinculadas.
     if (data.dueDate !== undefined && data.dueDate !== null) {
       const target = new Date(data.dueDate);
       const linked = await prisma.projectInstallment.findMany({ where: { linkedStageId: id } });
@@ -280,7 +280,34 @@ export async function updateScheduleStage(id: string, input: unknown) {
           data: { dueDate: target },
         });
       }
+      await prisma.payment.updateMany({
+        where: { scheduleStageId: id },
+        data: { dueDate: target },
+      });
     }
+
+    // 2. Quando a etapa vinculada atinge 100% / Concluída, atualiza automaticamente a sinalização
+    // da parcela como liberada para faturamento/cobrança.
+    const isCompletedNow = (data.completion !== undefined && data.completion >= 99) || updated.status === "COMPLETED";
+    if (isCompletedNow) {
+      // Libera parcelas pendentes para faturamento (READY_TO_BILL)
+      await prisma.projectInstallment.updateMany({
+        where: { linkedStageId: id, status: { in: ["PENDING", "AWAITING_COMPLETION"] } },
+        data: { status: "READY_TO_BILL" },
+      });
+      // Avança pagamentos que aguardavam conclusão de etapa para PENDING (faturável)
+      await prisma.payment.updateMany({
+        where: { scheduleStageId: id, status: "AWAITING_COMPLETION" },
+        data: { status: "PENDING" },
+      });
+    } else if (data.completion !== undefined && data.completion < 99) {
+      // Se a etapa for revertida e a parcela não foi paga, retorna para PENDING
+      await prisma.projectInstallment.updateMany({
+        where: { linkedStageId: id, status: "READY_TO_BILL" },
+        data: { status: "PENDING" },
+      });
+    }
+
     if (data.completion !== undefined && data.completion >= 99 && stage.completion < 99) {
       await notifyStageCompleted(updated.id).catch((error) =>
         console.error("[schedule] Falha ao notificar etapa concluída.", error),

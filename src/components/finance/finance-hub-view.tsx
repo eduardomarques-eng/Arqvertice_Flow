@@ -72,15 +72,18 @@ export function FinanceHubView({
     const paid = target
       .filter((i) => i.status === "PAID" || i.status === "Liquidado")
       .reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
+    const readyToBill = target
+      .filter((i) => i.status === "READY_TO_BILL")
+      .reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
     const pending = target
-      .filter((i) => i.status === "PENDING" || i.status === "Pendente")
+      .filter((i) => i.status === "PENDING" || i.status === "Pendente" || i.status === "READY_TO_BILL")
       .reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
     const overdue = target
       .filter((i) => i.status === "OVERDUE" || i.status === "Atrasado")
       .reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
 
     const pendingItems = target
-      .filter((i) => i.status === "PENDING" || i.status === "Pendente")
+      .filter((i) => i.status === "PENDING" || i.status === "Pendente" || i.status === "READY_TO_BILL")
       .toSorted((a, b) => {
         const timeA = parseDateSafe(a.dueDate)?.getTime() ?? 0;
         const timeB = parseDateSafe(b.dueDate)?.getTime() ?? 0;
@@ -89,7 +92,7 @@ export function FinanceHubView({
 
     const nextPayment = pendingItems[0] || null;
 
-    return { total, paid, pending, overdue, nextPayment };
+    return { total, paid, readyToBill, pending, overdue, nextPayment };
   }, [selectedProjectId, allInstallments, activeInstallments]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
@@ -249,6 +252,7 @@ export function FinanceHubView({
                   {allInstallments.map((inst) => {
                     const isPaid = inst.status === "PAID" || inst.status === "Liquidado";
                     const isOverdue = inst.status === "OVERDUE" || inst.status === "Atrasado";
+                    const isReadyToBill = inst.status === "READY_TO_BILL";
 
                     return (
                       <tr key={inst.id} className="hover:bg-slate-50/70 transition">
@@ -264,8 +268,8 @@ export function FinanceHubView({
                           {formatCurrencyBRL(inst.amount)}
                         </td>
                         <td className="py-3 px-2 text-center">
-                          <Badge tone={isPaid ? "green" : isOverdue ? "red" : "blue"}>
-                            {isPaid ? "Liquidado" : isOverdue ? "Atrasado" : "Pendente"}
+                          <Badge tone={isPaid ? "green" : isOverdue ? "red" : isReadyToBill ? "amber" : "blue"}>
+                            {isPaid ? "Liquidado" : isOverdue ? "Atrasado" : isReadyToBill ? "Liberado p/ Cobrança" : "Aguardando Etapa"}
                           </Badge>
                         </td>
                         <td className="py-3 pr-3 text-right">

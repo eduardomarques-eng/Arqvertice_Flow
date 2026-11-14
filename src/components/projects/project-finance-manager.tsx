@@ -249,6 +249,7 @@ export function ProjectFinanceManager({
                   dueObj.getTime() < new Date().setHours(0, 0, 0, 0));
 
               const isPaid = item.status === "PAID" || item.status === "Liquidado";
+              const isReadyToBill = item.status === "READY_TO_BILL";
 
               return (
                 <tr
@@ -269,6 +270,8 @@ export function ProjectFinanceManager({
                       className={
                         isOverdue
                           ? "text-rose-600 bg-rose-50/60 font-semibold px-1 py-0.5 rounded"
+                          : isReadyToBill
+                          ? "text-purple-700 bg-purple-50 font-semibold px-1 py-0.5 rounded"
                           : "text-zinc-600"
                       }
                     >
@@ -289,10 +292,12 @@ export function ProjectFinanceManager({
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                           : isOverdue
                           ? "bg-rose-100 text-rose-800 border border-rose-200"
-                          : "bg-amber-100 text-amber-800 border border-amber-200"
+                          : isReadyToBill
+                          ? "bg-purple-100 text-purple-800 border border-purple-200"
+                          : "bg-blue-100 text-blue-800 border border-blue-200"
                       } ${readOnly ? "cursor-default pointer-events-none" : "hover:opacity-85"}`}
                     >
-                      {isPaid ? "Pago" : isOverdue ? "Atrasado" : "Pendente"}
+                      {isPaid ? "Pago" : isOverdue ? "Atrasado" : isReadyToBill ? "Liberado p/ Cobrança" : "Aguardando Etapa"}
                     </button>
                   </td>
                   {!readOnly && (

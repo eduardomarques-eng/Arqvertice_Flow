@@ -11,8 +11,9 @@ import { getEffectivePermissions, type AppModule } from "@/lib/rbac";
 // Links completos do sistema para o Administrador (Painel Executivo)
 const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
   { label: "Painel Geral", href: "/admin", icon: "📊", module: "dashboard" },
+  { label: "Projetos", href: "/admin/projetos", icon: "📋", module: "projetos" },
   { label: "Cronograma & Operação", href: "/admin/cronograma", icon: "📅", module: "cronograma" },
-  { label: "Empreendimentos & Acervo", href: "/admin/projetos", icon: "📁", module: "projetos" },
+  { label: "Empreendimentos & Acervo", href: "/admin/acervo", icon: "📁", module: "projetos" },
   { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
   { label: "Equipe & Governança", href: "/admin/equipe", icon: "🛡️", module: "equipe" },
@@ -31,8 +32,9 @@ const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }>
  */
 const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
   { label: "Painel Técnico", href: "/equipe", icon: "🏗️", module: "dashboard" },
+  { label: "Projetos", href: "/equipe/projetos", icon: "📋", module: "projetos" },
   { label: "Cronograma & Operação", href: "/equipe/cronograma", icon: "📅", module: "cronograma" },
-  { label: "Empreendimentos & Acervo", href: "/equipe/projetos", icon: "📁", module: "projetos" },
+  { label: "Empreendimentos & Acervo", href: "/equipe/acervo", icon: "📁", module: "projetos" },
   { label: "Gestão Financeira", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
   { label: "Equipe & Governança", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },

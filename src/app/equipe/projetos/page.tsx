@@ -1,22 +1,14 @@
-import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/section-heading";
 import { SearchForm } from "@/components/search-form";
 import { requirePageTeamRole } from "@/server/auth";
 import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { listProjects } from "@/server/services/project-service";
+import { ProjectsExecutiveGrid, type ProjectCardData } from "@/components/projects/projects-executive-grid";
 
-export const metadata = { title: "Empreendimentos & Acervo — Equipe ArqVértice" };
+export const metadata = { title: "Projetos Ativos — Equipe ArqVértice" };
 export const dynamic = "force-dynamic";
-
-const STATUS_TONE: Record<string, "blue" | "green" | "amber" | "neutral"> = {
-  PLANNING: "amber",
-  IN_PROGRESS: "blue",
-  COMPLETED: "green",
-};
 
 export default async function EquipeProjectsPage({
   searchParams,
@@ -27,61 +19,55 @@ export default async function EquipeProjectsPage({
   await requireModuleAccess("projetos");
 
   const { q = "" } = await searchParams;
-  const projects = await listProjects(q);
+  const rawProjects = await listProjects(q);
+
+  const projects: ProjectCardData[] = rawProjects.map((p) => ({
+    id: p.id,
+    name: p.name,
+    type: p.type,
+    status: p.status,
+    startDate: p.startDate,
+    expectedEndDate: p.expectedEndDate,
+    client: {
+      name: p.client.name,
+      phone: p.client.phone,
+      email: p.client.email,
+    },
+    stages: (p.stages || []).map((s) => ({
+      id: s.id,
+      completion: s.completion,
+      status: s.status,
+      dueDate: s.dueDate,
+    })),
+    team: (p.access || []).map((a) => ({
+      id: a.user.id,
+      name: a.user.name,
+      role: a.user.role,
+    })),
+  }));
 
   return (
-    <AppShell eyebrow="Acervo Técnico" role={user.role}>
+    <AppShell eyebrow="Operação Técnica" role={user.role}>
       <SectionHeading
-        title="Empreendimentos & Acervo"
-        description="Portfólio de projetos do estúdio com consulta de ficha técnica e cronograma."
+        title="Projetos & Empreendimentos"
+        description="Gestão operacional dos projetos com acesso direto à ficha técnica, quadro Kanban e acervo técnico."
       />
 
-      <SearchForm action="/equipe/projetos" query={q} placeholder="Buscar por projeto ou cliente" />
+      <div className="mb-6">
+        <SearchForm action="/equipe/projetos" query={q} placeholder="Buscar por projeto ou cliente..." />
+      </div>
 
       {projects.length === 0 ? (
         <EmptyState
-          title={q ? `Nada encontrado para "${q}"` : "Nenhum projeto encontrado"}
+          title={q ? `Nada encontrado para "${q}"` : "Nenhum projeto atribuído"}
           description={
             q
-              ? "Tente outra palavra, ou limpe a busca para ver todos os projetos."
-              : "Os projetos disponíveis aparecerão aqui."
+              ? "Tente outra palavra ou limpe a busca para visualizar outros projetos."
+              : "Os projetos atribuídos à equipe técnica aparecerão aqui."
           }
         />
       ) : (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {projects.map((project) => (
-            <Card key={project.id} className="border-slate-200 bg-white/95">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <Link
-                    href={`/equipe/projetos/${project.id}`}
-                    className="font-bold text-slate-900 hover:text-blue-700 transition-colors"
-                  >
-                    {project.name}
-                  </Link>
-                  <p className="mt-1 text-sm text-slate-500">{project.type || "Sem tipo definido"}</p>
-                  <p className="mt-1 text-sm text-slate-500">Cliente: {project.client.name}</p>
-                </div>
-                <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status}</Badge>
-              </div>
-
-              <div className="mt-4 flex gap-4 text-xs">
-                <Link
-                  href={`/equipe/cronograma/${project.id}`}
-                  className="font-semibold text-blue-600 hover:text-blue-800"
-                >
-                  Abrir Kanban →
-                </Link>
-                <Link
-                  href={`/equipe/projetos/${project.id}`}
-                  className="font-semibold text-slate-600 hover:text-slate-900"
-                >
-                  Ficha técnica →
-                </Link>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <ProjectsExecutiveGrid projects={projects} basePath="/equipe" />
       )}
     </AppShell>
   );

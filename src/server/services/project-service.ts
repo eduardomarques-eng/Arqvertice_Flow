@@ -38,7 +38,26 @@ export async function listProjects(query?: string) {
           ],
         }
       : undefined,
-    include: { client: true, briefing: true },
+    include: {
+      client: true,
+      briefing: true,
+      stages: {
+        select: {
+          id: true,
+          completion: true,
+          status: true,
+          dueDate: true,
+          designer: true,
+        },
+      },
+      access: {
+        include: {
+          user: {
+            select: { id: true, name: true, role: true },
+          },
+        },
+      },
+    },
     orderBy: { updatedAt: "desc" },
   });
 }

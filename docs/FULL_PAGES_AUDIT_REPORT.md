@@ -1,9 +1,9 @@
 # Relatório de Auditoria Completa de Páginas — ArqVértice Flow
 
-- **Data/Hora:** 2026-11-14T03:54:45.906Z
+- **Data/Hora:** 2026-11-14T11:01:40.343Z
 - **Base URL:** `http://127.0.0.1:3000`
-- **Total de Rotas Verificadas:** 49
-- **Aprovadas:** 49
+- **Total de Rotas Verificadas:** 51
+- **Aprovadas:** 51
 - **Falhas:** 0
 
 | Perfil | Rota | HTTP Status | Esperado | Resultado | Observações |
@@ -19,6 +19,7 @@
 | ADMIN | `/admin` | **200** | 200 | PASS | OK |
 | ADMIN | `/admin/cronograma` | **200** | 200 | PASS | OK |
 | ADMIN | `/admin/projetos` | **200** | 200 | PASS | OK |
+| ADMIN | `/admin/acervo` | **200** | 200 | PASS | OK |
 | ADMIN | `/admin/projetos/8ed368d6-e601-4c67-98f3-db6bed920e0a` | **200** | 200 | PASS | OK |
 | ADMIN | `/admin/projetos/8ed368d6-e601-4c67-98f3-db6bed920e0a/cronograma` | **200** | 200 | PASS | OK |
 | ADMIN | `/admin/projetos/8ed368d6-e601-4c67-98f3-db6bed920e0a/relatorio` | **200** | 200 | PASS | OK |
@@ -37,6 +38,7 @@
 | ENGENHEIRO | `/equipe/cronograma/8ed368d6-e601-4c67-98f3-db6bed920e0a` | **200** | 200 | PASS | OK |
 | ENGENHEIRO | `/equipe/cronograma/2b2bdf4e-4e85-4762-b57d-ac0274c53bb5` | **200** | 200 | PASS | OK |
 | ENGENHEIRO | `/equipe/projetos` | **200** | 200 | PASS | OK |
+| ENGENHEIRO | `/equipe/acervo` | **200** | 200 | PASS | OK |
 | ENGENHEIRO | `/equipe/projetos/8ed368d6-e601-4c67-98f3-db6bed920e0a` | **200** | 200 | PASS | OK |
 | ENGENHEIRO | `/equipe/projetos/2b2bdf4e-4e85-4762-b57d-ac0274c53bb5` | **200** | 200 | PASS | OK |
 | ENGENHEIRO | `/equipe/projetos/8ed368d6-e601-4c67-98f3-db6bed920e0a/cronograma` | **200** | 200 | PASS | OK |

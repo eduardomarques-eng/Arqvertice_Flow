@@ -83,7 +83,7 @@ export const projectInstallmentSchema = z.object({
   amount: z.coerce.number().finite().nonnegative(),
   dueDate: z.coerce.date(),
   paidDate: optionalDate,
-  status: z.enum(["PENDING", "PAID", "OVERDUE"]).default("PENDING"),
+  status: z.enum(["PENDING", "PAID", "OVERDUE", "READY_TO_BILL"]).default("PENDING"),
   linkedStageId: uuid.optional().nullable(),
   order: z.number().int().positive(),
 });
