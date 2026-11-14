@@ -1,9 +1,17 @@
 import { chromium } from "playwright";
+import fs from "fs";
+import path from "path";
 
 async function runInspection() {
-  console.log("=== STARTING PLAYWRIGHT VISUAL INSPECTION ===");
+  console.log("=== STARTING FINAL PLAYWRIGHT VISUAL INSPECTION ===");
   const browser = await chromium.launch({ headless: true });
   const baseUrl = "https://arqvertice-flow.vercel.app";
+
+  const screenshotsDir = path.join(process.cwd(), "screenshots-final");
+  if (!fs.existsSync(screenshotsDir)) {
+    fs.mkdirSync(screenshotsDir, { recursive: true });
+  }
+
   const results = {
     wagner: {},
     eduardo: {},
@@ -12,31 +20,24 @@ async function runInspection() {
 
   try {
     // -------------------------------------------------------------
-    // 1. WAGNER SILVA INSPECTION
+    // 1. WAGNER SILVA INSPECTION (DESKTOP 1440x900)
     // -------------------------------------------------------------
     console.log("\n--- [1] Testing Wagner Silva on Desktop (1440x900) ---");
     const desktopContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
     });
     const page = await desktopContext.newPage();
 
-    const consoleMessages = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") {
-        consoleMessages.push(msg.text());
-      }
-    });
+    let pageErrors = [];
     page.on("pageerror", (err) => {
-      consoleMessages.push(`PAGEERROR: ${err.message}`);
+      console.log(`PAGEERROR: ${err.message}`);
+      pageErrors.push(err.message);
     });
 
-    // Go to /
     console.log("Navigating to / ...");
-    const homeRes = await page.goto(baseUrl, { waitUntil: "networkidle" });
-    console.log(`Root status: ${homeRes?.status()}`);
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
 
-    // Fill login
     console.log("Logging in as wagner.silva@arqvertice.com.br ...");
     await page.fill('input[type="email"]', "wagner.silva@arqvertice.com.br");
     await page.fill('input[type="password"]', "ArqVertice@2026");
@@ -44,102 +45,114 @@ async function runInspection() {
       page.waitForNavigation({ waitUntil: "networkidle" }).catch(() => {}),
       page.click('button[type="submit"]'),
     ]);
-
     await page.waitForTimeout(2000);
-    const afterLoginUrl = page.url();
-    console.log(`URL after login: ${afterLoginUrl}`);
+    console.log(`URL after login: ${page.url()}`);
 
-    // Check /equipe
-    console.log("Testing /equipe ...");
+    // /equipe
+    console.log("Validating /equipe ...");
+    pageErrors = [];
     const equipeRes = await page.goto(`${baseUrl}/equipe`, { waitUntil: "networkidle" });
-    const equipeStatus = equipeRes?.status();
     const equipeText = await page.evaluate(() => document.body.innerText);
-    const hasForbidden = equipeText.includes('"error":"Forbidden"') || equipeText.includes("Forbidden");
-    const isDarkBroken = await page.evaluate(() => {
-      const bg = window.getComputedStyle(document.body).backgroundColor;
-      return bg === "rgb(0, 0, 0)" && !document.querySelector(".bg-slate-50, #f5f5f7, .bg-\\[\\#f5f5f7\\]");
-    });
-    const sidebarCount = await page.locator("nav a").count();
+    const hasForbidden = equipeText.includes('"error":"Forbidden"') || equipeText.includes("Forbidden: Origem");
+    const sidebarCount = await page.locator("aside nav a, header nav a").count();
+    await page.screenshot({ path: path.join(screenshotsDir, "wagner-equipe-desktop.png") });
 
-    console.log(`/equipe status: ${equipeStatus}, hasForbidden: ${hasForbidden}, nav links count: ${sidebarCount}`);
     results.wagner["/equipe"] = {
-      status: equipeStatus,
+      status: equipeRes?.status(),
       hasForbidden,
       sidebarCount,
-      url: page.url(),
-      consoleErrors: [...consoleMessages]
+      pageErrors: [...pageErrors]
     };
+    console.log(`/equipe: status=${equipeRes?.status()}, forbidden=${hasForbidden}, sidebarLinks=${sidebarCount}`);
 
-    // Check /equipe/cronograma/8ed368d6-e601-4c67-98f3-db6bed920e0a
-    console.log("Testing /equipe/cronograma/8ed368d6-e601-4c67-98f3-db6bed920e0a ...");
-    consoleMessages.length = 0;
+    // /equipe/cronograma/8ed368d6-e601-4c67-98f3-db6bed920e0a
+    console.log("Validating /equipe/cronograma/8ed368d6-e601-4c67-98f3-db6bed920e0a ...");
+    pageErrors = [];
     const cronoRes = await page.goto(`${baseUrl}/equipe/cronograma/8ed368d6-e601-4c67-98f3-db6bed920e0a`, { waitUntil: "networkidle" });
-    const cronoStatus = cronoRes?.status();
+    await page.waitForTimeout(1500);
     const cronoText = await page.evaluate(() => document.body.innerText);
-    const cronoHasCrash = cronoText.includes("Application error") || cronoText.includes("Internal Server Error") || cronoStatus === 500;
-    console.log(`Cronograma status: ${cronoStatus}, crash: ${cronoHasCrash}, title: ${await page.title()}`);
+    const cronoCrash = cronoText.includes("Application error") || cronoText.includes("Internal Server Error") || pageErrors.length > 0;
+    const kanbanColumns = await page.locator("section h2").allInnerTexts();
+    await page.screenshot({ path: path.join(screenshotsDir, "wagner-kanban-desktop.png") });
+
     results.wagner["/equipe/cronograma/[id]"] = {
-      status: cronoStatus,
-      crash: cronoHasCrash,
-      consoleErrors: [...consoleMessages]
+      status: cronoRes?.status(),
+      crash: cronoCrash,
+      kanbanColumns,
+      pageErrors: [...pageErrors]
     };
+    console.log(`/equipe/cronograma/[id]: status=${cronoRes?.status()}, crash=${cronoCrash}, columns=${kanbanColumns.join(", ")}`);
 
-    // Check /equipe/projetos/2b2bdf4e-4e85-4762-b57d-ac0274c53bb5
-    console.log("Testing /equipe/projetos/2b2bdf4e-4e85-4762-b57d-ac0274c53bb5 ...");
-    consoleMessages.length = 0;
+    // /equipe/projetos/2b2bdf4e-4e85-4762-b57d-ac0274c53bb5
+    console.log("Validating /equipe/projetos/2b2bdf4e-4e85-4762-b57d-ac0274c53bb5 ...");
+    pageErrors = [];
     const projRes = await page.goto(`${baseUrl}/equipe/projetos/2b2bdf4e-4e85-4762-b57d-ac0274c53bb5`, { waitUntil: "networkidle" });
-    const projStatus = projRes?.status();
+    await page.waitForTimeout(1500);
     const projText = await page.evaluate(() => document.body.innerText);
-    const projHasCrash = projText.includes("Application error") || projText.includes("Internal Server Error") || projStatus === 500;
-    console.log(`Projetos [id] status: ${projStatus}, crash: ${projHasCrash}`);
-    results.wagner["/equipe/projetos/[id]"] = {
-      status: projStatus,
-      crash: projHasCrash,
-      consoleErrors: [...consoleMessages]
-    };
+    const projCrash = projText.includes("Application error") || projText.includes("Internal Server Error") || pageErrors.length > 0;
+    const projectTitle = await page.locator("h1, h2, span.truncate").first().innerText().catch(() => "");
+    await page.screenshot({ path: path.join(screenshotsDir, "wagner-ficha-tecnica-desktop.png") });
 
-    // Check /equipe/acervo
-    console.log("Testing /equipe/acervo ...");
-    consoleMessages.length = 0;
-    const acervoRes = await page.goto(`${baseUrl}/equipe/acervo`, { waitUntil: "networkidle" });
-    const acervoStatus = acervoRes?.status();
-    const acervoText = await page.evaluate(() => document.body.innerText);
-    console.log(`/equipe/acervo status: ${acervoStatus}`);
-    results.wagner["/equipe/acervo"] = {
-      status: acervoStatus,
-      contentSample: acervoText.slice(0, 200),
-      consoleErrors: [...consoleMessages]
+    results.wagner["/equipe/projetos/[id]"] = {
+      status: projRes?.status(),
+      crash: projCrash,
+      projectTitle,
+      pageErrors: [...pageErrors]
     };
+    console.log(`/equipe/projetos/[id]: status=${projRes?.status()}, crash=${projCrash}, title=${projectTitle}`);
+
+    // /equipe/acervo
+    console.log("Validating /equipe/acervo ...");
+    pageErrors = [];
+    const acervoRes = await page.goto(`${baseUrl}/equipe/acervo`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1000);
+    const acervoText = await page.evaluate(() => document.body.innerText);
+    const acervoHasHeading = acervoText.includes("Acervo") || acervoText.includes("Plantas") || acervoText.includes("Disciplinas");
+    await page.screenshot({ path: path.join(screenshotsDir, "wagner-acervo-desktop.png") });
+
+    results.wagner["/equipe/acervo"] = {
+      status: acervoRes?.status(),
+      hasHeading: acervoHasHeading,
+      pageErrors: [...pageErrors]
+    };
+    console.log(`/equipe/acervo: status=${acervoRes?.status()}, hasHeading=${acervoHasHeading}`);
 
     // -------------------------------------------------------------
-    // Mobile Viewport (375x812) for Wagner Silva
+    // WAGNER SILVA MOBILE (375x812)
     // -------------------------------------------------------------
     console.log("\n--- [2] Testing Wagner Silva on Mobile (375x812) ---");
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(`${baseUrl}/equipe`, { waitUntil: "networkidle" });
-    const overflowX = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-    console.log(`Mobile /equipe overflowX: ${overflowX}`);
-    results.wagner["mobile_overflow"] = overflowX;
+    const overflowEquipe = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    await page.screenshot({ path: path.join(screenshotsDir, "wagner-equipe-mobile.png") });
+
+    await page.goto(`${baseUrl}/equipe/cronograma/8ed368d6-e601-4c67-98f3-db6bed920e0a`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1000);
+    const overflowKanban = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    await page.screenshot({ path: path.join(screenshotsDir, "wagner-kanban-mobile.png") });
+
+    results.wagner["mobile"] = {
+      overflowEquipe,
+      overflowKanban
+    };
+    console.log(`Mobile: overflowEquipe=${overflowEquipe}, overflowKanban=${overflowKanban}`);
 
     await desktopContext.close();
 
     // -------------------------------------------------------------
-    // 2. EDUARDO MARQUES INSPECTION
+    // 2. EDUARDO MARQUES (ADMIN) INSPECTION (1440x900)
     // -------------------------------------------------------------
     console.log("\n--- [3] Testing Eduardo Marques on Desktop (1440x900) ---");
     const adminContext = await browser.newContext({
       viewport: { width: 1440, height: 900 }
     });
     const adminPage = await adminContext.newPage();
-    const adminConsoleErrors = [];
-    adminPage.on("console", (msg) => {
-      if (msg.type() === "error") adminConsoleErrors.push(msg.text());
-    });
+    let adminErrors = [];
     adminPage.on("pageerror", (err) => {
-      adminConsoleErrors.push(`PAGEERROR: ${err.message}`);
+      console.log(`ADMIN PAGEERROR: ${err.message}`);
+      adminErrors.push(err.message);
     });
 
-    console.log("Navigating to / for Eduardo Marques ...");
     await adminPage.goto(baseUrl, { waitUntil: "networkidle" });
     await adminPage.fill('input[type="email"]', "eduardo.marques.arq@gmail.com");
     await adminPage.fill('input[type="password"]', "ArqVertice@2026");
@@ -150,30 +163,46 @@ async function runInspection() {
     await adminPage.waitForTimeout(2000);
     console.log(`Admin URL after login: ${adminPage.url()}`);
 
-    // Check /admin
-    console.log("Testing /admin ...");
+    // /admin
+    console.log("Validating /admin ...");
+    adminErrors = [];
     const adminRes = await adminPage.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
-    const adminStatus = adminRes?.status();
     const adminText = await adminPage.evaluate(() => document.body.innerText);
-    const isExecutiveDashboard = adminText.includes("Visão Executiva") || adminText.includes("Receita") || adminText.includes("Projetos Ativos") || adminText.includes("Operação");
-    console.log(`/admin status: ${adminStatus}, isExecutive: ${isExecutiveDashboard}`);
-    results.eduardo["/admin"] = {
-      status: adminStatus,
-      isExecutiveDashboard,
-      url: adminPage.url()
-    };
+    const isExecutive = adminText.includes("Visão Geral") || adminText.includes("Receita") || adminText.includes("Projetos") || adminText.includes("Painel");
+    await adminPage.screenshot({ path: path.join(screenshotsDir, "eduardo-admin-desktop.png") });
 
-    // Check /admin/equipe
-    console.log("Testing /admin/equipe ...");
-    const equipeAdminRes = await adminPage.goto(`${baseUrl}/admin/equipe`, { waitUntil: "networkidle" });
-    const equipeAdminStatus = equipeAdminRes?.status();
-    const togglesCount = await adminPage.locator('button[role="switch"], input[type="checkbox"], button:has-text("Ativar"), button:has-text("Desativar"), [data-state]').count();
-    console.log(`/admin/equipe status: ${equipeAdminStatus}, toggles count: ${togglesCount}`);
-    results.eduardo["/admin/equipe"] = {
-      status: equipeAdminStatus,
-      togglesCount,
-      url: adminPage.url()
+    results.eduardo["/admin"] = {
+      status: adminRes?.status(),
+      isExecutive,
+      adminErrors: [...adminErrors]
     };
+    console.log(`/admin: status=${adminRes?.status()}, isExecutive=${isExecutive}`);
+
+    // /admin/equipe
+    console.log("Validating /admin/equipe & module toggles ...");
+    adminErrors = [];
+    const equipeAdminRes = await adminPage.goto(`${baseUrl}/admin/equipe`, { waitUntil: "networkidle" });
+    await adminPage.waitForTimeout(1500);
+
+    // Click "Editar" on first team member to open permission toggles
+    const editButton = adminPage.locator('button:has-text("Editar"), button:has-text("Editar Colaborador")').first();
+    const hasEditButton = await editButton.isVisible();
+    let permissionCheckboxesCount = 0;
+    if (hasEditButton) {
+      await editButton.click();
+      await adminPage.waitForTimeout(1000);
+      permissionCheckboxesCount = await adminPage.locator('input[type="checkbox"]').count();
+      console.log(`Permission checkboxes in modal: ${permissionCheckboxesCount}`);
+    }
+    await adminPage.screenshot({ path: path.join(screenshotsDir, "eduardo-admin-equipe-toggles.png") });
+
+    results.eduardo["/admin/equipe"] = {
+      status: equipeAdminRes?.status(),
+      hasEditButton,
+      permissionCheckboxesCount,
+      adminErrors: [...adminErrors]
+    };
+    console.log(`/admin/equipe: status=${equipeAdminRes?.status()}, editBtn=${hasEditButton}, toggles=${permissionCheckboxesCount}`);
 
     await adminContext.close();
 
@@ -184,7 +213,7 @@ async function runInspection() {
     await browser.close();
   }
 
-  console.log("\n=== INSPECTION COMPLETED ===");
+  console.log("\n=== FINAL INSPECTION COMPLETED ===");
   console.log(JSON.stringify(results, null, 2));
 }
 
