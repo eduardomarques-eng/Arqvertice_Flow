@@ -12,7 +12,11 @@ export function Card({
   onClick?: () => void;
 }) {
   return (
-    <section id={id} onClick={onClick} className={`surface rounded-2xl p-5 ${className}`}>
+    <section
+      id={id}
+      onClick={onClick}
+      className={`surface rounded-2xl border border-slate-200/60 bg-white p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] ${className}`}
+    >
       {children}
     </section>
   );
