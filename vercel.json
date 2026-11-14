@@ -1,39 +1,13 @@
-﻿{
+{
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
   "crons": [
     {
       "path": "/api/cron/process-events",
-      "method": "GET",
       "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/housekeeping",
-      "method": "GET",
       "schedule": "0 2 * * *"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*))",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
-      ]
-    },
-    {
-      "source": "/api/(.*))",
-      "headers": [{ "key": "Cache-Control", "value": "no-store, max-age=0" }]
-    },
-    {
-      "source": "/(app|painel-cliente|api-cliente).js",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
-    },
-    {
-      "source": "/styles.css",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     }
   ]
 }

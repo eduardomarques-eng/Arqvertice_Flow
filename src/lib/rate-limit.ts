@@ -1,5 +1,5 @@
-﻿﻿import { createHash } from "node:crypto";
-import { LRUCache } from "./lru-cache.js";
+﻿import { createHash } from "node:crypto";
+import { LRUCache } from "./lru-cache";
 
 export type RateLimitResult = {
   ok: boolean;
