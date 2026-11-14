@@ -6,6 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateBR } from "@/lib/formatters";
+import dynamic from "next/dynamic";
+
+const CdeOnlineViewerModal = dynamic(
+  () =>
+    import("@/components/acervo/cde-online-viewer-modal").then(
+      (mod) => mod.CdeOnlineViewerModal
+    ),
+  { ssr: false }
+);
 
 export interface ProjectDetailData {
   id: string;
@@ -69,6 +78,10 @@ export function AcervoProjectDetailView({
     isOpen: false,
   });
   const [auditReason, setAuditReason] = useState("");
+  const [viewerModalState, setViewerModalState] = useState<{
+    isOpen: boolean;
+    revId?: string;
+  }>({ isOpen: false });
 
   const currentDoc = project.documents.find((d) => d.id === selectedDocId);
 
@@ -267,6 +280,17 @@ export function AcervoProjectDetailView({
                           <div className="flex items-center gap-2">
                             {getStatusBadge(rev.status)}
                             <button
+                              onClick={() =>
+                                setViewerModalState({
+                                  isOpen: true,
+                                  revId: rev.id,
+                                })
+                              }
+                              className="rounded-lg bg-[#18181B] px-2.5 py-1 text-xs font-medium text-white shadow-sm hover:bg-[#27272A] transition"
+                            >
+                              Visualizador & RFI
+                            </button>
+                            <button
                               onClick={() => handleDownloadClick(rev)}
                               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50 transition"
                             >
@@ -412,6 +436,41 @@ export function AcervoProjectDetailView({
             </div>
           </div>
         </div>
+      )}
+      {/* Modal Visualizador Online Fullscreen CDE & RFIs */}
+      {viewerModalState.isOpen && currentDoc && (
+        <CdeOnlineViewerModal
+          isOpen={viewerModalState.isOpen}
+          onClose={() => setViewerModalState({ isOpen: false })}
+          revision={{
+            id: viewerModalState.revId || currentDoc.revisions[0]?.id || "",
+            revisionNumber:
+              currentDoc.revisions.find((r) => r.id === viewerModalState.revId)
+                ?.revisionNumber || "R00",
+            fileName:
+              currentDoc.revisions.find((r) => r.id === viewerModalState.revId)
+                ?.fileName || `${currentDoc.code}.pdf`,
+            fileUrl:
+              currentDoc.revisions.find((r) => r.id === viewerModalState.revId)
+                ?.fileUrl || "#",
+            fileType: "PDF",
+            documentTitle: currentDoc.title,
+            documentCode: currentDoc.code,
+            discipline: currentDoc.discipline,
+            status:
+              currentDoc.revisions.find((r) => r.id === viewerModalState.revId)
+                ?.status || "EM_ELABORACAO",
+            allRevisions: currentDoc.revisions.map((r) => ({
+              id: r.id,
+              revisionNumber: r.revisionNumber,
+              fileName: r.fileName,
+              status: r.status,
+            })),
+          }}
+          onSwitchRevision={(revId) =>
+            setViewerModalState({ isOpen: true, revId })
+          }
+        />
       )}
     </div>
   );
