@@ -405,6 +405,8 @@ model Project {
   acervoGrds                AcervoGrd[]
   acervoDisciplinePermissions AcervoDisciplinePermission[]
   acervoApiTokens           AcervoApiToken[]
+  acervoFolders             AcervoFolder[]
+  acervoWorkflowConfigs     AcervoWorkflowConfig[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -1265,9 +1267,13 @@ model StudioSetting {
 // ==========================================
 
 enum AcervoWorkflowStatus {
+  EM_ANALISE
   EM_ELABORACAO
   EM_REVISAO_TECNICA
+  APROVADO_OBRA
+  APROVADO_RESSALVAS
   APROVADO_COM_RESSALVAS
+  REPROVADO
   BOM_PARA_OBRA
   OBSOLETO
 }
@@ -1299,6 +1305,39 @@ enum AcervoMarkupType {
   DIMENSION
 }
 
+model AcervoFolder {
+  id          String            @id @default(uuid()) @db.Uuid
+  projectId   String            @db.Uuid
+  name        String
+  phase       ProjectStagePhase @default(PROJETO_EXECUTIVO)
+  discipline  ProjectDiscipline @default(ARQUITETURA)
+  parentId    String?           @db.Uuid
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent      AcervoFolder?     @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    AcervoFolder[]    @relation("FolderHierarchy")
+  documents   AcervoDocument[]
+
+  @@index([projectId, phase, discipline])
+}
+
+model AcervoWorkflowConfig {
+  id             String            @id @default(uuid()) @db.Uuid
+  projectId      String            @db.Uuid
+  stageName      String            // Ex: "Validação da Coordenação"
+  slaHours       Int               @default(48) // SLA em horas
+  orderIndex     Int               @default(1)
+  isParallel     Boolean           @default(false)
+  responsibleRole String           @default("ENGENHEIRO")
+  createdAt      DateTime          @default(now())
+
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, orderIndex])
+}
+
 model AcervoNamingRule {
   id          String             @id @default(uuid()) @db.Uuid
   projectId   String?            @db.Uuid
@@ -1319,6 +1358,7 @@ model AcervoNamingRule {
 model AcervoDocument {
   id                String            @id @default(uuid()) @db.Uuid
   projectId         String            @db.Uuid
+  folderId          String?           @db.Uuid
   code              String            // Ex: ARQ-PE-001
   title             String
   discipline        ProjectDiscipline
@@ -1330,12 +1370,14 @@ model AcervoDocument {
   updatedAt         DateTime          @updatedAt
 
   project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder            AcervoFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
   revisions         AcervoRevision[]
   rfis              AcervoRfiMarkup[]
 
   @@unique([projectId, code])
   @@index([projectId, discipline])
   @@index([projectId, phase])
+  @@index([folderId])
 }
 
 model AcervoRevision {
@@ -1358,6 +1400,12 @@ model AcervoRevision {
   viewKey            String?
   viewFileName       String?
   viewFileType       AcervoFileType?
+
+  // Rastreabilidade e Carimbo Digital
+  qrVerificationToken String?            @unique
+  digitalStampHash    String?
+  approvedForWorkAt   DateTime?
+  approvedForWorkById String?            @db.Uuid
 
   description        String?
   extractedMetadata  Json?                // Selos, carimbos, áreas, esquadrias
