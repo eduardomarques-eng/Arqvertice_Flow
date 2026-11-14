@@ -137,3 +137,8 @@ function cryptoRandom(len: number): string {
   for (let i = 0; i < len; i++) out += chars[buf[i] % chars.length];
   return out;
 }
+
+
+export async function exportCadastral(userId: string) {
+  return handleDataSubjectRight({ userId, action: "portability" as any });
+}

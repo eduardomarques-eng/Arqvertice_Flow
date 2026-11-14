@@ -1,4 +1,4 @@
-﻿import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import {
   buildSecurityHeaders,
   createSecurityNonce,
@@ -109,6 +109,8 @@ export function middleware(request: NextRequest) {
     response.headers.set(name, value);
   }
   return response;
+
+}
 
 export const config = {
   /**
