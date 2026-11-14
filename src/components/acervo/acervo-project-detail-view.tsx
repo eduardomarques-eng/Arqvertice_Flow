@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateBR } from "@/lib/formatters";
 import dynamic from "next/dynamic";
+import { CadBimIntegrationTab } from "@/components/acervo/cad-bim-integration-tab";
 
 const CdeOnlineViewerModal = dynamic(
   () =>
@@ -71,7 +72,7 @@ export function AcervoProjectDetailView({
   basePath: "/admin" | "/equipe";
   userRole: string;
 }) {
-  const [activeTab, setActiveTab] = useState<"DOCS" | "GRD" | "REGRAS">("DOCS");
+  const [activeTab, setActiveTab] = useState<"DOCS" | "GRD" | "REGRAS" | "INTEGRACOES">("DOCS");
   const [selectedDocId, setSelectedDocId] = useState<string>(project.documents[0]?.id || "");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [auditReasonModal, setAuditReasonModal] = useState<{ isOpen: boolean; revisionId?: string; fileUrl?: string }>({
@@ -193,6 +194,14 @@ export function AcervoProjectDetailView({
             }`}
           >
             Máscara CDE
+          </button>
+          <button
+            onClick={() => setActiveTab("INTEGRACOES")}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              activeTab === "INTEGRACOES" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Integrações CAD/BIM
           </button>
         </div>
       </div>
@@ -392,6 +401,10 @@ export function AcervoProjectDetailView({
             </p>
           </div>
         </Card>
+      )}
+
+      {activeTab === "INTEGRACOES" && (
+        <CadBimIntegrationTab projectId={project.id} userRole={userRole} />
       )}
 
       {/* Modal Justificativa para Download de Obsoleto (Apenas ADMIN) */}
