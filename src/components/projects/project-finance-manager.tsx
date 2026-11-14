@@ -467,4 +467,6 @@ export function ProjectFinanceManager({
           </form>
         </div>
       ) : null}
-    </secti
+    </section>
+  );
+}
