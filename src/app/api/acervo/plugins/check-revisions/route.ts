@@ -17,18 +17,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const projectId = (body.projectId as string | undefined) || auth.ctx.tokenProjectId;
-    const codes = Array.isArray(body.codes) ? (body.codes as string[]) : [];
+
+    // Aceita tanto codes: string[] quanto sheets: Array<{ code: string } | string>
+    let rawCodes: string[] = [];
+    if (Array.isArray(body.codes)) {
+      rawCodes = body.codes.map((c: unknown) => String(c || ""));
+    } else if (Array.isArray(body.sheets)) {
+      rawCodes = body.sheets.map((s: unknown) => {
+        if (typeof s === "string") return s;
+        if (s && typeof s === "object" && "code" in s) return String((s as { code: unknown }).code || "");
+        return "";
+      });
+    }
 
     if (!projectId) {
       return NextResponse.json({ error: "projectId obrigatório." }, { status: 400 });
     }
-    if (codes.length === 0) {
-      return NextResponse.json({ success: true, items: [] });
-    }
 
-    const normalizedCodes = codes.map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+    const normalizedCodes = Array.from(
+      new Set(rawCodes.map((c) => c.trim().toUpperCase()).filter(Boolean))
+    );
+
+    if (normalizedCodes.length === 0) {
+      return NextResponse.json({ success: true, projectId, items: [] });
+    }
 
     const existingDocs = await prisma.acervoDocument.findMany({
       where: {

@@ -9,19 +9,31 @@ export interface PluginAuthContext {
   userRole: string;
   tokenProjectId: string | null;
   tokenName: string;
+  pluginName?: string;
+  softwareVersion?: string;
 }
 
 export async function authenticatePluginRequest(
   request: Request
 ): Promise<{ ok: true; ctx: PluginAuthContext } | { ok: false; status: number; error: string }> {
   const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { ok: false, status: 401, error: "Autenticação requerida via Bearer Token." };
+  const pluginName = request.headers.get("x-plugin-name") || undefined;
+  const softwareVersion = request.headers.get("x-software-version") || undefined;
+
+  let token = "";
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.replace("Bearer ", "").trim();
+  } else {
+    // Permite token opcional via query string ?token=... para integrações legadas
+    const url = new URL(request.url);
+    const queryToken = url.searchParams.get("token");
+    if (queryToken) {
+      token = queryToken.trim();
+    }
   }
 
-  const token = authHeader.replace("Bearer ", "").trim();
   if (!token) {
-    return { ok: false, status: 401, error: "Token vazio." };
+    return { ok: false, status: 401, error: "Autenticação requerida via Bearer Token." };
   }
 
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
@@ -53,6 +65,8 @@ export async function authenticatePluginRequest(
       userRole: apiToken.createdBy?.role || "EQUIPE",
       tokenProjectId: apiToken.projectId,
       tokenName: apiToken.name,
+      pluginName,
+      softwareVersion,
     },
   };
 }
@@ -104,17 +118,20 @@ export async function getAllowedProjectsAndDisciplines(
       id: true,
       name: true,
       status: true,
+      acervoFolders: {
+        select: {
+          id: true,
+          name: true,
+          phase: true,
+          discipline: true,
+          parentId: true,
+        },
+        orderBy: [{ phase: "asc" }, { name: "asc" }],
+      },
     },
     orderBy: { updatedAt: "desc" },
     take: 50,
   });
-
-  const folderCounts = await prisma.acervoFolder.groupBy({
-    by: ["projectId"],
-    where: { projectId: { in: projects.map((p) => p.id) } },
-    _count: { _all: true },
-  });
-  const countMap = new Map(folderCounts.map((f) => [f.projectId, f._count._all]));
 
   const allDisciplines: ProjectDiscipline[] = [
     "ARQUITETURA",
@@ -137,7 +154,8 @@ export async function getAllowedProjectsAndDisciplines(
       id: p.id,
       name: p.name,
       status: p.status,
-      foldersCount: countMap.get(p.id) || 0,
+      foldersCount: p.acervoFolders.length,
+      folders: p.acervoFolders,
       writableDisciplines: disciplines,
     };
   });

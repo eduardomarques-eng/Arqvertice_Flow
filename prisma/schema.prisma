@@ -148,46 +148,46 @@ enum ProposalStatus {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
-  passwordHash String
-  name         String
-  role         UserRole  @default(CLIENTE)
-  phone        String?
-  whatsapp     String?    @db.VarChar(255)
-  specialty    String?    @db.VarChar(100)
-  professionalReg String? @db.VarChar(80)
-  isActive     Boolean   @default(true)
-  permissions          String[]          @default([])
-  sessionVersion       Int               @default(1)
-  permissionsUpdatedAt DateTime          @default(now())
+  id                   String    @id @default(uuid()) @db.Uuid
+  email                String    @unique
+  passwordHash         String
+  name                 String
+  role                 UserRole  @default(CLIENTE)
+  phone                String?
+  whatsapp             String?   @db.VarChar(255)
+  specialty            String?   @db.VarChar(100)
+  professionalReg      String?   @db.VarChar(80)
+  isActive             Boolean   @default(true)
+  permissions          String[]  @default([])
+  sessionVersion       Int       @default(1)
+  permissionsUpdatedAt DateTime  @default(now())
   lastSeenAt           DateTime?
 
   // LGPD — consentimento do titular. Registado no momento do cadastro/registo.
-  consentAcceptedAt  DateTime?
+  consentAcceptedAt    DateTime?
   privacyPolicyVersion Int?
 
-  clientId     String?   @db.Uuid
-  client       Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  sessions     Session[]
-  auditLogs    AuditLog[]
-  accessLogs   UserAccessLog[]
-  sentInternalMessages     InternalMessage[] @relation("SentInternalMessages")
-  receivedInternalMessages InternalMessage[] @relation("ReceivedInternalMessages")
-  proposalVersions ProposalVersion[]
-  projectAccess ProjectAccess[]
-  passwordResetTokens PasswordResetToken[]
+  clientId                 String?              @db.Uuid
+  client                   Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sessions                 Session[]
+  auditLogs                AuditLog[]
+  accessLogs               UserAccessLog[]
+  sentInternalMessages     InternalMessage[]    @relation("SentInternalMessages")
+  receivedInternalMessages InternalMessage[]    @relation("ReceivedInternalMessages")
+  proposalVersions         ProposalVersion[]
+  projectAccess            ProjectAccess[]
+  passwordResetTokens      PasswordResetToken[]
 
   // Acervo Manager CDE
-  acervoRevisionsUploaded   AcervoRevision[]            @relation("AcervoRevisionsUploaded")
-  acervoWorkflowLogs        AcervoWorkflowLog[]
+  acervoRevisionsUploaded     AcervoRevision[]             @relation("AcervoRevisionsUploaded")
+  acervoWorkflowLogs          AcervoWorkflowLog[]
   acervoDisciplinePermissions AcervoDisciplinePermission[]
-  acervoGrdsCreated         AcervoGrd[]                 @relation("AcervoGrdsCreated")
-  acervoRfiCreated          AcervoRfiMarkup[]           @relation("AcervoRfiCreated")
-  acervoRfiAssigned         AcervoRfiMarkup[]           @relation("AcervoRfiAssigned")
-  acervoApiTokensCreated    AcervoApiToken[]            @relation("AcervoApiTokensCreated")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  acervoGrdsCreated           AcervoGrd[]                  @relation("AcervoGrdsCreated")
+  acervoRfiCreated            AcervoRfiMarkup[]            @relation("AcervoRfiCreated")
+  acervoRfiAssigned           AcervoRfiMarkup[]            @relation("AcervoRfiAssigned")
+  acervoApiTokensCreated      AcervoApiToken[]             @relation("AcervoApiTokensCreated")
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
 
   @@index([clientId])
   @@index([role])
@@ -225,7 +225,7 @@ model UserAccessLog {
   deviceInfo String?
   createdAt  DateTime        @default(now())
 
-  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
@@ -278,8 +278,8 @@ model InternalMessage {
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
 
-  sender     User     @relation("SentInternalMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver   User     @relation("ReceivedInternalMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender   User @relation("SentInternalMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedInternalMessages", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@index([senderId, receiverId])
   @@index([receiverId, isRead])
@@ -288,7 +288,6 @@ model InternalMessage {
 
 /**
  * RecuperaÃ§Ã£o de senha: link de uso Ãºnico, com expiraÃ§Ã£o.
- *
  * Guarda-se apenas o SHA-256 do token â€” o valor em claro sÃ³ existe no e-mail.
  * `usedAt` permite invalidar o token depois de consumir e cortar sessÃµes
  * antigas quando a senha muda.
@@ -308,12 +307,11 @@ model PasswordResetToken {
 
 /**
  * TÃ³pico 36 â€” trilha de auditoria das aÃ§Ãµes crÃ­ticas.
- *
  * `metadata` sozinho obrigava a abrir um blob para responder "quem/quando/qual
  * versÃ£o". Estas colunas tornaram a consulta direta e indexada:
- *   actorId + action + occurredAt  â†’ quem fez, o quÃª e quando
- *   entityVersion                  â†’ qual versÃ£o foi afetada
- *   fromStatus / toStatus          â†’ estado anterior e posterior
+ * actorId + action + occurredAt  â†’ quem fez, o quÃª e quando
+ * entityVersion                  â†’ qual versÃ£o foi afetada
+ * fromStatus / toStatus          â†’ estado anterior e posterior
  */
 model AuditLog {
   id            String   @id @default(uuid()) @db.Uuid
@@ -346,88 +344,87 @@ model AuditLog {
   @@index([entityVersion])
 }
 
-
 model Client {
-  id          String       @id @default(uuid()) @db.Uuid
-  name        String
-  fullName    String?
-  email       String?
-  phone       String?
-  document    String?
-  cpf         String?
-  rg          String?
-  address     Json?
-  city        String?
-  state       String?
-  notes       String?
-  status      ClientStatus @default(ACTIVE)
-  projects    Project[]
-  users       User[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String
+  fullName  String?
+  email     String?
+  phone     String?
+  document  String?
+  cpf       String?
+  rg        String?
+  address   Json?
+  city      String?
+  state     String?
+  notes     String?
+  status    ClientStatus @default(ACTIVE)
+  projects  Project[]
+  users     User[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@index([email])
 }
 
 model Project {
-  id             String          @id @default(uuid()) @db.Uuid
-  clientId       String          @db.Uuid
-  name           String
-  type           String?
-  description    String?
-  scope          String?
-  budget         Decimal?        @db.Decimal(12, 2)
-  totalValue     Float?          @default(0)
-  startDate      DateTime?
-  expectedEndDate DateTime?
-  status         ProjectStatus   @default(PLANNING)
-  address        Json?
-  notes          String?
-  version        Int             @default(1)
-  client         Client          @relation(fields: [clientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  stages         ScheduleStage[]
-  payments       Payment[]
-  briefing       Briefing?
-  reports        ProjectReport[]
-  access         ProjectAccess[]
-  documents      ProjectDocument[]
-  proposals      Proposal[]
-  installments   ProjectInstallment[]
-  deliverables   ProjectDeliverable[]
-  folders        ProjectFolder[]
-  environments   ProjectEnvironment[]
-  checklists     ChecklistItem[]
+  id                    String                 @id @default(uuid()) @db.Uuid
+  clientId              String                 @db.Uuid
+  name                  String
+  type                  String?
+  description           String?
+  scope                 String?
+  budget                Decimal?               @db.Decimal(12, 2)
+  totalValue            Float?                 @default(0)
+  startDate             DateTime?
+  expectedEndDate       DateTime?
+  status                ProjectStatus          @default(PLANNING)
+  address               Json?
+  notes                 String?
+  version               Int                    @default(1)
+  client                Client                 @relation(fields: [clientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stages                ScheduleStage[]
+  payments              Payment[]
+  briefing              Briefing?
+  reports               ProjectReport[]
+  access                ProjectAccess[]
+  documents             ProjectDocument[]
+  proposals             Proposal[]
+  installments          ProjectInstallment[]
+  deliverables          ProjectDeliverable[]
+  folders               ProjectFolder[]
+  environments          ProjectEnvironment[]
+  checklists            ChecklistItem[]
   deliverableAccessLogs DeliverableAccessLog[]
 
   // Acervo Manager CDE
-  acervoDocuments           AcervoDocument[]
-  acervoNamingRules         AcervoNamingRule[]
-  acervoGrds                AcervoGrd[]
+  acervoDocuments             AcervoDocument[]
+  acervoNamingRules           AcervoNamingRule[]
+  acervoGrds                  AcervoGrd[]
   acervoDisciplinePermissions AcervoDisciplinePermission[]
-  acervoApiTokens           AcervoApiToken[]
-  acervoFolders             AcervoFolder[]
-  acervoWorkflowConfigs     AcervoWorkflowConfig[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  acervoApiTokens             AcervoApiToken[]
+  acervoFolders               AcervoFolder[]
+  acervoWorkflowConfigs       AcervoWorkflowConfig[]
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
 
   @@index([clientId])
   @@index([status])
 }
 
 model ProjectInstallment {
-  id            String   @id @default(uuid()) @db.Uuid
-  projectId     String   @db.Uuid
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id            String    @id @default(uuid()) @db.Uuid
+  projectId     String    @db.Uuid
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   description   String
   amount        Float
   dueDate       DateTime
   paidDate      DateTime?
-  status        String   @default("PENDING")
-  linkedStageId String?  @db.Uuid
-  order         Int      @default(1)
-  version       Int      @default(1)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  status        String    @default("PENDING")
+  linkedStageId String?   @db.Uuid
+  order         Int       @default(1)
+  version       Int       @default(1)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([projectId])
   @@index([linkedStageId])
@@ -447,46 +444,46 @@ model ProjectAccess {
 }
 
 model ProjectDocument {
-  id           String            @id @default(uuid()) @db.Uuid
-  projectId    String            @db.Uuid
-  name         String
-  storageUrl   String
-  mimeType     String?
-  sizeBytes    BigInt?
-  visibility   DocumentVisibility @default(INTERNAL)
-  status       DocumentStatus    @default(ACTIVE)
-  releasedAt   DateTime?
-  archivedAt   DateTime?
+  id                 String              @id @default(uuid()) @db.Uuid
+  projectId          String              @db.Uuid
+  name               String
+  storageUrl         String
+  mimeType           String?
+  sizeBytes          BigInt?
+  visibility         DocumentVisibility  @default(INTERNAL)
+  status             DocumentStatus      @default(ACTIVE)
+  releasedAt         DateTime?
+  archivedAt         DateTime?
   // TÃ³pico 39: liga o arquivo Ã  entidade comercial que o originou.
-  source       DocumentSource    @default(UPLOAD)
-  proposalId   String?           @db.Uuid
-  contractId   String?           @db.Uuid
+  source             DocumentSource      @default(UPLOAD)
+  proposalId         String?             @db.Uuid
+  contractId         String?             @db.Uuid
   // TÃ³pico 4A: quando o ficheiro Ã© uma referÃªncia do briefing, liga-se a ela.
   briefingReferences BriefingReference[]
   // TÃ³pico 39: impede reenvio do mesmo artefato comercial. A chave Ã© estÃ¡vel
   // por construÃ§Ã£o (ex.: "proposta:v3", "contrato:assinatura"), entÃ£o
   // reexecutar a automaÃ§Ã£o nÃ£o duplica o documento.
-  sourceKey    String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  project      Project           @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  proposal     Proposal?         @relation(fields: [proposalId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  contract     Contract?         @relation(fields: [contractId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sourceKey          String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  proposal           Proposal?           @relation(fields: [proposalId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  contract           Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  @@index([projectId, visibility, status])
   @@unique([sourceKey])
+  @@index([projectId, visibility, status])
   @@index([source])
 }
 
 model ProjectDeliverable {
-  id            String              @id @default(uuid()) @db.Uuid
-  projectId     String              @db.Uuid
-  folderId      String?             @db.Uuid
-  environmentId String?             @db.Uuid
-  stageId       String?             @db.Uuid
+  id            String            @id @default(uuid()) @db.Uuid
+  projectId     String            @db.Uuid
+  folderId      String?           @db.Uuid
+  environmentId String?           @db.Uuid
+  stageId       String?           @db.Uuid
   discipline    ProjectDiscipline
-  phaseFolder   ProjectStagePhase   @default(PROJETO_EXECUTIVO)
-  category      AcervoCategory      @default(PLANTA_TECNICA_PDF)
+  phaseFolder   ProjectStagePhase @default(PROJETO_EXECUTIVO)
+  category      AcervoCategory    @default(PLANTA_TECNICA_PDF)
   type          DeliverableType
   sheetCode     String?
   subject       String
@@ -495,20 +492,20 @@ model ProjectDeliverable {
   description   String?
   fileUrl       String
   thumbnailUrl  String?
-  version       String              @default("R00")
+  version       String            @default("R00")
   fileSize      String?
-  status        ApprovalStatus      @default(APROVADO_INTERNO)
-  isClientView  Boolean             @default(true)
-  isRequired    Boolean             @default(true)
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  status        ApprovalStatus    @default(APROVADO_INTERNO)
+  isClientView  Boolean           @default(true)
+  isRequired    Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
-  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  folder        ProjectFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  environment   ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
-  stage         ScheduleStage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
-  checklists    ChecklistItem[]
-  accessLogs    DeliverableAccessLog[]
+  project     Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder      ProjectFolder?         @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  environment ProjectEnvironment?    @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  stage       ScheduleStage?         @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  checklists  ChecklistItem[]
+  accessLogs  DeliverableAccessLog[]
 
   @@index([projectId, discipline, phaseFolder])
   @@index([projectId])
@@ -516,30 +513,30 @@ model ProjectDeliverable {
 }
 
 model DeliverableAccessLog {
-  id            String             @id @default(uuid()) @db.Uuid
-  projectId     String             @db.Uuid
-  deliverableId String             @db.Uuid
-  userId        String?            @db.Uuid
+  id            String           @id @default(uuid()) @db.Uuid
+  projectId     String           @db.Uuid
+  deliverableId String           @db.Uuid
+  userId        String?          @db.Uuid
   userName      String
   userRole      String
   action        AccessActionType
   sheetTitle    String
-  createdAt     DateTime           @default(now())
+  createdAt     DateTime         @default(now())
 
-  project       Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  deliverable   ProjectDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliverable ProjectDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
   @@index([deliverableId])
 }
 
 model ProjectFolder {
-  id           String               @id @default(uuid()) @db.Uuid
-  projectId    String               @db.Uuid
-  name         String
-  description  String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id          String   @id @default(uuid()) @db.Uuid
+  projectId   String   @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   deliverables ProjectDeliverable[]
@@ -548,12 +545,12 @@ model ProjectFolder {
 }
 
 model ProjectEnvironment {
-  id           String               @id @default(uuid()) @db.Uuid
-  projectId    String               @db.Uuid
-  name         String
-  description  String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id          String   @id @default(uuid()) @db.Uuid
+  projectId   String   @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   deliverables ProjectDeliverable[]
@@ -562,75 +559,73 @@ model ProjectEnvironment {
 }
 
 model ChecklistItem {
-  id            String              @id @default(uuid()) @db.Uuid
-  projectId     String              @db.Uuid
-  category      String              @default("GERAL")
+  id            String    @id @default(uuid()) @db.Uuid
+  projectId     String    @db.Uuid
+  category      String    @default("GERAL")
   task          String
   notes         String?
-  isCompleted   Boolean             @default(false)
+  isCompleted   Boolean   @default(false)
   verifiedBy    String?
   verifiedAt    DateTime?
   completedAt   DateTime?
-  deliverableId String?             @db.Uuid
-  stageId       String?             @db.Uuid
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  deliverableId String?   @db.Uuid
+  stageId       String?   @db.Uuid
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  deliverable   ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
-  stage         ScheduleStage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliverable ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  stage       ScheduleStage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([deliverableId])
   @@index([stageId])
 }
 
-
-
 model ProjectReport {
-  id          String             @id @default(uuid()) @db.Uuid
-  projectId   String             @db.Uuid
-  title       String
-  version     Int                @default(1)
-  contentUrl  String?
-  status      ProjectReportStatus @default(PREPARING)
-  releasedAt  DateTime?
-  archivedAt  DateTime?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  project     Project            @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id         String              @id @default(uuid()) @db.Uuid
+  projectId  String              @db.Uuid
+  title      String
+  version    Int                 @default(1)
+  contentUrl String?
+  status     ProjectReportStatus @default(PREPARING)
+  releasedAt DateTime?
+  archivedAt DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([projectId, status])
 }
 
 model ScheduleStage {
-  id             String              @id @default(uuid()) @db.Uuid
-  projectId      String              @db.Uuid
-  name           String
-  discipline     String?
-  designer       String?
-  description    String?
-  startDate      DateTime?
-  endDate        DateTime?
-  dueDate        DateTime?
-  durationDays   Int?
-  status         ScheduleStageStatus @default(NOT_STARTED)
-  order          Int
-  completion     Int                 @default(0)
-  completedAt    DateTime?
-  notes          String?
-  isVisibleInKanban Boolean           @default(true)
-  dependencyId   String?             @db.Uuid
-  version        Int                 @default(1)
-  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  dependency     ScheduleStage?      @relation("StageDependency", fields: [dependencyId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  dependents     ScheduleStage[]     @relation("StageDependency")
-  payments       Payment[]
-  deliverables   ProjectDeliverable[]
-  checklists     ChecklistItem[]
-  reminders      StageReminderLog[]
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id                String               @id @default(uuid()) @db.Uuid
+  projectId         String               @db.Uuid
+  name              String
+  discipline        String?
+  designer          String?
+  description       String?
+  startDate         DateTime?
+  endDate           DateTime?
+  dueDate           DateTime?
+  durationDays      Int?
+  status            ScheduleStageStatus  @default(NOT_STARTED)
+  order             Int
+  completion        Int                  @default(0)
+  completedAt       DateTime?
+  notes             String?
+  isVisibleInKanban Boolean              @default(true)
+  dependencyId      String?              @db.Uuid
+  version           Int                  @default(1)
+  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  dependency        ScheduleStage?       @relation("StageDependency", fields: [dependencyId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  dependents        ScheduleStage[]      @relation("StageDependency")
+  payments          Payment[]
+  deliverables      ProjectDeliverable[]
+  checklists        ChecklistItem[]
+  reminders         StageReminderLog[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@unique([projectId, order])
   @@index([projectId, status])
@@ -638,27 +633,27 @@ model ScheduleStage {
 }
 
 model Payment {
-  id               String        @id @default(uuid()) @db.Uuid
-  projectId        String        @db.Uuid
+  id               String         @id @default(uuid()) @db.Uuid
+  projectId        String         @db.Uuid
   name             String
-  amount           Decimal       @db.Decimal(12, 2)
+  amount           Decimal        @db.Decimal(12, 2)
   dueDate          DateTime?
-  status           PaymentStatus @default(PENDING)
+  status           PaymentStatus  @default(PENDING)
   note             String?
   order            Int
   percentage       Int?
   paidAt           DateTime?
   archivedAt       DateTime?
-  scheduleStageId  String?       @db.Uuid
+  scheduleStageId  String?        @db.Uuid
   // TÃ³pico 38: liga a parcela Ã  proposta que a originou, permitindo detectar
   // e nÃ£o recriar parcelas jÃ¡ geradas.
-  sourceProposalId String?       @db.Uuid
+  sourceProposalId String?        @db.Uuid
   sourceKey        String?
-  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   scheduleStage    ScheduleStage? @relation(fields: [scheduleStageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  sourceProposal   Proposal?     @relation(fields: [sourceProposalId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  sourceProposal   Proposal?      @relation(fields: [sourceProposalId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@unique([projectId, order])
   @@unique([sourceKey])
@@ -668,48 +663,48 @@ model Payment {
 }
 
 model Briefing {
-  id          String   @id @default(uuid()) @db.Uuid
-  projectId   String   @unique @db.Uuid
-  title       String   @default("Briefing Executivo & Programa de Necessidades")
-  token       String?  @unique
+  id          String               @id @default(uuid()) @db.Uuid
+  projectId   String               @unique @db.Uuid
+  title       String               @default("Briefing Executivo & Programa de Necessidades")
+  token       String?              @unique
   questions   Json?
   responses   Json
-  status      BriefingStatus @default(DRAFT)
-  version     Int      @default(1)
+  status      BriefingStatus       @default(DRAFT)
+  version     Int                  @default(1)
   submittedAt DateTime?
   finalizedAt DateTime?
-  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project     Project              @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   revisions   BriefingRevision[]
   accessLinks BriefingAccessLink[]
   // TÃ³pico 4A: o que o cliente respondeu para alÃ©m do texto.
   references  BriefingReference[]
   audioNotes  BriefingAudioNote[]
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 }
 
 model BriefingAccessLink {
-  id          String   @id @default(uuid()) @db.Uuid
-  briefingId  String   @db.Uuid
-  tokenHash   String   @unique
-  token       String?
-  revokedAt   DateTime?
-  expiresAt   DateTime?
+  id            String    @id @default(uuid()) @db.Uuid
+  briefingId    String    @db.Uuid
+  tokenHash     String    @unique
+  token         String?
+  revokedAt     DateTime?
+  expiresAt     DateTime?
   firstAccessAt DateTime?
-  lastAccessAt DateTime?
-  createdAt   DateTime @default(now())
-  briefing    Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  lastAccessAt  DateTime?
+  createdAt     DateTime  @default(now())
+  briefing      Briefing  @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([briefingId, revokedAt])
 }
 
 model BriefingRevision {
-  id          String   @id @default(uuid()) @db.Uuid
-  briefingId  String   @db.Uuid
-  version     Int
-  responses   Json
-  createdAt   DateTime @default(now())
-  briefing    Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id         String   @id @default(uuid()) @db.Uuid
+  briefingId String   @db.Uuid
+  version    Int
+  responses  Json
+  createdAt  DateTime @default(now())
+  briefing   Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([briefingId, version])
   @@index([briefingId, createdAt])
@@ -728,8 +723,8 @@ model BriefingVisualOption {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([questionId, sortOrder])
   @@unique([questionId, value])
+  @@index([questionId, sortOrder])
 }
 
 // TÃ³pico 4A â€” o que o cliente sobre as referÃªncias visuais.
@@ -768,8 +763,8 @@ model BriefingReference {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  briefing         Briefing             @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  document         ProjectDocument?     @relation(fields: [documentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  briefing Briefing         @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  document ProjectDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([briefingId, category])
   @@index([briefingId, createdAt])
@@ -807,30 +802,30 @@ model BriefingAudioNote {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
-  briefing     Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  briefing Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([briefingId, questionId])
   @@index([status])
 }
 
 model Proposal {
-  id             String          @id @default(uuid()) @db.Uuid
-  projectId      String          @db.Uuid
-  status         ProposalStatus  @default(DRAFT)
-  currentVersion Int             @default(1)
-  expiresAt      DateTime?
-  sentAt         DateTime?
-  viewedAt       DateTime?
-  approvedAt     DateTime?
-  rejectedAt     DateTime?
-  approvalIp     String?
-  approvalMeta   Json?
-  approvedVersion Int?
+  id               String               @id @default(uuid()) @db.Uuid
+  projectId        String               @db.Uuid
+  status           ProposalStatus       @default(DRAFT)
+  currentVersion   Int                  @default(1)
+  expiresAt        DateTime?
+  sentAt           DateTime?
+  viewedAt         DateTime?
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  approvalIp       String?
+  approvalMeta     Json?
+  approvedVersion  Int?
   // Prompt 4C, item 3 â€” identificaÃ§Ã£o comercial legÃ­vel (ex.: "PROP-2026-0007").
   //
   // Gerado pelo servidor na criaÃ§Ã£o. Ã‰ estÃ¡vel e sequencial-por-ano apenas para o
   // ADMIN: o link pÃºblico NUNCA o expÃµe, porque o identificador nÃ£o Ã© autorizaÃ§Ã£o.
-  code           String?         @unique
+  code             String?              @unique
   // Prompt 4C, item 45 â€” versÃ£o que o link pÃºblico exibe.
   //
   // Sem esta coluna, o carregador pÃºblico lia sempre a versÃ£o MAIS RECENTE. Isso
@@ -850,37 +845,36 @@ model Proposal {
   // campos sÃ£o gravados na mesma transaÃ§Ã£o das parcelas, do serviÃ§o e dos
   // documentos. Se a transaÃ§Ã£o falhar, nada fica gravado e a prÃ³xima execuÃ§Ã£o
   // parte do zero â€” em vez de converter metade do negÃ³cio.
-  convertedAt    DateTime?
-  conversionKey  String?
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  versions       ProposalVersion[]
-  accessLinks    ProposalAccessLink[]
-  contract       Contract?
-  documents      ProjectDocument[]
-  payments       Payment[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  convertedAt      DateTime?
+  conversionKey    String?
+  project          Project              @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  versions         ProposalVersion[]
+  accessLinks      ProposalAccessLink[]
+  contract         Contract?
+  documents        ProjectDocument[]
+  payments         Payment[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
+  @@unique([conversionKey])
   @@index([projectId, status])
   @@index([status, updatedAt])
-  @@unique([conversionKey])
 }
 
-
 model ProposalVersion {
-  id             String    @id @default(uuid()) @db.Uuid
-  proposalId     String    @db.Uuid
-  version        Int
-  title          String
-  presentation   Json
-  formalText     Json
-  services       Json
-  subtotal       Decimal   @db.Decimal(12, 2)
-  adjustment     Decimal   @default(0) @db.Decimal(12, 2)
-  total          Decimal   @db.Decimal(12, 2)
-  authorId       String?   @db.Uuid
-  frozenAt       DateTime?
-  pricing        Json?
+  id           String    @id @default(uuid()) @db.Uuid
+  proposalId   String    @db.Uuid
+  version      Int
+  title        String
+  presentation Json
+  formalText   Json
+  services     Json
+  subtotal     Decimal   @db.Decimal(12, 2)
+  adjustment   Decimal   @default(0) @db.Decimal(12, 2)
+  total        Decimal   @db.Decimal(12, 2)
+  authorId     String?   @db.Uuid
+  frozenAt     DateTime?
+  pricing      Json?
   // Prompt 18, itens 2 e 5 â€” plano de pagamento CONGELADO por versÃ£o.
   //
   // Antes desta coluna o plano nÃ£o era persistido: era re-interpretado do texto
@@ -891,31 +885,31 @@ model ProposalVersion {
   //
   // NULL significa apenas "versÃ£o criada antes desta migraÃ§Ã£o"; o leitor trata
   // esse caso Ã  parte, com aviso explÃ­cito.
-  paymentPlan    Json?
-  createdAt      DateTime  @default(now())
-  proposal       Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  author         User?     @relation(fields: [authorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  paymentPlan  Json?
+  createdAt    DateTime  @default(now())
+  proposal     Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  author       User?     @relation(fields: [authorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([proposalId, version])
   @@index([proposalId, createdAt])
 }
 
 model ProposalAccessLink {
-  id          String    @id @default(uuid()) @db.Uuid
-  proposalId  String    @db.Uuid
-  tokenHash   String    @unique
-  revokedAt   DateTime?
-  expiresAt   DateTime?
+  id            String    @id @default(uuid()) @db.Uuid
+  proposalId    String    @db.Uuid
+  tokenHash     String    @unique
+  revokedAt     DateTime?
+  expiresAt     DateTime?
   firstAccessAt DateTime?
-  lastAccessAt DateTime?
+  lastAccessAt  DateTime?
   // Prompt 4C, item 42 â€” o link aponta para UMA versÃ£o especÃ­fica.
   //
   // NULL significa "proposta ainda nÃ£o publicada" (legado/rascunho). O leitor
   // pÃºblico recusa nesse caso em vez de escolher a versÃ£o mais recente por conta
   // prÃ³pria: escolher seria publicar algo que ninguÃ©m revisou.
   versionNumber Int?
-  proposal    Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt   DateTime  @default(now())
+  proposal      Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt     DateTime  @default(now())
 
   @@index([proposalId, revokedAt])
   @@index([versionNumber])
@@ -962,35 +956,35 @@ enum PricingLevel {
 
 // TÃ³pico 4: cadastro administrativo de serviÃ§os e precificaÃ§Ã£o.
 model ServiceItem {
-  id                   String   @id @default(uuid()) @db.Uuid
-  name                 String
-  discipline           String
-  category             String?
+  id                    String                @id @default(uuid()) @db.Uuid
+  name                  String
+  discipline            String
+  category              String?
   descriptionCommercial String?
-  descriptionTechnical String?
-  unit                 ServiceUnit
-  baseLow              Decimal  @default(0) @db.Decimal(12, 2)
-  baseMedium           Decimal  @default(0) @db.Decimal(12, 2)
-  baseHigh             Decimal  @default(0) @db.Decimal(12, 2)
-  minPrice             Decimal? @db.Decimal(12, 2)
-  minQuantity          Decimal? @db.Decimal(12, 2)
-  maxQuantity          Decimal? @db.Decimal(12, 2)
-  increment            Decimal? @db.Decimal(12, 2)
-  estimatedDays        Int?
-  displayOrder         Int      @default(0)
-  active               Boolean  @default(true)
-  scope                String?
-  exclusions           String?
-  notes                String?
-  dependencies         Json?
-  calculationRules     Json?
-  presentationImages   Json?
-  icon                 String?
-  version              Int      @default(1)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  priceHistory         ServicePriceHistory[]
-  packageItems         PackageItem[]
+  descriptionTechnical  String?
+  unit                  ServiceUnit
+  baseLow               Decimal               @default(0) @db.Decimal(12, 2)
+  baseMedium            Decimal               @default(0) @db.Decimal(12, 2)
+  baseHigh              Decimal               @default(0) @db.Decimal(12, 2)
+  minPrice              Decimal?              @db.Decimal(12, 2)
+  minQuantity           Decimal?              @db.Decimal(12, 2)
+  maxQuantity           Decimal?              @db.Decimal(12, 2)
+  increment             Decimal?              @db.Decimal(12, 2)
+  estimatedDays         Int?
+  displayOrder          Int                   @default(0)
+  active                Boolean               @default(true)
+  scope                 String?
+  exclusions            String?
+  notes                 String?
+  dependencies          Json?
+  calculationRules      Json?
+  presentationImages    Json?
+  icon                  String?
+  version               Int                   @default(1)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  priceHistory          ServicePriceHistory[]
+  packageItems          PackageItem[]
 
   @@unique([discipline, name])
   @@index([discipline, active, displayOrder])
@@ -1013,13 +1007,13 @@ model ServicePriceHistory {
 
 // TÃ³pico 11: pacotes configurÃ¡veis; os nomes ficam no banco.
 model CommercialPackage {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String        @unique
   description String?
-  active      Boolean  @default(true)
+  active      Boolean       @default(true)
   items       PackageItem[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 }
 
 model PackageItem {
@@ -1094,43 +1088,43 @@ model NotificationEvent {
 }
 
 model ContractTemplate {
-  id        String    @id @default(uuid()) @db.Uuid
-  name      String
-  version   Int       @default(1)
-  active    Boolean   @default(true)
-  isDefault Boolean   @default(false)
-  body      String    @db.Text
-  clauses   Json
-  scopeKey   String?
-  disciplines String[] @default([])
-  contracts  Contract[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String
+  version     Int        @default(1)
+  active      Boolean    @default(true)
+  isDefault   Boolean    @default(false)
+  body        String     @db.Text
+  clauses     Json
+  scopeKey    String?
+  disciplines String[]   @default([])
+  contracts   Contract[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([active, isDefault])
 }
 
 model Contract {
-  id              String          @id @default(uuid()) @db.Uuid
-  proposalId      String          @unique @db.Uuid
+  id              String             @id @default(uuid()) @db.Uuid
+  proposalId      String             @unique @db.Uuid
   version         Int
   title           String
   content         Json
-  status          ContractStatus  @default(DRAFT)
-  templateId      String?         @db.Uuid
+  status          ContractStatus     @default(DRAFT)
+  templateId      String?            @db.Uuid
   templateVersion Int?
   signature       ContractSignature?
-  generatedAt     DateTime        @default(now())
+  generatedAt     DateTime           @default(now())
   sentAt          DateTime?
   viewedAt        DateTime?
   signedAt        DateTime?
   signatureMeta   Json?
-  proposal        Proposal        @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  template        ContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  proposal        Proposal           @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  template        ContractTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // TÃ³pico 39: o contrato e a via assinada vivem no mesmo mÃ³dulo de documentos.
   documents       ProjectDocument[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@index([status, updatedAt])
 }
@@ -1154,29 +1148,27 @@ model StageReminderLog {
   recipientPhone String?
   recipientEmail String?
   channel        NotificationChannel @default(AMBOS)
-  triggerType    String              // "PRAZO_PROXIMO", "ENTREGA_HOJE", "ATRASADO"
+  triggerType    String // "PRAZO_PROXIMO", "ENTREGA_HOJE", "ATRASADO"
   messageBody    String
   status         NotificationStatus  @default(PENDENTE)
   sentAt         DateTime?
   createdAt      DateTime            @default(now())
 
-  stage          ScheduleStage       @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  stage ScheduleStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
   @@index([stageId])
 }
 
-
 model PrivacyPolicy {
-  id          String   @id @default(uuid())
-  version     Int      @default(1)
-  title       String
-  content     String   @db.Text
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  version   Int      @default(1)
+  title     String
+  content   String   @db.Text
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 
   @@unique([version])
 }
-
-
 
 model IdempotencyRecord {
   id           String    @id @default(uuid()) @db.Uuid
@@ -1217,19 +1209,19 @@ model DomainEvent {
 }
 
 model DeadLetterEvent {
-  id               String    @id @default(uuid()) @db.Uuid
+  id               String   @id @default(uuid()) @db.Uuid
   domainEventId    String
   originalPayload  Json?
   originalMetadata Json?
   error            String
   stackTrace       String?
-  failedAt         DateTime  @default(now())
-  retryCount       Int       @default(0)
+  failedAt         DateTime @default(now())
+  retryCount       Int      @default(0)
   endpoint         String?
   entityType       String?
   entityId         String?
   requestId        String?
-  createdAt        DateTime  @default(now())
+  createdAt        DateTime @default(now())
 
   @@index([domainEventId])
   @@index([failedAt])
@@ -1313,51 +1305,51 @@ enum AcervoMarkupType {
 }
 
 model AcervoFolder {
-  id          String            @id @default(uuid()) @db.Uuid
-  projectId   String            @db.Uuid
-  name        String
-  phase       ProjectStagePhase @default(PROJETO_EXECUTIVO)
-  discipline  ProjectDiscipline @default(ARQUITETURA)
-  parentId    String?           @db.Uuid
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id         String            @id @default(uuid()) @db.Uuid
+  projectId  String            @db.Uuid
+  name       String
+  phase      ProjectStagePhase @default(PROJETO_EXECUTIVO)
+  discipline ProjectDiscipline @default(ARQUITETURA)
+  parentId   String?           @db.Uuid
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
-  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent      AcervoFolder?     @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children    AcervoFolder[]    @relation("FolderHierarchy")
-  documents   AcervoDocument[]
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    AcervoFolder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  AcervoFolder[]   @relation("FolderHierarchy")
+  documents AcervoDocument[]
 
   @@index([projectId, phase, discipline])
 }
 
 model AcervoWorkflowConfig {
-  id             String            @id @default(uuid()) @db.Uuid
-  projectId      String            @db.Uuid
-  stageName      String            // Ex: "Validação da Coordenação"
-  slaHours       Int               @default(48) // SLA em horas
-  orderIndex     Int               @default(1)
-  isParallel     Boolean           @default(false)
-  responsibleRole String           @default("ENGENHEIRO")
-  createdAt      DateTime          @default(now())
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @db.Uuid
+  stageName       String // Ex: "Validação da Coordenação"
+  slaHours        Int      @default(48) // SLA em horas
+  orderIndex      Int      @default(1)
+  isParallel      Boolean  @default(false)
+  responsibleRole String   @default("ENGENHEIRO")
+  createdAt       DateTime @default(now())
 
-  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, orderIndex])
 }
 
 model AcervoNamingRule {
-  id          String             @id @default(uuid()) @db.Uuid
-  projectId   String?            @db.Uuid
-  name        String             @default("Padrão Construtora")
-  mask        String             @default("[EMPREENDIMENTO]-[DISCIPLINA]-[FASE]-[TIPO]-[SEQUENCIAL]-[REV]")
-  separator   String             @default("-")
-  policy      AcervoNamingPolicy @default(WARN_ONLY)
-  example     String             @default("ARQ-FAC-PE-DET-001-R00.dwg")
-  isActive    Boolean            @default(true)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id        String             @id @default(uuid()) @db.Uuid
+  projectId String?            @db.Uuid
+  name      String             @default("Padrão Construtora")
+  mask      String             @default("[EMPREENDIMENTO]-[DISCIPLINA]-[FASE]-[TIPO]-[SEQUENCIAL]-[REV]")
+  separator String             @default("-")
+  policy    AcervoNamingPolicy @default(WARN_ONLY)
+  example   String             @default("ARQ-FAC-PE-DET-001-R00.dwg")
+  isActive  Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
-  project     Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
 }
@@ -1366,7 +1358,7 @@ model AcervoDocument {
   id                String            @id @default(uuid()) @db.Uuid
   projectId         String            @db.Uuid
   folderId          String?           @db.Uuid
-  code              String            // Ex: ARQ-PE-001
+  code              String // Ex: ARQ-PE-001
   title             String
   discipline        ProjectDiscipline
   phase             ProjectStagePhase @default(PROJETO_EXECUTIVO)
@@ -1376,10 +1368,10 @@ model AcervoDocument {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  folder            AcervoFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  revisions         AcervoRevision[]
-  rfis              AcervoRfiMarkup[]
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder    AcervoFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  revisions AcervoRevision[]
+  rfis      AcervoRfiMarkup[]
 
   @@unique([projectId, code])
   @@index([projectId, discipline])
@@ -1388,43 +1380,43 @@ model AcervoDocument {
 }
 
 model AcervoRevision {
-  id                 String               @id @default(uuid()) @db.Uuid
-  documentId         String               @db.Uuid
-  revisionNumber     String               @default("R00") // R00, R01, R02...
-  isCurrent          Boolean              @default(true)
-  status             AcervoWorkflowStatus @default(EM_ELABORACAO)
-  
+  id             String               @id @default(uuid()) @db.Uuid
+  documentId     String               @db.Uuid
+  revisionNumber String               @default("R00") // R00, R01, R02...
+  isCurrent      Boolean              @default(true)
+  status         AcervoWorkflowStatus @default(EM_ELABORACAO)
+
   // Arquivo Primário
-  fileUrl            String
-  fileKey            String?
-  fileName           String
-  fileSize           String?
-  fileType           AcervoFileType       @default(PDF)
-  checksumSha256     String?
+  fileUrl        String
+  fileKey        String?
+  fileName       String
+  fileSize       String?
+  fileType       AcervoFileType @default(PDF)
+  checksumSha256 String?
 
   // Arquivo Pareado Web (ex: PDF ou DXF para visualização de DWG/RVT)
-  viewUrl            String?
-  viewKey            String?
-  viewFileName       String?
-  viewFileType       AcervoFileType?
+  viewUrl      String?
+  viewKey      String?
+  viewFileName String?
+  viewFileType AcervoFileType?
 
   // Rastreabilidade e Carimbo Digital
-  qrVerificationToken String?            @unique
+  qrVerificationToken String?   @unique
   digitalStampHash    String?
   approvedForWorkAt   DateTime?
-  approvedForWorkById String?            @db.Uuid
+  approvedForWorkById String?   @db.Uuid
 
-  description        String?
-  extractedMetadata  Json?                // Selos, carimbos, áreas, esquadrias
-  uploadedById       String?              @db.Uuid
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  description       String?
+  extractedMetadata Json? // Selos, carimbos, áreas, esquadrias
+  uploadedById      String?  @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  document           AcervoDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  uploadedBy         User?                @relation("AcervoRevisionsUploaded", fields: [uploadedById], references: [id], onDelete: SetNull)
-  workflowLogs       AcervoWorkflowLog[]
-  grdItems           AcervoGrdItem[]
-  rfis               AcervoRfiMarkup[]
+  document     AcervoDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy   User?               @relation("AcervoRevisionsUploaded", fields: [uploadedById], references: [id], onDelete: SetNull)
+  workflowLogs AcervoWorkflowLog[]
+  grdItems     AcervoGrdItem[]
+  rfis         AcervoRfiMarkup[]
 
   @@index([documentId, revisionNumber])
   @@index([documentId, isCurrent])
@@ -1432,19 +1424,19 @@ model AcervoRevision {
 }
 
 model AcervoWorkflowLog {
-  id             String               @id @default(uuid()) @db.Uuid
-  revisionId     String               @db.Uuid
-  fromStatus     AcervoWorkflowStatus?
-  toStatus       AcervoWorkflowStatus
-  action         String               // APROVAR, REPROVAR, MARCAR_OBSOLETO, DOWNLOAD_OBSOLETO
-  notes          String?
-  performedById  String?              @db.Uuid
+  id              String                @id @default(uuid()) @db.Uuid
+  revisionId      String                @db.Uuid
+  fromStatus      AcervoWorkflowStatus?
+  toStatus        AcervoWorkflowStatus
+  action          String // APROVAR, REPROVAR, MARCAR_OBSOLETO, DOWNLOAD_OBSOLETO
+  notes           String?
+  performedById   String?               @db.Uuid
   performedByName String
   performedByRole String
-  createdAt      DateTime             @default(now())
+  createdAt       DateTime              @default(now())
 
-  revision       AcervoRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)
-  performedBy    User?                @relation(fields: [performedById], references: [id], onDelete: SetNull)
+  revision    AcervoRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  performedBy User?          @relation(fields: [performedById], references: [id], onDelete: SetNull)
 
   @@index([revisionId, createdAt])
 }
@@ -1462,45 +1454,45 @@ model AcervoDisciplinePermission {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project           Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, projectId, discipline])
   @@index([userId, projectId])
 }
 
 model AcervoGrd {
-  id             String          @id @default(uuid()) @db.Uuid
-  code           String          @unique // GRD-2026-0001
-  projectId      String          @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @unique // GRD-2026-0001
+  projectId      String   @db.Uuid
   recipientName  String
   recipientEmail String?
-  recipientOrg   String?         // Nome da Construtora / Empreiteira
+  recipientOrg   String? // Nome da Construtora / Empreiteira
   subject        String
   notes          String?
-  hashToken      String          @unique // Token único para download/verificação
-  createdById    String?         @db.Uuid
-  createdAt      DateTime        @default(now())
+  hashToken      String   @unique // Token único para download/verificação
+  createdById    String?  @db.Uuid
+  createdAt      DateTime @default(now())
 
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy      User?           @relation("AcervoGrdsCreated", fields: [createdById], references: [id], onDelete: SetNull)
-  items          AcervoGrdItem[]
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?           @relation("AcervoGrdsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  items     AcervoGrdItem[]
 
   @@index([projectId, createdAt])
 }
 
 model AcervoGrdItem {
-  id             String          @id @default(uuid()) @db.Uuid
-  grdId          String          @db.Uuid
-  revisionId     String          @db.Uuid
+  id             String @id @default(uuid()) @db.Uuid
+  grdId          String @db.Uuid
+  revisionId     String @db.Uuid
   documentCode   String
   documentTitle  String
   revisionNumber String
   statusAtIssue  String
   fileUrl        String
 
-  grd            AcervoGrd       @relation(fields: [grdId], references: [id], onDelete: Cascade)
-  revision       AcervoRevision  @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  grd      AcervoGrd      @relation(fields: [grdId], references: [id], onDelete: Cascade)
+  revision AcervoRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
 
   @@index([grdId])
   @@index([revisionId])
@@ -1508,30 +1500,30 @@ model AcervoGrdItem {
 
 // Preparação para Release 1B (Visualizador BIM & RFIs)
 model AcervoRfiMarkup {
-  id             String          @id @default(uuid()) @db.Uuid
-  code           String          // RFI-001
-  documentId     String          @db.Uuid
-  revisionId     String          @db.Uuid
-  title          String
-  description    String
-  status         AcervoRfiStatus @default(ABERTA)
-  markupType     AcervoMarkupType @default(PIN)
-  pageNumber     Int?            @default(1)
-  coordX         Float?
-  coordY         Float?
-  cameraState    Json?           // Câmera 3D BIM (position, target, zoom)
-  geometryJson   Json?           // Vetores da nuvem/cota
-  createdById    String?         @db.Uuid
-  assignedToId   String?         @db.Uuid
-  answer         String?
-  answeredAt     DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id           String           @id @default(uuid()) @db.Uuid
+  code         String // RFI-001
+  documentId   String           @db.Uuid
+  revisionId   String           @db.Uuid
+  title        String
+  description  String
+  status       AcervoRfiStatus  @default(ABERTA)
+  markupType   AcervoMarkupType @default(PIN)
+  pageNumber   Int?             @default(1)
+  coordX       Float?
+  coordY       Float?
+  cameraState  Json? // Câmera 3D BIM (position, target, zoom)
+  geometryJson Json? // Vetores da nuvem/cota
+  createdById  String?          @db.Uuid
+  assignedToId String?          @db.Uuid
+  answer       String?
+  answeredAt   DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  document       AcervoDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  revision       AcervoRevision  @relation(fields: [revisionId], references: [id], onDelete: Cascade)
-  createdBy      User?           @relation("AcervoRfiCreated", fields: [createdById], references: [id], onDelete: SetNull)
-  assignedTo     User?           @relation("AcervoRfiAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  document   AcervoDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  revision   AcervoRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  createdBy  User?          @relation("AcervoRfiCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo User?          @relation("AcervoRfiAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([documentId, status])
   @@index([revisionId])
@@ -1539,19 +1531,19 @@ model AcervoRfiMarkup {
 
 // Preparação para Release 1C (Sync API AutoCAD & Revit)
 model AcervoApiToken {
-  id             String          @id @default(uuid()) @db.Uuid
-  name           String          // Ex: "Plugin Revit - Estação Wagner"
-  tokenHash      String          @unique // SHA-256 do token
-  tokenPrefix    String          // Ex: "av_revit_..."
-  projectId      String?         @db.Uuid
-  createdById    String?         @db.Uuid
-  lastUsedAt     DateTime?
-  expiresAt      DateTime?
-  revokedAt      DateTime?
-  createdAt      DateTime        @default(now())
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String // Ex: "Plugin Revit - Estação Wagner"
+  tokenHash   String    @unique // SHA-256 do token
+  tokenPrefix String // Ex: "av_revit_..."
+  projectId   String?   @db.Uuid
+  createdById String?   @db.Uuid
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
 
-  project        Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy      User?           @relation("AcervoApiTokensCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation("AcervoApiTokensCreated", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([tokenHash])
 }

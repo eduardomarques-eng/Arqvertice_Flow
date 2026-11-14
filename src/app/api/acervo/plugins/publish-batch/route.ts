@@ -9,6 +9,7 @@ import {
   AcervoWorkflowStatus,
   ProjectDiscipline,
   ProjectStagePhase,
+  Prisma,
 } from "@prisma/client";
 
 interface BatchFileRef {
@@ -39,9 +40,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const projectId = (body.projectId as string | undefined) || auth.ctx.tokenProjectId;
-    const softwareSource = String(body.softwareSource || "Plugin CAD/BIM");
+    const softwareSource = String(body.softwareSource || auth.ctx.pluginName || "Plugin CAD/BIM");
     const sheets = Array.isArray(body.sheets) ? (body.sheets as BatchSheetPayload[]) : [];
 
     if (!projectId) {
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
           performedByRole: auth.ctx.userRole,
         });
 
+        // Marca revisões anteriores como OBSOLETO
         await prisma.acervoRevision.updateMany({
           where: {
             documentId: res.document.id,
@@ -131,6 +133,23 @@ export async function POST(request: Request) {
             isCurrent: false,
           },
         });
+
+        // Armazena anexos multi-formato e metadados no extractedMetadata da revisão
+        if (sheet.attachments || sheet.metadata || softwareSource) {
+          const metadataPayload: Prisma.InputJsonValue = {
+            publishedVia: softwareSource,
+            attachments: (sheet.attachments || []) as unknown as Prisma.InputJsonValue,
+            metadata: (sheet.metadata || {}) as unknown as Prisma.InputJsonValue,
+            publishedAt: new Date().toISOString(),
+          };
+
+          await prisma.acervoRevision.update({
+            where: { id: res.revision.id },
+            data: {
+              extractedMetadata: metadataPayload,
+            },
+          });
+        }
 
         publishedRevisionIds.push(res.revision.id);
         results.push({

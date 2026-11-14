@@ -25,6 +25,7 @@ const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }>
   { label: "Propostas", href: "/admin/propostas", module: "projetos" },
   { label: "Mensagens", href: "/admin/mensagens", module: "dashboard" },
   { label: "Serviços", href: "/admin/servicos", module: "dashboard" },
+  { label: "Plugins & Downloads", href: "/admin/acervo/plugins", module: "acervo" },
   { label: "Configurações", href: "/admin/configuracoes", module: "equipe" },
 ];
 
@@ -46,6 +47,7 @@ const TEAM_SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModu
   { label: "Propostas", href: "/equipe/propostas", module: "projetos" },
   { label: "Mensagens", href: "/equipe/mensagens", module: "dashboard" },
   { label: "Serviços", href: "/equipe/servicos", module: "dashboard" },
+  { label: "Plugins & Downloads", href: "/equipe/acervo/plugins", module: "acervo" },
   { label: "Configurações", href: "/equipe/configuracoes", module: "equipe" },
 ];
 
