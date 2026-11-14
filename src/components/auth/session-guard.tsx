@@ -106,7 +106,13 @@ export function SessionGuard() {
       return;
     }
 
-    if (currentBuildId && tabBuildId !== currentBuildId) {
+    if (
+      currentBuildId &&
+      tabBuildId &&
+      tabBuildId !== currentBuildId &&
+      tabBuildId !== "arqvertice-v1" &&
+      currentBuildId !== "arqvertice-v1"
+    ) {
       setInvalidReason("BUILD_UPDATED");
       forceImmediateLogout();
       return;
