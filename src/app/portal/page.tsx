@@ -33,7 +33,7 @@ export default async function PortalIndexPage() {
         ? {}
         : {
             OR: [
-              { clientId: user.clientId ?? "__none__" },
+              ...(user.clientId ? [{ clientId: user.clientId }] : []),
               { access: { some: { userId: user.id } } },
             ],
           },

@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { scryptSync, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { DomainError } from "../server/errors";
 
@@ -10,8 +10,7 @@ function authSecret() {
 
 export function hashPassword(password: string) {
   if (password.length < 8) throw new DomainError("A senha deve ter pelo menos 8 caracteres.", "VALIDATION");
-  const salt = randomBytes(16).toString("hex");
-  return `${salt}:${scryptSync(password, `${salt}:${authSecret()}`, 64).toString("hex")}`;
+  return bcrypt.hashSync(password, 10);
 }
 
 export function verifyPassword(password: string, stored: string) {

@@ -136,7 +136,12 @@ export function KanbanBoardView({
   onBoardTotalsChange?: (completion: number) => void;
 }) {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
   const [columns, setColumns] = useState(board?.columns ?? []);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [query, setQuery] = useState("");
   const [assignee, setAssignee] = useState("");
   const [discipline, setDiscipline] = useState("");
@@ -447,6 +452,43 @@ export function KanbanBoardView({
       {error && <p className="mt-2 text-xs font-semibold text-rose-700">{error}</p>}
 
       {/* QUADRO KANBAN FLUIDO EM 4 COLUNAS (TRELLO / BITRIX24) */}
+      {!isMounted ? (
+        <div className="mt-5 flex gap-4 overflow-x-auto pb-4 scrollbar-none safe-pb snap-x snap-mandatory xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0">
+          {visible.map((column) => {
+            const colMeta = COLUMN_STYLE[column.id];
+            return (
+              <section
+                key={column.id}
+                className={`w-[85vw] sm:w-[320px] shrink-0 snap-center xl:w-auto xl:shrink min-h-[480px] rounded-2xl border p-3.5 transition-colors ${colMeta.tone}`}
+              >
+                <header className="mb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${colMeta.dotColor}`} />
+                      <h2 className="text-xs font-bold text-slate-900 tracking-tight">
+                        {colMeta.label}
+                      </h2>
+                    </div>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-mono font-bold ${colMeta.headerBadge}`}>
+                      {column.cards.length}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-slate-400 font-medium pl-4.5">
+                    {colMeta.sublabel}
+                  </p>
+                </header>
+                <div className="space-y-3">
+                  {column.cards.map((card) => (
+                    <div key={card.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                      <p className="text-xs font-semibold text-slate-800">{card.name}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="mt-5 flex gap-4 overflow-x-auto pb-4 scrollbar-none safe-pb snap-x snap-mandatory xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0">
           {visible.map((column) => {
@@ -732,6 +774,7 @@ export function KanbanBoardView({
           })}
         </div>
       </DragDropContext>
+      )}
 
       {/* Modal / Drawer de Detalhes da Etapa */}
       {selected ? (

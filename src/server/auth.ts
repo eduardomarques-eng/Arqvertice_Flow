@@ -258,7 +258,7 @@ export async function requireProjectAccess(projectId: string) {
     where: {
       id: projectId,
       OR: [
-        { clientId: user.clientId ?? "__none__" },
+        ...(user.clientId ? [{ clientId: user.clientId }] : []),
         { access: { some: { userId: user.id } } },
       ],
     },
@@ -334,7 +334,7 @@ export async function requireProposalAccess(proposalId: string) {
       id: proposalId,
       project: {
         OR: [
-          { clientId: user.clientId ?? "__none__" },
+          ...(user.clientId ? [{ clientId: user.clientId }] : []),
           { access: { some: { userId: user.id } } },
         ],
       },
@@ -362,7 +362,7 @@ export async function requireContractAccess(contractId: string) {
       proposal: {
         project: {
           OR: [
-            { clientId: user.clientId ?? "__none__" },
+            ...(user.clientId ? [{ clientId: user.clientId }] : []),
             { access: { some: { userId: user.id } } },
           ],
         },

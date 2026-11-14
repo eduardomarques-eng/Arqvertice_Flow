@@ -32,6 +32,11 @@ export default async function TeamProjectPage({ params }: { params: Promise<{ id
     getDeliverableMatrix(id),
   ]);
 
+  const safeDocuments = (documents ?? []).map((doc) => ({
+    ...doc,
+    sizeBytes: doc.sizeBytes != null ? Number(doc.sizeBytes) : null,
+  }));
+
   const stages = (board?.columns || []).flatMap((column) => column?.cards || []).map((card) => ({
     id: card.id,
     name: card.name,
@@ -91,7 +96,7 @@ export default async function TeamProjectPage({ params }: { params: Promise<{ id
         <ErrorBoundary fallbackTitle="Erro ao carregar ficha técnica" backHref="/equipe/projetos">
           <ProjectDetailTabs
             project={projectData}
-            documents={documents ?? []}
+            documents={safeDocuments}
             deliverables={deliverablesList}
             deliverableMatrix={deliverableMatrix}
             stages={stages}

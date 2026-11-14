@@ -20,7 +20,7 @@ export default async function PortalProjetosPage() {
         ? {}
         : {
             OR: [
-              { clientId: user.clientId ?? "__none__" },
+              ...(user.clientId ? [{ clientId: user.clientId }] : []),
               { access: { some: { userId: user.id } } },
             ],
           },

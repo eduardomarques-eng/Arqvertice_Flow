@@ -32,7 +32,7 @@ interface ProjectDetailTabsProps {
     id: string;
     name: string;
     mimeType: string | null;
-    sizeBytes: bigint | null;
+    sizeBytes: number | bigint | null;
     visibility: "INTERNAL" | "CLIENT";
     createdAt: Date;
   }>;

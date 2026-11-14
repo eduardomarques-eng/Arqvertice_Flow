@@ -102,7 +102,9 @@ export async function anonymizePII(userId: string, role: string) {
     });
 
     // Manter vinculação de cliente e projetos — apenas substituir o identificador no acesso
-    const projects = await tx.project.findMany({ where: { clientId: user.clientId ?? "__none__" }, select: { id: true, name: true } });
+    const projects = user.clientId
+      ? await tx.project.findMany({ where: { clientId: user.clientId }, select: { id: true, name: true } })
+      : [];
     summary.projectsPreserved = projects.map((p) => ({ id: p.id, name: p.name }));
 
     // Registrar no log de auditoria

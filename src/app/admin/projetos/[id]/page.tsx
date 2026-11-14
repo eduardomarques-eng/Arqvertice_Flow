@@ -37,6 +37,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     getDeliverableMatrix(id),
   ]);
 
+  const safeDocuments = (documents ?? []).map((doc) => ({
+    ...doc,
+    sizeBytes: doc.sizeBytes != null ? Number(doc.sizeBytes) : null,
+  }));
+
   const stages = (board?.columns || []).flatMap((column) => column?.cards || []).map((card) => ({
     id: card.id,
     name: card.name,
@@ -108,7 +113,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         {/* Record Page Header & Acervo Técnico Focado */}
         <ProjectDetailTabs
           project={projectData}
-          documents={documents}
+          documents={safeDocuments}
           deliverables={deliverablesList}
           deliverableMatrix={deliverableMatrix}
           stages={stages}
