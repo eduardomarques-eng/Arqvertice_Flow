@@ -3,13 +3,18 @@ import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { requireModulePermission } from "@/lib/rbac-helpers";
+import { getEffectivePermissions } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
 export default async function EquipeConfiguracoesPage() {
   const user = await requirePageTeamRole();
-  requireModulePermission(user, "equipe");
+  if (user.role !== "ADMIN") {
+    const effective = getEffectivePermissions(user);
+    if (!effective.includes("equipe")) {
+      redirect("/equipe");
+    }
+  }
 
   return (
     <AppShell eyebrow="Configurações" environment="admin" role={user.role}>

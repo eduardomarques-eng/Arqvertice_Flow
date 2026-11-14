@@ -13,7 +13,12 @@ export async function createProject(input: unknown) {
 export async function getProject(id: string) {
   return (await prisma.project.findUnique({
     where: { id },
-    include: { client: true, stages: { orderBy: { order: "asc" } }, payments: { orderBy: { order: "asc" } }, briefing: true },
+    include: {
+      client: { select: { id: true, name: true } },
+      stages: { orderBy: { order: "asc" }, select: { id: true, name: true, status: true, dueDate: true, order: true, designer: true, completion: true } },
+      payments: { orderBy: { order: "asc" }, select: { id: true, name: true, amount: true, status: true, order: true, dueDate: true, paidDate: true, scheduleStageId: true } },
+      briefing: { select: { id: true, status: true, updatedAt: true } },
+    },
   })) ?? notFound("Projeto");
 }
 
@@ -59,11 +64,11 @@ export async function archiveProject(id: string) {
 }
 
 export async function getProjectSchedule(id: string) {
-  const project = await prisma.project.findUnique({ where: { id }, select: { stages: { orderBy: { order: "asc" } } } });
+  const project = await prisma.project.findUnique({ where: { id }, select: { stages: { orderBy: { order: "asc" }, select: { id: true, name: true, status: true, dueDate: true, order: true, designer: true, completion: true } } } });
   return project?.stages ?? notFound("Projeto");
 }
 
 export async function getProjectPayments(id: string) {
-  const project = await prisma.project.findUnique({ where: { id }, select: { payments: { orderBy: { order: "asc" } } } });
+  const project = await prisma.project.findUnique({ where: { id }, select: { payments: { orderBy: { order: "asc" }, select: { id: true, name: true, amount: true, status: true, order: true, dueDate: true, paidDate: true, scheduleStageId: true } } } });
   return project?.payments ?? notFound("Projeto");
 }

@@ -66,7 +66,7 @@ enum DocumentStatus {
   ARCHIVED
 }
 
-// Tópico 39: origem do documento no sistema comercial. Permite localizar a
+// TÃ³pico 39: origem do documento no sistema comercial. Permite localizar a
 // proposta/contrato que originou o arquivo sem duplicar o armazenamento.
 enum DocumentSource {
   UPLOAD
@@ -95,7 +95,6 @@ enum AccessActionType {
 
 enum ProjectDiscipline {
   ARQUITETURA
-  ESTRUTURAL
   ESTRUTURA
   ELETRICO
   HIDROSSANITARIO
@@ -132,9 +131,9 @@ enum ApprovalStatus {
 enum ProposalStatus {
   DRAFT
   IN_REVIEW
-  // Prompt 4C, item 49 — negociação: o cliente pediu alteração sobre uma versão já
+  // Prompt 4C, item 49 â€” negociaÃ§Ã£o: o cliente pediu alteraÃ§Ã£o sobre uma versÃ£o jÃ¡
   // enviada. O ciclo continua ABERTO (o que o diferencia de APPROVED/REJECTED) e
-  // a resposta é sempre uma NOVA versão, nunca a edição da que foi enviada.
+  // a resposta Ã© sempre uma NOVA versÃ£o, nunca a ediÃ§Ã£o da que foi enviada.
   NEGOTIATING
   READY
   GENERATED
@@ -161,6 +160,11 @@ model User {
   sessionVersion       Int               @default(1)
   permissionsUpdatedAt DateTime          @default(now())
   lastSeenAt           DateTime?
+
+  // LGPD — consentimento do titular. Registado no momento do cadastro/registo.
+  consentAcceptedAt  DateTime?
+  privacyPolicyVersion Int?
+
   clientId     String?   @db.Uuid
   client       Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sessions     Session[]
@@ -271,10 +275,10 @@ model InternalMessage {
 }
 
 /**
- * Recuperação de senha: link de uso único, com expiração.
+ * RecuperaÃ§Ã£o de senha: link de uso Ãºnico, com expiraÃ§Ã£o.
  *
- * Guarda-se apenas o SHA-256 do token — o valor em claro só existe no e-mail.
- * `usedAt` permite invalidar o token depois de consumir e cortar sessões
+ * Guarda-se apenas o SHA-256 do token â€” o valor em claro sÃ³ existe no e-mail.
+ * `usedAt` permite invalidar o token depois de consumir e cortar sessÃµes
  * antigas quando a senha muda.
  */
 model PasswordResetToken {
@@ -291,13 +295,13 @@ model PasswordResetToken {
 }
 
 /**
- * Tópico 36 — trilha de auditoria das ações críticas.
+ * TÃ³pico 36 â€” trilha de auditoria das aÃ§Ãµes crÃ­ticas.
  *
  * `metadata` sozinho obrigava a abrir um blob para responder "quem/quando/qual
- * versão". Estas colunas tornaram a consulta direta e indexada:
- *   actorId + action + occurredAt  → quem fez, o quê e quando
- *   entityVersion                  → qual versão foi afetada
- *   fromStatus / toStatus          → estado anterior e posterior
+ * versÃ£o". Estas colunas tornaram a consulta direta e indexada:
+ *   actorId + action + occurredAt  â†’ quem fez, o quÃª e quando
+ *   entityVersion                  â†’ qual versÃ£o foi afetada
+ *   fromStatus / toStatus          â†’ estado anterior e posterior
  */
 model AuditLog {
   id            String   @id @default(uuid()) @db.Uuid
@@ -305,17 +309,17 @@ model AuditLog {
   entity        String
   entityId      String?
   metadata      Json?
-  // Quem fez. NULL significa ação de sistema (ex.: automação de conversão),
-  // e não "usuário desconhecido": são coisas diferentes.
+  // Quem fez. NULL significa aÃ§Ã£o de sistema (ex.: automaÃ§Ã£o de conversÃ£o),
+  // e nÃ£o "usuÃ¡rio desconhecido": sÃ£o coisas diferentes.
   actorId       String?  @db.Uuid
   actorRole     String?
   actorLabel    String?
-  // Versão da entidade afetada (ex.: versão 3 da proposta).
+  // VersÃ£o da entidade afetada (ex.: versÃ£o 3 da proposta).
   entityVersion Int?
-  // Transição de estado observada na ação.
+  // TransiÃ§Ã£o de estado observada na aÃ§Ã£o.
   fromStatus    String?
   toStatus      String?
-  // Contexto técnico para investigação de incidentes.
+  // Contexto tÃ©cnico para investigaÃ§Ã£o de incidentes.
   ipAddress     String?
   requestId     String?
   outcome       String   @default("SUCCESS")
@@ -430,15 +434,15 @@ model ProjectDocument {
   status       DocumentStatus    @default(ACTIVE)
   releasedAt   DateTime?
   archivedAt   DateTime?
-  // Tópico 39: liga o arquivo à entidade comercial que o originou.
+  // TÃ³pico 39: liga o arquivo Ã  entidade comercial que o originou.
   source       DocumentSource    @default(UPLOAD)
   proposalId   String?           @db.Uuid
   contractId   String?           @db.Uuid
-  // Tópico 4A: quando o ficheiro é uma referência do briefing, liga-se a ela.
+  // TÃ³pico 4A: quando o ficheiro Ã© uma referÃªncia do briefing, liga-se a ela.
   briefingReferences BriefingReference[]
-  // Tópico 39: impede reenvio do mesmo artefato comercial. A chave é estável
-  // por construção (ex.: "proposta:v3", "contrato:assinatura"), então
-  // reexecutar a automação não duplica o documento.
+  // TÃ³pico 39: impede reenvio do mesmo artefato comercial. A chave Ã© estÃ¡vel
+  // por construÃ§Ã£o (ex.: "proposta:v3", "contrato:assinatura"), entÃ£o
+  // reexecutar a automaÃ§Ã£o nÃ£o duplica o documento.
   sourceKey    String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
@@ -622,8 +626,8 @@ model Payment {
   paidAt           DateTime?
   archivedAt       DateTime?
   scheduleStageId  String?       @db.Uuid
-  // Tópico 38: liga a parcela à proposta que a originou, permitindo detectar
-  // e não recriar parcelas já geradas.
+  // TÃ³pico 38: liga a parcela Ã  proposta que a originou, permitindo detectar
+  // e nÃ£o recriar parcelas jÃ¡ geradas.
   sourceProposalId String?       @db.Uuid
   sourceKey        String?
   project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -653,7 +657,7 @@ model Briefing {
   project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   revisions   BriefingRevision[]
   accessLinks BriefingAccessLink[]
-  // Tópico 4A: o que o cliente respondeu para além do texto.
+  // TÃ³pico 4A: o que o cliente respondeu para alÃ©m do texto.
   references  BriefingReference[]
   audioNotes  BriefingAudioNote[]
   createdAt   DateTime            @default(now())
@@ -704,34 +708,34 @@ model BriefingVisualOption {
   @@unique([questionId, value])
 }
 
-// Tópico 4A — o que o cliente sobre as referências visuais.
+// TÃ³pico 4A â€” o que o cliente sobre as referÃªncias visuais.
 //
 // `BriefingVisualOption` guarda as imagens que o ADMIN publica nas perguntas.
-// Este guarda o que o CLIENTE respondeu: a referência que enviou, o que gosta e
-// o que não gosta nela, e se continua de pé. Sem esta distinção, uma imagem
-// aprovada é lida inteira como um "sim" — e o cliente pode gostar da luz e
-// detestar o mobiliário.
+// Este guarda o que o CLIENTE respondeu: a referÃªncia que enviou, o que gosta e
+// o que nÃ£o gosta nela, e se continua de pÃ©. Sem esta distinÃ§Ã£o, uma imagem
+// aprovada Ã© lida inteira como um "sim" â€” e o cliente pode gostar da luz e
+// detestar o mobiliÃ¡rio.
 //
-// A resposta do cliente é `likes`/`dislikes`. A opinião do profissional entra em
-// `professionalNote` e não reescreve nada do que o cliente disse.
+// A resposta do cliente Ã© `likes`/`dislikes`. A opiniÃ£o do profissional entra em
+// `professionalNote` e nÃ£o reescreve nada do que o cliente disse.
 model BriefingReference {
   id               String   @id @default(uuid()) @db.Uuid
   briefingId       String   @db.Uuid
   questionId       String
-  // Chave no storage quando é um ficheiro; null quando é uma opção do catálogo.
+  // Chave no storage quando Ã© um ficheiro; null quando Ã© uma opÃ§Ã£o do catÃ¡logo.
   storageKey       String?
   documentId       String?  @db.Uuid
   visualOptionId   String?  @db.Uuid
   fileName         String?
   mimeType         String?
   sizeBytes        BigInt?
-  // REFERENCIA, FOTO_IMOVEL, DOCUMENTO — ou outra categoria declarada pela
-  // pergunta. Texto livre de propósito: o briefing cresce sem migration.
+  // REFERENCIA, FOTO_IMOVEL, DOCUMENTO â€” ou outra categoria declarada pela
+  // pergunta. Texto livre de propÃ³sito: o briefing cresce sem migration.
   category         String   @default("REFERENCIA")
-  // O que o cliente diz que gosta e o que diz que não gosta, desta referência.
+  // O que o cliente diz que gosta e o que diz que nÃ£o gosta, desta referÃªncia.
   likes            String?  @db.Text
   dislikes         String?  @db.Text
-  // Ambiente do programa a que a referência se refere, quando se aplica.
+  // Ambiente do programa a que a referÃªncia se refere, quando se aplica.
   environmentId    String?
   selected         Boolean  @default(true)
   discarded        Boolean  @default(false)
@@ -747,11 +751,11 @@ model BriefingReference {
   @@index([briefingId, createdAt])
 }
 
-// Tópico 4A — resposta por áudio.
+// TÃ³pico 4A â€” resposta por Ã¡udio.
 //
-// O áudio original NUNCA é apagado: a transcrição automática e a corrigida pelo
-// cliente são colunas separadas do mesmo registo. Se a transcrição automática
-// falhar, o cliente ainda pode ouvir e escrever — e o áudio continua lá para
+// O Ã¡udio original NUNCA Ã© apagado: a transcriÃ§Ã£o automÃ¡tica e a corrigida pelo
+// cliente sÃ£o colunas separadas do mesmo registo. Se a transcriÃ§Ã£o automÃ¡tica
+// falhar, o cliente ainda pode ouvir e escrever â€” e o Ã¡udio continua lÃ¡ para
 // o profissional.
 enum BriefingAudioStatus {
   UPLOADED
@@ -768,10 +772,10 @@ model BriefingAudioNote {
   mimeType     String
   sizeBytes    BigInt?
   status       BriefingAudioStatus @default(UPLOADED)
-  // Identificador do serviço que transcreveu, quando existe. Null significa
-  // "sem provider configurado" — nunca "transcrito".
+  // Identificador do serviÃ§o que transcreveu, quando existe. Null significa
+  // "sem provider configurado" â€” nunca "transcrito".
   provider     String?
-  // Texto exacto como saiu do provider. Não é a resposta final.
+  // Texto exacto como saiu do provider. NÃ£o Ã© a resposta final.
   transcript   String?             @db.Text
   // Texto que o cliente corrigiu ou confirmou.
   reviewedText String?             @db.Text
@@ -798,30 +802,30 @@ model Proposal {
   approvalIp     String?
   approvalMeta   Json?
   approvedVersion Int?
-  // Prompt 4C, item 3 — identificação comercial legível (ex.: "PROP-2026-0007").
+  // Prompt 4C, item 3 â€” identificaÃ§Ã£o comercial legÃ­vel (ex.: "PROP-2026-0007").
   //
-  // Gerado pelo servidor na criação. É estável e sequencial-por-ano apenas para o
-  // ADMIN: o link público NUNCA o expõe, porque o identificador não é autorização.
+  // Gerado pelo servidor na criaÃ§Ã£o. Ã‰ estÃ¡vel e sequencial-por-ano apenas para o
+  // ADMIN: o link pÃºblico NUNCA o expÃµe, porque o identificador nÃ£o Ã© autorizaÃ§Ã£o.
   code           String?         @unique
-  // Prompt 4C, item 45 — versão que o link público exibe.
+  // Prompt 4C, item 45 â€” versÃ£o que o link pÃºblico exibe.
   //
-  // Sem esta coluna, o carregador público lia sempre a versão MAIS RECENTE. Isso
+  // Sem esta coluna, o carregador pÃºblico lia sempre a versÃ£o MAIS RECENTE. Isso
   // quebrava a garantia central da fase: o cliente aprovava o V1 e, se o ADMIN
-  // editasse depois, o mesmo link passava a mostrar o V2 — o cliente aprovava
-  // outra coisa sem ter lido. Fixar a versão no link torna o link uma FOTOGRAFIA
+  // editasse depois, o mesmo link passava a mostrar o V2 â€” o cliente aprovava
+  // outra coisa sem ter lido. Fixar a versÃ£o no link torna o link uma FOTOGRAFIA
   // do que foi enviado.
   publishedVersion Int?
   publishedAt      DateTime?
-  // Prompt 4C, item 24 — snapshot do preço efectivamente usado por esta versão.
+  // Prompt 4C, item 24 â€” snapshot do preÃ§o efectivamente usado por esta versÃ£o.
   //
-  // Congelado na gravação da versão. Sem ele, alterar o catálogo mudaria o número
-  // de uma proposta já enviada, e o contrato bornaria de um valor que o cliente
+  // Congelado na gravaÃ§Ã£o da versÃ£o. Sem ele, alterar o catÃ¡logo mudaria o nÃºmero
+  // de uma proposta jÃ¡ enviada, e o contrato bornaria de um valor que o cliente
   // nunca viu.
   pricingSnapshot  Json?
-  // Tópico 37: marca de conversão. Numa única conversão por proposta, estes
-  // campos são gravados na mesma transação das parcelas, do serviço e dos
-  // documentos. Se a transação falhar, nada fica gravado e a próxima execução
-  // parte do zero — em vez de converter metade do negócio.
+  // TÃ³pico 37: marca de conversÃ£o. Numa Ãºnica conversÃ£o por proposta, estes
+  // campos sÃ£o gravados na mesma transaÃ§Ã£o das parcelas, do serviÃ§o e dos
+  // documentos. Se a transaÃ§Ã£o falhar, nada fica gravado e a prÃ³xima execuÃ§Ã£o
+  // parte do zero â€” em vez de converter metade do negÃ³cio.
   convertedAt    DateTime?
   conversionKey  String?
   project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -853,16 +857,16 @@ model ProposalVersion {
   authorId       String?   @db.Uuid
   frozenAt       DateTime?
   pricing        Json?
-  // Prompt 18, itens 2 e 5 — plano de pagamento CONGELADO por versão.
+  // Prompt 18, itens 2 e 5 â€” plano de pagamento CONGELADO por versÃ£o.
   //
-  // Antes desta coluna o plano não era persistido: era re-interpretado do texto
+  // Antes desta coluna o plano nÃ£o era persistido: era re-interpretado do texto
   // livre `formalText.formaPagamento` a cada leitura. Isso tornava uma proposta
-  // já publicada mutável (basta editar o texto) e permitia que ADMIN e cliente
-  // vissem planos diferentes. Congelando aqui, a versão publicada é
-  // historicamente reproduzível e ambos leem a mesma fonte.
+  // jÃ¡ publicada mutÃ¡vel (basta editar o texto) e permitia que ADMIN e cliente
+  // vissem planos diferentes. Congelando aqui, a versÃ£o publicada Ã©
+  // historicamente reproduzÃ­vel e ambos leem a mesma fonte.
   //
-  // NULL significa apenas "versão criada antes desta migração"; o leitor trata
-  // esse caso à parte, com aviso explícito.
+  // NULL significa apenas "versÃ£o criada antes desta migraÃ§Ã£o"; o leitor trata
+  // esse caso Ã  parte, com aviso explÃ­cito.
   paymentPlan    Json?
   createdAt      DateTime  @default(now())
   proposal       Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -880,11 +884,11 @@ model ProposalAccessLink {
   expiresAt   DateTime?
   firstAccessAt DateTime?
   lastAccessAt DateTime?
-  // Prompt 4C, item 42 — o link aponta para UMA versão específica.
+  // Prompt 4C, item 42 â€” o link aponta para UMA versÃ£o especÃ­fica.
   //
-  // NULL significa "proposta ainda não publicada" (legado/rascunho). O leitor
-  // público recusa nesse caso em vez de escolher a versão mais recente por conta
-  // própria: escolher seria publicar algo que ninguém revisou.
+  // NULL significa "proposta ainda nÃ£o publicada" (legado/rascunho). O leitor
+  // pÃºblico recusa nesse caso em vez de escolher a versÃ£o mais recente por conta
+  // prÃ³pria: escolher seria publicar algo que ninguÃ©m revisou.
   versionNumber Int?
   proposal    Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt   DateTime  @default(now())
@@ -913,7 +917,7 @@ enum SignatureStatus {
   FAILED
 }
 
-// Tópico 3: unidade de cobrança configurável. O banco nunca é fixo em m².
+// TÃ³pico 3: unidade de cobranÃ§a configurÃ¡vel. O banco nunca Ã© fixo em mÂ².
 enum ServiceUnit {
   M2
   AMBIENTE
@@ -925,14 +929,14 @@ enum ServiceUnit {
   PERCENTUAL
 }
 
-// Tópico 5: faixas comerciais definidas pelo ADMIN (não são níveis de qualidade).
+// TÃ³pico 5: faixas comerciais definidas pelo ADMIN (nÃ£o sÃ£o nÃ­veis de qualidade).
 enum PricingLevel {
   BAIXO
   MEDIO
   ALTO
 }
 
-// Tópico 4: cadastro administrativo de serviços e precificação.
+// TÃ³pico 4: cadastro administrativo de serviÃ§os e precificaÃ§Ã£o.
 model ServiceItem {
   id                   String   @id @default(uuid()) @db.Uuid
   name                 String
@@ -968,7 +972,7 @@ model ServiceItem {
   @@index([discipline, active, displayOrder])
 }
 
-// Tópico 4: histórico obrigatório de alteração de preços.
+// TÃ³pico 4: histÃ³rico obrigatÃ³rio de alteraÃ§Ã£o de preÃ§os.
 model ServicePriceHistory {
   id            String       @id @default(uuid()) @db.Uuid
   serviceId     String       @db.Uuid
@@ -983,7 +987,7 @@ model ServicePriceHistory {
   @@index([serviceId, createdAt])
 }
 
-// Tópico 11: pacotes configuráveis; os nomes ficam no banco.
+// TÃ³pico 11: pacotes configurÃ¡veis; os nomes ficam no banco.
 model CommercialPackage {
   id          String   @id @default(uuid()) @db.Uuid
   name        String   @unique
@@ -1099,7 +1103,7 @@ model Contract {
   signatureMeta   Json?
   proposal        Proposal        @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   template        ContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // Tópico 39: o contrato e a via assinada vivem no mesmo módulo de documentos.
+  // TÃ³pico 39: o contrato e a via assinada vivem no mesmo mÃ³dulo de documentos.
   documents       ProjectDocument[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -1135,3 +1139,16 @@ model StageReminderLog {
   stage          ScheduleStage       @relation(fields: [stageId], references: [id], onDelete: Cascade)
   @@index([stageId])
 }
+
+
+model PrivacyPolicy {
+  id          String   @id @default(uuid())
+  version     Int      @default(1)
+  title       String
+  content     String   @db.Text
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([version])
+}
+

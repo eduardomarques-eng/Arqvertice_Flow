@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db";
 import { notFound } from "@/server/errors";
 import { projectInstallmentSchema, projectInstallmentUpdateSchema } from "@/lib/validation";
+import { withDistributedLock } from "@/lib/distributed-lock";
 
 export function isInstallmentOverdue(value: Date, now = new Date()) {
   const due = Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
@@ -10,6 +11,45 @@ export function isInstallmentOverdue(value: Date, now = new Date()) {
 
 function effectiveStatus(status: string, dueDate: Date) {
   return status !== "PAID" && isInstallmentOverdue(dueDate) ? "OVERDUE" : status;
+}
+
+/**
+ * Atualização otimista de parcela: verifica a versão no banco e rejeita se
+ * outrem modificou o registro entre a leitura e a escrita (409 Conflict).
+ * O Prisma aplica `version: { increment: 1 }` e retorna 409 se a versão
+ * esperada não corresponder.
+ */
+async function updateWithOptimisticLock(
+  projectId: string,
+  id: string,
+  newStatus: string,
+  dueDate: Date | null,
+  expectedVersion: number,
+) {
+  const current = await prisma.projectInstallment.findUnique({
+    where: { id },
+    select: { version: true },
+  });
+  if (!current) return notFound("Parcela");
+
+  try {
+    return await prisma.projectInstallment.update({
+      where: {
+        id,
+        version: expectedVersion,
+      },
+      data: {
+        status: newStatus,
+        dueDate: dueDate ?? current.dueDate,
+        version: { increment: 1 },
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return notFound("Parcela");
+    }
+    throw error;
+  }
 }
 
 export async function listProjectInstallments(projectId: string) {
@@ -38,7 +78,9 @@ export async function updateProjectInstallment(projectId: string, id: string, in
   if (!installment) return notFound("Parcela");
   const dueDate = data.dueDate ?? installment.dueDate;
   const status = effectiveStatus(data.status ?? installment.status, dueDate);
-  return prisma.projectInstallment.update({ where: { id }, data: { ...data, status } });
+  return withDistributedLock("installment-update:" + id, async () => {
+    return updateWithOptimisticLock(projectId, id, status, dueDate, installment.version ?? 1);
+  });
 }
 
 export async function deleteProjectInstallment(projectId: string, id: string) {

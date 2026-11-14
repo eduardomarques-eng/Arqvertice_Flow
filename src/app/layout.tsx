@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { CookieConsentBanner } from "@/components/cookie-consent-banner";
 
 export const metadata: Metadata = {
   title: {
@@ -24,12 +25,14 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className="antialiased min-h-screen">{children}</body>
+      <body className="antialiased min-h-screen">
+        <CookieConsentBanner />
+        {children}
+      </body>
     </html>
   );
 }
+

@@ -15,9 +15,7 @@
  * O script lê DATABASE_URL do .env (ou Neon connection string) e opera via Prisma.
  */
 
-import { PrismaClient } from "./src/server/db.js";
-
-const prisma = new PrismaClient();
+import { prisma } from "../src/server/db.js";
 
 // Configuração de Wagner Silva
 const WAGNER_EMAIL = "wagner.silva@arqvertice.com.br";
@@ -74,7 +72,7 @@ async function ensureUser() {
     const existing = await prisma.projectAccess.findMany({
       where: {
         userId: user.id,
-        project: { some: { id: { in: projects.map((p) => p.id) } } },
+        projectId: { in: projects.map((p) => p.id) },
       },
       select: { projectId: true },
     });

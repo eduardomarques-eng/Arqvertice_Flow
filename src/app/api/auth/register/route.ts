@@ -52,7 +52,24 @@ export async function POST(request: Request) {
           status: "ACTIVE",
         },
       });
-      await tx.user.create({ data: { name, email, passwordHash, role: "CLIENT", clientId: client.id } });
+      const consentAcceptedAt = body.consentAcceptedAt ?? null;
+      const privacyPolicyVersion =
+        Number.isFinite(Number(body.privacyPolicyVersion)) &&
+        Number(body.privacyPolicyVersion) > 0
+          ? Number(body.privacyPolicyVersion)
+          : null;
+
+      await tx.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+          role: "CLIENT",
+          clientId: client.id,
+          consentAcceptedAt: consentAcceptedAt ?? null,
+          privacyPolicyVersion,
+        },
+      });
     });
 
     return NextResponse.json({ ok: true, requestId }, { status: 201, headers: { "X-Request-Id": requestId } });

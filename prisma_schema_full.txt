@@ -1,0 +1,1137 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+enum ScheduleStageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PAID
+  PENDING
+  AWAITING_COMPLETION
+}
+
+enum UserRole {
+  ADMIN
+  ARQUITETO
+  ENGENHEIRO
+  EQUIPE
+  CLIENTE
+  OPERATOR
+  OPERADOR
+  CLIENT
+}
+
+enum BriefingStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum ProjectReportStatus {
+  PREPARING
+  INTERNAL
+  RELEASED
+  ARCHIVED
+}
+
+enum DocumentVisibility {
+  INTERNAL
+  CLIENT
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// TÃ³pico 39: origem do documento no sistema comercial. Permite localizar a
+// proposta/contrato que originou o arquivo sem duplicar o armazenamento.
+enum DocumentSource {
+  UPLOAD
+  PROPOSAL
+  CONTRACT
+  CONTRACT_SIGNED
+  PAYMENT_RECEIPT
+}
+
+enum ProjectStagePhase {
+  PROJETO_PRELIMINAR
+  PROJETO_LEGAL
+  PROJETO_EXECUTIVO
+}
+
+enum AcervoCategory {
+  PLANTA_TECNICA_PDF
+  DOCUMENTACAO_MEMORIAL
+  IMAGEM_RENDER
+}
+
+enum AccessActionType {
+  VIEW
+  DOWNLOAD
+}
+
+enum ProjectDiscipline {
+  ARQUITETURA
+  ESTRUTURAL
+  ESTRUTURA
+  ELETRICO
+  HIDROSSANITARIO
+  HVAC
+  INTERIORES
+  COMPATIBILIZACAO
+  COMBATE_INCENDIO
+  RENDER_3D
+  LEGAL_APROVACAO
+  EXECUCAO_OBRA
+  GERAL
+}
+
+enum DeliverableType {
+  PLANTA_BAIXA
+  CORTE_FACHADA
+  DETALHAMENTO
+  RENDER_3D
+  MEMORIAL_DESCRITIVO
+  ESPECIFICACAO_TECNICA
+  PRANCHA_EXECUTIVA
+  OUTRO
+}
+
+enum ApprovalStatus {
+  EM_ELABORACAO
+  REVISAO_INTERNA
+  APROVADO_INTERNO
+  APROVADO_CLIENTE
+  REJEITADO
+  LIBERADO_OBRA
+}
+
+enum ProposalStatus {
+  DRAFT
+  IN_REVIEW
+  // Prompt 4C, item 49 â€” negociaÃ§Ã£o: o cliente pediu alteraÃ§Ã£o sobre uma versÃ£o jÃ¡
+  // enviada. O ciclo continua ABERTO (o que o diferencia de APPROVED/REJECTED) e
+  // a resposta Ã© sempre uma NOVA versÃ£o, nunca a ediÃ§Ã£o da que foi enviada.
+  NEGOTIATING
+  READY
+  GENERATED
+  SENT
+  VIEWED
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  CONVERTED
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole  @default(CLIENTE)
+  phone        String?
+  whatsapp     String?    @db.VarChar(255)
+   specialty    String?    @db.VarChar(100)
+   isActive     Boolean   @default(true)
+  permissions          String[]          @default([])
+  sessionVersion       Int               @default(1)
+  permissionsUpdatedAt DateTime          @default(now())
+  lastSeenAt           DateTime?
+  clientId     String?   @db.Uuid
+  client       Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sessions     Session[]
+  auditLogs    AuditLog[]
+  accessLogs   UserAccessLog[]
+  sentInternalMessages     InternalMessage[] @relation("SentInternalMessages")
+  receivedInternalMessages InternalMessage[] @relation("ReceivedInternalMessages")
+  proposalVersions ProposalVersion[]
+  projectAccess ProjectAccess[]
+  passwordResetTokens PasswordResetToken[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([role])
+}
+
+model Session {
+  id             String   @id @default(uuid()) @db.Uuid
+  tokenHash      String   @unique
+  userId         String   @db.Uuid
+  sessionVersion Int      @default(1)
+  expiresAt      DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+enum AccessEventType {
+  LOGIN
+  LOGOUT
+  FORCED_LOGOUT
+  SESSION_EXPIRED
+}
+
+model UserAccessLog {
+  id         String          @id @default(uuid())
+  userId     String          @db.Uuid
+  userName   String
+  userEmail  String
+  userRole   String
+  eventType  AccessEventType
+  ipAddress  String?
+  userAgent  String?
+  deviceInfo String?
+  createdAt  DateTime        @default(now())
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum CommChannel {
+  WHATSAPP
+  EMAIL
+}
+
+enum CommRecipientType {
+  PROFISSIONAL
+  CLIENTE
+}
+
+enum CommStatus {
+  ENVIADO
+  DISPARADO_LINK
+  FALHA
+}
+
+model CommunicationLog {
+  id               String            @id @default(uuid())
+  recipientType    CommRecipientType
+  recipientId      String?
+  recipientName    String
+  recipientContact String
+  projectId        String?
+  projectName      String?
+  channel          CommChannel
+  category         String
+  subject          String?
+  messageBody      String
+  deliveryMethod   String?
+  externalId       String?
+  status           CommStatus        @default(ENVIADO)
+  errorMessage     String?
+  sentBy           String
+  createdAt        DateTime          @default(now())
+
+  @@index([recipientType])
+  @@index([createdAt])
+}
+
+model InternalMessage {
+  id         String   @id @default(uuid())
+  senderId   String   @db.Uuid
+  receiverId String   @db.Uuid
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender     User     @relation("SentInternalMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedInternalMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, isRead])
+  @@index([createdAt])
+}
+
+/**
+ * RecuperaÃ§Ã£o de senha: link de uso Ãºnico, com expiraÃ§Ã£o.
+ *
+ * Guarda-se apenas o SHA-256 do token â€” o valor em claro sÃ³ existe no e-mail.
+ * `usedAt` permite invalidar o token depois de consumir e cortar sessÃµes
+ * antigas quando a senha muda.
+ */
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/**
+ * TÃ³pico 36 â€” trilha de auditoria das aÃ§Ãµes crÃ­ticas.
+ *
+ * `metadata` sozinho obrigava a abrir um blob para responder "quem/quando/qual
+ * versÃ£o". Estas colunas tornaram a consulta direta e indexada:
+ *   actorId + action + occurredAt  â†’ quem fez, o quÃª e quando
+ *   entityVersion                  â†’ qual versÃ£o foi afetada
+ *   fromStatus / toStatus          â†’ estado anterior e posterior
+ */
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  action        String
+  entity        String
+  entityId      String?
+  metadata      Json?
+  // Quem fez. NULL significa aÃ§Ã£o de sistema (ex.: automaÃ§Ã£o de conversÃ£o),
+  // e nÃ£o "usuÃ¡rio desconhecido": sÃ£o coisas diferentes.
+  actorId       String?  @db.Uuid
+  actorRole     String?
+  actorLabel    String?
+  // VersÃ£o da entidade afetada (ex.: versÃ£o 3 da proposta).
+  entityVersion Int?
+  // TransiÃ§Ã£o de estado observada na aÃ§Ã£o.
+  fromStatus    String?
+  toStatus      String?
+  // Contexto tÃ©cnico para investigaÃ§Ã£o de incidentes.
+  ipAddress     String?
+  requestId     String?
+  outcome       String   @default("SUCCESS")
+  userId        String?  @db.Uuid
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@index([entityVersion])
+}
+
+
+model Client {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  fullName    String?
+  email       String?
+  phone       String?
+  document    String?
+  cpf         String?
+  rg          String?
+  address     Json?
+  city        String?
+  state       String?
+  notes       String?
+  status      ClientStatus @default(ACTIVE)
+  projects    Project[]
+  users       User[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([email])
+}
+
+model Project {
+  id             String          @id @default(uuid()) @db.Uuid
+  clientId       String          @db.Uuid
+  name           String
+  type           String?
+  description    String?
+  scope          String?
+  budget         Decimal?        @db.Decimal(12, 2)
+  totalValue     Float?          @default(0)
+  startDate      DateTime?
+  expectedEndDate DateTime?
+  status         ProjectStatus   @default(PLANNING)
+  address        Json?
+  notes          String?
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stages         ScheduleStage[]
+  payments       Payment[]
+  briefing       Briefing?
+  reports        ProjectReport[]
+  access         ProjectAccess[]
+  documents      ProjectDocument[]
+  proposals      Proposal[]
+  installments   ProjectInstallment[]
+  deliverables   ProjectDeliverable[]
+  folders        ProjectFolder[]
+  environments   ProjectEnvironment[]
+  checklists     ChecklistItem[]
+  deliverableAccessLogs DeliverableAccessLog[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+}
+
+model ProjectInstallment {
+  id            String   @id @default(uuid()) @db.Uuid
+  projectId     String   @db.Uuid
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  description   String
+  amount        Float
+  dueDate       DateTime
+  paidDate      DateTime?
+  status        String   @default("PENDING")
+  linkedStageId String?  @db.Uuid
+  order         Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([linkedStageId])
+}
+
+model ProjectAccess {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @db.Uuid
+  userId    String   @db.Uuid
+  canEdit   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId, projectId])
+}
+
+model ProjectDocument {
+  id           String            @id @default(uuid()) @db.Uuid
+  projectId    String            @db.Uuid
+  name         String
+  storageUrl   String
+  mimeType     String?
+  sizeBytes    BigInt?
+  visibility   DocumentVisibility @default(INTERNAL)
+  status       DocumentStatus    @default(ACTIVE)
+  releasedAt   DateTime?
+  archivedAt   DateTime?
+  // TÃ³pico 39: liga o arquivo Ã  entidade comercial que o originou.
+  source       DocumentSource    @default(UPLOAD)
+  proposalId   String?           @db.Uuid
+  contractId   String?           @db.Uuid
+  // TÃ³pico 4A: quando o ficheiro Ã© uma referÃªncia do briefing, liga-se a ela.
+  briefingReferences BriefingReference[]
+  // TÃ³pico 39: impede reenvio do mesmo artefato comercial. A chave Ã© estÃ¡vel
+  // por construÃ§Ã£o (ex.: "proposta:v3", "contrato:assinatura"), entÃ£o
+  // reexecutar a automaÃ§Ã£o nÃ£o duplica o documento.
+  sourceKey    String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  project      Project           @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  proposal     Proposal?         @relation(fields: [proposalId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  contract     Contract?         @relation(fields: [contractId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([projectId, visibility, status])
+  @@unique([sourceKey])
+  @@index([source])
+}
+
+model ProjectDeliverable {
+  id            String              @id @default(uuid()) @db.Uuid
+  projectId     String              @db.Uuid
+  folderId      String?             @db.Uuid
+  environmentId String?             @db.Uuid
+  stageId       String?             @db.Uuid
+  discipline    ProjectDiscipline
+  phaseFolder   ProjectStagePhase   @default(PROJETO_EXECUTIVO)
+  category      AcervoCategory      @default(PLANTA_TECNICA_PDF)
+  type          DeliverableType
+  sheetCode     String?
+  subject       String
+  title         String
+  subtitle      String?
+  description   String?
+  fileUrl       String
+  thumbnailUrl  String?
+  version       String              @default("R00")
+  fileSize      String?
+  status        ApprovalStatus      @default(APROVADO_INTERNO)
+  isClientView  Boolean             @default(true)
+  isRequired    Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder        ProjectFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  environment   ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  stage         ScheduleStage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  checklists    ChecklistItem[]
+  accessLogs    DeliverableAccessLog[]
+
+  @@index([projectId, discipline, phaseFolder])
+  @@index([projectId])
+  @@index([sheetCode])
+}
+
+model DeliverableAccessLog {
+  id            String             @id @default(uuid()) @db.Uuid
+  projectId     String             @db.Uuid
+  deliverableId String             @db.Uuid
+  userId        String?            @db.Uuid
+  userName      String
+  userRole      String
+  action        AccessActionType
+  sheetTitle    String
+  createdAt     DateTime           @default(now())
+
+  project       Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliverable   ProjectDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([deliverableId])
+}
+
+model ProjectFolder {
+  id           String               @id @default(uuid()) @db.Uuid
+  projectId    String               @db.Uuid
+  name         String
+  description  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliverables ProjectDeliverable[]
+
+  @@index([projectId])
+}
+
+model ProjectEnvironment {
+  id           String               @id @default(uuid()) @db.Uuid
+  projectId    String               @db.Uuid
+  name         String
+  description  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliverables ProjectDeliverable[]
+
+  @@index([projectId])
+}
+
+model ChecklistItem {
+  id            String              @id @default(uuid()) @db.Uuid
+  projectId     String              @db.Uuid
+  category      String              @default("GERAL")
+  task          String
+  notes         String?
+  isCompleted   Boolean             @default(false)
+  verifiedBy    String?
+  verifiedAt    DateTime?
+  completedAt   DateTime?
+  deliverableId String?             @db.Uuid
+  stageId       String?             @db.Uuid
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliverable   ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  stage         ScheduleStage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([deliverableId])
+  @@index([stageId])
+}
+
+
+
+model ProjectReport {
+  id          String             @id @default(uuid()) @db.Uuid
+  projectId   String             @db.Uuid
+  title       String
+  version     Int                @default(1)
+  contentUrl  String?
+  status      ProjectReportStatus @default(PREPARING)
+  releasedAt  DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([projectId, status])
+}
+
+model ScheduleStage {
+  id             String              @id @default(uuid()) @db.Uuid
+  projectId      String              @db.Uuid
+  name           String
+  discipline     String?
+  designer       String?
+  description    String?
+  startDate      DateTime?
+  endDate        DateTime?
+  dueDate        DateTime?
+  durationDays   Int?
+  status         ScheduleStageStatus @default(NOT_STARTED)
+  order          Int
+  completion     Int                 @default(0)
+  completedAt    DateTime?
+  notes          String?
+  isVisibleInKanban Boolean           @default(true)
+  dependencyId   String?             @db.Uuid
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  dependency     ScheduleStage?      @relation("StageDependency", fields: [dependencyId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  dependents     ScheduleStage[]     @relation("StageDependency")
+  payments       Payment[]
+  deliverables   ProjectDeliverable[]
+  checklists     ChecklistItem[]
+  reminders      StageReminderLog[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([projectId, order])
+  @@index([projectId, status])
+  @@index([dependencyId])
+}
+
+model Payment {
+  id               String        @id @default(uuid()) @db.Uuid
+  projectId        String        @db.Uuid
+  name             String
+  amount           Decimal       @db.Decimal(12, 2)
+  dueDate          DateTime?
+  status           PaymentStatus @default(PENDING)
+  note             String?
+  order            Int
+  percentage       Int?
+  paidAt           DateTime?
+  archivedAt       DateTime?
+  scheduleStageId  String?       @db.Uuid
+  // TÃ³pico 38: liga a parcela Ã  proposta que a originou, permitindo detectar
+  // e nÃ£o recriar parcelas jÃ¡ geradas.
+  sourceProposalId String?       @db.Uuid
+  sourceKey        String?
+  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  scheduleStage    ScheduleStage? @relation(fields: [scheduleStageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sourceProposal   Proposal?     @relation(fields: [sourceProposalId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([projectId, order])
+  @@unique([sourceKey])
+  @@index([projectId, status])
+  @@index([scheduleStageId])
+  @@index([sourceProposalId])
+}
+
+model Briefing {
+  id          String   @id @default(uuid()) @db.Uuid
+  projectId   String   @unique @db.Uuid
+  title       String   @default("Briefing Executivo & Programa de Necessidades")
+  token       String?  @unique
+  questions   Json?
+  responses   Json
+  status      BriefingStatus @default(DRAFT)
+  version     Int      @default(1)
+  submittedAt DateTime?
+  finalizedAt DateTime?
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  revisions   BriefingRevision[]
+  accessLinks BriefingAccessLink[]
+  // TÃ³pico 4A: o que o cliente respondeu para alÃ©m do texto.
+  references  BriefingReference[]
+  audioNotes  BriefingAudioNote[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model BriefingAccessLink {
+  id          String   @id @default(uuid()) @db.Uuid
+  briefingId  String   @db.Uuid
+  tokenHash   String   @unique
+  token       String?
+  revokedAt   DateTime?
+  expiresAt   DateTime?
+  firstAccessAt DateTime?
+  lastAccessAt DateTime?
+  createdAt   DateTime @default(now())
+  briefing    Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([briefingId, revokedAt])
+}
+
+model BriefingRevision {
+  id          String   @id @default(uuid()) @db.Uuid
+  briefingId  String   @db.Uuid
+  version     Int
+  responses   Json
+  createdAt   DateTime @default(now())
+  briefing    Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([briefingId, version])
+  @@index([briefingId, createdAt])
+}
+
+model BriefingVisualOption {
+  id          String   @id @default(uuid()) @db.Uuid
+  questionId  String
+  value       String
+  title       String
+  description String?
+  imageUrl    String?
+  altText     String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([questionId, sortOrder])
+  @@unique([questionId, value])
+}
+
+// TÃ³pico 4A â€” o que o cliente sobre as referÃªncias visuais.
+//
+// `BriefingVisualOption` guarda as imagens que o ADMIN publica nas perguntas.
+// Este guarda o que o CLIENTE respondeu: a referÃªncia que enviou, o que gosta e
+// o que nÃ£o gosta nela, e se continua de pÃ©. Sem esta distinÃ§Ã£o, uma imagem
+// aprovada Ã© lida inteira como um "sim" â€” e o cliente pode gostar da luz e
+// detestar o mobiliÃ¡rio.
+//
+// A resposta do cliente Ã© `likes`/`dislikes`. A opiniÃ£o do profissional entra em
+// `professionalNote` e nÃ£o reescreve nada do que o cliente disse.
+model BriefingReference {
+  id               String   @id @default(uuid()) @db.Uuid
+  briefingId       String   @db.Uuid
+  questionId       String
+  // Chave no storage quando Ã© um ficheiro; null quando Ã© uma opÃ§Ã£o do catÃ¡logo.
+  storageKey       String?
+  documentId       String?  @db.Uuid
+  visualOptionId   String?  @db.Uuid
+  fileName         String?
+  mimeType         String?
+  sizeBytes        BigInt?
+  // REFERENCIA, FOTO_IMOVEL, DOCUMENTO â€” ou outra categoria declarada pela
+  // pergunta. Texto livre de propÃ³sito: o briefing cresce sem migration.
+  category         String   @default("REFERENCIA")
+  // O que o cliente diz que gosta e o que diz que nÃ£o gosta, desta referÃªncia.
+  likes            String?  @db.Text
+  dislikes         String?  @db.Text
+  // Ambiente do programa a que a referÃªncia se refere, quando se aplica.
+  environmentId    String?
+  selected         Boolean  @default(true)
+  discarded        Boolean  @default(false)
+  professionalNote String?  @db.Text
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  briefing         Briefing             @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  document         ProjectDocument?     @relation(fields: [documentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([briefingId, category])
+  @@index([briefingId, createdAt])
+}
+
+// TÃ³pico 4A â€” resposta por Ã¡udio.
+//
+// O Ã¡udio original NUNCA Ã© apagado: a transcriÃ§Ã£o automÃ¡tica e a corrigida pelo
+// cliente sÃ£o colunas separadas do mesmo registo. Se a transcriÃ§Ã£o automÃ¡tica
+// falhar, o cliente ainda pode ouvir e escrever â€” e o Ã¡udio continua lÃ¡ para
+// o profissional.
+enum BriefingAudioStatus {
+  UPLOADED
+  TRANSCRIBING
+  TRANSCRIBED
+  FAILED
+}
+
+model BriefingAudioNote {
+  id           String              @id @default(uuid()) @db.Uuid
+  briefingId   String              @db.Uuid
+  questionId   String
+  storageKey   String
+  mimeType     String
+  sizeBytes    BigInt?
+  status       BriefingAudioStatus @default(UPLOADED)
+  // Identificador do serviÃ§o que transcreveu, quando existe. Null significa
+  // "sem provider configurado" â€” nunca "transcrito".
+  provider     String?
+  // Texto exacto como saiu do provider. NÃ£o Ã© a resposta final.
+  transcript   String?             @db.Text
+  // Texto que o cliente corrigiu ou confirmou.
+  reviewedText String?             @db.Text
+  errorMessage String?             @db.Text
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  briefing     Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([briefingId, questionId])
+  @@index([status])
+}
+
+model Proposal {
+  id             String          @id @default(uuid()) @db.Uuid
+  projectId      String          @db.Uuid
+  status         ProposalStatus  @default(DRAFT)
+  currentVersion Int             @default(1)
+  expiresAt      DateTime?
+  sentAt         DateTime?
+  viewedAt       DateTime?
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  approvalIp     String?
+  approvalMeta   Json?
+  approvedVersion Int?
+  // Prompt 4C, item 3 â€” identificaÃ§Ã£o comercial legÃ­vel (ex.: "PROP-2026-0007").
+  //
+  // Gerado pelo servidor na criaÃ§Ã£o. Ã‰ estÃ¡vel e sequencial-por-ano apenas para o
+  // ADMIN: o link pÃºblico NUNCA o expÃµe, porque o identificador nÃ£o Ã© autorizaÃ§Ã£o.
+  code           String?         @unique
+  // Prompt 4C, item 45 â€” versÃ£o que o link pÃºblico exibe.
+  //
+  // Sem esta coluna, o carregador pÃºblico lia sempre a versÃ£o MAIS RECENTE. Isso
+  // quebrava a garantia central da fase: o cliente aprovava o V1 e, se o ADMIN
+  // editasse depois, o mesmo link passava a mostrar o V2 â€” o cliente aprovava
+  // outra coisa sem ter lido. Fixar a versÃ£o no link torna o link uma FOTOGRAFIA
+  // do que foi enviado.
+  publishedVersion Int?
+  publishedAt      DateTime?
+  // Prompt 4C, item 24 â€” snapshot do preÃ§o efectivamente usado por esta versÃ£o.
+  //
+  // Congelado na gravaÃ§Ã£o da versÃ£o. Sem ele, alterar o catÃ¡logo mudaria o nÃºmero
+  // de uma proposta jÃ¡ enviada, e o contrato bornaria de um valor que o cliente
+  // nunca viu.
+  pricingSnapshot  Json?
+  // TÃ³pico 37: marca de conversÃ£o. Numa Ãºnica conversÃ£o por proposta, estes
+  // campos sÃ£o gravados na mesma transaÃ§Ã£o das parcelas, do serviÃ§o e dos
+  // documentos. Se a transaÃ§Ã£o falhar, nada fica gravado e a prÃ³xima execuÃ§Ã£o
+  // parte do zero â€” em vez de converter metade do negÃ³cio.
+  convertedAt    DateTime?
+  conversionKey  String?
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  versions       ProposalVersion[]
+  accessLinks    ProposalAccessLink[]
+  contract       Contract?
+  documents      ProjectDocument[]
+  payments       Payment[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([projectId, status])
+  @@index([status, updatedAt])
+  @@unique([conversionKey])
+}
+
+
+model ProposalVersion {
+  id             String    @id @default(uuid()) @db.Uuid
+  proposalId     String    @db.Uuid
+  version        Int
+  title          String
+  presentation   Json
+  formalText     Json
+  services       Json
+  subtotal       Decimal   @db.Decimal(12, 2)
+  adjustment     Decimal   @default(0) @db.Decimal(12, 2)
+  total          Decimal   @db.Decimal(12, 2)
+  authorId       String?   @db.Uuid
+  frozenAt       DateTime?
+  pricing        Json?
+  // Prompt 18, itens 2 e 5 â€” plano de pagamento CONGELADO por versÃ£o.
+  //
+  // Antes desta coluna o plano nÃ£o era persistido: era re-interpretado do texto
+  // livre `formalText.formaPagamento` a cada leitura. Isso tornava uma proposta
+  // jÃ¡ publicada mutÃ¡vel (basta editar o texto) e permitia que ADMIN e cliente
+  // vissem planos diferentes. Congelando aqui, a versÃ£o publicada Ã©
+  // historicamente reproduzÃ­vel e ambos leem a mesma fonte.
+  //
+  // NULL significa apenas "versÃ£o criada antes desta migraÃ§Ã£o"; o leitor trata
+  // esse caso Ã  parte, com aviso explÃ­cito.
+  paymentPlan    Json?
+  createdAt      DateTime  @default(now())
+  proposal       Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  author         User?     @relation(fields: [authorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([proposalId, version])
+  @@index([proposalId, createdAt])
+}
+
+model ProposalAccessLink {
+  id          String    @id @default(uuid()) @db.Uuid
+  proposalId  String    @db.Uuid
+  tokenHash   String    @unique
+  revokedAt   DateTime?
+  expiresAt   DateTime?
+  firstAccessAt DateTime?
+  lastAccessAt DateTime?
+  // Prompt 4C, item 42 â€” o link aponta para UMA versÃ£o especÃ­fica.
+  //
+  // NULL significa "proposta ainda nÃ£o publicada" (legado/rascunho). O leitor
+  // pÃºblico recusa nesse caso em vez de escolher a versÃ£o mais recente por conta
+  // prÃ³pria: escolher seria publicar algo que ninguÃ©m revisou.
+  versionNumber Int?
+  proposal    Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([proposalId, revokedAt])
+  @@index([versionNumber])
+}
+
+enum ContractStatus {
+  DRAFT
+  IN_REVIEW
+  READY
+  SENT
+  VIEWED
+  SIGNED
+  CANCELLED
+}
+
+enum SignatureStatus {
+  PENDING
+  SENT
+  VIEWED
+  SIGNED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+// TÃ³pico 3: unidade de cobranÃ§a configurÃ¡vel. O banco nunca Ã© fixo em mÂ².
+enum ServiceUnit {
+  M2
+  AMBIENTE
+  UNIDADE
+  IMAGEM
+  PACOTE
+  FIXO
+  HORA
+  PERCENTUAL
+}
+
+// TÃ³pico 5: faixas comerciais definidas pelo ADMIN (nÃ£o sÃ£o nÃ­veis de qualidade).
+enum PricingLevel {
+  BAIXO
+  MEDIO
+  ALTO
+}
+
+// TÃ³pico 4: cadastro administrativo de serviÃ§os e precificaÃ§Ã£o.
+model ServiceItem {
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String
+  discipline           String
+  category             String?
+  descriptionCommercial String?
+  descriptionTechnical String?
+  unit                 ServiceUnit
+  baseLow              Decimal  @default(0) @db.Decimal(12, 2)
+  baseMedium           Decimal  @default(0) @db.Decimal(12, 2)
+  baseHigh             Decimal  @default(0) @db.Decimal(12, 2)
+  minPrice             Decimal? @db.Decimal(12, 2)
+  minQuantity          Decimal? @db.Decimal(12, 2)
+  maxQuantity          Decimal? @db.Decimal(12, 2)
+  increment            Decimal? @db.Decimal(12, 2)
+  estimatedDays        Int?
+  displayOrder         Int      @default(0)
+  active               Boolean  @default(true)
+  scope                String?
+  exclusions           String?
+  notes                String?
+  dependencies         Json?
+  calculationRules     Json?
+  presentationImages   Json?
+  icon                 String?
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  priceHistory         ServicePriceHistory[]
+  packageItems         PackageItem[]
+
+  @@unique([discipline, name])
+  @@index([discipline, active, displayOrder])
+}
+
+// TÃ³pico 4: histÃ³rico obrigatÃ³rio de alteraÃ§Ã£o de preÃ§os.
+model ServicePriceHistory {
+  id            String       @id @default(uuid()) @db.Uuid
+  serviceId     String       @db.Uuid
+  level         PricingLevel
+  previousValue Decimal?     @db.Decimal(12, 2)
+  newValue      Decimal      @db.Decimal(12, 2)
+  reason        String?
+  changedById   String?      @db.Uuid
+  service       ServiceItem  @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt     DateTime     @default(now())
+
+  @@index([serviceId, createdAt])
+}
+
+// TÃ³pico 11: pacotes configurÃ¡veis; os nomes ficam no banco.
+model CommercialPackage {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  items       PackageItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PackageItem {
+  id            String            @id @default(uuid()) @db.Uuid
+  packageId     String            @db.Uuid
+  serviceId     String            @db.Uuid
+  displayOrder  Int               @default(0)
+  optional      Boolean           @default(false)
+  overrideUnit  ServiceUnit?
+  overridePrice Decimal?          @db.Decimal(12, 2)
+  package       CommercialPackage @relation(fields: [packageId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service       ServiceItem       @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([packageId, serviceId])
+}
+
+model ContractSignature {
+  id             String          @id @default(uuid()) @db.Uuid
+  contractId     String          @unique @db.Uuid
+  provider       String
+  externalId     String?
+  signatoryName  String
+  signatoryEmail String?
+  signatoryPhone String?
+  status         SignatureStatus @default(PENDING)
+  sentAt         DateTime?
+  viewedAt       DateTime?
+  signedAt       DateTime?
+  completedAt    DateTime?
+  evidence       Json?
+  lastError      String?         @db.Text
+  contract       Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model MessageTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  channel   String
+  name      String
+  body      String   @db.Text
+  active    Boolean  @default(true)
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([channel, active])
+}
+
+model NotificationEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  type        String
+  channel     String
+  templateKey String?
+  recipient   String?
+  subject     String?
+  body        String   @db.Text
+  status      String
+  error       String?  @db.Text
+  payload     Json?
+  entityType  String?
+  entityId    String?
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([type, occurredAt])
+  @@index([entityType, entityId])
+  @@index([status, occurredAt])
+}
+
+model ContractTemplate {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  version   Int       @default(1)
+  active    Boolean   @default(true)
+  isDefault Boolean   @default(false)
+  body      String    @db.Text
+  clauses   Json
+  scopeKey   String?
+  disciplines String[] @default([])
+  contracts  Contract[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([active, isDefault])
+}
+
+model Contract {
+  id              String          @id @default(uuid()) @db.Uuid
+  proposalId      String          @unique @db.Uuid
+  version         Int
+  title           String
+  content         Json
+  status          ContractStatus  @default(DRAFT)
+  templateId      String?         @db.Uuid
+  templateVersion Int?
+  signature       ContractSignature?
+  generatedAt     DateTime        @default(now())
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  signedAt        DateTime?
+  signatureMeta   Json?
+  proposal        Proposal        @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  template        ContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // TÃ³pico 39: o contrato e a via assinada vivem no mesmo mÃ³dulo de documentos.
+  documents       ProjectDocument[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  EMAIL
+  AMBOS
+}
+
+enum NotificationStatus {
+  PENDENTE
+  ENVIADO
+  FALHA
+}
+
+model StageReminderLog {
+  id             String              @id @default(uuid()) @db.Uuid
+  stageId        String              @db.Uuid
+  recipientName  String
+  recipientPhone String?
+  recipientEmail String?
+  channel        NotificationChannel @default(AMBOS)
+  triggerType    String              // "PRAZO_PROXIMO", "ENTREGA_HOJE", "ATRASADO"
+  messageBody    String
+  status         NotificationStatus  @default(PENDENTE)
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+
+  stage          ScheduleStage       @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  @@index([stageId])
+}

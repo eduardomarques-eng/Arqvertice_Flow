@@ -21,10 +21,8 @@
  *   node scripts/sync-credentials.mjs
  */
 
-import { PrismaClient } from "./src/server/db.js";
-import { hashPassword } from "./src/lib/password.js";
-
-const prisma = new PrismaClient();
+import { prisma } from "../src/server/db.js";
+import { hashPassword } from "../src/lib/password.js";
 
 const AUTH_USERS = [
   {

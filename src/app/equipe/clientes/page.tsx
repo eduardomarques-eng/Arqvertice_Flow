@@ -3,14 +3,17 @@ import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { requireModulePermission } from "@/lib/rbac-helpers";
+import { getEffectivePermissions } from "@/lib/rbac";
 import { prisma } from "@/server/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function EquipeClientesPage() {
   const user = await requirePageTeamRole();
-  requireModulePermission(user, "clientes");
+  const effective = getEffectivePermissions(user);
+  if (!effective.includes("clientes")) {
+    redirect("/equipe");
+  }
 
   const clients = await prisma.client.findMany({
     where: { status: "ACTIVE" },

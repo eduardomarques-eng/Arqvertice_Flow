@@ -11,11 +11,11 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Total de testes executados | TBD |
-| Testes aprovados (PASS) | TBD |
-| Testes com falha (FAIL) | TBD |
-| Testes com erro (ERROR) | TBD |
-| Status geral | TBD |
+| Total de testes executados | 40 |
+| Testes aprovados (PASS) | 24 |
+| Testes com falha (FAIL) | 16 |
+| Testes com erro (ERROR) | 0 |
+| Status geral | ⚠️ FALHAS CRÍTICAS — Revisar antes do deploy |
 
 ---
 
@@ -127,18 +127,33 @@ Objetivo: Validar controles de acesso por role, bloqueio de IDOR/BOLA e proteç�
 
 ### Pontos Fortes
 
-TBD
+1. **Isolamento de rotas:** Usuários não-ADMIN são corretamente redirecionados de `/admin` para `/equipe` (307).
+2. **Session cookie:** Cookie efêmero sem Max-Age/Expires, com HttpOnly, Secure e SameSite=Lax.
+3. **Headers de segurança:** CSP, X-Frame-Options: DENY, X-Content-Type-Options: nosniff e Referrer-Policy estão presentes.
+4. **Surface legacy fechada:** Todos os 4 arquivos em `api/` na raiz retornam 410 Gone, eliminando autenticação estática via `x-chave-admin`.
 
 ### Falhas Críticas
 
-TBD
+1. **Luan acessando /equipe/financeiro sem permissão:** Usuário ENGENHEIRO sem permissão `financeiro` consegue acessar o módulo financeiro (status 200). Isso indica que a verificação de permissão no nível da página não está sendo aplicada corretamente.
+
+2. **Rotas API retornando 404/405 em vez de 401/403:** Rotas `/api/projects`, `/api/briefings` e `/api/messenger/send` não retornam o código de status esperado para acesso não autenticado.
 
 ### Recomendações
 
-TBD
+1. **Corrigir verificação de RBAC em /equipe/financeiro:** Adicionar middleware ou verificação de permissão no nível da rota para bloquear usuários sem a permissão `financeiro`.
+
+2. **Revisar rotas API não encontradas:** Verificar se `/api/projects`, `/api/briefings` e `/api/messenger/send` devem existir no App Router (`src/app/api/`) e adicionar proteção de autenticação.
+
+3. **Ajustar rotas /equipe/projetos e /equipe/cronograma:** Estas rotas existem apenas como dinâmicas `[id]`. Se páginas de lista são necessárias, criar `/equipe/projetos/page.tsx` e `/equipe/cronograma/page.tsx`.
+
+4. **Executar novo harness após correções:** Validar que todas as falhas foram resolvidas antes do deploy em produção.
 
 ---
 
 ## Anexo: Log Completo do Harness
 
-TBD — executar `npx tsx scripts/cloudflare-vulnerability-harness.ts` com o servidor rodando.
+Salvo em `harness-output.txt` (execução em http://localhost:3000).
+
+```
+Total: 40 | PASS: 24 | FAIL: 16 | ERROR: 0
+```

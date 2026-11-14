@@ -3,14 +3,17 @@ import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { requireModulePermission } from "@/lib/rbac-helpers";
+import { getEffectivePermissions } from "@/lib/rbac";
 import { listCommercialPackages, listServiceCatalog } from "@/server/services/service-catalog-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function EquipeFinanceiroPage() {
   const user = await requirePageTeamRole();
-  requireModulePermission(user, "financeiro");
+  const effective = getEffectivePermissions(user);
+  if (!effective.includes("financeiro")) {
+    redirect("/equipe");
+  }
 
   const [services, packages] = await Promise.all([
     listServiceCatalog({ includeInactive: false }),

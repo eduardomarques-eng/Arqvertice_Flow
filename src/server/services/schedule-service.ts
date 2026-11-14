@@ -258,7 +258,7 @@ export async function updateScheduleStage(id: string, input: unknown) {
   const data = scheduleStageUpdateSchema.parse(input);
   const stage = await prisma.scheduleStage.findUnique({
     where: { id },
-    select: { projectId: true, completion: true },
+    select: { projectId: true, completion: true, version: true },
   });
   if (!stage) return notFound("Etapa");
   await requireScheduleWrite(user, stage.projectId, "Etapa");
