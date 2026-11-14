@@ -58,25 +58,35 @@ export function middleware(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") || nonce;
   requestHeaders.set("x-request-id", requestId);
 
-  // 3. Validação de origem (CSRF) via Origin/Host.
-  const trustedOrigins = [
-    "https://arqvertice.com",
-    "https://www.arqvertice.com"
-  ];
-  const trustedOrigin = request.headers.get("origin") || request.headers.get("host") || "";
-  const isDevOrLocal = process.env.NODE_ENV !== "production" || request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1";
-  const isUntrustedOrigin = !isDevOrLocal && !trustedOrigins.some(to => trustedOrigin.startsWith(to));
+  // 3. Validação de origem (CSRF) para requisições mutantes (POST, PUT, PATCH, DELETE).
+  // Requisições seguras (GET, HEAD, OPTIONS) nunca sofrem validação CSRF de origem.
+  const isMutatingMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(request.method);
+  if (isMutatingMethod) {
+    const origin = request.headers.get("origin");
+    if (origin) {
+      const isAllowedOrigin =
+        origin === request.nextUrl.origin ||
+        origin === "https://arqvertice.com" ||
+        origin === "https://www.arqvertice.com" ||
+        (origin.startsWith("https://") && origin.endsWith(".vercel.app")) ||
+        (process.env.VERCEL_URL && origin === `https://${process.env.VERCEL_URL}`) ||
+        (process.env.NEXT_PUBLIC_APP_URL && origin === process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "")) ||
+        (process.env.NODE_ENV !== "production" ||
+          request.nextUrl.hostname === "localhost" ||
+          request.nextUrl.hostname === "127.0.0.1" ||
+          origin.startsWith("http://localhost:") ||
+          origin.startsWith("http://127.0.0.1:"));
 
-  // Bloqueia requisições com origem/sinkhost não autorizadas para rotas
-  // protegidas (excluindo /api/health e /api/briefings públicos).
-  if (isUntrustedOrigin && isProtectedPath(pathname) && !pathname.startsWith("/api/briefings")) {
-    return new NextResponse(JSON.stringify({error:"Forbidden"}), {
-      status: 403,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Request-Id": requestId,
-      },
-    });
+      if (!isAllowedOrigin && !pathname.startsWith("/api/briefings")) {
+        return new NextResponse(JSON.stringify({ error: "Forbidden: Origem não autorizada." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            "X-Request-Id": requestId,
+          },
+        });
+      }
+    }
   }
 
   // 5. Cache-Control: no-store nas rotas autenticadas e session-status.

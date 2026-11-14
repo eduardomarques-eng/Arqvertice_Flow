@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getDefaultRouteForRole } from "@/lib/auth-routes";
+import { isPathAllowed } from "@/lib/route-isolation";
 
 export function LoginForm() {
   const router = useRouter();
@@ -42,8 +43,15 @@ export function LoginForm() {
       sessionStorage.setItem("arqvertice_tab_authenticated", "true");
       sessionStorage.setItem("arqvertice_last_activity", String(Date.now()));
       const role = data?.user?.role;
-      // Redirecionamento estrito via helper canônico de roteamento por papel.
-      router.push(getDefaultRouteForRole(role));
+      const nextParam = searchParams.get("next");
+      const defaultRoute = getDefaultRouteForRole(role);
+      let targetRoute = defaultRoute;
+      if (nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")) {
+        if (isPathAllowed(nextParam, role)) {
+          targetRoute = nextParam;
+        }
+      }
+      router.push(targetRoute);
       router.refresh();
     } catch {
       setError("Falha de conexão com o servidor. Tente novamente.");
