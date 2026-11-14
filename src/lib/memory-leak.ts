@@ -10,7 +10,7 @@
  *  - Conexões SSE sejam fechadas
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Hook genérico para intervalos com cleanup obrigatório.
@@ -145,7 +145,6 @@ export function useSSE(
 
     const source = new EventSource(url, {
       withCredentials: true,
-      heartbeatTimeout: 30_000,
     });
 
     setEventSource(source);
@@ -253,7 +252,7 @@ export function useWebSocket(
     };
 
     ws.onerror = (error) => {
-      console.error(`[WebSocket] Erro: ${error.message}`);
+      console.error("[WebSocket] Erro na conexão:", error);
       setStatus("failed");
     };
 

@@ -69,6 +69,15 @@ export async function signIn(email: string, password: string) {
     sameSite: "lax",
     path: "/",
   });
+  const effectivePerms = Array.isArray(user.permissions) && user.permissions.length > 0
+    ? user.permissions
+    : (user.role === "ADMIN" ? ["dashboard", "cronograma", "projetos", "financeiro", "clientes", "equipe"] : ["dashboard", "cronograma", "projetos"]);
+  (await cookies()).set("arqvertice_permissions", JSON.stringify(effectivePerms), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
 
   return { id: user.id, name: user.name, role: user.role };
 }
@@ -95,6 +104,7 @@ export async function signOut(reason?: string) {
   }
   store.delete(COOKIE);
   store.delete(ROLE_COOKIE);
+  store.delete("arqvertice_permissions");
 }
 
 export async function currentUser() {

@@ -23,7 +23,7 @@ export const DomainEventSchema = z.object({
   id: z.string(),
   type: DomainEventTypeSchema,
   payload: z.any(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   retryCount: z.number().int().min(0).default(0),
   status: DomainEventStatusSchema,
   entityType: z.string().optional(),
@@ -74,8 +74,8 @@ export async function enqueueDomainEvent(data: {
   return prisma.domainEvent.create({
     data: {
       type,
-      payload,
-      metadata,
+      payload: (payload ?? {}) as any,
+      metadata: (metadata ?? {}) as any,
       status: "PENDING",
       entityType,
       entityId,
@@ -115,19 +115,20 @@ export async function markEventFailed(id: string, error: Error, retryCount: numb
   };
 
   if (isExhausted) {
+    const original = await prisma.domainEvent.findUnique({ where: { id } });
     await prisma.deadLetterEvent.create({
       data: {
         domainEventId: id,
-        originalPayload: await prisma.domainEvent.findUnique({ where: { id }, select: { payload: true } })?.payload,
-        originalMetadata: await prisma.domainEvent.findUnique({ where: { id }, select: { metadata: true } })?.metadata,
+        originalPayload: (original?.payload ?? undefined) as any,
+        originalMetadata: (original?.metadata ?? undefined) as any,
         error: error.message,
         stackTrace: error.stack ?? undefined,
         failedAt: new Date(),
         retryCount,
-        endpoint: await prisma.domainEvent.findUnique({ where: { id }, select: { route: true } })?.route,
-        entityType: await prisma.domainEvent.findUnique({ where: { id }, select: { entityType: true } })?.entityType,
-        entityId: await prisma.domainEvent.findUnique({ where: { id }, select: { entityId: true } })?.entityId,
-        requestId: await prisma.domainEvent.findUnique({ where: { id }, select: { requestId: true } })?.requestId,
+        endpoint: original?.route ?? undefined,
+        entityType: original?.entityType ?? undefined,
+        entityId: original?.entityId ?? undefined,
+        requestId: original?.requestId ?? undefined,
       },
     });
 
@@ -192,27 +193,27 @@ export const eventHandlers = new Map<string, EventSubscriber<unknown>[]>();
 
 /** Retorna todos os eventos PENDING (limite opcional) */
 export async function listPendingEvents(limit = 100): Promise<DomainEvent[]> {
-  return prisma.domainEvent.findMany({
+  const records = await prisma.domainEvent.findMany({
     where: { status: "PENDING" },
     orderBy: { occurredAt: "asc" },
     take: limit,
-    select: {
-      id: true,
-      type: true,
-      payload: true,
-      metadata: true,
-      retryCount: true,
-      status: true,
-      entityType: true,
-      entityId: true,
-      occurredAt: true,
-      processedAt: true,
-      error: true,
-      deadline: true,
-      route: true,
-      requestId: true,
-    },
   });
+  return records.map((r) => ({
+    id: r.id,
+    type: r.type as DomainEventType,
+    payload: r.payload,
+    metadata: (r.metadata as Record<string, unknown>) ?? undefined,
+    retryCount: r.retryCount,
+    status: r.status as DomainEventStatus,
+    entityType: r.entityType ?? undefined,
+    entityId: r.entityId ?? undefined,
+    occurredAt: r.occurredAt,
+    processedAt: r.processedAt ?? undefined,
+    error: r.error ?? undefined,
+    deadline: r.deadline ?? undefined,
+    route: r.route ?? undefined,
+    requestId: r.requestId ?? undefined,
+  }));
 }
 
 /** Marca eventos como PROCESSING (lock por janelas de tempo) */
@@ -261,8 +262,8 @@ export async function reprocessDeadLetterEvents(limit = 50): Promise<number> {
       where: { id: item.domainEventId },
       data: {
         type: item.endpoint ?? item.domainEventId ?? "UNKNOWN",
-        payload: item.originalPayload,
-        metadata: item.originalMetadata,
+        payload: (item.originalPayload ?? undefined) as any,
+        metadata: (item.originalMetadata ?? undefined) as any,
         status: "PENDING",
         retryCount: 0,
         error: null,

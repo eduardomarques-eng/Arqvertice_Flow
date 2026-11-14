@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/server/db";
+import { hasPendingEvents } from "@/server/events/event-bus";
 
 export const runtime = "nodejs";
 
@@ -11,16 +13,6 @@ function requireCronAuth(request: Request): boolean {
   return token === CRON_SECRET;
 }
 
-/**
- * Rotina de CRON: housekeeping de base de dados.
- *
- * Atua sobre:
- *  - Limpa registros de idempotência expirados (> 24h)
- *  - Executa verificação de parcelas vencidas (retornando para OVERDUE)
- *  - Executa verificação de integridade (eventos pendentes, DLQ, conexões)
- *
- * Protegida por CRON_SECRET via Authorization.
- */
 export async function GET(request: Request) {
   const isAuthenticated = requireCronAuth(request);
   if (!isAuthenticated) {
@@ -34,7 +26,6 @@ export async function GET(request: Request) {
   const results: Record<string, unknown> = { success: true, timestamp: now.toISOString() };
 
   try {
-    // 1. Limpa registros de idempotência expirados (> 24h)
     const idempotencyDeleted = await prisma.idempotencyRecord.deleteMany({
       where: {
         expiresAt: { lt: now },
@@ -42,7 +33,6 @@ export async function GET(request: Request) {
     });
     results.idempotencyDeleted = idempotencyDeleted.count;
 
-    // 2. Verifica parcelas vencidas (status PENDING e vencidas -> OVERDUE)
     const dueDate = new Date(now);
     dueDate.setUTCDate(dueDate.getUTCDate() - 1);
 
@@ -58,11 +48,9 @@ export async function GET(request: Request) {
     });
     results.installmentsOverdueUpdated = installmentsOverdue.count;
 
-    // 3. Executa verificação de integridade: eventos pendentes
     const pendingEvents = await hasPendingEvents();
     results.pendingEvents = pendingEvents;
 
-    // 4. Verifica DLQ ativo
     const dlqCount = await prisma.deadLetterEvent.count({
       where: {
         retryCount: { lt: 3 },
@@ -71,12 +59,9 @@ export async function GET(request: Request) {
     results.dlqActive = dlqCount > 0;
     results.dlqCount = dlqCount;
 
-    // 5. Verifica conexões ativas com o banco
-    const connections = await prisma.$connect();
-    results.dbConnections = connections ? 1 : 0;
-    await prisma.$disconnect();
+    await prisma.$queryRaw`SELECT 1`;
+    results.dbConnections = 1;
 
-    // 6. Limpa eventos de domínio COMPLETED antigos (> 30 dias)
     const oldEventsDeleted = await prisma.domainEvent.deleteMany({
       where: {
         status: "COMPLETED",
@@ -90,10 +75,8 @@ export async function GET(request: Request) {
       success: true,
     });
   } catch (error) {
-    results.success = false;
-    results.error = (error as Error).message;
     return NextResponse.json(
-      { ...results, error: "Falha no housekeeping" },
+      { error: "Falha ao executar rotina de housekeeping", details: (error as Error).message },
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }

@@ -3,6 +3,7 @@
 export interface ConsentState {
   privacyPolicyVersion: number;
   consentedCategories: string[];
+  consentGiven: boolean;
   acceptedAt: string;
 }
 
@@ -20,13 +21,14 @@ export function getConsentState(): ConsentState {
     return {
       privacyPolicyVersion: 1,
       consentedCategories: [],
+      consentGiven: false,
       acceptedAt: "",
     };
   }
   try {
     return { ...JSON.parse(raw), consentedCategories: Array.isArray(JSON.parse(raw).consentedCategories) ? JSON.parse(raw).consentedCategories : [] };
   } catch {
-    return { privacyPolicyVersion: 1, consentedCategories: [], acceptedAt: "" };
+    return { privacyPolicyVersion: 1, consentedCategories: [], consentGiven: false, acceptedAt: "" };
   }
 }
 

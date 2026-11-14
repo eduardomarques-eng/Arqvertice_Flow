@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { AbortController } from "node:fetch";
-import { LRUCache, createLRUCache } from "./lru-cache.js";
+// Use the global AbortController from Node.js/Browser APIs
+// instead of importing from node:fetch which causes type conflicts
+import { LRUCache, createLRUCache } from "./lru-cache";
 
 export type CircuitBreakerState = "CLOSED" | "OPEN" | "HALF_OPEN";
 
@@ -42,7 +43,7 @@ export class CircuitBreaker {
     this.halfOpenTimeout = options.halfOpenTimeout ?? 2000;
   }
 
-  private canExecute(): boolean {
+  canExecute(): boolean {
     if (this.state === "CLOSED") return true;
 
     const now = Date.now();
@@ -168,12 +169,11 @@ export async function resilientFetch(
       );
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      const fetchSignal = controller.signal;
-
-      const response = await fetch(input, { ...init, signal: fetchSignal });
+      const response = await fetch(input, { ...init, signal: controller.signal });
+      clearTimeout(timeoutId);
 
       if (response.status === 429 || [502, 503, 504].includes(response.status)) {
         const retryAfter = response.headers.get("retry-after");
@@ -230,6 +230,8 @@ export function enforcePayloadLimit(body: unknown, maxBytes = 10 * 1024 * 1024):
     );
   }
 }
+
+const payloadCache = createLRUCache<string, unknown>(500);
 
 export function getPayloadCacheSize(): number {
   return payloadCache.size;

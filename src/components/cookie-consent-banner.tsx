@@ -9,6 +9,7 @@ import {
   PRIVACY_POLICY_VERSION,
 } from "@/lib/legal";
 import { getConsentState, setConsentState } from "@/lib/consent";
+import { hasConsent } from "@/lib/consent";
 
 type PreferenceKey = "strict" | "analytical" | "marketing" | "functional" | "unclassified";
 
@@ -35,7 +36,7 @@ export function CookieConsentBanner() {
   useEffect(() => {
     const hasSeen = sessionStorage.getItem("arqvertice_consent_seen");
     const saved = getConsentState();
-    if (hasSeen || saved.consentGiven) return;
+    if (hasSeen || hasConsent()) return;
 
     const banner = document.createElement("div");
     banner.id = "arqvertice-consent-banner";
@@ -87,6 +88,7 @@ export function CookieConsentBanner() {
     setConsentState({
       privacyPolicyVersion: PRIVACY_POLICY_VERSION,
       consentedCategories: categories,
+      consentGiven: true,
       acceptedAt: new Date().toISOString(),
     });
 

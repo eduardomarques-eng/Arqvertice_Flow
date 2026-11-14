@@ -1,3 +1,4 @@
+import { withDistributedLock } from "@/lib/distributed-lock";
 import { prisma } from "@/server/db";
 import { Prisma } from "@prisma/client";
 import { notFound } from "@/server/errors";

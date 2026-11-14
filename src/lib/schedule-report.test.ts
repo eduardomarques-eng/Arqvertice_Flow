@@ -233,10 +233,9 @@ describe("PDF do relatório", () => {
       "2. QUADRO T",
       "3. FASE ATUAL",
       "4. PARECER",
-      "5. RESUMO DE AVAN",
+      "5. SÍNTESE",
       "6. RESUMO FINANCEIRO",
-      "7. QUADRO CONSOLIDADO",
-      "8. CRIT",
+      "7. AMBIENTE IMERSIVO",
     ]) {
       expect(bytes).toContain(hexString(section).slice(1, -1));
     }

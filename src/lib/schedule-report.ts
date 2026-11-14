@@ -477,7 +477,7 @@ function buildParecer(
   }
 
   const alinhamentoOperacional = overdue.length > 0
-    ? `Atenção aos prazos: constam ${overdue.length} etapa(s) com atenção requerida (${overdue.map((s) => s.name).join(", ")}). Reunião técnica com projetistas em andamento para assegurar as datas contratuais.`
+    ? `Atenção aos prazos: constam ${overdue.length} etapa(s) com atenção requerida e prazo vencido (${overdue.map((s) => s.name).join(", ")}). Reunião técnica com projetistas em andamento para assegurar as datas contratuais.`
     : `Todas as atividades em curso encontram-se rigorosamente dentro dos prazos pactuados (sem entregas vencidas), com fluxo contínuo de compatibilização e total conformidade técnica.`;
 
   const paragraphs: string[] = [

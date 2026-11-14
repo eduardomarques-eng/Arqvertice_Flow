@@ -137,6 +137,7 @@ export function withIdempotency(
   return async (req: Request): Promise<Response> => {
     const idempotencyKey = req.headers.get("Idempotency-Key");
 
+    let payloadHash = "";
     if (idempotencyKey) {
       const validated = IdempotencyKeySchema.safeParse(idempotencyKey);
       if (!validated.success) {
@@ -146,7 +147,7 @@ export function withIdempotency(
         );
       }
 
-      const payloadHash = hashPayload(await req.json().catch(() => ({})));
+      payloadHash = hashPayload(await req.json().catch(() => ({})));
       const cached = await getCachedResponse(validated.data, route, method, payloadHash);
       if (cached) {
         return cached.response;

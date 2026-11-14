@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db";
+import { Prisma } from "@prisma/client";
 import { notFound } from "@/server/errors";
 import { projectInstallmentSchema, projectInstallmentUpdateSchema } from "@/lib/validation";
 import { withDistributedLock } from "@/lib/distributed-lock";
@@ -28,16 +29,16 @@ async function updateWithOptimisticLock(
 ) {
   const current = await prisma.projectInstallment.findUnique({
     where: { id },
-    select: { version: true },
+    select: { version: true, dueDate: true },
   });
   if (!current) return notFound("Parcela");
+  if (current.version !== expectedVersion) {
+    throw new Error("409 Conflict: Parcela foi modificada concorrentemente.");
+  }
 
   try {
     return await prisma.projectInstallment.update({
-      where: {
-        id,
-        version: expectedVersion,
-      },
+      where: { id },
       data: {
         status: newStatus,
         dueDate: dueDate ?? current.dueDate,
@@ -74,7 +75,7 @@ export async function createProjectInstallment(input: unknown) {
 
 export async function updateProjectInstallment(projectId: string, id: string, input: unknown) {
   const data = projectInstallmentUpdateSchema.parse(input);
-  const installment = await prisma.projectInstallment.findFirst({ where: { id, projectId }, select: { id: true, status: true, dueDate: true, paidDate: true } });
+  const installment = await prisma.projectInstallment.findFirst({ where: { id, projectId }, select: { id: true, status: true, dueDate: true, paidDate: true, version: true } });
   if (!installment) return notFound("Parcela");
   const dueDate = data.dueDate ?? installment.dueDate;
   const status = effectiveStatus(data.status ?? installment.status, dueDate);

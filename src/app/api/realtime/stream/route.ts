@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eventBus, DomainEventEnvelope } from "@/server/events/event-bus";
@@ -35,7 +35,7 @@ function validateHeaders(headers: Headers): boolean {
  * Cache-Control: no-cache, no-transform
  * Connection: keep-alive
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const sessionToken = request.cookies.get("arqvertice_session")?.value;
   if (!sessionToken) {
     return NextResponse.json(

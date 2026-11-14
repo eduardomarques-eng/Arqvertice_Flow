@@ -16,8 +16,7 @@ export async function POST(request: Request) {
   if (!subjectId || !right) {
     return NextResponse.json(
       { error: "subjectId e right são obrigatórios." },
-      { status: 400 },
-      { headers: { "X-Request-Id": requestId } },
+      { status: 400, headers: { "X-Request-Id": requestId } },
     );
   }
 
@@ -31,8 +30,7 @@ export async function POST(request: Request) {
   if (user.role !== "ADMIN" && user.id !== subjectId) {
     return NextResponse.json(
       { error: "Acesso negado." },
-      { status: 403 },
-      { headers: { "X-Request-Id": requestId } },
+      { status: 403, headers: { "X-Request-Id": requestId } },
     );
   }
 

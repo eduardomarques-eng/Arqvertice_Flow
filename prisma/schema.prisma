@@ -96,6 +96,7 @@ enum AccessActionType {
 enum ProjectDiscipline {
   ARQUITETURA
   ESTRUTURA
+  ESTRUTURAL
   ELETRICO
   HIDROSSANITARIO
   HVAC
@@ -371,6 +372,7 @@ model Project {
   status         ProjectStatus   @default(PLANNING)
   address        Json?
   notes          String?
+  version        Int             @default(1)
   client         Client          @relation(fields: [clientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   stages         ScheduleStage[]
   payments       Payment[]
@@ -403,6 +405,7 @@ model ProjectInstallment {
   status        String   @default("PENDING")
   linkedStageId String?  @db.Uuid
   order         Int      @default(1)
+  version       Int      @default(1)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -598,6 +601,7 @@ model ScheduleStage {
   notes          String?
   isVisibleInKanban Boolean           @default(true)
   dependencyId   String?             @db.Uuid
+  version        Int                 @default(1)
   project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   dependency     ScheduleStage?      @relation("StageDependency", fields: [dependencyId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   dependents     ScheduleStage[]     @relation("StageDependency")
@@ -1152,3 +1156,61 @@ model PrivacyPolicy {
   @@unique([version])
 }
 
+
+
+model IdempotencyRecord {
+  id           String    @id @default(uuid()) @db.Uuid
+  key          String    @unique
+  route        String
+  method       String
+  payloadHash  String
+  responseJson Json
+  statusCode   Int
+  consumedAt   DateTime?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  @@index([key])
+  @@index([expiresAt])
+}
+
+model DomainEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String
+  payload     Json
+  metadata    Json?
+  status      String    @default("PENDING")
+  entityType  String?
+  entityId    String?
+  route       String?
+  requestId   String?
+  retryCount  Int       @default(0)
+  error       String?
+  deadline    DateTime?
+  occurredAt  DateTime  @default(now())
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, occurredAt])
+  @@index([entityType, entityId])
+}
+
+model DeadLetterEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  domainEventId    String
+  originalPayload  Json?
+  originalMetadata Json?
+  error            String
+  stackTrace       String?
+  failedAt         DateTime  @default(now())
+  retryCount       Int       @default(0)
+  endpoint         String?
+  entityType       String?
+  entityId         String?
+  requestId        String?
+  createdAt        DateTime  @default(now())
+
+  @@index([domainEventId])
+  @@index([failedAt])
+}

@@ -84,7 +84,7 @@ export function columnFor(
   stageAlert({ status: stage.status, dueDate: stage.dueDate }, now);
   if (stage.status === "COMPLETED" || stage.completion >= 99) return "COMPLETED";
   if (stage.status === "REVIEW") return "REVIEW";
-  if (stage.status === "NOT_STARTED" || stage.completion <= 5) return "NOT_STARTED";
+  if (stage.completion <= 5) return "NOT_STARTED";
   return "IN_PROGRESS";
 }
 

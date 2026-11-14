@@ -60,6 +60,14 @@ export class LRUCache<K, V> {
     this._size = 0;
   }
 
+  [Symbol.iterator](): IterableIterator<[K, V]> {
+    return this.map[Symbol.iterator]();
+  }
+
+  entries(): IterableIterator<[K, V]> {
+    return this.map.entries();
+  }
+
   has(key: K): boolean {
     return this.map.has(key);
   }
@@ -76,10 +84,9 @@ export class LRUCache<K, V> {
   evictOldest(): V | undefined {
     const evicted = this.keys.shift();
     if (evicted !== undefined) {
-      const value = this.map.delete(evicted);
-      if (value !== undefined) {
-        this._size--;
-      }
+      const value = this.map.get(evicted);
+      this.map.delete(evicted);
+      this._size--;
       return value;
     }
     return undefined;

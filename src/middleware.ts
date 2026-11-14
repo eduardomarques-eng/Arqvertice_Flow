@@ -63,8 +63,9 @@ export function middleware(request: NextRequest) {
     "https://arqvertice.com",
     "https://www.arqvertice.com"
   ];
-  const trustedOrigin = request.headers.get("origin") || request.headers.get("host");
-  const isUntrustedOrigin = !trustedOrigins.includes(trustedOrigin);
+  const trustedOrigin = request.headers.get("origin") || request.headers.get("host") || "";
+  const isDevOrLocal = process.env.NODE_ENV !== "production" || request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1";
+  const isUntrustedOrigin = !isDevOrLocal && !trustedOrigins.some(to => trustedOrigin.startsWith(to));
 
   // Bloqueia requisições com origem/sinkhost não autorizadas para rotas
   // protegidas (excluindo /api/health e /api/briefings públicos).
@@ -102,6 +103,17 @@ export function middleware(request: NextRequest) {
     if (redirectTo) {
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
+
+    if (pathname.startsWith("/equipe/financeiro")) {
+      const permsCookie = request.cookies.get("arqvertice_permissions")?.value;
+      let perms: string[] = [];
+      try {
+        perms = JSON.parse(permsCookie ?? "[]");
+      } catch {}
+      if (role !== "ADMIN" && !perms.includes("financeiro")) {
+        return NextResponse.redirect(new URL("/equipe", request.url));
+      }
+    }
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -118,7 +130,7 @@ export const config = {
    * filtrá-los só adicionaria latência. Os caminhos de API permanecem
    * incluídos porque é neles que vivem os downloads de documentos.
    */
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico))$.*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
 
 export { SECURITY_HEADER_NAMES };

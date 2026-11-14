@@ -9,6 +9,7 @@ import {
   DATA_PURPOSES,
   DATA_SUBJECT_RIGHTS,
   PRIVACY_POLICY_VERSION,
+  AI_TRANSPARENCY,
 } from "@/lib/legal";
 
 export const metadata: Metadata = {

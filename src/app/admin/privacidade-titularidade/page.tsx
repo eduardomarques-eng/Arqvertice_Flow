@@ -108,7 +108,7 @@ export default async function AdminPrivacyTitularidadePage() {
                 {RIGHTS.map(({ key }) => (
                   <Button
                     key={key}
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     onClick={async () => {
                       const res = await fetch("/api/privacy/action", {

@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+import {
+  listPendingEvents,
+  markEventProcessed,
+  markEventFailed,
+  hasPendingEvents,
+  eventBus,
+} from "@/server/events/event-bus";
 
 export const runtime = "nodejs";
 
@@ -24,27 +31,31 @@ export async function GET(request: Request) {
     const events = await listPendingEvents(200);
 
     for (const event of events) {
-      const type = event.type as string;
-      const handler = eventHandlers.get(type);
-
-      if (!handler) {
-        console.warn(`[CRON] EventHandler não encontrado para tipo: ${type}`);
-        await markEventProcessed(event.id as string, { reason: "no_handler" });
-        continue;
-      }
-
       try {
-        await handler(event.payload, {
-          ...(event.metadata as Record<string, unknown>),
-          requestId: event.requestId,
+        await eventBus.publish({
+          event: {
+            id: event.id,
+            type: event.type as any,
+            payload: event.payload,
+            metadata: (event.metadata as Record<string, unknown>) ?? undefined,
+            retryCount: event.retryCount,
+            status: event.status as any,
+            occurredAt: event.occurredAt,
+            entityType: event.entityType ?? undefined,
+            entityId: event.entityId ?? undefined,
+            route: event.route ?? undefined,
+            requestId: event.requestId ?? undefined,
+          },
+          context: {
+            requestId: event.requestId ?? undefined,
+          },
         });
-        await markEventProcessed(event.id as string, { status: "processed" });
+        await markEventProcessed(event.id, { status: "processed" });
       } catch (error) {
-        const retryCount = event.retryCount as number | undefined ?? 0;
         await markEventFailed(
-          event.id as string,
+          event.id,
           error as Error,
-          retryCount,
+          event.retryCount ?? 0,
           3
         );
       }
