@@ -41,6 +41,7 @@ interface ProjectDetailTabsProps {
   stages: Array<{ id: string; name: string; discipline?: string | null }>;
   completion: number;
   overdueCount: number;
+  basePath?: string;
 }
 
 export function ProjectDetailTabs({
@@ -51,6 +52,7 @@ export function ProjectDetailTabs({
   stages,
   completion,
   overdueCount,
+  basePath = "/admin",
 }: ProjectDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<"acervo" | "documentos">("acervo");
 
@@ -97,14 +99,14 @@ export function ProjectDetailTabs({
           {/* Atalhos Rápidos */}
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={`/cronograma?projeto=${project.id}`}
+              href={`${basePath}/projetos/${project.id}/cronograma`}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition active:scale-[0.98]"
             >
               <span>📊</span>
               <span>Abrir no Kanban</span>
             </Link>
             <Link
-              href={`/relatorio/${project.id}`}
+              href={`${basePath}/projetos/${project.id}/relatorio`}
               target="_blank"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border border-zinc-300 rounded-xl transition active:scale-[0.98]"
             >
@@ -112,7 +114,7 @@ export function ProjectDetailTabs({
               <span>Relatório PDF</span>
             </Link>
             <Link
-              href="/admin/financeiro"
+              href={`${basePath}/financeiro`}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition active:scale-[0.98]"
             >
               <span>💰</span>

@@ -1,0 +1,70 @@
+import { notFound } from "next/navigation";
+import { AppShell } from "@/components/app-shell";
+import { requirePageProjectAccess, requirePageTeamRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { prisma } from "@/server/db";
+import { getScheduleReport } from "@/server/services/schedule-report-service";
+import { UnifiedScheduleReport } from "@/components/reports/schedule-report-unified";
+import { formatCurrencyBRL, formatDateBR } from "@/lib/formatters";
+
+export const dynamic = "force-dynamic";
+
+export default async function EquipeProjetoRelatorioPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await requirePageTeamRole();
+  await requireModuleAccess("projetos");
+  await requirePageProjectAccess(id);
+
+  const [bundle, projectDb] = await Promise.all([
+    getScheduleReport(id),
+    prisma.project.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        address: true,
+        client: { select: { name: true, phone: true, email: true } },
+        installments: { orderBy: { order: "asc" } },
+      },
+    }),
+  ]);
+
+  if (!bundle) notFound();
+  const report = bundle.report;
+  const pdfUrl = `/api/projects/${id}/cronograma/relatorio/pdf`;
+
+  const addr = (projectDb?.address || {}) as Record<string, string>;
+  const clientInfo = {
+    name: projectDb?.client?.name || bundle.projectName,
+    phone: projectDb?.client?.phone || null,
+    email: projectDb?.client?.email || null,
+    address: addr.formatted || addr.localizacao || "Litoral Sul",
+    loteQuadra: addr.loteQuadra || addr.lote || "Lote 14, Quadra B",
+    areaConstruida: addr.areaConstruida || addr.area || "385,00 m²",
+  };
+
+  const initialPayments = (projectDb?.installments || []).map((inst) => ({
+    id: inst.id,
+    name: inst.description,
+    amount: formatCurrencyBRL(Number(inst.amount)),
+    amountNumber: Number(inst.amount),
+    dueDate: inst.dueDate ? new Date(inst.dueDate).toISOString().slice(0, 10) : "",
+    paidAt: inst.paidDate ? formatDateBR(inst.paidDate) : "—",
+    stage: inst.linkedStageId || "—",
+    status: inst.status === "PAID" ? "Liquidado" : "Pendente",
+    order: inst.order,
+  }));
+
+  return (
+    <AppShell eyebrow="Relatório Oficial do Cronograma" role={user.role}>
+      <UnifiedScheduleReport
+        projectId={id}
+        projectName={bundle.projectName}
+        client={clientInfo}
+        initialPayments={initialPayments}
+        financialRows={report.financial?.rows || []}
+        report={report}
+        pdfUrl={pdfUrl}
+      />
+    </AppShell>
+  );
+}

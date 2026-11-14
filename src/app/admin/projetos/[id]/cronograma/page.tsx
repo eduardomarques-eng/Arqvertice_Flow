@@ -42,10 +42,10 @@ export default async function CronogramaPage({
   return (
     <AppShell eyebrow="Cronograma" role={user.role}>
       <Link
-        href={user.role === "ADMIN" ? `/projetos/${id}` : "/operacao"}
+        href={user.role === "ADMIN" ? `/admin/projetos/${id}` : `/equipe/projetos/${id}`}
         className="text-sm font-semibold text-blue-600 hover:text-blue-700"
       >
-        {user.role === "ADMIN" ? "← Voltar ao projeto" : "← Voltar à operação"}
+        ← Voltar ao projeto
       </Link>
 
       <SectionHeading

@@ -1,16 +1,15 @@
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { requireModulePermission } from "@/lib/rbac-helpers";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { prisma } from "@/server/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function EquipeBriefingPage() {
   const user = await requirePageTeamRole();
-  requireModulePermission(user, "projetos");
+  await requireModuleAccess("projetos");
 
   const briefings = await prisma.briefing.findMany({
     orderBy: { updatedAt: "desc" },
@@ -19,7 +18,7 @@ export default async function EquipeBriefingPage() {
   });
 
   return (
-    <AppShell eyebrow="Briefing" environment="admin" role={user.role}>
+    <AppShell eyebrow="Briefing" role={user.role}>
       <SectionHeading
         title="Briefings"
         description="Briefings de projetos. Acesso restrito a usuários com permissão projetos."

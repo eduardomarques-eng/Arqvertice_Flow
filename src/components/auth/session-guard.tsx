@@ -3,28 +3,74 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 
+const PUBLIC_EXACT_PATHS = new Set([
+  "/",
+  "/login",
+  "/privacidade",
+  "/cookies",
+  "/termos",
+  "/cadastro",
+  "/recuperar-senha",
+  "/redefinir-senha",
+]);
+
+function isPublicRoute(pathname: string): boolean {
+  if (PUBLIC_EXACT_PATHS.has(pathname)) return true;
+  return pathname.startsWith("/briefing/") || pathname.startsWith("/briefing-proposta/");
+}
+
+type InvalidReason = "PERMISSIONS_UPDATED" | "ACCOUNT_DISABLED" | "UNAUTHENTICATED" | "TAB_CLOSED" | null;
+
+const REASON_COPY: Record<Exclude<InvalidReason, null>, { title: string; body: string }> = {
+  PERMISSIONS_UPDATED: {
+    title: "Atualização de Permissões e Governança",
+    body: "O administrador atualizou suas permissões de acesso, atribuições ou credenciais. Para garantir a consistência dos dados e carregar seu painel atualizado, encerre esta sessão e entre novamente.",
+  },
+  ACCOUNT_DISABLED: {
+    title: "Conta Desativada",
+    body: "Esta conta foi desativada pelo Administrador. Para mais informações, entre em contato com a gestão.",
+  },
+  TAB_CLOSED: {
+    title: "Nova Sessão Necessária",
+    body: "Esta aba foi fechada ou aberta fora de uma sessão ativa. Por motivos de segurança, faça login novamente para acessar o ArqVértice Flow.",
+  },
+  UNAUTHENTICATED: {
+    title: "Sessão Expirada",
+    body: "Sua sessão expirou por inatividade ou tempo limite. Faça login novamente para continuar.",
+  },
+};
+
 export function SessionGuard() {
   const pathname = usePathname();
-  const [invalidReason, setInvalidReason] = useState<
-    "PERMISSIONS_UPDATED" | "ACCOUNT_DISABLED" | "UNAUTHENTICATED" | "TAB_CLOSED" | null
-  >(null);
+  const [invalidReason, setInvalidReason] = useState<InvalidReason>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const hasMounted = useRef(false);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
+  const inactivityMsRef = useRef<number>(30 * 60 * 1000);
 
   const checkSession = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/auth/session-status?t=${Date.now()}`,
-        {
-          cache: "no-store",
-          headers: { "Cache-Control": "no-store" },
+      const res = await fetch(`/api/auth/session-status?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-store" },
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.valid) {
+          setInvalidReason(null);
+          if (typeof data.inactivityTimeoutMin === "number" && data.inactivityTimeoutMin >= 5) {
+            inactivityMsRef.current = data.inactivityTimeoutMin * 60 * 1000;
+          }
         }
-      );
+        return;
+      }
       if (res.status === 401) {
         const data = await res.json().catch(() => ({}));
-        const reason = data.reason || "PERMISSIONS_UPDATED";
+        const reason: Exclude<InvalidReason, null> =
+          data.reason === "PERMISSIONS_UPDATED" ||
+          data.reason === "ACCOUNT_DISABLED" ||
+          data.reason === "UNAUTHENTICATED"
+            ? data.reason
+            : "UNAUTHENTICATED";
         setInvalidReason(reason);
       }
     } catch {
@@ -33,11 +79,9 @@ export function SessionGuard() {
   }, []);
 
   useEffect(() => {
-    // Não executar na página de login (/) para evitar loop de redirecionamento
-    if (pathname === "/") return;
+    if (isPublicRoute(pathname)) return;
 
-    // 1. Tab guard: se a aba foi fechada e reaberta, ou não existe flag de autenticação,
-    //    exige novo login (fechou a página = exige novo login).
+    // Tab guard: exige que a aba tenha sido autenticada na sessão atual
     const tabSession = sessionStorage.getItem("arqvertice_active_tab_session");
     const tabAuth = sessionStorage.getItem("arqvertice_tab_authenticated");
     if (!tabSession || tabAuth !== "true") {
@@ -45,16 +89,13 @@ export function SessionGuard() {
       return;
     }
 
-    // 2. Delay de 1000ms antes da primeira verificação para garantir que
-    //    os cookies do login já estejam consolidados no navegador.
+    // Delay inicial para consolidar cookies após login/navegação
     const timer = setTimeout(() => {
       checkSession();
     }, 1000);
 
-    // 3. Verificação periódica a cada 10 segundos
-    const interval = setInterval(checkSession, 10000);
+    const interval = setInterval(checkSession, 15000);
 
-    // 4. Verificação ao focar a janela ou mudar visibilidade
     const onFocus = () => checkSession();
     const onVisibility = () => {
       if (document.visibilityState === "visible") checkSession();
@@ -63,13 +104,12 @@ export function SessionGuard() {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
 
-    // 5. Timeout por inatividade: 30 minutos sem interação encerra a sessão
     const resetInactivity = () => {
       sessionStorage.setItem("arqvertice_last_activity", String(Date.now()));
       if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
       inactivityTimer.current = setTimeout(() => {
         setInvalidReason("UNAUTHENTICATED");
-      }, INACTIVITY_MS);
+      }, inactivityMsRef.current);
     };
     const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
     events.forEach((evt) => window.addEventListener(evt, resetInactivity));
@@ -83,27 +123,24 @@ export function SessionGuard() {
       document.removeEventListener("visibilitychange", onVisibility);
       events.forEach((evt) => window.removeEventListener(evt, resetInactivity));
     };
-  }, [pathname, checkSession, INACTIVITY_MS]);
-
-  // 4. Verificação a cada mudança de rota (exceto /)
-  useEffect(() => {
-    if (pathname === "/") return;
-    checkSession();
   }, [pathname, checkSession]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    const reason = invalidReason;
     sessionStorage.removeItem("arqvertice_active_tab_session");
+    sessionStorage.removeItem("arqvertice_tab_authenticated");
     try {
-      await fetch("/api/auth/logout?reason=FORCED_LOGOUT", {
-        method: "POST",
-      }).catch(() => null);
+      const query = reason === "PERMISSIONS_UPDATED" ? "?reason=FORCED_LOGOUT" : "";
+      await fetch(`/api/auth/logout${query}`, { method: "POST" }).catch(() => null);
     } finally {
-      window.location.href = "/?updated=1";
+      window.location.href = reason === "PERMISSIONS_UPDATED" ? "/?updated=1" : "/";
     }
   };
 
   if (!invalidReason) return null;
+
+  const copy = REASON_COPY[invalidReason];
 
   return (
     <div className="fixed inset-0 z-9999 flex items-center justify-center bg-zinc-950/90 backdrop-blur-xl p-4 animate-in fade-in duration-300">
@@ -114,14 +151,10 @@ export function SessionGuard() {
 
         <div className="space-y-2">
           <h3 className="text-xl font-bold tracking-tight text-zinc-900">
-            Atualização de Permissões e Governança
+            {copy.title}
           </h3>
           <p className="text-xs text-zinc-600 leading-relaxed">
-            {invalidReason === "TAB_CLOSED"
-              ? "Esta aba ou janela foi fechada. Por motivos de segurança, é necessário fazer login novamente para acessar o ArqVértice Flow."
-              : invalidReason === "ACCOUNT_DISABLED"
-              ? "Esta conta foi desativada pelo Administrador. Para mais informações, entre em contato com a gestão."
-              : "O administrador atualizou suas permissões de acesso, atribuições ou credenciais. Para garantir a consistência dos dados e carregar seu painel atualizado, encerre esta sessão e entre novamente."}
+            {copy.body}
           </p>
         </div>
 

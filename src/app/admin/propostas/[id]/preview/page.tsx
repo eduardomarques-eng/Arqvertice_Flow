@@ -51,7 +51,7 @@ export default async function ProposalPreviewPage({
             </p>
           </div>
           <Link
-            href={`/propostas/${id}`}
+            href={`/admin/propostas/${id}`}
             className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
           >
             Voltar à edição

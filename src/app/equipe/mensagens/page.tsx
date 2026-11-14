@@ -1,18 +1,17 @@
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { requireModulePermission } from "@/lib/rbac-helpers";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 
 export const dynamic = "force-dynamic";
 
 export default async function EquipeMensagensPage() {
   const user = await requirePageTeamRole();
-  requireModulePermission(user, "dashboard");
+  await requireModuleAccess("dashboard");
 
   return (
-    <AppShell eyebrow="Mensagens" environment="admin" role={user.role}>
+    <AppShell eyebrow="Mensagens" role={user.role}>
       <SectionHeading
         title="Mensagens e Templates"
         description="Templates de mensagem e comunicação interna. Acesso restrito à equipe técnica."

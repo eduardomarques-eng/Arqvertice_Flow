@@ -1,65 +1,102 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { isTeamRole, requirePageProjectAccess } from "@/server/auth";
+import { requirePageProjectAccess, requirePageTeamRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { prisma } from "@/server/db";
+import { listProjectDocuments } from "@/server/services/document-service";
+import { listProjectDeliverables, getDeliverableMatrix } from "@/server/services/deliverable-service";
+import { kanbanBoard } from "@/server/services/schedule-service";
+import { ProjectDetailTabs } from "@/components/projects/project-detail-tabs";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await requirePageProjectAccess(id);
-  if (user.role !== "ADMIN" && !isTeamRole(user.role)) {
-    return null;
-  }
-  const project = await prisma.project.findFirst({
+  const user = await requirePageTeamRole();
+  await requireModuleAccess("projetos");
+  await requirePageProjectAccess(id);
+
+  const project = await prisma.project.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      description: true,
-      scope: true,
-      startDate: true,
-      expectedEndDate: true,
-      status: true,
-      client: { select: { name: true, email: true, phone: true, city: true, state: true } },
-    },
+    include: { client: { select: { name: true, phone: true, email: true } } },
   });
-  if (!project) return null;
+
+  if (!project) notFound();
+
+  const [documents, board, deliverables, deliverableMatrix] = await Promise.all([
+    listProjectDocuments(id),
+    kanbanBoard(id),
+    listProjectDeliverables(id),
+    getDeliverableMatrix(id),
+  ]);
+
+  const stages = (board?.columns || []).flatMap((column) => column?.cards || []).map((card) => ({
+    id: card.id,
+    name: card.name,
+    discipline: card.discipline,
+  }));
+
+  const deliverablesList = deliverables.map((d) => ({
+    id: d.id,
+    sheetCode: d.sheetCode,
+    subject: d.subject,
+    title: d.title,
+    subtitle: d.subtitle,
+    phaseFolder: d.phaseFolder,
+    category: d.category,
+    discipline: d.discipline,
+    type: d.type,
+    version: d.version,
+    fileSize: d.fileSize,
+    fileUrl: d.fileUrl,
+    status: d.status,
+    isClientView: d.isClientView,
+    isRequired: d.isRequired,
+    description: d.description,
+    stageId: d.stageId,
+    environmentId: d.environmentId,
+    stage: d.stage ? { id: d.stage.id, name: d.stage.name } : null,
+    environment: d.environment ? { id: d.environment.id, name: d.environment.name } : null,
+    createdAt: d.createdAt,
+  }));
+
+  const projectData = {
+    id: project.id,
+    name: project.name,
+    type: project.type,
+    status: project.status,
+    budget: project.budget ? Number(project.budget) : null,
+    startDate: project.startDate,
+    expectedEndDate: project.expectedEndDate,
+    address: (project.address as Record<string, unknown>) || null,
+    client: project.client,
+  };
 
   return (
     <AppShell eyebrow="Ficha técnica" role={user.role}>
-      <Link href="/equipe" className="text-sm font-semibold text-blue-600">← Voltar à equipe</Link>
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Badge tone="blue">Projeto atribuído</Badge>
-          <h1 className="mt-3 text-3xl font-bold text-slate-950">{project.name}</h1>
-          <p className="mt-2 text-sm text-slate-500">{project.type ?? "Projeto arquitetônico"} · {project.status}</p>
+      <div className="mx-auto max-w-7xl font-sans space-y-4">
+        <div className="flex items-center gap-2 text-xs">
+          <Link
+            href="/equipe/projetos"
+            className="font-semibold text-blue-600 hover:text-blue-700 transition flex items-center gap-1"
+          >
+            ← Voltar para projetos
+          </Link>
+          <span className="text-zinc-300">/</span>
+          <span className="text-zinc-500 truncate max-w-[240px] sm:max-w-none">{project.name}</span>
         </div>
-        <Link href={`/equipe/cronograma/${id}`} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-          Abrir Kanban
-        </Link>
-      </div>
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <Card>
-          <h2 className="font-semibold text-slate-950">Dados básicos do cliente</h2>
-          <dl className="mt-4 space-y-3 text-sm">
-            <div><dt className="text-slate-400">Nome</dt><dd className="font-medium text-slate-800">{project.client.name}</dd></div>
-            {project.client.email ? <div><dt className="text-slate-400">E-mail</dt><dd className="font-medium text-slate-800">{project.client.email}</dd></div> : null}
-            {project.client.phone ? <div><dt className="text-slate-400">Telefone</dt><dd className="font-medium text-slate-800">{project.client.phone}</dd></div> : null}
-            {project.client.city ? <div><dt className="text-slate-400">Localidade</dt><dd className="font-medium text-slate-800">{project.client.city}{project.client.state ? ` - ${project.client.state}` : ""}</dd></div> : null}
-          </dl>
-        </Card>
-        <Card>
-          <h2 className="font-semibold text-slate-950">Ficha do projeto</h2>
-          <dl className="mt-4 space-y-3 text-sm">
-            <div><dt className="text-slate-400">Escopo</dt><dd className="font-medium text-slate-800">{project.scope ?? "Não informado"}</dd></div>
-            <div><dt className="text-slate-400">Descrição</dt><dd className="font-medium text-slate-800">{project.description ?? "Não informado"}</dd></div>
-            <div><dt className="text-slate-400">Período</dt><dd className="font-medium text-slate-800">{project.startDate?.toLocaleDateString("pt-BR") ?? "—"} a {project.expectedEndDate?.toLocaleDateString("pt-BR") ?? "—"}</dd></div>
-          </dl>
-        </Card>
+
+        <ProjectDetailTabs
+          project={projectData}
+          documents={documents}
+          deliverables={deliverablesList}
+          deliverableMatrix={deliverableMatrix}
+          stages={stages}
+          completion={board?.totals?.completion ?? 0}
+          overdueCount={board?.totals?.overdue ?? 0}
+          basePath="/equipe"
+        />
       </div>
     </AppShell>
   );

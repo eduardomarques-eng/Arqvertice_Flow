@@ -155,8 +155,9 @@ model User {
   role         UserRole  @default(CLIENTE)
   phone        String?
   whatsapp     String?    @db.VarChar(255)
-   specialty    String?    @db.VarChar(100)
-   isActive     Boolean   @default(true)
+  specialty    String?    @db.VarChar(100)
+  professionalReg String? @db.VarChar(80)
+  isActive     Boolean   @default(true)
   permissions          String[]          @default([])
   sessionVersion       Int               @default(1)
   permissionsUpdatedAt DateTime          @default(now())
@@ -1213,4 +1214,31 @@ model DeadLetterEvent {
 
   @@index([domainEventId])
   @@index([failedAt])
+}
+
+model StudioSetting {
+  id                   String    @id @default("default")
+  studioName           String    @default("ArqVértice Studio")
+  technicalLeadName    String    @default("Eduardo César Costa Marques")
+  technicalLeadReg     String    @default("")
+  studioCnpj           String    @default("66.773.164/0001-60")
+  pixKey               String    @default("66.773.164/0001-60")
+  pixKeyType           String    @default("CNPJ")
+  bankInstructions     String    @default("")
+  structuralPartner    String    @default("Emanoel Luan Almeida da Rocha · CNPJ 51.510.575/0001-95")
+  commercialAddress    String    @default("")
+  cityState            String    @default("")
+  institutionalEmail   String    @default("eduardo.marques.arq@gmail.com")
+  documentSignature    String    @default("ArqVértice Studio — Arquitetura & Engenharia")
+  proposalValidityDays Int       @default(15)
+  lateFeePercent       Float     @default(2.0)
+  lateInterestPercent  Float     @default(1.0)
+  defaultProposalScope String    @default("")
+  refundPolicyText     String    @default("")
+  scheduleAlertDays    Int       @default(3)
+  inactivityTimeoutMin Int       @default(30)
+  privacyPolicyVersion String    @default("v1.0")
+  forceLgpdReacceptAt  DateTime?
+  updatedAt            DateTime  @updatedAt
+  updatedById          String?   @db.Uuid
 }

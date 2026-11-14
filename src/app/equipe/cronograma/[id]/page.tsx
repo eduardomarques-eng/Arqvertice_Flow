@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { KanbanBoardView } from "@/components/schedule/kanban-board";
 import { requirePageProjectAccess, requirePageTeamRole } from "@/server/auth";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { kanbanBoard } from "@/server/services/schedule-service";
 
 export const dynamic = "force-dynamic";
@@ -25,14 +26,20 @@ export default async function EquipeCronogramaPage({
 }) {
   const { id } = await params;
   const user = await requirePageTeamRole();
+  await requireModuleAccess("cronograma");
   await requirePageProjectAccess(id);
   const board = await kanbanBoard(id);
 
   return (
     <AppShell eyebrow="Cronograma operacional" role={user.role}>
-      <Link href="/equipe" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
-        ← Voltar à equipe
-      </Link>
+      <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
+        <Link href="/equipe/cronograma" className="text-blue-600 hover:text-blue-700">
+          ← Voltar ao cronograma
+        </Link>
+        <Link href={`/equipe/projetos/${id}`} className="text-slate-600 hover:text-slate-900">
+          Ficha técnica →
+        </Link>
+      </div>
 
       <SectionHeading
         title={`Kanban — ${board.project.name}`}

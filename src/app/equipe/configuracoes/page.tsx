@@ -17,7 +17,7 @@ export default async function EquipeConfiguracoesPage() {
   }
 
   return (
-    <AppShell eyebrow="Configurações" environment="admin" role={user.role}>
+    <AppShell eyebrow="Configurações" role={user.role}>
       <SectionHeading
         title="Configurações da Equipe"
         description="Configurações operacionais da equipe técnica."

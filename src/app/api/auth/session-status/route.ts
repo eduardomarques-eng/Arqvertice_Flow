@@ -69,9 +69,14 @@ export async function GET() {
       })
       .catch(() => null);
 
+    const setting = await prisma.studioSetting
+      .findUnique({ where: { id: "default" }, select: { inactivityTimeoutMin: true } })
+      .catch(() => null);
+
     return NextResponse.json(
       {
         valid: true,
+        inactivityTimeoutMin: setting?.inactivityTimeoutMin ?? 30,
         user: {
           id: session.user.id,
           role: session.user.role,
