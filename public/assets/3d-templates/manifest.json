@@ -1,0 +1,1364 @@
+{
+  "version": "2.1.0",
+  "generatedAt": "2026-11-14T22:38:08.357Z",
+  "sourceRoot": "C:\\Users\\eduar\\OneDrive\\Documentos\\ArqVertice_Flow\\Arquivos",
+  "summary": {
+    "totalFilesScanned": 653,
+    "hdriCount": 4,
+    "compiledModelsCount": 4,
+    "projectBlocksCataloged": 29,
+    "shaderPresetsCount": 9,
+    "skippedProprietaryOrIncomplete": [
+      {
+        "path": "HDRI/Não confirmado 632772.crdownload",
+        "reason": "Download incompleto do navegador (.crdownload) ignorado com segurança.",
+        "sizeMB": 45.59
+      },
+      {
+        "path": "Projetos/Projeto Pedro.max",
+        "reason": "Arquivo proprietário fechado 3ds Max (.max 616.7 MB) sem exportação .fbx/.glb pareada; atendido pelo template compilado '2. Fachada Contemporânea, Deck Cumaru & Área de Lazer'.",
+        "sizeMB": 616.7
+      },
+      {
+        "path": "Modelos/casa modelo/Little_Houses_max2016..max",
+        "reason": "Arquivo proprietário 3ds Max (.max 1.42 MB) com 24 mapas de fachada catalogados; atendido pelo template compilado '2. Fachada Contemporânea, Deck Cumaru & Área de Lazer'.",
+        "sizeMB": 1.42
+      }
+    ]
+  },
+  "hdris": [
+    {
+      "id": "dia-claro",
+      "title": "Dia Claro (Sol Pleno 24K -> Web HDR)",
+      "sourceFileName": "HDRI/Dia Claro.hdr",
+      "sourceSizeMB": 557.88,
+      "sourceResolution": "20480x10240",
+      "compiledUrl": "/assets/3d-templates/hdri/dia-claro.hdr",
+      "compiledSizeBytes": 131165,
+      "exposureDefault": 1.05,
+      "sunElevationDeg": 52,
+      "sunAzimuthDeg": 135,
+      "ambientTintHex": "#F4F7FB",
+      "groundTintHex": "#D6CFC2",
+      "skyZenithHex": "#2B6CB0",
+      "skyHorizonHex": "#E2E8F0"
+    },
+    {
+      "id": "interno",
+      "title": "Interno Arquitetônico (Luz Difusa Quente)",
+      "sourceFileName": "HDRI/Interno.hdr",
+      "sourceSizeMB": 809.77,
+      "sourceResolution": "24576x12288",
+      "compiledUrl": "/assets/3d-templates/hdri/interno.hdr",
+      "compiledSizeBytes": 131165,
+      "exposureDefault": 1.15,
+      "sunElevationDeg": 38,
+      "sunAzimuthDeg": 65,
+      "ambientTintHex": "#FFF8EB",
+      "groundTintHex": "#C8B9A6",
+      "skyZenithHex": "#C7B299",
+      "skyHorizonHex": "#F7EFE2"
+    },
+    {
+      "id": "nublado-24k",
+      "title": "Nublado Suave (Overcast 24K -> Web HDR)",
+      "sourceFileName": "HDRI/Nublado_24k.hdr",
+      "sourceSizeMB": 790.39,
+      "sourceResolution": "24576x12288",
+      "compiledUrl": "/assets/3d-templates/hdri/nublado-24k.hdr",
+      "compiledSizeBytes": 131165,
+      "exposureDefault": 1.1,
+      "sunElevationDeg": 62,
+      "sunAzimuthDeg": 180,
+      "ambientTintHex": "#EDF2F7",
+      "groundTintHex": "#CBD5E1",
+      "skyZenithHex": "#64748B",
+      "skyHorizonHex": "#E2E8F0"
+    },
+    {
+      "id": "noite-24k",
+      "title": "Noite & Crepúsculo (Luminotécnica 2700K)",
+      "sourceFileName": "HDRI/Noite_24k.hdr",
+      "sourceSizeMB": 959.61,
+      "sourceResolution": "24576x12288",
+      "compiledUrl": "/assets/3d-templates/hdri/noite-24k.hdr",
+      "compiledSizeBytes": 131165,
+      "exposureDefault": 0.92,
+      "sunElevationDeg": 14,
+      "sunAzimuthDeg": 245,
+      "ambientTintHex": "#1E293B",
+      "groundTintHex": "#0F172A",
+      "skyZenithHex": "#090D16",
+      "skyHorizonHex": "#1E293B"
+    }
+  ],
+  "models": [
+    {
+      "id": "tpl-cozinha-interna",
+      "slug": "cozinha-interna",
+      "title": "1. Cozinha Gourmet FENIX & Ilha Calacatta",
+      "subtitle": "Compilado de Modelos\\cozinha modelo (kitchen_fenix.FBX / fenix_kitchen.obj)",
+      "category": "COZINHA_INTERNA",
+      "discipline": "INTERIORES",
+      "sourcePath": "Modelos/cozinha modelo/kitchen_fenix.FBX",
+      "sourceFormat": "FBX + OBJ + PBR Maps",
+      "sourceSizeMB": 67.79,
+      "usedProceduralFallback": false,
+      "glbUrl": "/assets/3d-templates/models/cozinha-interna.glb",
+      "posterUrl": "/assets/3d-templates/posters/cozinha-interna.svg",
+      "fileSizeBytes": 261676,
+      "normalization": {
+        "detectedTool": "3dsmax",
+        "detectedUnit": "mm",
+        "detectedUpAxis": "Z_UP",
+        "unitScaleFactor": 0.001,
+        "appliedZUpToYUp": true,
+        "translationOffset": [
+          0,
+          0,
+          0
+        ],
+        "normalizedSizeMeters": [
+          7.2,
+          3.1,
+          6.4
+        ],
+        "floorY": 0,
+        "firstPersonCamera": {
+          "position": [
+            0,
+            1.65,
+            2.35
+          ],
+          "target": [
+            -0.2,
+            1.45,
+            -1.2
+          ],
+          "fov": 55
+        },
+        "thirdPersonCamera": {
+          "position": [
+            4.6,
+            3.1,
+            4.9
+          ],
+          "target": [
+            -0.2,
+            1.1,
+            -0.8
+          ],
+          "fov": 42
+        }
+      },
+      "optimizationStats": {
+        "originalSizeBytes": 422940,
+        "optimizedSizeBytes": 261676,
+        "reductionPercent": 38.1,
+        "vertexCount": 5388,
+        "triangleCount": 1904,
+        "meshCount": 8,
+        "materialCount": 8,
+        "textureCount": 5,
+        "usedMeshopt": true,
+        "usedSimplifier": false
+      },
+      "firstPersonCamera": {
+        "position": [
+          0,
+          1.65,
+          2.35
+        ],
+        "target": [
+          -0.2,
+          1.45,
+          -1.2
+        ],
+        "fov": 55
+      },
+      "thirdPersonCamera": {
+        "position": [
+          4.6,
+          3.1,
+          4.9
+        ],
+        "target": [
+          -0.2,
+          1.1,
+          -0.8
+        ],
+        "fov": 42
+      },
+      "defaultHdriId": "interno",
+      "shaderPresetsUsed": [
+        "pedra_bancada_clearcoat",
+        "metal_matte_black",
+        "madeira_deck_natural",
+        "vidro_pele_de_vidro",
+        "ceramica_acetinada",
+        "fita_led_2700k",
+        "inox_escovado",
+        "tecido_juta_linho"
+      ],
+      "annotations": [
+        {
+          "id": "pin-ilha-calacatta",
+          "index": 1,
+          "title": "Ilha Gourmet em Calacatta Clearcoat",
+          "category": "Marmoraria & Bancadas",
+          "description": "Tampo monolítico com cascata bilateral e verniz Clearcoat físico IOR 1.54.",
+          "position": [
+            -0.2,
+            0.96,
+            -0.35
+          ],
+          "normal": [
+            0,
+            1,
+            0
+          ],
+          "cameraPosition": [
+            2.1,
+            1.85,
+            1.85
+          ],
+          "cameraTarget": [
+            -0.2,
+            0.9,
+            -0.35
+          ]
+        },
+        {
+          "id": "pin-marcenaria-fenix",
+          "index": 2,
+          "title": "Marcenaria FENIX NTM Matte Black (#18181B)",
+          "category": "Marcenaria Executiva",
+          "description": "Superfície nanotecnológica anti-impressão digital com fita LED linear 2700K embutida.",
+          "position": [
+            -0.6,
+            1.65,
+            -2.45
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "cameraPosition": [
+            -0.6,
+            1.75,
+            0.4
+          ],
+          "cameraTarget": [
+            -0.6,
+            1.55,
+            -2.5
+          ]
+        },
+        {
+          "id": "pin-torre-inox",
+          "index": 3,
+          "title": "Torre Quente & Coifa em Aço Inox Escovado",
+          "category": "Equipamentos & Metais",
+          "description": "Fornos embutidos e coifa escultural com acabamento em aço inoxidável escovado.",
+          "position": [
+            2.05,
+            1.35,
+            -2.2
+          ],
+          "normal": [
+            -0.5,
+            0,
+            0.86
+          ],
+          "cameraPosition": [
+            1.2,
+            1.65,
+            0.5
+          ],
+          "cameraTarget": [
+            2.05,
+            1.35,
+            -2.2
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tpl-fachada-deck-lazer",
+      "slug": "fachada-deck-lazer",
+      "title": "2. Fachada Contemporânea, Deck Cumaru & Área de Lazer",
+      "subtitle": "Compilado de Modelos\\casa modelo & Projetos\\Projeto Pedro.max",
+      "category": "FACHADA_DECK_LAZER",
+      "discipline": "ARQUITETURA",
+      "sourcePath": "Modelos/casa modelo/Little_Houses_max2016..max",
+      "sourceFormat": "3ds Max (.max) + Maps -> Procedural High-Precision PBR",
+      "sourceSizeMB": 620.43,
+      "usedProceduralFallback": true,
+      "fallbackReason": "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais.",
+      "glbUrl": "/assets/3d-templates/models/fachada-deck-lazer.glb",
+      "posterUrl": "/assets/3d-templates/posters/fachada-deck-lazer.svg",
+      "fileSizeBytes": 264464,
+      "normalization": {
+        "detectedTool": "3dsmax",
+        "detectedUnit": "cm",
+        "detectedUpAxis": "Z_UP",
+        "unitScaleFactor": 0.01,
+        "appliedZUpToYUp": true,
+        "translationOffset": [
+          0,
+          0,
+          0
+        ],
+        "normalizedSizeMeters": [
+          14,
+          6.92,
+          12
+        ],
+        "floorY": 0,
+        "firstPersonCamera": {
+          "position": [
+            -1.8,
+            1.65,
+            4.4
+          ],
+          "target": [
+            0.4,
+            1.85,
+            -0.5
+          ],
+          "fov": 55
+        },
+        "thirdPersonCamera": {
+          "position": [
+            9.2,
+            5.4,
+            9.8
+          ],
+          "target": [
+            0.2,
+            2.4,
+            0.2
+          ],
+          "fov": 42
+        }
+      },
+      "optimizationStats": {
+        "originalSizeBytes": 279092,
+        "optimizedSizeBytes": 264464,
+        "reductionPercent": 5.2,
+        "vertexCount": 552,
+        "triangleCount": 276,
+        "meshCount": 8,
+        "materialCount": 8,
+        "textureCount": 4,
+        "usedMeshopt": true,
+        "usedSimplifier": false
+      },
+      "firstPersonCamera": {
+        "position": [
+          -1.8,
+          1.65,
+          4.4
+        ],
+        "target": [
+          0.4,
+          1.85,
+          -0.5
+        ],
+        "fov": 55
+      },
+      "thirdPersonCamera": {
+        "position": [
+          9.2,
+          5.4,
+          9.8
+        ],
+        "target": [
+          0.2,
+          2.4,
+          0.2
+        ],
+        "fov": 42
+      },
+      "defaultHdriId": "dia-claro",
+      "shaderPresetsUsed": [
+        "vidro_pele_de_vidro",
+        "metal_matte_black",
+        "madeira_deck_natural",
+        "pedra_bancada_clearcoat",
+        "agua_piscina",
+        "tecido_juta_linho",
+        "ceramica_acetinada",
+        "fita_led_2700k"
+      ],
+      "annotations": [
+        {
+          "id": "pin-pele-vidro-fachada",
+          "index": 1,
+          "title": "Pele de Vidro & Brises Metálicos Matte Black",
+          "category": "Fachadas & Esquadrias",
+          "description": "Caixilharia minimalista piso-teto com brises verticais em ACM #18181B.",
+          "position": [
+            -1.8,
+            4.8,
+            -0.05
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "cameraPosition": [
+            -3.8,
+            4.2,
+            5.6
+          ],
+          "cameraTarget": [
+            -1.2,
+            4.2,
+            -0.2
+          ]
+        },
+        {
+          "id": "pin-deck-piscina",
+          "index": 2,
+          "title": "Deck em Madeira Cumaru & Piscina Cristalina",
+          "category": "Área de Lazer & Paisagismo",
+          "description": "Réguas de Cumaru tratadas com shader físico de água IOR 1.333 e borda em pedra natural.",
+          "position": [
+            0.8,
+            0.15,
+            3.2
+          ],
+          "normal": [
+            0,
+            1,
+            0
+          ],
+          "cameraPosition": [
+            5.4,
+            2.4,
+            6.8
+          ],
+          "cameraTarget": [
+            0.8,
+            0.3,
+            2.8
+          ]
+        },
+        {
+          "id": "pin-iluminacao-2700k",
+          "index": 3,
+          "title": "Luminotécnica Linear 2700K em Balanço",
+          "category": "Luminotécnica",
+          "description": "Perfis de LED 2700K embutidos no beiral em balanço e na borda subaquática.",
+          "position": [
+            0.2,
+            3.18,
+            0.72
+          ],
+          "normal": [
+            0,
+            -1,
+            0
+          ],
+          "cameraPosition": [
+            3.2,
+            2.2,
+            4.6
+          ],
+          "cameraTarget": [
+            0.2,
+            3,
+            0.2
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tpl-movel-design-autoral",
+      "slug": "movel-design-autoral",
+      "title": "3. Móvel de Design Autoral & Armário Boffi Antibes",
+      "subtitle": "Compilado de Modelos\\bloco modelo & Projetos\\Blocos\\guarda roupa simples (Boffi by Piero Lissoni)",
+      "category": "MOVEL_DESIGN",
+      "discipline": "INTERIORES",
+      "sourcePath": "Projetos/Blocos/guarda roupa simples/export/ANTIBES._Armadio,_cabina_armadio_e_boiserie._Boffi_by_piero_lissoni.__corona.obj",
+      "sourceFormat": "OBJ + FBX + PBR Maps",
+      "sourceSizeMB": 12.85,
+      "usedProceduralFallback": false,
+      "glbUrl": "/assets/3d-templates/models/movel-design-autoral.glb",
+      "posterUrl": "/assets/3d-templates/posters/movel-design-autoral.svg",
+      "fileSizeBytes": 293236,
+      "normalization": {
+        "detectedTool": "3dsmax",
+        "detectedUnit": "mm",
+        "detectedUpAxis": "Z_UP",
+        "unitScaleFactor": 0.001,
+        "appliedZUpToYUp": true,
+        "translationOffset": [
+          0,
+          0,
+          0
+        ],
+        "normalizedSizeMeters": [
+          5.6,
+          2.9,
+          4.8
+        ],
+        "floorY": 0,
+        "firstPersonCamera": {
+          "position": [
+            0,
+            1.65,
+            2.1
+          ],
+          "target": [
+            0,
+            1.35,
+            -1.4
+          ],
+          "fov": 55
+        },
+        "thirdPersonCamera": {
+          "position": [
+            3.6,
+            2.4,
+            3.8
+          ],
+          "target": [
+            0,
+            1.15,
+            -0.8
+          ],
+          "fov": 42
+        }
+      },
+      "optimizationStats": {
+        "originalSizeBytes": 762260,
+        "optimizedSizeBytes": 293236,
+        "reductionPercent": 61.5,
+        "vertexCount": 15948,
+        "triangleCount": 5356,
+        "meshCount": 7,
+        "materialCount": 7,
+        "textureCount": 4,
+        "usedMeshopt": true,
+        "usedSimplifier": false
+      },
+      "firstPersonCamera": {
+        "position": [
+          0,
+          1.65,
+          2.1
+        ],
+        "target": [
+          0,
+          1.35,
+          -1.4
+        ],
+        "fov": 55
+      },
+      "thirdPersonCamera": {
+        "position": [
+          3.6,
+          2.4,
+          3.8
+        ],
+        "target": [
+          0,
+          1.15,
+          -0.8
+        ],
+        "fov": 42
+      },
+      "defaultHdriId": "interno",
+      "shaderPresetsUsed": [
+        "madeira_deck_natural",
+        "metal_matte_black",
+        "vidro_pele_de_vidro",
+        "pedra_bancada_clearcoat",
+        "tecido_juta_linho",
+        "fita_led_2700k"
+      ],
+      "annotations": [
+        {
+          "id": "pin-boffi-antibes",
+          "index": 1,
+          "title": "Sistema Boffi Antibes (Piero Lissoni)",
+          "category": "Marcenaria de Alta Precisão",
+          "description": "Malha original importada e normalizada (mm -> m, Y=0) com boiserie em Nogueira Francesa e perfis #18181B.",
+          "position": [
+            0,
+            1.45,
+            -1.55
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "cameraPosition": [
+            1.8,
+            1.65,
+            1.4
+          ],
+          "cameraTarget": [
+            0,
+            1.25,
+            -1.55
+          ]
+        },
+        {
+          "id": "pin-vitrine-reflecta",
+          "index": 2,
+          "title": "Vitrines Laterais em Cristal & LED 2700K",
+          "category": "Detalhamento de Mobiliário",
+          "description": "Portas em vidro temperado translúcido com iluminação interna quente.",
+          "position": [
+            -1.85,
+            1.35,
+            -1.58
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "cameraPosition": [
+            -2.2,
+            1.6,
+            1.1
+          ],
+          "cameraTarget": [
+            -1.85,
+            1.2,
+            -1.58
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tpl-suite-master-blocos",
+      "slug": "living-suite-master",
+      "title": "4. Suíte Master & Living Executivo (Biblioteca de Blocos)",
+      "subtitle": "Compilado da biblioteca Projetos\\Blocos (Criado Siori, Tapete Gio Ponti, TV Sony, Closet)",
+      "category": "BLOCO_EXECUTIVO",
+      "discipline": "INTERIORES",
+      "sourcePath": "Projetos/Blocos",
+      "sourceFormat": "Coleção Multi-Bloco OBJ + FBX",
+      "sourceSizeMB": 245.6,
+      "usedProceduralFallback": false,
+      "glbUrl": "/assets/3d-templates/models/living-suite-master.glb",
+      "posterUrl": "/assets/3d-templates/posters/living-suite-master.svg",
+      "fileSizeBytes": 244148,
+      "normalization": {
+        "detectedTool": "3dsmax",
+        "detectedUnit": "cm",
+        "detectedUpAxis": "Z_UP",
+        "unitScaleFactor": 0.01,
+        "appliedZUpToYUp": true,
+        "translationOffset": [
+          0,
+          0,
+          0
+        ],
+        "normalizedSizeMeters": [
+          6.4,
+          3,
+          5.8
+        ],
+        "floorY": 0,
+        "firstPersonCamera": {
+          "position": [
+            0,
+            1.65,
+            2.3
+          ],
+          "target": [
+            0,
+            1.25,
+            -1.5
+          ],
+          "fov": 55
+        },
+        "thirdPersonCamera": {
+          "position": [
+            4.2,
+            2.7,
+            4.4
+          ],
+          "target": [
+            0,
+            1,
+            -0.9
+          ],
+          "fov": 42
+        }
+      },
+      "optimizationStats": {
+        "originalSizeBytes": 597308,
+        "optimizedSizeBytes": 244148,
+        "reductionPercent": 59.1,
+        "vertexCount": 12480,
+        "triangleCount": 4200,
+        "meshCount": 7,
+        "materialCount": 7,
+        "textureCount": 4,
+        "usedMeshopt": true,
+        "usedSimplifier": false
+      },
+      "firstPersonCamera": {
+        "position": [
+          0,
+          1.65,
+          2.3
+        ],
+        "target": [
+          0,
+          1.25,
+          -1.5
+        ],
+        "fov": 55
+      },
+      "thirdPersonCamera": {
+        "position": [
+          4.2,
+          2.7,
+          4.4
+        ],
+        "target": [
+          0,
+          1,
+          -0.9
+        ],
+        "fov": 42
+      },
+      "defaultHdriId": "noite-24k",
+      "shaderPresetsUsed": [
+        "madeira_deck_natural",
+        "tecido_juta_linho",
+        "pedra_bancada_clearcoat",
+        "vidro_pele_de_vidro",
+        "metal_matte_black",
+        "fita_led_2700k"
+      ],
+      "annotations": [
+        {
+          "id": "pin-cabeceira-linho",
+          "index": 1,
+          "title": "Cabeceira Estofada em Linho Cru & Painel Ripado",
+          "category": "Interiores Suíte",
+          "description": "Shader de microfibra com Sheen calibrado e sanca linear quente 2700K.",
+          "position": [
+            0,
+            1.15,
+            -2.2
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "cameraPosition": [
+            1.9,
+            1.65,
+            1.2
+          ],
+          "cameraTarget": [
+            0,
+            1,
+            -1.8
+          ]
+        }
+      ]
+    }
+  ],
+  "projectBlocks": [
+    {
+      "id": "bloco-acessorio-banheiro-homens",
+      "name": "acessorio banheiro homens",
+      "folderPath": "Projetos/Blocos/acessorio banheiro homens",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "shower set.max",
+      "primarySizeMB": 3.06,
+      "texturesCount": 6,
+      "mappedShaderPreset": "ceramica_acetinada"
+    },
+    {
+      "id": "bloco-acessorio-banheiro-mulheres",
+      "name": "acessorio banheiro mulheres",
+      "folderPath": "Projetos/Blocos/acessorio banheiro mulheres",
+      "availableFormats": [
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "dekor.obj",
+      "primarySizeMB": 1.32,
+      "texturesCount": 7,
+      "mappedShaderPreset": "ceramica_acetinada"
+    },
+    {
+      "id": "bloco-banheira-solo",
+      "name": "banheira solo",
+      "folderPath": "Projetos/Blocos/banheira solo",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "novak.max",
+      "primarySizeMB": 2.79,
+      "texturesCount": 4,
+      "mappedShaderPreset": "ceramica_acetinada"
+    },
+    {
+      "id": "bloco-banheiro",
+      "name": "banheiro",
+      "folderPath": "Projetos/Blocos/banheiro",
+      "availableFormats": [
+        "MAX",
+        "FBX"
+      ],
+      "primaryFile": "vray.max",
+      "primarySizeMB": 15.24,
+      "texturesCount": 7,
+      "mappedShaderPreset": "ceramica_acetinada"
+    },
+    {
+      "id": "bloco-cama-2",
+      "name": "cama -2",
+      "folderPath": "Projetos/Blocos/cama -2",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "Modern white bedroom 2014.max",
+      "primarySizeMB": 69.18,
+      "texturesCount": 8,
+      "mappedShaderPreset": "tecido_juta_linho"
+    },
+    {
+      "id": "bloco-cama-cals-master",
+      "name": "cama cals master",
+      "folderPath": "Projetos/Blocos/cama cals master",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "bedroom headboards set.FBX",
+      "primarySizeMB": 30.22,
+      "texturesCount": 12,
+      "mappedShaderPreset": "tecido_juta_linho"
+    },
+    {
+      "id": "bloco-cama-casal",
+      "name": "CAMA CASAL",
+      "folderPath": "Projetos/Blocos/CAMA CASAL",
+      "availableFormats": [
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "Fills Bed m1_2014_vray.max",
+      "primarySizeMB": 126.02,
+      "texturesCount": 15,
+      "mappedShaderPreset": "tecido_juta_linho"
+    },
+    {
+      "id": "bloco-chuveiro-quadrado-inox",
+      "name": "chuveiro quadrado inox",
+      "folderPath": "Projetos/Blocos/chuveiro quadrado inox",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "Rainshower Mono.max",
+      "primarySizeMB": 9.56,
+      "texturesCount": 0,
+      "mappedShaderPreset": "inox_escovado"
+    },
+    {
+      "id": "bloco-closet",
+      "name": "closet",
+      "folderPath": "Projetos/Blocos/closet",
+      "availableFormats": [
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "Slot6_2014_backup.max",
+      "primarySizeMB": 227.25,
+      "texturesCount": 36,
+      "mappedShaderPreset": "madeira_deck_natural"
+    },
+    {
+      "id": "bloco-closet-armario",
+      "name": "closet armario",
+      "folderPath": "Projetos/Blocos/closet armario",
+      "availableFormats": [
+        "FBX",
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "lobby_cupboard__vray.obj",
+      "primarySizeMB": 1.9,
+      "texturesCount": 5,
+      "mappedShaderPreset": "madeira_deck_natural"
+    },
+    {
+      "id": "bloco-cortina-tecido",
+      "name": "cortina tecido",
+      "folderPath": "Projetos/Blocos/cortina tecido",
+      "availableFormats": [
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "Curtain 006.obj",
+      "primarySizeMB": 108.89,
+      "texturesCount": 3,
+      "mappedShaderPreset": "tecido_juta_linho"
+    },
+    {
+      "id": "bloco-criado-mudo",
+      "name": "criado mudo",
+      "folderPath": "Projetos/Blocos/criado mudo",
+      "availableFormats": [
+        "FBX",
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "Om Siori Anatawa B4.obj",
+      "primarySizeMB": 1.04,
+      "texturesCount": 4,
+      "mappedShaderPreset": "madeira_deck_natural"
+    },
+    {
+      "id": "bloco-decor-criado",
+      "name": "decor_criado",
+      "folderPath": "Projetos/Blocos/decor_criado",
+      "availableFormats": [
+        "FBX",
+        "OBJ"
+      ],
+      "primaryFile": "decorative set.obj",
+      "primarySizeMB": 4.33,
+      "texturesCount": 0,
+      "mappedShaderPreset": "madeira_deck_natural"
+    },
+    {
+      "id": "bloco-espelhos",
+      "name": "espelhos",
+      "folderPath": "Projetos/Blocos/espelhos",
+      "availableFormats": [
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "LINDBYN mirror_2015.max",
+      "primarySizeMB": 0.97,
+      "texturesCount": 1,
+      "mappedShaderPreset": "vidro_pele_de_vidro"
+    },
+    {
+      "id": "bloco-guarda-roupa-simples",
+      "name": "guarda roupa simples",
+      "folderPath": "Projetos/Blocos/guarda roupa simples",
+      "availableFormats": [
+        "MAX",
+        "3DS",
+        "FBX",
+        "OBJ"
+      ],
+      "primaryFile": "ANTIBES._Armadio,_cabina_armadio_e_boiserie._Boffi_by_piero_lissoni.__corona.obj",
+      "primarySizeMB": 0.09,
+      "texturesCount": 5,
+      "mappedShaderPreset": "madeira_deck_natural"
+    },
+    {
+      "id": "bloco-make",
+      "name": "make",
+      "folderPath": "Projetos/Blocos/make",
+      "availableFormats": [
+        "MAX",
+        "FBX"
+      ],
+      "primaryFile": "Set for women.FBX",
+      "primarySizeMB": 11.59,
+      "texturesCount": 17,
+      "mappedShaderPreset": "madeira_deck_natural"
+    },
+    {
+      "id": "bloco-mesa-apoio",
+      "name": "mesa apoio",
+      "folderPath": "Projetos/Blocos/mesa apoio",
+      "availableFormats": [
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "STO-1132_backup.max",
+      "primarySizeMB": 6.5,
+      "texturesCount": 22,
+      "mappedShaderPreset": "madeira_deck_natural"
+    },
+    {
+      "id": "bloco-metais-banheiro",
+      "name": "metais banheiro",
+      "folderPath": "Projetos/Blocos/metais banheiro",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "duravit assessories_backup.max",
+      "primarySizeMB": 22.02,
+      "texturesCount": 7,
+      "mappedShaderPreset": "ceramica_acetinada"
+    },
+    {
+      "id": "bloco-notebook",
+      "name": "Notebook",
+      "folderPath": "Projetos/Blocos/Notebook",
+      "availableFormats": [
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "Notebook ''LENOVO G770''.obj",
+      "primarySizeMB": 38.25,
+      "texturesCount": 9,
+      "mappedShaderPreset": "metal_matte_black"
+    },
+    {
+      "id": "bloco-notebook-corona",
+      "name": "notebook corona",
+      "folderPath": "Projetos/Blocos/notebook corona",
+      "availableFormats": [
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "MacBook Pro.obj",
+      "primarySizeMB": 7.4,
+      "texturesCount": 7,
+      "mappedShaderPreset": "metal_matte_black"
+    },
+    {
+      "id": "bloco-poltrona-suite",
+      "name": "Poltrona Suite",
+      "folderPath": "Projetos/Blocos/Poltrona Suite",
+      "availableFormats": [
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "chair-office-205-1-2018-obj.obj",
+      "primarySizeMB": 1.22,
+      "texturesCount": 2,
+      "mappedShaderPreset": "tecido_juta_linho"
+    },
+    {
+      "id": "bloco-rack-tv",
+      "name": "rack tv",
+      "folderPath": "Projetos/Blocos/rack tv",
+      "availableFormats": [
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "MMRLT.obj",
+      "primarySizeMB": 2.13,
+      "texturesCount": 8,
+      "mappedShaderPreset": "metal_matte_black"
+    },
+    {
+      "id": "bloco-rack-tv-2",
+      "name": "rack tv 2",
+      "folderPath": "Projetos/Blocos/rack tv 2",
+      "availableFormats": [
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "ML009+ML074+ML332+ML302.obj",
+      "primarySizeMB": 2.73,
+      "texturesCount": 19,
+      "mappedShaderPreset": "metal_matte_black"
+    },
+    {
+      "id": "bloco-sofa-sala",
+      "name": "sofa sala",
+      "folderPath": "Projetos/Blocos/sofa sala",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "sofa.max",
+      "primarySizeMB": 70.84,
+      "texturesCount": 3,
+      "mappedShaderPreset": "tecido_juta_linho"
+    },
+    {
+      "id": "bloco-tapete",
+      "name": "TAPETE",
+      "folderPath": "Projetos/Blocos/TAPETE",
+      "availableFormats": [
+        "MAX",
+        "OBJ"
+      ],
+      "primaryFile": "kover.obj",
+      "primarySizeMB": 0.2,
+      "texturesCount": 6,
+      "mappedShaderPreset": "tecido_juta_linho"
+    },
+    {
+      "id": "bloco-tomada-minimalista",
+      "name": "tomada minimalista",
+      "folderPath": "Projetos/Blocos/tomada minimalista",
+      "availableFormats": [
+        "FBX",
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "TECE_Now.fbx",
+      "primarySizeMB": 0.75,
+      "texturesCount": 1,
+      "mappedShaderPreset": "metal_matte_black"
+    },
+    {
+      "id": "bloco-tv",
+      "name": "tv",
+      "folderPath": "Projetos/Blocos/tv",
+      "availableFormats": [
+        "MAX",
+        "FBX",
+        "OBJ"
+      ],
+      "primaryFile": "TV_SONY.obj",
+      "primarySizeMB": 0.48,
+      "texturesCount": 2,
+      "mappedShaderPreset": "metal_matte_black"
+    },
+    {
+      "id": "bloco-vaso-planta",
+      "name": "vaso planta",
+      "folderPath": "Projetos/Blocos/vaso planta",
+      "availableFormats": [
+        "OBJ",
+        "MAX"
+      ],
+      "primaryFile": "Indoor_Plants_Set_03.obj",
+      "primarySizeMB": 16.15,
+      "texturesCount": 66,
+      "mappedShaderPreset": "ceramica_acetinada"
+    },
+    {
+      "id": "bloco-vaso-sanit-rio",
+      "name": "vaso sanitário",
+      "folderPath": "Projetos/Blocos/vaso sanitário",
+      "availableFormats": [
+        "FBX",
+        "MAX"
+      ],
+      "primaryFile": "BOHEME_FIORE_Corona_2021.max",
+      "primarySizeMB": 128.49,
+      "texturesCount": 0,
+      "mappedShaderPreset": "ceramica_acetinada"
+    }
+  ],
+  "shaderPresets": [
+    {
+      "id": "vidro_pele_de_vidro",
+      "label": "Vidro Reflexivo / Pele de Vidro",
+      "category": "glass",
+      "baseColorHex": "#D8EEF8",
+      "baseColorLinear": [
+        0.78,
+        0.91,
+        0.97,
+        0.36
+      ],
+      "roughness": 0.06,
+      "metalness": 0.08,
+      "clearcoat": 0.9,
+      "clearcoatRoughness": 0.04,
+      "transmission": 0.74,
+      "ior": 1.52,
+      "reflectivity": 0.92,
+      "sheen": 0,
+      "sheenRoughness": 0,
+      "description": "Vidro laminado solar com reflexão física Fresnel e IOR 1.52 calibrado para GPU mobile/web."
+    },
+    {
+      "id": "metal_matte_black",
+      "label": "Metal Matte Black (#18181B)",
+      "category": "metal",
+      "baseColorHex": "#18181B",
+      "baseColorLinear": [
+        0.094,
+        0.094,
+        0.106,
+        1
+      ],
+      "roughness": 0.32,
+      "metalness": 0.86,
+      "clearcoat": 0.14,
+      "clearcoatRoughness": 0.28,
+      "transmission": 0,
+      "ior": 1.5,
+      "reflectivity": 0.75,
+      "sheen": 0,
+      "sheenRoughness": 0,
+      "description": "Alumínio anodizado / FENIX NTM Matte Black #18181B para caixilharias, brises e marcenaria."
+    },
+    {
+      "id": "madeira_deck_natural",
+      "label": "Madeira Freijó / Deck Cumaru",
+      "category": "wood",
+      "baseColorHex": "#8C5A32",
+      "baseColorLinear": [
+        0.55,
+        0.35,
+        0.196,
+        1
+      ],
+      "roughness": 0.52,
+      "metalness": 0.03,
+      "clearcoat": 0.18,
+      "clearcoatRoughness": 0.36,
+      "transmission": 0,
+      "ior": 1.48,
+      "reflectivity": 0.45,
+      "sheen": 0.08,
+      "sheenRoughness": 0.6,
+      "description": "Madeira arquitetônica natural com verniz fosco acetinado e resposta especular orgânica."
+    },
+    {
+      "id": "pedra_bancada_clearcoat",
+      "label": "Pedra / Bancada Calacatta Clearcoat",
+      "category": "stone",
+      "baseColorHex": "#F4F1EA",
+      "baseColorLinear": [
+        0.956,
+        0.945,
+        0.918,
+        1
+      ],
+      "roughness": 0.16,
+      "metalness": 0.02,
+      "clearcoat": 0.86,
+      "clearcoatRoughness": 0.08,
+      "transmission": 0,
+      "ior": 1.54,
+      "reflectivity": 0.85,
+      "sheen": 0,
+      "sheenRoughness": 0,
+      "description": "Mármore Calacatta / Quartzo polido com camada física de Clearcoat espelhado."
+    },
+    {
+      "id": "agua_piscina",
+      "label": "Água de Piscina Cristalina",
+      "category": "water",
+      "baseColorHex": "#1498D5",
+      "baseColorLinear": [
+        0.08,
+        0.596,
+        0.835,
+        0.72
+      ],
+      "roughness": 0.05,
+      "metalness": 0.04,
+      "clearcoat": 0.95,
+      "clearcoatRoughness": 0.03,
+      "transmission": 0.82,
+      "ior": 1.333,
+      "reflectivity": 0.9,
+      "sheen": 0,
+      "sheenRoughness": 0,
+      "description": "Shader físico de água com refração IOR 1.333 e absorção turquesa para espelhos d'água e piscinas."
+    },
+    {
+      "id": "tecido_juta_linho",
+      "label": "Tecido Linho / Juta Natural",
+      "category": "fabric",
+      "baseColorHex": "#D8CFC2",
+      "baseColorLinear": [
+        0.847,
+        0.812,
+        0.761,
+        1
+      ],
+      "roughness": 0.88,
+      "metalness": 0,
+      "clearcoat": 0,
+      "clearcoatRoughness": 0.9,
+      "transmission": 0,
+      "ior": 1.4,
+      "reflectivity": 0.2,
+      "sheen": 0.65,
+      "sheenRoughness": 0.75,
+      "description": "Microfibra têxtil de linho cru, bouclé e juta com espalhamento suave de borda (Sheen)."
+    },
+    {
+      "id": "ceramica_acetinada",
+      "label": "Cerâmica & Porcelanato Acetinado",
+      "category": "ceramic",
+      "baseColorHex": "#E5E0D8",
+      "baseColorLinear": [
+        0.898,
+        0.878,
+        0.847,
+        1
+      ],
+      "roughness": 0.28,
+      "metalness": 0.03,
+      "clearcoat": 0.24,
+      "clearcoatRoughness": 0.22,
+      "transmission": 0,
+      "ior": 1.5,
+      "reflectivity": 0.55,
+      "sheen": 0,
+      "sheenRoughness": 0,
+      "description": "Porcelanato técnico de grande formato e revestimento mineral acetinado."
+    },
+    {
+      "id": "fita_led_2700k",
+      "label": "Fita LED Quente 2700K",
+      "category": "emissive",
+      "baseColorHex": "#FFF3D1",
+      "baseColorLinear": [
+        1,
+        0.953,
+        0.82,
+        1
+      ],
+      "roughness": 0.18,
+      "metalness": 0,
+      "clearcoat": 0,
+      "clearcoatRoughness": 0.2,
+      "transmission": 0,
+      "ior": 1.45,
+      "reflectivity": 0.3,
+      "sheen": 0,
+      "sheenRoughness": 0,
+      "emissiveHex": "#FFB454",
+      "emissiveIntensity": 3.2,
+      "description": "Emissor linear de luz arquitetônica quente (2700K) para sancas, marcenaria e balizadores."
+    },
+    {
+      "id": "inox_escovado",
+      "label": "Aço Inox & Metais Escovados",
+      "category": "metal",
+      "baseColorHex": "#D4D4D8",
+      "baseColorLinear": [
+        0.831,
+        0.831,
+        0.847,
+        1
+      ],
+      "roughness": 0.22,
+      "metalness": 0.92,
+      "clearcoat": 0.2,
+      "clearcoatRoughness": 0.18,
+      "transmission": 0,
+      "ior": 2.5,
+      "reflectivity": 0.94,
+      "sheen": 0,
+      "sheenRoughness": 0,
+      "description": "Aço inox escovado para metais sanitários, coifas, eletros embutidos e puxadores."
+    }
+  ]
+}

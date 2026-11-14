@@ -1,8 +1,6 @@
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { getEffectivePermissions } from "@/lib/rbac";
 import { prisma } from "@/server/db";
 import { AcervoManagerView, type AcervoProjectOption, type CdeDocumentItem } from "@/components/acervo/acervo-manager-view";
 import { getAcervoExecutiveKpis } from "@/server/services/acervo-cde-service";
@@ -16,13 +14,17 @@ export default async function EquipeAcervoPage({
   searchParams: Promise<{ projectId?: string }>;
 }) {
   const user = await requirePageTeamRole();
-  if (user.role !== "ADMIN" && !getEffectivePermissions(user).includes("acervo")) {
-    redirect("/equipe");
-  }
   const { projectId } = await searchParams;
+
+  // Governança por Empreendimento: membros da equipe visualizam estritamente as obras atribuídas em /admin/equipe
+  const projectAccessFilter =
+    user.role === "ADMIN"
+      ? undefined
+      : { access: { some: { userId: user.id } } };
 
   const [rawProjects, rawDocuments, kpis] = await Promise.all([
     prisma.project.findMany({
+      where: projectAccessFilter,
       select: {
         id: true,
         name: true,
@@ -31,6 +33,10 @@ export default async function EquipeAcervoPage({
       orderBy: { name: "asc" },
     }),
     prisma.acervoDocument.findMany({
+      where:
+        user.role === "ADMIN"
+          ? undefined
+          : { project: { access: { some: { userId: user.id } } } },
       include: {
         project: {
           select: {

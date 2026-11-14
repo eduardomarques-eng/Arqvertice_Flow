@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@/server/auth";
+import { canUserAccessProject, currentUser } from "@/server/auth";
 import { uploadAcervoRevisionWithGrd } from "@/server/services/acervo-stamp-service";
 import { parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
 import { ProjectDiscipline, ProjectStagePhase, AcervoCategory, AcervoFileType } from "@prisma/client";
@@ -36,6 +36,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Dados incompletos: projectId, fileName e fileUrl são obrigatórios." },
         { status: 400 }
+      );
+    }
+
+    const hasAccess = await canUserAccessProject(user, projectId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Você não possui acesso habilitado a este empreendimento no Acervo Manager." },
+        { status: 403 }
       );
     }
 

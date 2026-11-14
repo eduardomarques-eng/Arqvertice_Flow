@@ -15,6 +15,9 @@ export async function GET(request: Request) {
 
     const whereClause: Record<string, unknown> = {
       isArchived: false,
+      ...(user.role !== "ADMIN"
+        ? { project: { access: { some: { userId: user.id } } } }
+        : {}),
     };
     if (projectId && projectId !== "ALL") {
       whereClause.projectId = projectId;

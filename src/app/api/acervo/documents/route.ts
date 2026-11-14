@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@/server/auth";
+import { canUserAccessProject, currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { uploadAcervoRevision, createAcervoGrd } from "@/server/services/acervo-cde-service";
 import { parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
@@ -44,6 +44,32 @@ export async function POST(request: Request) {
         { error: "Dados incompletos: projectId, fileName e fileUrl são obrigatórios." },
         { status: 400 }
       );
+    }
+
+    const hasAccess = await canUserAccessProject(user, projectId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Você não possui acesso habilitado a este empreendimento no Acervo Manager." },
+        { status: 403 }
+      );
+    }
+
+    if (user.role !== "ADMIN") {
+      const perm = await prisma.acervoDisciplinePermission.findFirst({
+        where: {
+          userId: user.id,
+          discipline: discipline as ProjectDiscipline,
+          OR: [{ projectId }, { projectId: null }],
+        },
+      });
+      if (perm && !perm.canUploadRevision) {
+        return NextResponse.json(
+          {
+            error: `Permissão restrita: seu usuário não possui autorização de envio (upload) para a disciplina ${discipline}.`,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Valida regra de nomenclatura CDE do projeto

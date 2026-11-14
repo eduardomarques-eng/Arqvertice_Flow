@@ -19,6 +19,7 @@ import {
   type Project3DOptimizationStats,
   type Project3DAssetDTO,
 } from "@/lib/acervo/showcase-3d-defaults";
+import { DEFAULT_3D_TEMPLATES_MANIFEST } from "@/lib/acervo/scene-compiler";
 
 /**
  * Cria ou registra nova versão de prancha/documento no CDE
@@ -447,7 +448,12 @@ export async function ensureProject3DShowcase(
     orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
   });
 
-  if (existing.length > 0) {
+  const existingGlbUrls = new Set(existing.map((e) => e.glbUrl));
+  const missingTemplates = DEFAULT_3D_TEMPLATES_MANIFEST.models.filter(
+    (tpl) => !existingGlbUrls.has(tpl.glbUrl)
+  );
+
+  if (existing.length > 0 && missingTemplates.length === 0) {
     return existing.map(mapProject3DAssetToDTO);
   }
 
@@ -455,25 +461,30 @@ export async function ensureProject3DShowcase(
     ? { name: projectName }
     : await prisma.project.findUnique({ where: { id: projectId }, select: { name: true } });
 
-  if (!project) return [];
+  if (!project) return existing.map(mapProject3DAssetToDTO);
 
-  const created = await prisma.project3DAsset.create({
-    data: {
-      projectId,
-      title: `Maquete Eletrônica Executiva — ${project.name}`,
-      description:
-        "Modelo 3D BIM/PBR otimizado com compressão Meshopt para inspeção executiva de fachadas, caixilharias, revestimentos ACM e luminotécnica.",
-      glbUrl: "/models/arqvertice-showcase.glb",
-      posterUrl: "/models/arqvertice-showcase-poster.svg",
-      fileSizeBytes: 23352,
-      optimizationStats: DEFAULT_SHOWCASE_OPTIMIZATION_STATS as unknown as Prisma.InputJsonValue,
-      cameraPreset: DEFAULT_SHOWCASE_CAMERA_PRESET as unknown as Prisma.InputJsonValue,
-      annotations: DEFAULT_SHOWCASE_ANNOTATIONS as unknown as Prisma.InputJsonValue,
-      isFeatured: true,
-    },
-  });
+  const createdRows = [];
+  for (let idx = 0; idx < missingTemplates.length; idx++) {
+    const tpl = missingTemplates[idx];
+    const row = await prisma.project3DAsset.create({
+      data: {
+        projectId,
+        title: `${tpl.title} — ${project.name}`,
+        description: `${tpl.subtitle}. Normalizado (1 un = 1m, Y=0) com Smart PBR Shaders e iluminação HDRI em tempo real.`,
+        glbUrl: tpl.glbUrl,
+        posterUrl: tpl.posterUrl,
+        fileSizeBytes: tpl.fileSizeBytes,
+        optimizationStats: tpl.optimizationStats as unknown as Prisma.InputJsonValue,
+        cameraPreset: tpl.thirdPersonCamera as unknown as Prisma.InputJsonValue,
+        annotations: tpl.annotations as unknown as Prisma.InputJsonValue,
+        isFeatured: existing.length === 0 && idx === 0,
+      },
+    });
+    createdRows.push(row);
+  }
 
-  return [mapProject3DAssetToDTO(created)];
+  const allAssets = [...existing, ...createdRows];
+  return allAssets.map(mapProject3DAssetToDTO);
 }
 
 /**

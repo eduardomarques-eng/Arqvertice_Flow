@@ -215,24 +215,65 @@ export function AcervoManagerView({
 
   return (
     <div className="space-y-6">
-      {/* Barra de Ação Rápida de Plugins & Configurações CAD/BIM */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Link
-          href={`${basePath}/acervo/plugins`}
-          className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#18181B] px-4 text-xs font-semibold text-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] hover:bg-zinc-800 transition"
-        >
-          <span>🧩</span>
-          <span>Central de Plugins (Revit · AutoCAD · TQS · 3ds Max)</span>
-        </Link>
-        {basePath === "/admin" && (
+      {/* Barra de Ação Rápida de Plugins, Configurações CAD/BIM & Ambiente 3D Isolado */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white p-3.5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            href="/admin/acervo/configuracoes"
-            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 text-xs font-semibold text-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:bg-slate-50 transition"
+            href={`/acervo/studio-3d/cozinha-interna?${
+              selectedProjectId !== "ALL"
+                ? `projectId=${selectedProjectId}&`
+                : projects[0]?.id
+                ? `projectId=${projects[0].id}&`
+                : ""
+            }returnTo=${encodeURIComponent(`${basePath}/acervo`)}`}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#18181B] px-4 text-xs font-bold text-[#EDE5D8] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.18)] hover:bg-zinc-800 active:scale-[0.98] transition"
           >
-            <span>🔌</span>
-            <span>Integrações CAD/BIM (Tokens API)</span>
+            <span>🧊</span>
+            <span>Entrar no Ambiente 3D</span>
           </Link>
-        )}
+
+          <div className="hidden xl:flex items-center gap-1.5 pl-1">
+            {[
+              { slug: "cozinha-interna", label: "Cozinha Gourmet" },
+              { slug: "fachada-deck-lazer", label: "Fachada & Deck" },
+              { slug: "movel-design-autoral", label: "Mobiliário Autoral" },
+              { slug: "living-suite-master", label: "Suíte Master" },
+            ].map((tpl) => (
+              <Link
+                key={tpl.slug}
+                href={`/acervo/studio-3d/${tpl.slug}?${
+                  selectedProjectId !== "ALL"
+                    ? `projectId=${selectedProjectId}&`
+                    : projects[0]?.id
+                    ? `projectId=${projects[0].id}&`
+                    : ""
+                }returnTo=${encodeURIComponent(`${basePath}/acervo`)}`}
+                className="inline-flex h-8 items-center rounded-lg border border-slate-200/80 bg-[#F5F5F7] px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-[#EDE5D8]/60 hover:text-slate-900 transition"
+              >
+                {tpl.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`${basePath}/acervo/plugins`}
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 text-xs font-semibold text-slate-800 shadow-2xs hover:bg-slate-50 transition"
+          >
+            <span>🧩</span>
+            <span>Central de Plugins (Revit · AutoCAD · TQS · 3ds Max)</span>
+          </Link>
+          {basePath === "/admin" && (
+            <Link
+              href="/admin/acervo/configuracoes"
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 text-xs font-semibold text-slate-800 shadow-2xs hover:bg-slate-50 transition"
+            >
+              <span>🔌</span>
+              <span>Integrações CAD/BIM (Tokens API)</span>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* 4 Cartões Executivos (KPIs do CDE) */}

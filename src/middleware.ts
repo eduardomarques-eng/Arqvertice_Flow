@@ -131,19 +131,23 @@ export function middleware(request: NextRequest) {
     );
     if (moduleMatch) {
       const seg = moduleMatch[1];
-      const mod =
-        seg === "briefing" || seg === "propostas"
-          ? "projetos"
-          : seg === "configuracoes"
-          ? "equipe"
-          : seg;
-      const permsCookie = request.cookies.get("arqvertice_permissions")?.value;
-      let perms: string[] = [];
-      try {
-        perms = JSON.parse(permsCookie ?? "[]");
-      } catch {}
-      if (role !== "ADMIN" && !perms.includes(mod)) {
-        return NextResponse.redirect(new URL("/equipe", request.url));
+      // Acervo Manager (/equipe/acervo e /equipe/acervo/plugins) é liberado para todos os membros ativos da equipe;
+      // o filtro de governança ocorre estritamente por empreendimento atribuído (ProjectAccess) no servidor.
+      if (seg !== "acervo") {
+        const mod =
+          seg === "briefing" || seg === "propostas"
+            ? "projetos"
+            : seg === "configuracoes"
+            ? "equipe"
+            : seg;
+        const permsCookie = request.cookies.get("arqvertice_permissions")?.value;
+        let perms: string[] = [];
+        try {
+          perms = JSON.parse(permsCookie ?? "[]");
+        } catch {}
+        if (role !== "ADMIN" && !perms.includes(mod)) {
+          return NextResponse.redirect(new URL("/equipe", request.url));
+        }
       }
     }
   }

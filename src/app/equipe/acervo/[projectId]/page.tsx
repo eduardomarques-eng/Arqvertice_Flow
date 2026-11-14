@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { requirePageTeamRole } from "@/server/auth";
-import { getEffectivePermissions } from "@/lib/rbac";
+import { canUserAccessProject, requirePageTeamRole } from "@/server/auth";
 import { getAcervoProjectWorkspaceData } from "@/server/services/acervo-cde-service";
 import { AcervoProjectDetailView } from "@/components/acervo/acervo-project-detail-view";
 
@@ -13,10 +12,12 @@ export default async function EquipeAcervoProjectDetailPage({
   params: Promise<{ projectId: string }>;
 }) {
   const user = await requirePageTeamRole();
-  if (user.role !== "ADMIN" && !getEffectivePermissions(user).includes("acervo")) {
-    redirect("/equipe");
-  }
   const { projectId } = await params;
+
+  const allowed = await canUserAccessProject(user, projectId);
+  if (!allowed) {
+    redirect("/equipe/acervo");
+  }
 
   const project = await getAcervoProjectWorkspaceData(projectId);
   if (!project) {

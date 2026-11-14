@@ -93,20 +93,27 @@ export async function getAllowedProjectsAndDisciplines(
   userRole: string,
   tokenProjectId: string | null
 ) {
-  const permissions = await prisma.acervoDisciplinePermission.findMany({
-    where: { userId, canUploadRevision: true },
-    select: { projectId: true, discipline: true, canApproveForWork: true },
-  });
+  const [permissions, projectAccessRows] = await Promise.all([
+    prisma.acervoDisciplinePermission.findMany({
+      where: { userId, canUploadRevision: true },
+      select: { projectId: true, discipline: true, canApproveForWork: true },
+    }),
+    prisma.projectAccess.findMany({
+      where: { userId },
+      select: { projectId: true },
+    }),
+  ]);
 
   const isAdmin = userRole === "ADMIN";
   const allowedProjectIds = isAdmin
     ? undefined
     : Array.from(
-        new Set(
-          permissions
+        new Set([
+          ...projectAccessRows.map((r) => r.projectId),
+          ...permissions
             .map((p) => p.projectId)
-            .filter((id): id is string => Boolean(id))
-        )
+            .filter((id): id is string => Boolean(id)),
+        ])
       );
 
   const projects = await prisma.project.findMany({

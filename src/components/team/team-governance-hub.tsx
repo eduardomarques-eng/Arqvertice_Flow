@@ -100,7 +100,8 @@ interface TeamGovernanceHubProps {
 const AVAILABLE_PERMISSIONS = [
   { key: "dashboard", label: "Painel Geral", desc: "Métricas executivas do estúdio" },
   { key: "cronograma", label: "Cronograma & Operação", desc: "Quadro Kanban e avanço físico" },
-  { key: "projetos", label: "Projetos & Acervo", desc: "Pranchas e documentos técnicos" },
+  { key: "projetos", label: "Empreendimentos & Fichas", desc: "Gestão executiva e Ficha Técnica 360" },
+  { key: "acervo", label: "Acervo Manager (CDE + 3D)", desc: "Acesso universal p/ equipe (filtrado por projeto)" },
   { key: "financeiro", label: "Gestão Financeira", desc: "Controle de parcelas e contratos" },
   { key: "clientes", label: "Gestão de Clientes", desc: "Base de contratantes e briefing" },
   { key: "equipe", label: "Equipe & Governança", desc: "Administração de perfis e RBAC" },
@@ -528,6 +529,14 @@ export function TeamGovernanceHub({
                         </span>
                       </div>
                     </div>
+                    <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200/80 bg-[#F5F5F7] px-3 py-2 text-[11px]">
+                      <span className="font-semibold text-slate-600">📁 Acervo Manager (CDE):</span>
+                      <span className="font-bold text-slate-900">
+                        {member.role === "ADMIN"
+                          ? `Irrestrito (${projects.length} obras)`
+                          : `${member.assignedProjectIds.length} de ${projects.length} obras`}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -535,7 +544,7 @@ export function TeamGovernanceHub({
                       {member.isActive ? "● Conta Ativa" : "○ Inativa"}
                     </span>
                     <span className="text-xs font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
-                      Gerenciar Perfil →
+                      Gerenciar Perfil & Obras →
                     </span>
                   </div>
                 </Card>
@@ -1211,12 +1220,35 @@ export function TeamGovernanceHub({
                     </div>
                   </div>
 
-                  {/* Projetos Atribuídos */}
+                  {/* Projetos Atribuídos (Governança do Acervo Manager por Empreendimento) */}
                   <div className="pt-3 border-t border-slate-100">
-                    <label className="block text-xs font-bold text-slate-900 mb-2">
-                      Projetos com Acesso Habilitado:
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-900">
+                          Empreendimentos / Projetos com Acesso Habilitado no Acervo Manager ({editProjects.length}/{projects.length}):
+                        </label>
+                        <p className="text-[11px] text-slate-500">
+                          Todo membro ativo acessa o Acervo Manager (`/equipe/acervo`), mas enxerga e opera exclusivamente nos empreendimentos marcados abaixo.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setEditProjects(projects.map((p) => p.id))}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition"
+                        >
+                          Liberar Todos ({projects.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditProjects([])}
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition"
+                        >
+                          Limpar Seleção
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1">
                       {projects.map((proj) => {
                         const checked = editProjects.includes(proj.id);
                         return (

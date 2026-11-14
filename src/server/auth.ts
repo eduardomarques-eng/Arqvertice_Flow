@@ -283,6 +283,47 @@ export async function requireProjectAccess(projectId: string) {
   return user;
 }
 
+/**
+ * Governança do Acervo Manager por Empreendimento:
+ * - ADMIN possui acesso irrestrito ("ALL").
+ * - Membros da equipe (ARQUITETO, ENGENHEIRO, EQUIPE, OPERADOR) possuem acesso estritamente
+ *   aos empreendimentos vinculados em ProjectAccess (gerenciados em /admin/equipe).
+ */
+export async function getAccessibleProjectIdsForUser(user: {
+  id: string;
+  role: string;
+  clientId?: string | null;
+}): Promise<"ALL" | string[]> {
+  if (user.role === "ADMIN") return "ALL";
+  const rows = await prisma.project.findMany({
+    where: {
+      OR: [
+        ...(user.clientId ? [{ clientId: user.clientId }] : []),
+        { access: { some: { userId: user.id } } },
+      ],
+    },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
+export async function canUserAccessProject(
+  user: { id: string; role: string; clientId?: string | null },
+  projectId: string
+): Promise<boolean> {
+  if (user.role === "ADMIN") return true;
+  const count = await prisma.project.count({
+    where: {
+      id: projectId,
+      OR: [
+        ...(user.clientId ? [{ clientId: user.clientId }] : []),
+        { access: { some: { userId: user.id } } },
+      ],
+    },
+  });
+  return count > 0;
+}
+
 export async function requirePageClientPortal() {
   const user = await currentUser();
   if (!user) redirect("/?next=%2Fportal");

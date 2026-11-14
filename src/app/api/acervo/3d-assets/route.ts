@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { currentUser } from "@/server/auth";
+import { canUserAccessProject, currentUser } from "@/server/auth";
 import {
   DEFAULT_SHOWCASE_ANNOTATIONS,
   DEFAULT_SHOWCASE_CAMERA_PRESET,
@@ -65,6 +65,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Parâmetro projectId é obrigatório." }, { status: 400 });
     }
 
+    const hasAccess = await canUserAccessProject(user, projectId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Sem permissão para acessar este empreendimento." }, { status: 403 });
+    }
+
     const assets = await ensureProject3DShowcase(projectId);
     const filtered = documentId
       ? assets.filter((a) => !a.documentId || a.documentId === documentId)
@@ -108,6 +113,10 @@ export async function POST(request: Request) {
     }
 
     const payload = parsed.data;
+    const hasAccess = await canUserAccessProject(user, payload.projectId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Sem permissão neste empreendimento." }, { status: 403 });
+    }
     let optimizationStats = DEFAULT_SHOWCASE_OPTIMIZATION_STATS;
     let finalBytes = payload.fileSizeBytes ?? 23352;
 

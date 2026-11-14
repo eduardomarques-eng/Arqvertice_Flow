@@ -130,6 +130,24 @@ export async function POST(request: Request) {
 
     const normalizedCode = rawCode.trim().toUpperCase();
 
+    if (apiToken.createdBy?.role !== "ADMIN") {
+      const perm = await prisma.acervoDisciplinePermission.findFirst({
+        where: {
+          userId: apiToken.createdById || apiToken.createdBy?.id,
+          discipline,
+          OR: [{ projectId: resolvedProjectId }, { projectId: null }],
+        },
+      });
+      if (perm && !perm.canUploadRevision) {
+        return NextResponse.json(
+          {
+            error: `Permissão restrita: o token utilizado não possui permissão de envio para a disciplina ${discipline}.`,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const result = await uploadAcervoRevision({
       projectId: resolvedProjectId,
       code: normalizedCode,

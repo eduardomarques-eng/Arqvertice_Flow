@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="675" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#18181B"/>
+      <stop offset="55%" stop-color="#27272A"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect width="1200" height="675" fill="url(#glow)"/>
+  <g stroke="#EDE5D8" stroke-opacity="0.16" stroke-width="1.5">
+    <line x1="120" y1="520" x2="1080" y2="520"/>
+    <line x1="220" y1="450" x2="980" y2="450"/>
+    <rect x="310" y="190" width="580" height="330" rx="12"/>
+    <rect x="370" y="235" width="210" height="285" rx="6" fill="#EDE5D8" fill-opacity="0.05"/>
+    <rect x="610" y="235" width="220" height="160" rx="6" fill="#F59E0B" fill-opacity="0.08"/>
+  </g>
+  <rect x="72" y="64" width="240" height="36" rx="18" fill="#EDE5D8" fill-opacity="0.12" stroke="#EDE5D8" stroke-opacity="0.3"/>
+  <text x="192" y="87" text-anchor="middle" fill="#EDE5D8" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" letter-spacing="2">COZINHA GOURMET · PBR + RT</text>
+  <text x="72" y="578" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700">1. Cozinha Gourmet FENIX & Ilha Calacatta</text>
+  <text x="72" y="614" fill="#A1A1AA" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="500">Compilado de Modelos\cozinha modelo (kitchen_fenix.FBX / fenix_kitchen.obj)</text>
+</svg>

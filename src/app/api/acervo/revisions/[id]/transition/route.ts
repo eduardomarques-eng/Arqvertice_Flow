@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/server/auth";
+import { prisma } from "@/server/db";
 import { transitionAcervoWorkflow } from "@/server/services/acervo-cde-service";
 import { AcervoWorkflowStatus } from "@prisma/client";
 
@@ -24,17 +25,34 @@ export async function POST(
       );
     }
 
-    // Regra de segurança: Somente ADMIN ou ENGENHEIRO/ARQUITETO podem aprovar BOM_PARA_OBRA
-    if (
-      toStatus === AcervoWorkflowStatus.BOM_PARA_OBRA &&
-      user.role !== "ADMIN" &&
-      user.role !== "ENGENHEIRO" &&
-      user.role !== "ARQUITETO"
-    ) {
-      return NextResponse.json(
-        { error: "Apenas coordenadores e administradores podem aprovar 'Bom para Obra'." },
-        { status: 403 }
-      );
+    // Regra de segurança: Somente ADMIN ou perfis autorizados (canApproveForWork / ENGENHEIRO / ARQUITETO) podem aprovar BOM_PARA_OBRA
+    if (toStatus === AcervoWorkflowStatus.BOM_PARA_OBRA && user.role !== "ADMIN") {
+      if (user.role !== "ENGENHEIRO" && user.role !== "ARQUITETO") {
+        return NextResponse.json(
+          { error: "Apenas coordenadores e administradores podem aprovar 'Bom para Obra'." },
+          { status: 403 }
+        );
+      }
+
+      const rev = await prisma.acervoRevision.findUnique({
+        where: { id },
+        include: { document: { select: { projectId: true, discipline: true } } },
+      });
+      if (rev?.document) {
+        const perm = await prisma.acervoDisciplinePermission.findFirst({
+          where: {
+            userId: user.id,
+            discipline: rev.document.discipline,
+            OR: [{ projectId: rev.document.projectId }, { projectId: null }],
+          },
+        });
+        if (perm && !perm.canApproveForWork) {
+          return NextResponse.json(
+            { error: "Apenas coordenadores com permissão de aprovação para esta disciplina podem aprovar 'Bom para Obra'." },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     const updated = await transitionAcervoWorkflow({

@@ -102,10 +102,19 @@ export function getEffectivePermissions(user: {
   role: string;
   permissions?: string[] | null;
 }): AppModule[] {
+  const isClient = user.role === "CLIENTE" || user.role === "CLIENT";
   if (user.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
-    return user.permissions as AppModule[];
+    const base = user.permissions as AppModule[];
+    if (!isClient && !base.includes("acervo")) {
+      return [...base, "acervo"];
+    }
+    return base;
   }
-  return ROLE_PERMISSION_PRESETS[user.role] || ["dashboard"];
+  const preset = ROLE_PERMISSION_PRESETS[user.role] || ["dashboard"];
+  if (!isClient && !preset.includes("acervo")) {
+    return [...preset, "acervo"];
+  }
+  return preset;
 }
 
 /**
@@ -116,6 +125,9 @@ export function hasModulePermission(
   module: AppModule
 ): boolean {
   if (user.role === "ADMIN") return true;
+  if (module === "acervo" && user.role !== "CLIENTE" && user.role !== "CLIENT") {
+    return true;
+  }
   const effective = getEffectivePermissions(user);
   return effective.includes(module);
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@/server/auth";
+import { canUserAccessProject, currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { Prisma } from "@prisma/client";
 
@@ -29,6 +29,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Informe o projectId e ao menos um item de quantitativo." },
         { status: 400 }
+      );
+    }
+
+    const hasAccess = await canUserAccessProject(user, projectId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Você não possui acesso habilitado a este empreendimento." },
+        { status: 403 }
       );
     }
 

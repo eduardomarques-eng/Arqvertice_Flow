@@ -110,12 +110,18 @@ export async function updateTeamMemberGovernanceAction(input: UpdateGovernanceIn
   const existing = await prisma.user.findUnique({ where: { id: input.userId } });
   if (!existing) throw new DomainError("Profissional não localizado.", "NOT_FOUND");
 
+  const basePerms = input.permissions ?? existing.permissions ?? [];
+  const normalizedPerms =
+    input.role !== "CLIENTE" && !basePerms.includes("acervo")
+      ? [...basePerms, "acervo"]
+      : basePerms;
+
   await prisma.user.update({
     where: { id: input.userId },
     data: {
       role: input.role as UserRole,
       isActive: input.isActive,
-      permissions: input.permissions ?? existing.permissions,
+      permissions: normalizedPerms,
       sessionVersion: { increment: 1 }, // Força expiração imediata da sessão ativa!
       permissionsUpdatedAt: new Date(),
     },
@@ -139,6 +145,8 @@ export async function updateTeamMemberGovernanceAction(input: UpdateGovernanceIn
   });
 
   revalidatePath("/admin/equipe");
+  revalidatePath("/admin/acervo");
+  revalidatePath("/equipe/acervo");
   return { success: true };
 }
 
@@ -167,13 +175,13 @@ export async function createTeamMemberAction(input: CreateProfileInput) {
       specialty: input.specialty.trim(),
       whatsapp: input.whatsapp.trim(),
       phone: input.whatsapp.trim(),
-      permissions: input.permissions ?? ["dashboard", "cronograma", "projetos"],
+      permissions: input.permissions ?? ["dashboard", "cronograma", "projetos", "acervo"],
       isActive: true,
     },
   });
 
   const allProjects = await prisma.project.findMany({ select: { id: true } });
-  const targetProjects = input.projectIds && input.projectIds.length > 0
+  const targetProjects = Array.isArray(input.projectIds)
     ? input.projectIds
     : allProjects.map((p) => p.id);
 

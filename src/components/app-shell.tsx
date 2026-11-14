@@ -88,12 +88,19 @@ export async function AppShell({
     }));
   } else {
     // Equipe técnica: links dinâmicos apontando exclusivamente para /equipe/*
-    // Painel Técnico (/equipe) é sempre visível; os demais respeitam as permissões efetivas.
+    // Painel Técnico (/equipe) e Acervo Manager (/equipe/acervo + plugins) são sempre visíveis para membros ativos;
+    // a restrição do Acervo Manager ocorre estritamente por empreendimento atribuído (ProjectAccess).
     const primary = TEAM_MODULE_LINKS.filter(
-      (item) => item.module === "dashboard" || effectivePermissions.includes(item.module)
+      (item) =>
+        item.module === "dashboard" ||
+        item.module === "acervo" ||
+        effectivePermissions.includes(item.module)
     );
     const secondary = TEAM_SECONDARY_LINKS.filter(
-      (item) => item.module === "dashboard" || effectivePermissions.includes(item.module)
+      (item) =>
+        item.module === "dashboard" ||
+        item.module === "acervo" ||
+        effectivePermissions.includes(item.module)
     );
 
     allowedLinks = primary

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@/server/auth";
+import { canUserAccessProject, currentUser } from "@/server/auth";
 import { createAcervoGrd } from "@/server/services/acervo-cde-service";
 
 export async function POST(request: Request) {
@@ -27,6 +27,14 @@ export async function POST(request: Request) {
             "Parâmetros incompletos. Empreendimento, Destinatário e ao menos 1 prancha são obrigatórios.",
         },
         { status: 400 }
+      );
+    }
+
+    const hasAccess = await canUserAccessProject(user, projectId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Sem permissão para emitir GRD neste empreendimento." },
+        { status: 403 }
       );
     }
 

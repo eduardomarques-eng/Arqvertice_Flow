@@ -24,6 +24,7 @@
     "wagner:reset": "node scripts/reset-wagner.mjs",
     "sync:credentials": "node scripts/sync-credentials.mjs",
     "optimize:3d": "node scripts/optimize-glb.mjs",
+    "compile:3d": "node scripts/compile-arquivos-templates.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

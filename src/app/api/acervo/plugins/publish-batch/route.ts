@@ -97,13 +97,32 @@ export async function POST(request: Request) {
         ? normalizeAcervoFileType(sheet.previewFile.fileType, sheet.previewFile.fileName)
         : undefined;
 
+      const sheetDiscipline = (sheet.discipline as ProjectDiscipline) || ProjectDiscipline.ARQUITETURA;
+      if (auth.ctx.userRole !== "ADMIN") {
+        const perm = await prisma.acervoDisciplinePermission.findFirst({
+          where: {
+            userId: auth.ctx.userId,
+            discipline: sheetDiscipline,
+            OR: [{ projectId }, { projectId: null }],
+          },
+        });
+        if (perm && !perm.canUploadRevision) {
+          results.push({
+            code: rawCode,
+            status: "REJECTED",
+            error: `Sem permissão para envio da disciplina ${sheetDiscipline}.`,
+          });
+          continue;
+        }
+      }
+
       try {
         const res = await uploadAcervoRevision({
           projectId,
           code: rawCode,
           title: sheet.title || rawCode,
           category: AcervoCategory.PLANTA_TECNICA_PDF,
-          discipline: (sheet.discipline as ProjectDiscipline) || ProjectDiscipline.ARQUITETURA,
+          discipline: sheetDiscipline,
           phase: (sheet.phase as ProjectStagePhase) || ProjectStagePhase.PROJETO_EXECUTIVO,
           fileName: sheet.sourceFile.fileName,
           fileUrl: sheet.sourceFile.fileUrl,
