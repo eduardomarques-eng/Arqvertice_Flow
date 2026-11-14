@@ -67,7 +67,7 @@ export function isValidNonce(nonce: unknown): nonce is string {
  */
 export function buildContentSecurityPolicy(options: SecurityHeaderOptions = {}): string {
   const { nonce, isDevelopment = false } = options;
-  const scriptSources = ["'self'", "'unsafe-inline'"];
+  const scriptSources = ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"];
   if (isValidNonce(nonce)) scriptSources.push(`'nonce-${nonce}'`);
   if (isDevelopment) scriptSources.push("'unsafe-eval'");
 
@@ -78,7 +78,7 @@ export function buildContentSecurityPolicy(options: SecurityHeaderOptions = {}):
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    `connect-src 'self'${isDevelopment ? " ws: wss:" : ""}`,
+    `connect-src 'self' blob: data:${isDevelopment ? " ws: wss:" : ""}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
