@@ -49,7 +49,7 @@ export async function handleDataSubjectRight(action: DataSubjectRight, user: Awa
   }
 }
 
-async function exportCadastral(userId: string, role: string) {
+export async function exportCadastral(userId: string, role: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, role: true, phone: true, whatsapp: true, consentAcceptedAt: true, privacyPolicyVersion: true, createdAt: true, updatedAt: true } });
   if (!user) throw new DomainError("Usuário não encontrado.", "NOT_FOUND");
 
@@ -138,7 +138,3 @@ function cryptoRandom(len: number): string {
   return out;
 }
 
-
-export async function exportCadastral(userId: string) {
-  return handleDataSubjectRight({ userId, action: "portability" as any });
-}
