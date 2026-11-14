@@ -404,6 +404,7 @@ model Project {
   acervoApiTokens             AcervoApiToken[]
   acervoFolders               AcervoFolder[]
   acervoWorkflowConfigs       AcervoWorkflowConfig[]
+  project3DAssets             Project3DAsset[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 
@@ -1368,10 +1369,11 @@ model AcervoDocument {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  folder    AcervoFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  revisions AcervoRevision[]
-  rfis      AcervoRfiMarkup[]
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder          AcervoFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  revisions       AcervoRevision[]
+  rfis            AcervoRfiMarkup[]
+  project3DAssets Project3DAsset[]
 
   @@unique([projectId, code])
   @@index([projectId, discipline])
@@ -1412,11 +1414,12 @@ model AcervoRevision {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  document     AcervoDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  uploadedBy   User?               @relation("AcervoRevisionsUploaded", fields: [uploadedById], references: [id], onDelete: SetNull)
-  workflowLogs AcervoWorkflowLog[]
-  grdItems     AcervoGrdItem[]
-  rfis         AcervoRfiMarkup[]
+  document        AcervoDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy      User?               @relation("AcervoRevisionsUploaded", fields: [uploadedById], references: [id], onDelete: SetNull)
+  workflowLogs    AcervoWorkflowLog[]
+  grdItems        AcervoGrdItem[]
+  rfis            AcervoRfiMarkup[]
+  project3DAssets Project3DAsset[]
 
   @@index([documentId, revisionNumber])
   @@index([documentId, isCurrent])
@@ -1546,4 +1549,30 @@ model AcervoApiToken {
   createdBy User?    @relation("AcervoApiTokensCreated", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([tokenHash])
+}
+
+model Project3DAsset {
+  id                String   @id @default(cuid())
+  projectId         String   @db.Uuid
+  documentId        String?  @db.Uuid
+  revisionId        String?  @db.Uuid
+  title             String
+  description       String?
+  glbUrl            String
+  posterUrl         String?
+  fileSizeBytes     Int?
+  optimizationStats Json?
+  cameraPreset      Json
+  annotations       Json
+  isFeatured        Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  document AcervoDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  revision AcervoRevision? @relation(fields: [revisionId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([documentId])
+  @@index([revisionId])
 }

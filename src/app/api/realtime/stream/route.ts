@@ -66,21 +66,16 @@ export async function GET(request: NextRequest) {
       // Enviar conexão aberta
       send(`{"type":"connected","ts":${Date.now()}}`);
 
-      // Registrar conexão ativa
-      console.log(`[SSE] Cliente conectado. User: ${user.id}`);
-
       // Timeout de inatividade
       let lastActivity = Date.now();
       const idleTimer = setTimeout(() => {
-        console.log(`[SSE] Conexão inativa por ${CONNECTION_IDLE_TIMEOUT}ms. Encerrando.`);
         controller.close();
         clearInterval(heartbeat);
       }, CONNECTION_IDLE_TIMEOUT);
 
       // Handler para mensagens do cliente (como heartbeat ack)
-      const messageHandler = (event: MessageEvent) => {
+      const messageHandler = () => {
         lastActivity = Date.now();
-        // Handle client messages (heartbeat ack, etc.)
       };
 
       // Listener para mensagens do cliente
@@ -96,7 +91,6 @@ export async function GET(request: NextRequest) {
 
       // Registrar fechamento
       const cleanup = () => {
-        console.log(`[SSE] Conexão fechada pelo cliente (aborta).`);
         clearInterval(heartbeat);
         clearTimeout(idleTimer);
         controller.close();

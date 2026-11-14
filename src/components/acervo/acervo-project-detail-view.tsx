@@ -17,6 +17,25 @@ import {
   generateMaxScript,
   downloadTextFile,
 } from "@/components/acervo/acervo-script-generators";
+import {
+  DEFAULT_SHOWCASE_ANNOTATIONS,
+  DEFAULT_SHOWCASE_CAMERA_PRESET,
+  DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
+  type Project3DAssetDTO,
+} from "@/lib/acervo/showcase-3d-defaults";
+
+const SketchfabShowcaseViewer = dynamic(
+  () =>
+    import("@/engines/sketchfab-viewer/SketchfabShowcaseViewer").then(
+      (mod) => mod.SketchfabShowcaseViewer
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[480px] w-full animate-pulse rounded-2xl border border-slate-200/60 bg-[#EDE5D8]/60" />
+    ),
+  }
+);
 
 const CdeWorkspaceViewer = dynamic(
   () =>
@@ -36,6 +55,7 @@ export interface ProjectDetailData {
   name: string;
   clientName?: string;
   activeTokensCount?: number;
+  showcase3DAssets?: Project3DAssetDTO[];
   namingRules: Array<{
     id: string;
     mask: string;
@@ -95,6 +115,20 @@ export function AcervoProjectDetailView({
   basePath: "/admin" | "/equipe";
   userRole: string;
 }) {
+  const [isShowcaseVisible, setIsShowcaseVisible] = useState<boolean>(true);
+  const featured3DAsset = project.showcase3DAssets?.[0] || {
+    id: undefined,
+    projectId: project.id,
+    title: `Maquete Eletrônica Executiva — ${project.name}`,
+    description:
+      "Modelo 3D BIM/PBR otimizado com compressão Meshopt para inspeção executiva de fachadas, caixilharias, revestimentos ACM e luminotécnica.",
+    glbUrl: "/models/arqvertice-showcase.glb",
+    posterUrl: "/models/arqvertice-showcase-poster.svg",
+    cameraPreset: DEFAULT_SHOWCASE_CAMERA_PRESET,
+    annotations: DEFAULT_SHOWCASE_ANNOTATIONS,
+    optimizationStats: DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
+  };
+
   const [selectedDocId, setSelectedDocId] = useState<string>(project.documents[0]?.id || "");
   const currentDoc = useMemo(
     () => project.documents.find((d) => d.id === selectedDocId) || project.documents[0],
@@ -454,6 +488,15 @@ export function AcervoProjectDetailView({
 
           <Button
             size="sm"
+            variant="secondary"
+            onClick={() => setIsShowcaseVisible((v) => !v)}
+            className="h-9 rounded-xl border-slate-200 text-xs font-semibold"
+          >
+            {isShowcaseVisible ? "🧊 Ocultar Showcase 3D" : "🧊 Abrir Showcase 3D"}
+          </Button>
+
+          <Button
+            size="sm"
             onClick={() => setIsUploadOpen(true)}
             className="h-9 rounded-xl bg-[#18181B] text-white hover:bg-zinc-800"
           >
@@ -461,6 +504,24 @@ export function AcervoProjectDetailView({
           </Button>
         </div>
       </div>
+
+      {/* PROTAGONISMO 3D — Visualizador Estilo Sketchfab (GLB Meshopt + Pinos Numerados) */}
+      {isShowcaseVisible && (
+        <SketchfabShowcaseViewer
+          assetId={featured3DAsset.id}
+          projectId={project.id}
+          title={featured3DAsset.title}
+          description={featured3DAsset.description}
+          glbUrl={featured3DAsset.glbUrl}
+          posterUrl={featured3DAsset.posterUrl}
+          cameraPreset={featured3DAsset.cameraPreset}
+          annotations={featured3DAsset.annotations}
+          optimizationStats={featured3DAsset.optimizationStats}
+          canManageAnnotations={
+            userRole === "ADMIN" || userRole === "ARQUITETO" || userRole === "ENGENHEIRO"
+          }
+        />
+      )}
 
       {!currentDoc || !activeRevision ? (
         <Card className="rounded-2xl border-slate-200/60 bg-white p-12 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">

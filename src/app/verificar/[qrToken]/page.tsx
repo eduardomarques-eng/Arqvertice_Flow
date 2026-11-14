@@ -1,8 +1,9 @@
-import { notFound } from "next/navigation";
 import { prisma } from "@/server/db";
 import { Badge } from "@/components/ui/badge";
 import { formatDateBR } from "@/lib/formatters";
 import Link from "next/link";
+import { ensureProject3DShowcase } from "@/server/services/acervo-cde-service";
+import { AcervoShowcaseClientCard } from "@/components/acervo/acervo-showcase-client-card";
 
 export const dynamic = "force-dynamic";
 
@@ -59,10 +60,15 @@ export default async function VerificarQrPage({
     (revision.status === "BOM_PARA_OBRA" || revision.status === "APROVADO_OBRA");
 
   const currentActiveRevision = revision.document.revisions[0];
+  const showcaseAssets = await ensureProject3DShowcase(
+    revision.document.project.id,
+    revision.document.project.name
+  );
+  const featured3D = showcaseAssets[0];
 
   return (
     <main className="min-h-screen bg-[#F5F5F7] flex items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-lg space-y-5">
+      <div className="w-full max-w-4xl space-y-5">
         {/* Cabeçalho de Status */}
         {isVigente ? (
           <div className="rounded-2xl border border-emerald-300 bg-emerald-50/90 p-6 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-2">
@@ -181,6 +187,22 @@ export default async function VerificarQrPage({
             )}
           </div>
         </div>
+
+        {/* Showcase 3D de Canteiro */}
+        {featured3D && (
+          <AcervoShowcaseClientCard
+            assetId={featured3D.id}
+            projectId={revision.document.project.id}
+            title={featured3D.title}
+            description={featured3D.description}
+            glbUrl={featured3D.glbUrl}
+            posterUrl={featured3D.posterUrl}
+            cameraPreset={featured3D.cameraPreset}
+            annotations={featured3D.annotations}
+            optimizationStats={featured3D.optimizationStats}
+            canManageAnnotations={false}
+          />
+        )}
 
         {/* Rodapé Apple-Minimalista */}
         <p className="text-center text-[11px] text-slate-400">

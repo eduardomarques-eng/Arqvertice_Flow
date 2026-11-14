@@ -38,7 +38,7 @@ export function AcervoPluginsHub({ basePath }: { basePath: "/admin" | "/equipe" 
       .then((data) => {
         if (data.tokens) setApiTokens(data.tokens);
       })
-      .catch((err) => console.error("Erro ao listar tokens:", err))
+      .catch(() => {})
       .finally(() => setLoadingTokens(false));
   }
 

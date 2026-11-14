@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { buildZipArchive } from "@/lib/acervo/zip-builder";
 import {
   getPluginPackageEntries,
+  generateEnvCheckerScript,
   PLUGIN_PACKAGES,
   type PluginPackageId,
 } from "@/lib/acervo/plugin-packages";
-import { generateEnvCheckerScript } from "@/app/api/acervo/plugins/check-env/route";
 
 export async function GET(
   _request: Request,

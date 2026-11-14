@@ -202,36 +202,36 @@ async function main() {
   const clientPassword = process.env.SEED_CLIENT_PASSWORD;
   if (!clientPassword) {
     console.info("[seed] SEED_CLIENT_PASSWORD por definir — utilizador cliente não criado.");
-    return;
-  }
-  const clientUser = await prisma.user.upsert({
-    where: { email: process.env.SEED_CLIENT_EMAIL ?? client.email ?? "cliente@example.com" },
-    update: { name: client.name, passwordHash: hashPassword(clientPassword), role: "CLIENT", clientId: client.id },
-    create: {
-      name: client.name,
-      email: process.env.SEED_CLIENT_EMAIL ?? client.email ?? "cliente@example.com",
-      passwordHash: hashPassword(clientPassword),
-      role: "CLIENT",
-      clientId: client.id,
-    },
-  });
-  const project = await prisma.project.findFirst({ where: { clientId: client.id }, orderBy: { createdAt: "asc" } });
-  if (project) {
-    await prisma.projectAccess.upsert({
-      where: { projectId_userId: { projectId: project.id, userId: clientUser.id } },
-      update: {},
-      create: { projectId: project.id, userId: clientUser.id },
+  } else {
+    const clientUser = await prisma.user.upsert({
+      where: { email: process.env.SEED_CLIENT_EMAIL ?? client.email ?? "cliente@example.com" },
+      update: { name: client.name, passwordHash: hashPassword(clientPassword), role: "CLIENT", clientId: client.id },
+      create: {
+        name: client.name,
+        email: process.env.SEED_CLIENT_EMAIL ?? client.email ?? "cliente@example.com",
+        passwordHash: hashPassword(clientPassword),
+        role: "CLIENT",
+        clientId: client.id,
+      },
     });
-    const report = await prisma.projectReport.findFirst({ where: { projectId: project.id }, orderBy: { createdAt: "asc" } });
-    if (report) {
-      await prisma.projectReport.update({
-        where: { id: report.id },
-        data: { title: "Relatório inicial", status: "RELEASED", releasedAt: new Date() },
+    const project = await prisma.project.findFirst({ where: { clientId: client.id }, orderBy: { createdAt: "asc" } });
+    if (project) {
+      await prisma.projectAccess.upsert({
+        where: { projectId_userId: { projectId: project.id, userId: clientUser.id } },
+        update: {},
+        create: { projectId: project.id, userId: clientUser.id },
       });
-    } else {
-      await prisma.projectReport.create({
-        data: { projectId: project.id, title: "Relatório inicial", status: "RELEASED", releasedAt: new Date() },
-      });
+      const report = await prisma.projectReport.findFirst({ where: { projectId: project.id }, orderBy: { createdAt: "asc" } });
+      if (report) {
+        await prisma.projectReport.update({
+          where: { id: report.id },
+          data: { title: "Relatório inicial", status: "RELEASED", releasedAt: new Date() },
+        });
+      } else {
+        await prisma.projectReport.create({
+          data: { projectId: project.id, title: "Relatório inicial", status: "RELEASED", releasedAt: new Date() },
+        });
+      }
     }
   }
   // Tópicos 21, 24 e 25: provisiona os templates editáveis pelo ADMIN.
@@ -358,7 +358,107 @@ async function main() {
     });
   }
 
-  console.info(`Seed concluído para o cliente ${client.id}.`);
+  // Bootstrap não-destrutivo de Project3DAsset (Showcase 3D Sketchfab) para todos os empreendimentos
+  const allProjects = await prisma.project.findMany({
+    select: { id: true, name: true },
+  });
+  for (const proj of allProjects) {
+    const existingAssets = await prisma.project3DAsset.count({
+      where: { projectId: proj.id },
+    });
+    if (existingAssets === 0) {
+      await prisma.project3DAsset.create({
+        data: {
+          projectId: proj.id,
+          title: `Maquete Eletrônica Executiva — ${proj.name}`,
+          description:
+            "Modelo 3D BIM/PBR otimizado com compressão Meshopt para inspeção executiva de fachadas, caixilharias, revestimentos ACM e luminotécnica.",
+          glbUrl: "/models/arqvertice-showcase.glb",
+          posterUrl: "/models/arqvertice-showcase-poster.svg",
+          fileSizeBytes: 23352,
+          optimizationStats: {
+            originalBytes: 42588,
+            optimizedBytes: 23352,
+            compressionRatio: 45.2,
+            meshopt: true,
+            ktx2: false,
+            vertexCount: 888,
+            drawCalls: 6,
+          },
+          cameraPreset: {
+            position: [18.5, 13.0, 21.0],
+            target: [0, 5.2, 0],
+            fov: 42,
+          },
+          annotations: [
+            {
+              id: "pin-pele-vidro-brise",
+              index: 1,
+              x: 4.8,
+              y: 8.6,
+              z: 4.9,
+              normal: [0, 0, 1],
+              cameraPosition: [11.2, 10.4, 13.8],
+              cameraTarget: [3.2, 8.2, 3.8],
+              title: "Pele de Vidro & Brise Metálico",
+              description:
+                "Sistema estrutural Glazing com vidro duplo insulado de controle solar e brises verticais em alumínio anodizado champagne.",
+              materialSpec: "Vidro Insulado Low-E 6+12+6mm · Alumínio Champagne",
+              dimensions: "Módulos 1,25m × 3,20m (Pé-direito duplo)",
+            },
+            {
+              id: "pin-guarda-corpo-laminado",
+              index: 2,
+              x: -4.6,
+              y: 5.4,
+              z: 5.6,
+              normal: [0, 0, 1],
+              cameraPosition: [-12.0, 6.8, 13.5],
+              cameraTarget: [-3.5, 5.0, 4.5],
+              title: "Guarda-Corpo em Vidro Laminado",
+              description:
+                "Guarda-corpo panorâmico engastado em perfil U de aço inox oculto na laje, garantindo transparência contínua nos terraços.",
+              materialSpec: "Vidro Laminado Temperado 10+10mm + PVB Estrutural",
+              dimensions: "H = 1,10m · Extensão frontal 14,40m",
+            },
+            {
+              id: "pin-acm-matte-black",
+              index: 3,
+              x: 5.2,
+              y: 3.1,
+              z: -4.2,
+              normal: [1, 0, 0],
+              cameraPosition: [14.5, 4.8, -10.5],
+              cameraTarget: [3.8, 3.2, -3.0],
+              title: "Revestimento ACM Matte Black",
+              description:
+                "Fachada ventilada no embasamento e coroamento em painéis de alumínio composto pintura PVDF Kynar 500 preto fosco.",
+              materialSpec: "ACM 4mm Núcleo Mineral Incombustível · #18181B",
+              dimensions: "Paginação 1,50m × 3,00m · Junta seca 12mm",
+            },
+            {
+              id: "pin-iluminacao-linear-2700k",
+              index: 4,
+              x: 0.0,
+              y: 1.8,
+              z: 6.2,
+              normal: [0, 1, 0],
+              cameraPosition: [6.4, 3.0, 13.2],
+              cameraTarget: [0.0, 1.6, 4.8],
+              title: "Iluminação Linear 2700K",
+              description:
+                "Perfis de LED arquitetural embutidos nas sancas do pórtico de acesso e marquise em balanço, destacando os planos em concreto e madeira.",
+              materialSpec: "Perfil Extrudado IP67 · LED 2700K IRC > 95 (18W/m)",
+              dimensions: "Linhas contínuas de 12,00m · Fluxo 1650 lm/m",
+            },
+          ],
+          isFeatured: true,
+        },
+      });
+    }
+  }
+
+  console.info(`Seed concluído para o cliente ${client.id} (${allProjects.length} empreendimentos com Showcase 3D).`);
 }
 
 main()
