@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/server/auth";
-import { uploadAcervoRevision } from "@/server/services/acervo-cde-service";
+import { prisma } from "@/server/db";
+import { uploadAcervoRevision, createAcervoGrd } from "@/server/services/acervo-cde-service";
 import { parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
-import { ProjectDiscipline, ProjectStagePhase, AcervoCategory } from "@prisma/client";
+import {
+  ProjectDiscipline,
+  ProjectStagePhase,
+  AcervoCategory,
+  AcervoFileType,
+  AcervoWorkflowStatus,
+} from "@prisma/client";
 
 export async function POST(request: Request) {
   try {
@@ -29,6 +36,7 @@ export async function POST(request: Request) {
       viewFileName,
       viewFileType,
       description,
+      emitAutoGrd = true,
     } = body;
 
     if (!projectId || !fileName || !fileUrl) {
@@ -38,8 +46,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validação de Nomenclatura CDE
+    // Valida regra de nomenclatura CDE do projeto
     const namingParsed = parseAndValidateSheetName(fileName);
+    const namingRule = await prisma.acervoNamingRule.findFirst({
+      where: { projectId },
+    });
+
+    if (namingRule?.policy === "STRICT_BLOCK" && !namingParsed.isValid) {
+      return NextResponse.json(
+        {
+          error: namingParsed.error || "Nome do arquivo fora da máscara CDE obrigatória.",
+          expectedExample: namingRule.example,
+        },
+        { status: 422 }
+      );
+    }
+
     const finalCode = (code || namingParsed.fullCode || "DOC-001").trim().toUpperCase();
     const finalTitle = (title || fileName.replace(/\.[^/.]+$/, "")).trim();
 
@@ -54,21 +76,49 @@ export async function POST(request: Request) {
       fileUrl,
       fileKey,
       fileSize,
-      fileType,
+      fileType: fileType as AcervoFileType,
       viewUrl,
       viewKey,
       viewFileName,
-      viewFileType,
+      viewFileType: viewFileType as AcervoFileType | undefined,
       description,
       uploadedById: user.id,
       performedByName: user.name,
       performedByRole: user.role,
     });
 
+    // Move revisões anteriores para OBSOLETO
+    await prisma.acervoRevision.updateMany({
+      where: {
+        documentId: result.document.id,
+        id: { not: result.revision.id },
+      },
+      data: {
+        status: AcervoWorkflowStatus.OBSOLETO,
+        isCurrent: false,
+      },
+    });
+
+    // Emite GRD automática quando solicitado
+    let grdCode: string | null = null;
+    if (emitAutoGrd) {
+      const grd = await createAcervoGrd({
+        projectId,
+        recipientName: user.name || "Coordenação CDE",
+        recipientOrg: "Estúdio ArqVértice",
+        subject: `Emissão de Revisão ${finalCode} (${result.revision.revisionNumber})`,
+        notes: `GRD automática gerada no upload da revisão ${result.revision.revisionNumber}.`,
+        revisionIds: [result.revision.id],
+        createdById: user.id,
+      });
+      grdCode = grd.code;
+    }
+
     return NextResponse.json({
       success: true,
       document: result.document,
       revision: result.revision,
+      grdCode,
       namingNotice: namingParsed.isValid ? null : namingParsed.error,
     });
   } catch (err: unknown) {

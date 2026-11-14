@@ -33,6 +33,7 @@
     "@types/nodemailer": "^8.0.2",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "bcryptjs": "^3.0.3",
+    "dxf-parser": "^1.1.2",
     "next": "^15.5.27",
     "nodemailer": "^10.3.1",
     "pg": "^8.13.1",
@@ -44,6 +45,8 @@
     "recharts": "^3.10.1",
     "redux": "^5.0.1",
     "resend": "^6.38.0",
+    "three": "^0.187.0",
+    "web-ifc": "^0.0.79",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -54,6 +57,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
+    "@types/three": "^0.187.0",
     "@typescript-eslint/parser": "^8.44.0",
     "autoprefixer": "^10.4.21",
     "embedded-postgres": "^18.4.0-beta.17",

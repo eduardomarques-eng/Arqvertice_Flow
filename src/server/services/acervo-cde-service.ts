@@ -381,3 +381,118 @@ export async function getAcervoExecutiveKpis() {
     slaFormatted,
   };
 }
+
+/**
+ * Carrega dados completos do Workspace 3 Zonas para /admin/acervo/[projectId] e /equipe/acervo/[projectId]
+ */
+export async function getAcervoProjectWorkspaceData(projectId: string) {
+  const [rawProject, activeTokensCount] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        client: { select: { name: true } },
+        acervoNamingRules: true,
+        acervoDocuments: {
+          include: {
+            revisions: {
+              orderBy: { createdAt: "desc" },
+              include: {
+                workflowLogs: { orderBy: { createdAt: "desc" } },
+                rfis: {
+                  orderBy: { createdAt: "asc" },
+                  include: {
+                    createdBy: { select: { name: true, role: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ discipline: "asc" }, { code: "asc" }],
+        },
+        acervoGrds: {
+          orderBy: { createdAt: "desc" },
+          include: { items: true },
+        },
+      },
+    }),
+    prisma.acervoApiToken.count({
+      where: { projectId, revokedAt: null },
+    }),
+  ]);
+
+  if (!rawProject) return null;
+
+  return {
+    id: rawProject.id,
+    name: rawProject.name,
+    clientName: rawProject.client?.name || "Geral",
+    activeTokensCount,
+    namingRules: rawProject.acervoNamingRules.map((r) => ({
+      id: r.id,
+      mask: r.mask,
+      example: r.example,
+      policy: r.policy,
+    })),
+    documents: rawProject.acervoDocuments.map((doc) => ({
+      id: doc.id,
+      code: doc.code,
+      title: doc.title,
+      discipline: doc.discipline,
+      phase: doc.phase,
+      revisions: doc.revisions.map((rev) => ({
+        id: rev.id,
+        revisionNumber: rev.revisionNumber,
+        status: rev.status,
+        fileName: rev.fileName,
+        fileUrl: rev.fileUrl,
+        fileSize: rev.fileSize,
+        fileType: rev.fileType,
+        viewUrl: rev.viewUrl,
+        viewFileName: rev.viewFileName,
+        viewFileType: rev.viewFileType,
+        digitalStampHash: rev.digitalStampHash,
+        qrVerificationToken: rev.qrVerificationToken,
+        extractedMetadata: rev.extractedMetadata,
+        isCurrent: rev.isCurrent,
+        createdAt: rev.createdAt.toISOString(),
+        workflowLogs: rev.workflowLogs.map((log) => ({
+          id: log.id,
+          action: log.action,
+          fromStatus: log.fromStatus,
+          toStatus: log.toStatus,
+          performedByName: log.performedByName,
+          performedByRole: log.performedByRole,
+          createdAt: log.createdAt.toISOString(),
+        })),
+        rfis: rev.rfis.map((rfi) => ({
+          id: rfi.id,
+          code: rfi.code,
+          title: rfi.title,
+          description: rfi.description,
+          status: rfi.status,
+          markupType: rfi.markupType,
+          coordX: rfi.coordX,
+          coordY: rfi.coordY,
+          pageNumber: rfi.pageNumber,
+          geometryJson: typeof rfi.geometryJson === "string" ? rfi.geometryJson : rfi.geometryJson ? JSON.stringify(rfi.geometryJson) : null,
+          cameraState: (rfi.cameraState as {
+            position: [number, number, number];
+            target: [number, number, number];
+            pinPosition?: [number, number, number];
+          } | null) ?? null,
+          answer: rfi.answer,
+          createdAt: rfi.createdAt.toISOString(),
+          createdBy: rfi.createdBy,
+        })),
+      })),
+    })),
+    grds: rawProject.acervoGrds.map((g) => ({
+      id: g.id,
+      code: g.code,
+      recipientName: g.recipientName,
+      recipientOrg: g.recipientOrg,
+      createdAt: g.createdAt.toISOString(),
+      itemsCount: g.items.length,
+    })),
+  };
+}
