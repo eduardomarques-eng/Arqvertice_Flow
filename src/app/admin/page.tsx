@@ -141,7 +141,7 @@ export default async function AdminDashboardPage() {
             )}
             {canViewSchedule && (
               <Link
-                href="/operacao"
+                href="/admin/cronograma"
                 className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-800"
               >
                 Ver Cronograma Geral <Arrow />
@@ -160,7 +160,7 @@ export default async function AdminDashboardPage() {
                   Minhas Atribuições Prioritárias ({myAssignedDeliveries.length})
                 </h3>
               </div>
-              <Link href="/operacao" className="text-xs font-bold text-blue-600 hover:text-blue-800">
+              <Link href="/admin/cronograma" className="text-xs font-bold text-blue-600 hover:text-blue-800">
                 Ver no Kanban →
               </Link>
             </div>
@@ -340,7 +340,7 @@ export default async function AdminDashboardPage() {
                 <PanelHeader
                   title="Radar de entregas"
                   description="Janela operacional de 14 dias."
-                  href="/operacao"
+                  href="/admin/cronograma"
                   action="Abrir operação"
                 />
                 <div className="mt-5 space-y-4">

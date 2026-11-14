@@ -29,12 +29,14 @@ interface FinanceHubViewProps {
   projects: ProjectOption[];
   installmentsByProject: Record<string, Installment[]>;
   initialProjectId?: string;
+  basePath?: string;
 }
 
 export function FinanceHubView({
   projects,
   installmentsByProject,
   initialProjectId,
+  basePath = "/admin",
 }: FinanceHubViewProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     initialProjectId || (projects.length > 0 ? projects[0].id : "all")
@@ -192,7 +194,7 @@ export function FinanceHubView({
               </div>
             </div>
             <Link
-              href={`/admin/projetos/${selectedProject.id}`}
+              href={`${basePath}/projetos/${selectedProject.id}`}
               className="text-xs font-semibold text-blue-300 hover:text-white underline underline-offset-4"
             >
               Abrir Acervo Técnico do Projeto →

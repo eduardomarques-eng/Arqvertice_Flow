@@ -6,6 +6,7 @@ import { DomainError } from "./errors";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { canOperateSchedule } from "@/lib/schedule-roles";
 import { logUserTrafficEvent } from "./traffic-log";
+import { getEffectivePermissions } from "@/lib/rbac";
 
 export type AuthRole = "ADMIN" | "ARQUITETO" | "ENGENHEIRO" | "EQUIPE" | "CLIENTE" | "OPERADOR" | "OPERATOR" | "CLIENT";
 const COOKIE = "arqvertice_session";
@@ -69,9 +70,10 @@ export async function signIn(email: string, password: string) {
     sameSite: "lax",
     path: "/",
   });
-  const effectivePerms = Array.isArray(user.permissions) && user.permissions.length > 0
-    ? user.permissions
-    : (user.role === "ADMIN" ? ["dashboard", "cronograma", "projetos", "financeiro", "clientes", "equipe"] : ["dashboard", "cronograma", "projetos"]);
+  const effectivePerms = getEffectivePermissions({
+    role: user.role,
+    permissions: user.permissions,
+  });
   (await cookies()).set("arqvertice_permissions", JSON.stringify(effectivePerms), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

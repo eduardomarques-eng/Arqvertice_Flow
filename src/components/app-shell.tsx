@@ -8,10 +8,10 @@ import { SessionGuard } from "@/components/auth/session-guard";
 import { InternalMessengerWidget } from "@/components/messenger/internal-messenger-widget";
 import { getEffectivePermissions, type AppModule } from "@/lib/rbac";
 
-// Links completos do sistema
+// Links completos do sistema para o Administrador (Painel Executivo)
 const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
   { label: "Painel Geral", href: "/admin", icon: "📊", module: "dashboard" },
-  { label: "Cronograma & Operação", href: "/operacao", icon: "📅", module: "cronograma" },
+  { label: "Cronograma & Operação", href: "/admin/cronograma", icon: "📅", module: "cronograma" },
   { label: "Empreendimentos & Acervo", href: "/admin/projetos", icon: "📁", module: "projetos" },
   { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
@@ -26,13 +26,16 @@ const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }>
   { label: "Configurações", href: "/admin/configuracoes", module: "equipe" },
 ];
 
-/** Links exclusivos da Equipe Técnica (ENGENHEIRO | ARQUITETO | EQUIPE | OPERADOR).
- * Nunca apontam para /admin: os ambientes /admin e /equipe são 100% separados.
+/** Links modulares da Equipe Técnica (ENGENHEIRO | ARQUITETO | EQUIPE | OPERADOR).
+ * Nunca apontam para /admin: os ambientes /admin e /equipe são 100% isolados.
  */
-const TEAM_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
-  { label: "Painel Técnico", href: "/equipe", icon: "ðŸ", module: "dashboard" },
-  { label: "Projetos", href: "/equipe/projetos", icon: "ðŸ­", module: "projetos" },
-  { label: "Cronograma", href: "/equipe/cronograma", icon: "ðŸ“…", module: "cronograma" },
+const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
+  { label: "Painel Técnico", href: "/equipe", icon: "🏗️", module: "dashboard" },
+  { label: "Cronograma & Operação", href: "/equipe/cronograma", icon: "📅", module: "cronograma" },
+  { label: "Empreendimentos & Acervo", href: "/equipe/projetos", icon: "📁", module: "projetos" },
+  { label: "Gestão Financeira", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
+  { label: "Base de Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
+  { label: "Equipe & Governança", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },
 ];
 
 export async function AppShell({
@@ -65,23 +68,25 @@ export async function AppShell({
     allowedLinks = ALL_ADMIN_LINKS.map((item) => [item.label, item.href] as const).concat(
       SECONDARY_LINKS.map((item) => [item.label, item.href] as const)
     );
-    bottomNavLinks = ALL_ADMIN_LINKS.slice(0, 5).map((item) => ({
+    bottomNavLinks = ALL_ADMIN_LINKS.slice(0, 6).map((item) => ({
       label: item.label.split(" ")[0],
       href: item.href,
       icon: item.icon,
     }));
   } else {
-    // Equipe tÃ©cnica: links apontam exclusivamente para /equipe/* (nunca /admin/*).
-    // O filtro por mÃ³dulo preserva o menor-privilÃ©gio; o fallback Ã© /equipe, nunca /admin.
-    const primary = TEAM_LINKS.filter((item) => effectivePermissions.includes(item.module));
+    // Equipe técnica: links dinâmicos apontando exclusivamente para /equipe/*
+    // Painel Técnico (/equipe) é sempre visível; os demais respeitam as permissões efetivas.
+    const primary = TEAM_MODULE_LINKS.filter(
+      (item) => item.module === "dashboard" || effectivePermissions.includes(item.module)
+    );
 
     allowedLinks = primary.map((item) => [item.label, item.href] as const);
 
     if (allowedLinks.length === 0) {
-      allowedLinks = [["Painel", "/equipe"]];
+      allowedLinks = [["Painel Técnico", "/equipe"]];
     }
 
-    bottomNavLinks = primary.slice(0, 4).map((item) => ({
+    bottomNavLinks = primary.slice(0, 6).map((item) => ({
       label: item.label.split(" ")[0],
       href: item.href,
       icon: item.icon,
@@ -98,72 +103,84 @@ export async function AppShell({
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] pb-20 lg:pb-0">
+      {/* Tab Guard de Sessão Efêmera no Cliente */}
       <SessionGuard />
 
-      {/* SIDEBAR DESKTOP */}
-      <aside
-        className={`fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white px-5 py-7 lg:block ${
-          isClient ? "bg-slate-950 text-white" : ""
-        }`}
-      >
-        <Link href="/" className="block px-3">
-          <Brand compact showTagline={false} />
-        </Link>
-        <p className="px-3 pt-2 text-xs text-slate-400">{areaLabel}</p>
-        <p className="mt-8 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-          {groupLabel}
-        </p>
-        <nav className="mt-2 space-y-1" aria-label="Navegação principal">
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white/80 lg:backdrop-blur-xl">
+        <div className="flex h-16 items-center px-6 border-b border-slate-100">
+          <Brand compact />
+        </div>
+
+        <div className="px-6 py-3">
+          <span className="text-[11px] font-medium tracking-wide uppercase text-slate-400">
+            {areaLabel}
+          </span>
+        </div>
+
+        <nav className="flex-1 space-y-1 px-4 py-2 overflow-y-auto">
+          <div className="pb-2">
+            <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              {groupLabel}
+            </span>
+          </div>
+
           {allowedLinks.map(([label, href]) => (
             <Link
               key={href}
               href={href}
-              className={`block rounded-xl px-3 py-3 text-sm font-medium transition ${
-                isClient
-                  ? "text-slate-300 hover:bg-slate-800 hover:text-white"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
+              className="group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 transition-colors"
             >
-              {label}
+              <span>{label}</span>
+              <span className="text-xs text-slate-400 group-hover:translate-x-0.5 transition-transform">
+                →
+              </span>
             </Link>
           ))}
         </nav>
-      </aside>
 
-      {/* ÁREA PRINCIPAL */}
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#f5f5f7]/95 px-5 py-4 backdrop-blur md:px-10">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <MobileNav
-                links={allowedLinks}
-                environment={isClient ? "client" : "admin"}
-                areaLabel={areaLabel}
-                groupLabel={groupLabel}
-              />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  {eyebrow}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  ArqVértice Flow ·{" "}
-                  {isClient
-                    ? "Portal do Cliente"
-                    : effectiveRole === "ADMIN"
-                    ? "ambiente administrativo"
-                    : "painel técnico de projetos"}
-                </p>
+        {user ? (
+          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 pr-2">
+                <p className="truncate text-xs font-semibold text-slate-900">{user.name}</p>
+                <p className="truncate text-[10px] text-slate-400 uppercase tracking-wider">{user.role}</p>
               </div>
-            </div>
 
+              <form
+                action={async () => {
+                  "use server";
+                  await signOut();
+                  redirect("/");
+                }}
+              >
+                <button
+                  type="submit"
+                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition"
+                >
+                  Sair
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="lg:pl-72">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur-xl sm:px-6">
+          <div className="flex items-center gap-3">
+            <MobileNav links={allowedLinks} areaLabel={areaLabel} groupLabel={groupLabel} />
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+              {eyebrow}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs font-bold text-slate-900">{user.name}</p>
-                  <p className="text-[10px] font-medium text-slate-500">
-                    {user.specialty || user.role}
-                  </p>
-                </div>
+                <span className="hidden sm:inline text-xs font-medium text-slate-600">
+                  {user.name} <span className="text-slate-400">({user.role})</span>
+                </span>
+
                 <form
                   action={async () => {
                     "use server";

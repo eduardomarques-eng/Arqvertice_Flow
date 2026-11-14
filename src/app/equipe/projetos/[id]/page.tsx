@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { requirePageProjectAccess } from "@/server/auth";
+import { isTeamRole, requirePageProjectAccess } from "@/server/auth";
 import { prisma } from "@/server/db";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function TeamProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requirePageProjectAccess(id);
-  if (user.role !== "ADMIN" && user.role !== "EQUIPE" && user.role !== "OPERADOR") {
+  if (user.role !== "ADMIN" && !isTeamRole(user.role)) {
     return null;
   }
   const project = await prisma.project.findFirst({

@@ -114,13 +114,15 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
 
-    if (pathname.startsWith("/equipe/financeiro")) {
+    const moduleMatch = pathname.match(/^\/equipe\/(financeiro|equipe)/);
+    if (moduleMatch) {
+      const mod = moduleMatch[1];
       const permsCookie = request.cookies.get("arqvertice_permissions")?.value;
       let perms: string[] = [];
       try {
         perms = JSON.parse(permsCookie ?? "[]");
       } catch {}
-      if (role !== "ADMIN" && !perms.includes("financeiro")) {
+      if (role !== "ADMIN" && !perms.includes(mod)) {
         return NextResponse.redirect(new URL("/equipe", request.url));
       }
     }

@@ -1,43 +1,76 @@
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { getEffectivePermissions } from "@/lib/rbac";
-import { listCommercialPackages, listServiceCatalog } from "@/server/services/service-catalog-service";
+import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { prisma } from "@/server/db";
+import { FinanceHubView, type ProjectOption } from "@/components/finance/finance-hub-view";
+import type { Installment } from "@/components/projects/project-finance-manager";
 
+export const metadata = { title: "Gestão Financeira & Parcelas — Equipe ArqVértice" };
 export const dynamic = "force-dynamic";
 
-export default async function EquipeFinanceiroPage() {
+export default async function EquipeFinanceiroPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ projectId?: string }>;
+}) {
   const user = await requirePageTeamRole();
-  const effective = getEffectivePermissions(user);
-  if (!effective.includes("financeiro")) {
-    redirect("/equipe");
+  await requireModuleAccess("financeiro");
+  const { projectId } = await searchParams;
+
+  const rawProjects = await prisma.project.findMany({
+    select: {
+      id: true,
+      name: true,
+      budget: true,
+      client: { select: { name: true } },
+      stages: { select: { id: true, name: true }, orderBy: { order: "asc" } },
+      installments: {
+        select: {
+          id: true,
+          description: true,
+          amount: true,
+          dueDate: true,
+          paidDate: true,
+          status: true,
+          linkedStageId: true,
+          order: true,
+        },
+        orderBy: [{ order: "asc" }, { dueDate: "asc" }],
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const projects: ProjectOption[] = rawProjects.map((p) => ({
+    id: p.id,
+    name: p.name,
+    clientName: p.client?.name || "Cliente",
+    budget: p.budget ? Number(p.budget) : null,
+    stages: p.stages,
+  }));
+
+  const installmentsByProject: Record<string, Installment[]> = {};
+  for (const p of rawProjects) {
+    installmentsByProject[p.id] = p.installments.map((inst) => ({
+      id: inst.id,
+      description: inst.description,
+      amount: Number(inst.amount ?? 0),
+      dueDate: inst.dueDate,
+      paidDate: inst.paidDate,
+      status: inst.status,
+      linkedStageId: inst.linkedStageId,
+      order: inst.order,
+    }));
   }
 
-  const [services, packages] = await Promise.all([
-    listServiceCatalog({ includeInactive: false }),
-    listCommercialPackages(),
-  ]);
-
   return (
-    <AppShell eyebrow="Gestão Financeira" environment="admin" role={user.role}>
-      <SectionHeading
-        title="Catálogo de Serviços e Pacotes"
-        description="Preços e faixas comerciais definidos pelo ADMIN. Acesso restrito a usuários com permissão financeiro."
+    <AppShell eyebrow="Gestão Financeira" role={user.role}>
+      <FinanceHubView
+        projects={projects}
+        installmentsByProject={installmentsByProject}
+        initialProjectId={projectId}
+        basePath="/equipe"
       />
-      <Card className="mt-6">
-        <h2 className="text-xl font-bold text-slate-950">Catálogo de serviços</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Serviços ativos disponíveis para composição de propostas.
-        </p>
-      </Card>
-      <Card className="mt-6">
-        <h2 className="text-xl font-bold text-slate-950">Pacotes comerciais</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Composição configurável de serviços em pacotes comerciais.
-        </p>
-      </Card>
     </AppShell>
   );
 }
