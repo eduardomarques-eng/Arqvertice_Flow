@@ -1,29 +1,12 @@
 import type { NextConfig } from "next";
-import fs from "node:fs";
 import path from "node:path";
 
 function resolveBuildId(): string {
-  if (process.env.VERCEL_DEPLOYMENT_ID) return process.env.VERCEL_DEPLOYMENT_ID;
-  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA;
-  const markerPath = path.resolve(__dirname, ".next-custom-build-id");
-  const isBuildPhase = process.argv.some((arg) => arg === "build");
-  if (isBuildPhase) {
-    const id = `build-${Date.now()}`;
-    try {
-      fs.writeFileSync(markerPath, id, "utf8");
-    } catch {
-      // ignora ambiente somente leitura
-    }
-    return id;
-  }
-  try {
-    if (fs.existsSync(markerPath)) {
-      return fs.readFileSync(markerPath, "utf8").trim();
-    }
-  } catch {
-    // fallback seguro
-  }
-  return "dev-build";
+  return (
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.VERCEL_DEPLOYMENT_ID ||
+    "arqvertice-v1"
+  );
 }
 
 const BUILD_ID = resolveBuildId();
