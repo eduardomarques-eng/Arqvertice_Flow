@@ -486,6 +486,25 @@ export function AcervoProjectDetailView({
                     {currentDoc.phase}
                   </Badge>
                   {getStatusBadge(activeRevision.status)}
+                  <span className="rounded-lg bg-[#F5F5F7] border border-slate-200/80 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                    Origem:{" "}
+                    {(() => {
+                      const logs = activeRevision.workflowLogs || [];
+                      const pluginLog = logs.find(
+                        (l) =>
+                          l.performedByRole === "SISTEMA_PLUGIN" ||
+                          /revit|autocad|tqs|sketchup|3ds|plugin/i.test(l.performedByName || "")
+                      );
+                      if (!pluginLog) return "Upload Web";
+                      const raw = pluginLog.performedByName || "";
+                      if (/revit/i.test(raw)) return "Plugin Revit";
+                      if (/autocad/i.test(raw)) return "Plugin AutoCAD";
+                      if (/tqs/i.test(raw)) return "Plugin TQS";
+                      if (/sketchup/i.test(raw)) return "Plugin SketchUp";
+                      if (/3ds/i.test(raw)) return "Plugin 3ds Max";
+                      return "Plugin CAD/BIM";
+                    })()}
+                  </span>
                   {latestGrd && (
                     <span className="font-mono text-[11px] text-slate-500">
                       Última GRD: <strong className="text-slate-800">{latestGrd.code}</strong>
@@ -506,7 +525,7 @@ export function AcervoProjectDetailView({
                   onClick={() => setIsQrOpen(true)}
                   className="h-9 rounded-xl border-slate-200 text-xs font-semibold"
                 >
-                  QR Code da Prancha
+                  QR Code de Canteiro
                 </Button>
 
                 {!isObsoleteSelected ? (

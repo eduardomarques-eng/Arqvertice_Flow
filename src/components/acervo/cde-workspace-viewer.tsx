@@ -107,12 +107,15 @@ export function CdeWorkspaceViewer({
 
   const [viewMode, setViewMode] = useState<"2D" | "3D">(has3d ? "3D" : "2D");
 
-  // Auto-switch to 3D when selecting a 3D RFI from the lateral panel
+  // Auto-switch between 2D and 3D when selecting an RFI from the lateral panel
   useEffect(() => {
     if (!selectedRfiId) return;
     const sel = rfis.find((r) => r.id === selectedRfiId);
-    if (sel?.cameraState && viewMode !== "3D") {
+    if (!sel) return;
+    if (sel.cameraState && viewMode !== "3D") {
       setViewMode("3D");
+    } else if (!sel.cameraState && sel.coordX != null && viewMode !== "2D") {
+      setViewMode("2D");
     }
   }, [selectedRfiId, rfis, viewMode]);
   const [zoom, setZoom] = useState(1);
@@ -145,7 +148,7 @@ export function CdeWorkspaceViewer({
                 viewMode === "2D" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              2D {hasDxf ? "(CAD DXF)" : "(Prancha)"}
+              Prancha 2D {hasDxf ? "(DXF)" : ""}
             </button>
             <button
               type="button"
@@ -154,7 +157,7 @@ export function CdeWorkspaceViewer({
                 viewMode === "3D" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              3D {has3d ? `(${active3dFileType || "BIM"})` : "(Modelo)"}
+              Modelo 3D {has3d ? `(${active3dFileType || "BIM"})` : ""}
             </button>
           </div>
 
