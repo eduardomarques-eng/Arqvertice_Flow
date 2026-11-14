@@ -16,18 +16,22 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const submittedEmail = String(formData.get("email") || email).trim().toLowerCase();
+    const submittedPassword = String(formData.get("password") || password);
 
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
+          email: submittedEmail,
+          password: submittedPassword,
         }),
       });
 
@@ -95,6 +99,7 @@ export function LoginForm() {
         </label>
         <input
           id="email"
+          name="email"
           type="email"
           required
           autoComplete="email"
@@ -115,6 +120,7 @@ export function LoginForm() {
         <div className="relative">
           <input
             id="password"
+            name="password"
             type={showPassword ? "text" : "password"}
             required
             autoComplete="current-password"
