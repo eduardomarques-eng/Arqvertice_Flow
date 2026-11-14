@@ -127,6 +127,42 @@ except Exception as exc:
 `;
 }
 
+export function generateMaxScript(projectId: string, projectName: string): string {
+  return `-- ============================================================================
+-- ArqVerticeSync.ms — MaxScript 3ds Max -> Acervo Manager (CDE)
+-- Empreendimento: ${projectName}
+-- Endpoint: https://arqvertice-flow.vercel.app/api/acervo/sync-plugin
+-- ============================================================================
+
+macroScript ArqVerticeSync3dsMax
+category:"ArqVertice CDE"
+toolTip:"Publicar FBX/GLB no Acervo Manager"
+(
+  local projectId = "${projectId}"
+  local endpoint = "https://arqvertice-flow.vercel.app/api/acervo/sync-plugin"
+  local sceneBase = getFilenameFile maxFileName
+  if sceneBase == "" do sceneBase = "MOD-3D-EXEC-001"
+
+  local token = systemTools.getEnvVariable "ARQVERTICE_CDE_TOKEN"
+  if token == undefined or token == "" do (
+    messageBox "Defina a variável de ambiente ARQVERTICE_CDE_TOKEN com seu Bearer Token CDE." title:"ArqVértice CDE"
+    return false
+  )
+
+  local exportDir = getDir #temp
+  local fbxPath = exportDir + "\\\\" + sceneBase + ".fbx"
+  exportFile fbxPath #noPrompt selectedOnly:false using:FBXEXP
+
+  local jsonBody = "{\\"projectId\\":\\"" + projectId + "\\",\\"code\\":\\"" + (toUpper sceneBase) + "\\",\\"title\\":\\"" + sceneBase + " (3ds Max)\\",\\"discipline\\":\\"ARQUITETURA\\",\\"softwareSource\\":\\"Autodesk 3ds Max (MaxScript)\\",\\"sourceFile\\":{\\"fileName\\":\\"" + (sceneBase + ".max") + "\\",\\"fileUrl\\":\\"" + (maxFilePath + maxFileName) + "\\",\\"fileType\\":\\"MAX\\"},\\"previewFile\\":{\\"fileName\\":\\"" + (sceneBase + ".fbx") + "\\",\\"fileUrl\\":\\"" + fbxPath + "\\",\\"fileType\\":\\"FBX\\"}}"
+
+  local curlCmd = "curl -s -X POST " + endpoint + " -H \\"Content-Type: application/json\\" -H \\"Authorization: Bearer " + token + "\\" -d '" + jsonBody + "'"
+  DOSCommand curlCmd
+
+  messageBox ("Modelo " + sceneBase + " enviado para o Acervo Manager CDE com sucesso!") title:"ArqVértice CDE"
+)
+`;
+}
+
 export function downloadTextFile(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);

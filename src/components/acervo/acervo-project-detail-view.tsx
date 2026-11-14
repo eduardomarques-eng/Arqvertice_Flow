@@ -14,6 +14,7 @@ import { AcervoUploadRevisionModal } from "@/components/acervo/acervo-upload-rev
 import {
   generateAutoLispScript,
   generatePyRevitScript,
+  generateMaxScript,
   downloadTextFile,
 } from "@/components/acervo/acervo-script-generators";
 
@@ -1124,6 +1125,21 @@ export function AcervoProjectDetailView({
                         className="w-full h-9 justify-between rounded-xl border-slate-200 text-xs"
                       >
                         <span>🏗️ ArqVerticeSync_script.py (pyRevit)</span>
+                        <span>⬇</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          downloadTextFile(
+                            "ArqVerticeSync.ms",
+                            generateMaxScript(project.id, project.name)
+                          )
+                        }
+                        className="w-full h-9 justify-between rounded-xl border-slate-200 text-xs"
+                      >
+                        <span>🧊 ArqVerticeSync.ms (3ds Max)</span>
                         <span>⬇</span>
                       </Button>
                     </div>

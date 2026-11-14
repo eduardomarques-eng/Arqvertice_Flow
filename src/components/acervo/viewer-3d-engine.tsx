@@ -194,6 +194,70 @@ function detect3dExtension(url?: string | null, fileType?: string | null, fileNa
   return "IFC";
 }
 
+function extractSceneTakeoff(root: THREE.Group, formatLabel: string): ExtractedIfcTakeoff[] {
+  const buckets = new Map<
+    string,
+    { count: number; areaM2: number; maxL: number; maxP: number; maxA: number; category: ExtractedIfcTakeoff["category"] }
+  >();
+
+  const mBox = new THREE.Box3();
+  const mSize = new THREE.Vector3();
+
+  root.traverse((obj) => {
+    if (!(obj as THREE.Mesh).isMesh) return;
+    const mesh = obj as THREE.Mesh;
+    mBox.setFromObject(mesh);
+    mBox.getSize(mSize);
+
+    const matName = Array.isArray(mesh.material)
+      ? mesh.material[0]?.name || "Multi-Material"
+      : mesh.material?.name || "";
+    const layerKey = (matName || mesh.name || `Camada ${formatLabel}`).trim();
+    const lower = layerKey.toLowerCase();
+
+    let category: ExtractedIfcTakeoff["category"] = "AREAS";
+    if (lower.includes("window") || lower.includes("door") || lower.includes("vidro") || lower.includes("esquad")) {
+      category = "ESQUADRIAS";
+    } else if (lower.includes("pilar") || lower.includes("viga") || lower.includes("laje") || lower.includes("slab") || lower.includes("concret") || lower.includes("column")) {
+      category = "ESTRUTURA";
+    } else if (lower.includes("revest") || lower.includes("pis") || lower.includes("mad") || lower.includes("gess")) {
+      category = "REVESTIMENTOS";
+    } else if (lower.includes("elet") || lower.includes("lumin") || lower.includes("light")) {
+      category = "ELETRICO";
+    } else if (lower.includes("hidr") || lower.includes("tub") || lower.includes("pipe")) {
+      category = "HIDRAULICO";
+    }
+
+    const area = (mSize.x * mSize.y + mSize.y * mSize.z + mSize.x * mSize.z) * 2;
+    const prev = buckets.get(layerKey) || {
+      count: 0,
+      areaM2: 0,
+      maxL: 0,
+      maxP: 0,
+      maxA: 0,
+      category,
+    };
+
+    buckets.set(layerKey, {
+      count: prev.count + 1,
+      areaM2: prev.areaM2 + area,
+      maxL: Math.max(prev.maxL, mSize.x),
+      maxP: Math.max(prev.maxP, mSize.z),
+      maxA: Math.max(prev.maxA, mSize.y),
+      category,
+    });
+  });
+
+  return Array.from(buckets.entries())
+    .slice(0, 20)
+    .map(([name, b]) => ({
+      category: b.category,
+      description: `${name} (${b.count}x · ${b.maxL.toFixed(2)}×${b.maxP.toFixed(2)}×${b.maxA.toFixed(2)}m)`,
+      quantity: Number(b.areaM2.toFixed(2)),
+      unit: "m²",
+    }));
+}
+
 function buildProceduralBimModel(): { group: THREE.Group; takeoff: ExtractedIfcTakeoff[] } {
   const group = new THREE.Group();
   group.name = "ProceduralBIMModel";
@@ -697,7 +761,9 @@ export function Viewer3dEngine({
         }
       }
 
+      let isProcedural = false;
       if (!loadedGroup) {
+        isProcedural = true;
         const proc = buildProceduralBimModel();
         loadedGroup = proc.group;
         badge = `${activeFormat} • Preview Arquitetônico 3D`;
@@ -705,6 +771,12 @@ export function Viewer3dEngine({
       }
 
       normalizeAndSnapshotModel(loadedGroup, activeFormat);
+      if (!isProcedural) {
+        const sceneTakeoff = extractSceneTakeoff(loadedGroup, activeFormat);
+        if (sceneTakeoff.length > 0) {
+          onExtractedQuantities?.(sceneTakeoff);
+        }
+      }
       modelRootRef.current = loadedGroup;
       scene.add(loadedGroup);
       applyQuickView("ISO");
