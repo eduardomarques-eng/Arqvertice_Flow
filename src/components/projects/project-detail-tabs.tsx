@@ -46,15 +46,19 @@ interface ProjectDetailTabsProps {
 
 export function ProjectDetailTabs({
   project,
-  documents,
-  deliverables,
+  documents = [],
+  deliverables = [],
   deliverableMatrix,
-  stages,
-  completion,
-  overdueCount,
+  stages = [],
+  completion = 0,
+  overdueCount = 0,
   basePath = "/admin",
 }: ProjectDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<"acervo" | "documentos">("acervo");
+  const kanbanHref =
+    basePath === "/equipe"
+      ? `/equipe/cronograma/${project.id}`
+      : `${basePath}/projetos/${project.id}/cronograma`;
 
   return (
     <div className="space-y-6">
@@ -63,31 +67,31 @@ export function ProjectDetailTabs({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-900">{project.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-900">{project?.name ?? "Projeto"}</h1>
               <Badge tone="neutral" className="text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                {project.type || "Residencial"}
+                {project?.type || "Residencial"}
               </Badge>
               <Badge
-                tone={project.status === "EM_ANDAMENTO" ? "green" : "neutral"}
+                tone={project?.status === "EM_ANDAMENTO" || project?.status === "IN_PROGRESS" ? "green" : "neutral"}
                 className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
               >
-                {project.status === "EM_ANDAMENTO" ? "Em Andamento" : project.status}
+                {project?.status === "EM_ANDAMENTO" || project?.status === "IN_PROGRESS"
+                  ? "Em Andamento"
+                  : project?.status ?? "Ativo"}
               </Badge>
             </div>
             <div className="text-sm text-zinc-500 flex flex-wrap items-center gap-4 pt-1">
-              {project.client?.name && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-zinc-400 font-medium">Cliente:</span>
-                  <span className="font-semibold text-zinc-800">{project.client.name}</span>
-                </div>
-              )}
-              {project.startDate && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-zinc-400 font-medium">Cliente:</span>
+                <span className="font-semibold text-zinc-800">{project?.client?.name ?? "Cliente não informado"}</span>
+              </div>
+              {project?.startDate && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-zinc-400 font-medium">Início:</span>
                   <span className="text-zinc-700 font-medium">{formatDateBR(project.startDate)}</span>
                 </div>
               )}
-              {project.expectedEndDate && (
+              {project?.expectedEndDate && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-zinc-400 font-medium">Previsão:</span>
                   <span className="text-zinc-700 font-medium">{formatDateBR(project.expectedEndDate)}</span>
@@ -99,7 +103,7 @@ export function ProjectDetailTabs({
           {/* Atalhos Rápidos */}
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={`${basePath}/projetos/${project.id}/cronograma`}
+              href={kanbanHref}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition active:scale-[0.98]"
             >
               <span>📊</span>
@@ -114,7 +118,7 @@ export function ProjectDetailTabs({
               <span>Relatório PDF</span>
             </Link>
             <Link
-              href={`${basePath}/financeiro`}
+              href={`${basePath}/financeiro?projectId=${project.id}`}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition active:scale-[0.98]"
             >
               <span>💰</span>

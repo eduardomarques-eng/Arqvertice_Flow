@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { KanbanBoardView } from "@/components/schedule/kanban-board";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { requirePageProjectAccess, requirePageTeamRole } from "@/server/auth";
 import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { kanbanBoard } from "@/server/services/schedule-service";
@@ -42,18 +43,20 @@ export default async function EquipeCronogramaPage({
       </div>
 
       <SectionHeading
-        title={`Kanban — ${board.project.name}`}
+        title={`Kanban — ${board?.project?.name ?? "Projeto"}`}
         description="Arraste os cards entre colunas e ajuste o avanço físico das etapas da sua responsabilidade. Alterações refletidas em tempo real no banco."
       />
 
-      {board.totals.stages === 0 ? (
+      {(board?.totals?.stages ?? 0) === 0 ? (
         <div className="mt-8">
           <p className="text-sm text-slate-500">
             Este projeto ainda não tem etapas no cronograma.
           </p>
         </div>
       ) : (
-        <KanbanBoardView projectId={id} board={board} />
+        <ErrorBoundary fallbackTitle="Erro ao carregar quadro Kanban" backHref="/equipe/cronograma">
+          <KanbanBoardView projectId={id} board={board} />
+        </ErrorBoundary>
       )}
     </AppShell>
   );

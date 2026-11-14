@@ -89,20 +89,25 @@ function getAvatarColor(name: string | null) {
 }
 
 function deadline(card: KanbanCard) {
-  if (!card.dueDate) return { text: "Sem prazo", tone: "text-slate-500 bg-slate-50" };
+  if (!card?.dueDate) return { text: "Sem prazo", tone: "text-slate-500 bg-slate-50" };
   const date = new Date(card.dueDate);
-  const text = date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
-  const tone = card.alert.overdue
+  const text = Number.isNaN(date.getTime())
+    ? "Sem prazo"
+    : date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
+  const isOverdue = Boolean(card.alert?.overdue);
+  const isDueSoon = Boolean(card.alert?.dueSoon);
+  const daysRemaining = card.alert?.daysRemaining ?? 0;
+  const tone = isOverdue
     ? "text-rose-600 bg-rose-50 border-rose-200"
-    : card.alert.dueSoon
+    : isDueSoon
     ? "text-amber-600 bg-amber-50 border-amber-200"
     : "text-slate-500 bg-slate-50 border-slate-200";
-  const detail = card.alert.overdue
-    ? `${Math.abs(card.alert.daysRemaining ?? 0)}d atraso`
-    : card.alert.dueSoon
-    ? card.alert.daysRemaining === 0
+  const detail = isOverdue
+    ? `${Math.abs(daysRemaining)}d atraso`
+    : isDueSoon
+    ? daysRemaining === 0
       ? "Hoje"
-      : `Em ${card.alert.daysRemaining}d`
+      : `Em ${daysRemaining}d`
     : text;
   return { text: detail, tone };
 }
@@ -131,7 +136,7 @@ export function KanbanBoardView({
   onBoardTotalsChange?: (completion: number) => void;
 }) {
   const router = useRouter();
-  const [columns, setColumns] = useState(board.columns);
+  const [columns, setColumns] = useState(board?.columns ?? []);
   const [query, setQuery] = useState("");
   const [assignee, setAssignee] = useState("");
   const [discipline, setDiscipline] = useState("");
@@ -143,7 +148,7 @@ export function KanbanBoardView({
   const [error, setError] = useState<string | null>(null);
 
   // Todas as etapas na memória para cálculo contínuo
-  const allCards = useMemo(() => columns.flatMap((c) => c.cards), [columns]);
+  const allCards = useMemo(() => (columns ?? []).flatMap((c) => c?.cards ?? []), [columns]);
   const hiddenCardsCount = useMemo(
     () => allCards.filter((c) => c.isVisibleInKanban === false).length,
     [allCards],

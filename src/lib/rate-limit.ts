@@ -50,7 +50,7 @@ export function buildBucketKey(prefix: string, raw: string, maxLength = 512): st
 export const RATE_LIMITS: RateLimitPolicy[] = [
   {
     routes: ["/api/auth/login", "/api/auth/register", "/api/auth/forgot-password", "/api/auth/reset-password"],
-    limit: 8,
+    limit: 25,
     windowMs: 5 * 60_000,
     key: (request, _payload) =>
       buildBucketKey("auth", request.headers.get("x-forwarded-for") ?? "local", 128),

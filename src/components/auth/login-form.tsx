@@ -34,7 +34,16 @@ export function LoginForm() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setError(data?.error || "E-mail ou senha inválidos.");
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("Retry-After");
+          setError(
+            retryAfter
+              ? `Muitas tentativas de acesso. Aguarde ${retryAfter} segundos e tente novamente.`
+              : "Muitas tentativas de acesso. Aguarde alguns instantes e tente novamente."
+          );
+        } else {
+          setError(data?.error || "E-mail ou senha inválidos.");
+        }
         setLoading(false);
         return;
       }
@@ -66,13 +75,13 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-4">
       {isUpdated && (
-        <div className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs leading-relaxed">
+        <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed">
           Suas permissões de acesso foram atualizadas pelo administrador. Entre novamente para carregar seu painel.
         </div>
       )}
 
       {error && (
-        <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs leading-relaxed">
+        <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs leading-relaxed">
           {error}
         </div>
       )}

@@ -8,6 +8,7 @@ import { listProjectDocuments } from "@/server/services/document-service";
 import { listProjectDeliverables, getDeliverableMatrix } from "@/server/services/deliverable-service";
 import { kanbanBoard } from "@/server/services/schedule-service";
 import { ProjectDetailTabs } from "@/components/projects/project-detail-tabs";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export default async function TeamProjectPage({ params }: { params: Promise<{ id
     discipline: card.discipline,
   }));
 
-  const deliverablesList = deliverables.map((d) => ({
+  const deliverablesList = (deliverables ?? []).map((d) => ({
     id: d.id,
     sheetCode: d.sheetCode,
     subject: d.subject,
@@ -63,14 +64,14 @@ export default async function TeamProjectPage({ params }: { params: Promise<{ id
 
   const projectData = {
     id: project.id,
-    name: project.name,
-    type: project.type,
-    status: project.status,
+    name: project.name ?? "Projeto sem nome",
+    type: project.type ?? null,
+    status: project.status ?? "IN_PROGRESS",
     budget: project.budget ? Number(project.budget) : null,
-    startDate: project.startDate,
-    expectedEndDate: project.expectedEndDate,
+    startDate: project.startDate ?? null,
+    expectedEndDate: project.expectedEndDate ?? null,
     address: (project.address as Record<string, unknown>) || null,
-    client: project.client,
+    client: project.client ?? { name: "Cliente não informado", phone: null, email: null },
   };
 
   return (
@@ -84,19 +85,21 @@ export default async function TeamProjectPage({ params }: { params: Promise<{ id
             ← Voltar para projetos
           </Link>
           <span className="text-zinc-300">/</span>
-          <span className="text-zinc-500 truncate max-w-[240px] sm:max-w-none">{project.name}</span>
+          <span className="text-zinc-500 truncate max-w-[240px] sm:max-w-none">{projectData.name}</span>
         </div>
 
-        <ProjectDetailTabs
-          project={projectData}
-          documents={documents}
-          deliverables={deliverablesList}
-          deliverableMatrix={deliverableMatrix}
-          stages={stages}
-          completion={board?.totals?.completion ?? 0}
-          overdueCount={board?.totals?.overdue ?? 0}
-          basePath="/equipe"
-        />
+        <ErrorBoundary fallbackTitle="Erro ao carregar ficha técnica" backHref="/equipe/projetos">
+          <ProjectDetailTabs
+            project={projectData}
+            documents={documents ?? []}
+            deliverables={deliverablesList}
+            deliverableMatrix={deliverableMatrix}
+            stages={stages}
+            completion={board?.totals?.completion ?? 0}
+            overdueCount={board?.totals?.overdue ?? 0}
+            basePath="/equipe"
+          />
+        </ErrorBoundary>
       </div>
     </AppShell>
   );
