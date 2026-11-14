@@ -106,7 +106,7 @@ export function LoginForm() {
           placeholder="nome@arqvertice.com.br"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full h-11 px-3.5 rounded-xl border border-slate-200/60 bg-white text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:border-[#18181B] transition-colors"
         />
       </div>
 
@@ -127,12 +127,12 @@ export function LoginForm() {
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full h-11 pl-3.5 pr-16 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full h-11 pl-3.5 pr-16 rounded-xl border border-slate-200/60 bg-white text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:border-[#18181B] transition-colors"
           />
           <button
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-slate-400 hover:text-slate-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-slate-400 hover:text-slate-700"
           >
             {showPassword ? "Ocultar" : "Mostrar"}
           </button>
@@ -142,7 +142,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full h-11 rounded-xl bg-[#18181B] px-4 text-sm font-medium tracking-tight text-white shadow-sm transition-all duration-100 hover:bg-[#27272A] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? "Autenticando..." : "Entrar"}
       </button>

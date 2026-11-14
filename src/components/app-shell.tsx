@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { Brand } from "@/components/brand";
 import { MobileNav } from "@/components/mobile-nav";
+import { SidebarNav } from "@/components/sidebar-nav";
 import { currentUser, signOut, type AuthRole } from "@/server/auth";
 import { SessionGuard } from "@/components/auth/session-guard";
 import { InternalMessengerWidget } from "@/components/messenger/internal-messenger-widget";
@@ -121,8 +122,8 @@ export async function AppShell({
       {/* Tab Guard de Sessão Efêmera no Cliente */}
       <SessionGuard />
 
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white/80 lg:backdrop-blur-xl">
-        <div className="flex h-16 items-center px-6 border-b border-slate-100">
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-slate-200/60 lg:bg-white/85 lg:backdrop-blur-xl">
+        <div className="flex h-16 items-center px-6 border-b border-slate-200/60">
           <Brand compact />
         </div>
 
@@ -132,29 +133,18 @@ export async function AppShell({
           </span>
         </div>
 
-        <nav className="flex-1 space-y-1 px-4 py-2 overflow-y-auto">
+        <nav className="flex-1 px-4 py-2 overflow-y-auto">
           <div className="pb-2">
-            <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               {groupLabel}
             </span>
           </div>
 
-          {allowedLinks.map(([label, href]) => (
-            <Link
-              key={href}
-              href={href}
-              className="group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 transition-colors"
-            >
-              <span>{label}</span>
-              <span className="text-xs text-slate-400 group-hover:translate-x-0.5 transition-transform">
-                →
-              </span>
-            </Link>
-          ))}
+          <SidebarNav links={allowedLinks} />
         </nav>
 
         {user ? (
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+          <div className="p-4 border-t border-slate-200/60 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div className="min-w-0 pr-2">
                 <p className="truncate text-xs font-semibold text-slate-900">{user.name}</p>
@@ -180,11 +170,11 @@ export async function AppShell({
         ) : null}
       </div>
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur-xl sm:px-6">
-          <div className="flex items-center gap-3">
+      <div className="lg:pl-72 min-w-0 max-w-full">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200/60 bg-white/85 px-4 backdrop-blur-xl sm:px-6">
+          <div className="flex items-center gap-3 min-w-0">
             <MobileNav links={allowedLinks} areaLabel={areaLabel} groupLabel={groupLabel} />
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+            <span className="truncate text-xs font-semibold text-slate-400 uppercase tracking-widest">
               {eyebrow}
             </span>
           </div>
@@ -222,13 +212,13 @@ export async function AppShell({
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-5 py-8 md:px-10 md:py-12">{children}</main>
+        <main className="mx-auto max-w-7xl min-w-0 px-4 py-6 sm:px-5 sm:py-8 md:px-10 md:py-12">{children}</main>
       </div>
 
       {/* BOTTOM NAV MOBILE (Fixo em baixo em telas < 1024px) */}
       {!isClient && bottomNavLinks.length > 0 && (
         <nav
-          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg"
+          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/60 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)]"
           aria-label="Navegação rápida móvel"
         >
           {bottomNavLinks.map((item) => (

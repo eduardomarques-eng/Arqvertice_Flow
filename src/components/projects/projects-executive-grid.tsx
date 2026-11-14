@@ -64,7 +64,7 @@ export function ProjectsExecutiveGrid({ projects, basePath }: ProjectsExecutiveG
         return (
           <Card
             key={project.id}
-            className="flex flex-col justify-between border-slate-200/90 bg-white p-5 shadow-xs hover:shadow-md transition-shadow"
+            className="flex flex-col justify-between border-slate-200/60 bg-white p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:border-slate-300/80 transition-colors"
           >
             <div className="space-y-3.5">
               {/* Topo do Card */}
@@ -72,7 +72,7 @@ export function ProjectsExecutiveGrid({ projects, basePath }: ProjectsExecutiveG
                 <div className="space-y-1">
                   <Link
                     href={`${basePath}/projetos/${project.id}`}
-                    className="font-bold text-base text-slate-900 hover:text-blue-600 transition-colors line-clamp-1"
+                    className="font-semibold tracking-tight text-base text-slate-900 hover:text-[#18181B] transition-colors line-clamp-1"
                   >
                     {project.name}
                   </Link>

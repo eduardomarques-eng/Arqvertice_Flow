@@ -222,7 +222,7 @@ export function ProjectFinanceManager({
 
       {error ? <p className="mt-2 text-xs font-semibold text-rose-700">{error}</p> : null}
 
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-4 max-w-full overflow-x-auto overflow-y-hidden">
         <table className="w-full border-collapse text-left text-xs table-fixed print:text-[10px]">
           <thead className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 border-b border-zinc-200 bg-zinc-50/60 print:bg-transparent">
             <tr>
@@ -467,6 +467,4 @@ export function ProjectFinanceManager({
           </form>
         </div>
       ) : null}
-    </section>
-  );
-}
+    </secti

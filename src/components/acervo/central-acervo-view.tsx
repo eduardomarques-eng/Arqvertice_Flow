@@ -210,8 +210,8 @@ export function CentralAcervoView({
           </p>
         </Card>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-          <div className="overflow-x-auto">
+        <div className="max-w-full overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+          <div className="overflow-x-auto overflow-y-hidden">
             <table className="w-full text-left text-xs">
               <thead className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>

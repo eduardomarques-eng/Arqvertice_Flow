@@ -897,7 +897,7 @@ export function TeamGovernanceHub({
               Nenhum evento de acesso registrado recentemente.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <div className="max-w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-200/60">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -1276,7 +1276,7 @@ export function TeamGovernanceHub({
                         Nenhuma etapa do cronograma atribuída diretamente a {selectedMember.name}.
                       </p>
                     ) : (
-                      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <div className="max-w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-200/60">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
                             <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">

@@ -235,7 +235,7 @@ export function FinanceHubView({
               Nenhuma parcela cadastrada nos projetos.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-w-full overflow-x-auto overflow-y-hidden">
               <table className="w-full border-collapse text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">

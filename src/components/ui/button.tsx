@@ -14,9 +14,9 @@ export function Button({
   ...props
 }: ButtonProps) {
   const styles = {
-    primary: "bg-slate-900 text-white hover:bg-slate-800",
-    secondary: "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-    ghost: "text-slate-600 hover:bg-slate-100",
+    primary: "bg-[#18181B] text-white hover:bg-[#27272A] shadow-sm",
+    secondary: "border border-slate-200/60 bg-white text-slate-900 hover:bg-[#EDE5D8]/40 shadow-sm",
+    ghost: "text-slate-600 hover:bg-[#EDE5D8]/50 hover:text-slate-900",
   };
 
   const sizes = {
@@ -27,7 +27,7 @@ export function Button({
 
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-75 active:scale-[0.98] select-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-xl font-medium tracking-tight transition-all duration-100 active:scale-[0.98] select-none focus-visible:ring-2 focus-visible:ring-[#18181B]/30 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${sizes[size]} ${className}`}
       {...props}
     />
   );

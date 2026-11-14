@@ -22,17 +22,17 @@
   --layer-3: #ffffff;
   --layer-4: #ffffff;
   --layer-5: #ffffff;
-  --text-primary: #172033;
-  --text-secondary: #596579;
-  --text-muted: #8993a4;
-  --border-subtle: #e4e8ef;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --border-subtle: rgba(226, 232, 240, 0.6);
   --border-strong: #cbd5e1;
   /* Véu sobre imagem de fundo. Fixo por ser um véu de ARDÓSIA da marca, e não
      uma cor de tema: um tema claro continua a precisar de um fundo escuro para
      o texto por cima de imagem ser legível. */
   --overlay: #0f172a;
-  --accent: #2563eb;
-  --accent-soft: #eff6ff;
+  --accent: #18181b;
+  --accent-soft: #ede5d8;
   --success: #087443;
   --success-soft: #ecfdf3;
   --warning: #a15c00;
@@ -42,7 +42,9 @@
   --info: #175cd3;
   --info-soft: #eff8ff;
   --shadow-layer-1: 0 4px 20px -4px rgb(0 0 0 / 5%);
-  --shadow-layer-3: 0 8px 24px rgb(15 23 42 / 8%);
+  --shadow-layer-3: 0 4px 20px -4px rgb(0 0 0 / 5%);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 * {
