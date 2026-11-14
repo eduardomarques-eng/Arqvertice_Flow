@@ -26,7 +26,22 @@ export { hashPassword, verifyPassword };
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 
 export async function signIn(email: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: normalizedEmail },
+        ...(normalizedEmail === "eduardo.marques@arqvertice.com.br"
+          ? [{ email: "eduardo.marques.arq@gmail.com" }]
+          : normalizedEmail === "eduardo.marques.arq@gmail.com"
+          ? [{ email: "eduardo.marques@arqvertice.com.br" }]
+          : []),
+        ...(normalizedEmail === "wagner@arqvertice.com.br"
+          ? [{ email: "wagner.silva@arqvertice.com.br" }]
+          : []),
+      ],
+    },
+  });
   if (!user || !verifyPassword(password, user.passwordHash)) {
     throw new DomainError("E-mail ou senha inválidos.", "VALIDATION");
   }

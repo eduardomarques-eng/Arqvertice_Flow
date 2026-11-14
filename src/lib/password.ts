@@ -25,9 +25,25 @@ export function verifyPassword(password: string, stored: string) {
   const [salt, expected] = stored.split(":");
   if (!salt || !expected) return false;
   try {
-    const actual = scryptSync(password, `${salt}:${authSecret()}`, 64);
     const expectedBuffer = Buffer.from(expected, "hex");
-    return actual.length === expectedBuffer.length && timingSafeEqual(actual, expectedBuffer);
+    // Tentativa 1: scrypt com AUTH_SECRET
+    try {
+      const secret = authSecret();
+      const actual = scryptSync(password, `${salt}:${secret}`, 64);
+      if (actual.length === expectedBuffer.length && timingSafeEqual(actual, expectedBuffer)) {
+        return true;
+      }
+    } catch {}
+
+    // Tentativa 2: scrypt com salt simples
+    try {
+      const actualDirect = scryptSync(password, salt, 64);
+      if (actualDirect.length === expectedBuffer.length && timingSafeEqual(actualDirect, expectedBuffer)) {
+        return true;
+      }
+    } catch {}
+
+    return false;
   } catch {
     return false;
   }
