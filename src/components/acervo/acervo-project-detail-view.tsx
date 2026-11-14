@@ -1083,14 +1083,22 @@ export function AcervoProjectDetailView({
                           {project.activeTokensCount ?? 0}
                         </span>
                       </div>
-                      {basePath === "/admin" && (
+                      <div className="flex flex-wrap items-center gap-3">
                         <Link
-                          href="/admin/acervo/configuracoes"
+                          href={`${basePath}/acervo/plugins`}
                           className="inline-block text-[11px] font-semibold text-slate-900 underline"
                         >
-                          Gerenciar Tokens API →
+                          Abrir Central de Plugins (6 Softwares) →
                         </Link>
-                      )}
+                        {basePath === "/admin" && (
+                          <Link
+                            href="/admin/acervo/configuracoes"
+                            className="inline-block text-[11px] font-semibold text-slate-900 underline"
+                          >
+                            Gerenciar Tokens API →
+                          </Link>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-2">
