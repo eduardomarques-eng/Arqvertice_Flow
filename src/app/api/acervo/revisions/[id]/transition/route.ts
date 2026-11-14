@@ -1,0 +1,58 @@
+import { NextResponse } from "next/server";
+import { currentUser } from "@/server/auth";
+import { transitionAcervoWorkflow } from "@/server/services/acervo-cde-service";
+import { AcervoWorkflowStatus } from "@prisma/client";
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await currentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { toStatus, action = "TRANSIÇÃO_STATUS", notes } = body;
+
+    if (!toStatus || !Object.values(AcervoWorkflowStatus).includes(toStatus)) {
+      return NextResponse.json(
+        { error: "Status de destino inválido." },
+        { status: 400 }
+      );
+    }
+
+    // Regra de segurança: Somente ADMIN ou ENGENHEIRO/ARQUITETO podem aprovar BOM_PARA_OBRA
+    if (
+      toStatus === AcervoWorkflowStatus.BOM_PARA_OBRA &&
+      user.role !== "ADMIN" &&
+      user.role !== "ENGENHEIRO" &&
+      user.role !== "ARQUITETO"
+    ) {
+      return NextResponse.json(
+        { error: "Apenas coordenadores e administradores podem aprovar 'Bom para Obra'." },
+        { status: 403 }
+      );
+    }
+
+    const updated = await transitionAcervoWorkflow({
+      revisionId: id,
+      toStatus: toStatus as AcervoWorkflowStatus,
+      action,
+      notes,
+      performedById: user.id,
+      performedByName: user.name,
+      performedByRole: user.role,
+    });
+
+    return NextResponse.json({ success: true, revision: updated });
+  } catch (err: unknown) {
+    console.error("[ACERVO_WORKFLOW_POST_ERROR]", err);
+    return NextResponse.json(
+      { error: "Falha na transição de status do documento." },
+      { status: 500 }
+    );
+  }
+}

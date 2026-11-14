@@ -3,9 +3,9 @@ import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
 import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { prisma } from "@/server/db";
-import { CentralAcervoView, type AcervoProjectOption, type AcervoDeliverableItem } from "@/components/acervo/central-acervo-view";
+import { AcervoManagerView, type AcervoProjectOption, type CdeDocumentItem } from "@/components/acervo/acervo-manager-view";
 
-export const metadata = { title: "Empreendimentos & Acervo — Equipe ArqVértice" };
+export const metadata = { title: "Acervo Manager (CDE) — Equipe ArqVértice" };
 export const dynamic = "force-dynamic";
 
 export default async function EquipeAcervoPage({
@@ -14,10 +14,10 @@ export default async function EquipeAcervoPage({
   searchParams: Promise<{ projectId?: string }>;
 }) {
   const user = await requirePageTeamRole();
-  await requireModuleAccess("projetos");
+  await requireModuleAccess("acervo");
   const { projectId } = await searchParams;
 
-  const [rawProjects, rawDeliverables] = await Promise.all([
+  const [rawProjects, rawDocuments] = await Promise.all([
     prisma.project.findMany({
       select: {
         id: true,
@@ -26,28 +26,19 @@ export default async function EquipeAcervoPage({
       },
       orderBy: { name: "asc" },
     }),
-    prisma.projectDeliverable.findMany({
-      select: {
-        id: true,
-        projectId: true,
-        sheetCode: true,
-        title: true,
-        discipline: true,
-        phaseFolder: true,
-        version: true,
-        fileUrl: true,
-        fileSize: true,
-        status: true,
-        isClientView: true,
-        createdAt: true,
+    prisma.acervoDocument.findMany({
+      include: {
         project: {
           select: {
             name: true,
             client: { select: { name: true } },
           },
         },
+        revisions: {
+          orderBy: { createdAt: "desc" },
+        },
       },
-      orderBy: [{ createdAt: "desc" }],
+      orderBy: [{ discipline: "asc" }, { code: "asc" }],
     }),
   ]);
 
@@ -57,33 +48,38 @@ export default async function EquipeAcervoPage({
     clientName: p.client?.name || "Cliente",
   }));
 
-  const deliverables: AcervoDeliverableItem[] = rawDeliverables.map((d) => ({
-    id: d.id,
-    projectId: d.projectId,
-    projectName: d.project.name,
-    clientName: d.project.client?.name || "Cliente",
-    sheetCode: d.sheetCode || "DOC",
-    title: d.title,
-    discipline: d.discipline,
-    phaseFolder: d.phaseFolder,
-    version: d.version,
-    fileUrl: d.fileUrl,
-    fileSize: d.fileSize,
-    status: d.status,
-    isClientView: d.isClientView,
-    createdAt: d.createdAt.toISOString(),
-  }));
+  const documents: CdeDocumentItem[] = rawDocuments.map((d) => {
+    const currentRev = d.revisions.find((r) => r.isCurrent) || d.revisions[0];
+    return {
+      id: d.id,
+      projectId: d.projectId,
+      projectName: d.project.name,
+      clientName: d.project.client?.name || "Cliente",
+      code: d.code,
+      title: d.title,
+      discipline: d.discipline,
+      phase: d.phase,
+      category: d.category,
+      currentRevisionNumber: currentRev?.revisionNumber || "R00",
+      status: currentRev?.status || "EM_ELABORACAO",
+      fileName: currentRev?.fileName || `${d.code}.pdf`,
+      fileUrl: currentRev?.fileUrl || "#",
+      fileSize: currentRev?.fileSize || "4.2 MB",
+      revisionsCount: d.revisions.length,
+      updatedAt: currentRev?.updatedAt?.toISOString() || d.updatedAt.toISOString(),
+    };
+  });
 
   return (
-    <AppShell eyebrow="Acervo Técnico" role={user.role}>
+    <AppShell eyebrow="Acervo Manager CDE" role={user.role}>
       <SectionHeading
-        title="Empreendimentos & Acervo Técnico"
-        description="Consulta e organização técnica centralizada de pranchas, plantas e arquivos das disciplinas de arquitetura e engenharia."
+        title="Acervo Manager — Ambiente Comum de Dados (CDE)"
+        description="Acesso e consulta técnica centralizada de pranchas, validação de revisões vigentes e controle de documentos para obra."
       />
       <div className="mt-6">
-        <CentralAcervoView
+        <AcervoManagerView
           projects={projects}
-          deliverables={deliverables}
+          documents={documents}
           basePath="/equipe"
           initialProjectId={projectId}
         />

@@ -7,6 +7,7 @@ export type AppModule =
   | "dashboard"
   | "cronograma"
   | "projetos"
+  | "acervo"
   | "financeiro"
   | "clientes"
   | "equipe"
@@ -37,10 +38,17 @@ export const APP_MODULES: AppModuleDefinition[] = [
   },
   {
     id: "projetos",
-    label: "Empreendimentos & Acervo Técnico",
-    description: "Gestão dos projetos, pranchas, entregáveis e acervo de arquivos.",
-    icon: "📁",
+    label: "Empreendimentos & Fichas Técnicas",
+    description: "Gestão dos projetos, dados executivos e Ficha Técnica 360.",
+    icon: "📋",
     defaultRoute: "/admin/projetos",
+  },
+  {
+    id: "acervo",
+    label: "Acervo Manager (CDE)",
+    description: "Controle de pranchas, revisões R00/R01, workflow Bom para Obra e GRD.",
+    icon: "📁",
+    defaultRoute: "/admin/acervo",
   },
   {
     id: "financeiro",

@@ -2,9 +2,10 @@ import { AppShell } from "@/components/app-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageRole } from "@/server/auth";
 import { prisma } from "@/server/db";
-import { CentralAcervoView, type AcervoProjectOption, type AcervoDeliverableItem } from "@/components/acervo/central-acervo-view";
+import { AcervoManagerView, type AcervoProjectOption, type CdeDocumentItem } from "@/components/acervo/acervo-manager-view";
+import { seedAcervoManagerDemo } from "@/server/services/acervo-seed";
 
-export const metadata = { title: "Empreendimentos & Acervo — ArqVértice Flow" };
+export const metadata = { title: "Acervo Manager (CDE) — ArqVértice Flow" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminAcervoPage({
@@ -15,7 +16,10 @@ export default async function AdminAcervoPage({
   await requirePageRole("ADMIN");
   const { projectId } = await searchParams;
 
-  const [rawProjects, rawDeliverables] = await Promise.all([
+  // Garante carga inicial para homologação
+  await seedAcervoManagerDemo();
+
+  const [rawProjects, rawDocuments] = await Promise.all([
     prisma.project.findMany({
       select: {
         id: true,
@@ -24,28 +28,19 @@ export default async function AdminAcervoPage({
       },
       orderBy: { name: "asc" },
     }),
-    prisma.projectDeliverable.findMany({
-      select: {
-        id: true,
-        projectId: true,
-        sheetCode: true,
-        title: true,
-        discipline: true,
-        phaseFolder: true,
-        version: true,
-        fileUrl: true,
-        fileSize: true,
-        status: true,
-        isClientView: true,
-        createdAt: true,
+    prisma.acervoDocument.findMany({
+      include: {
         project: {
           select: {
             name: true,
             client: { select: { name: true } },
           },
         },
+        revisions: {
+          orderBy: { createdAt: "desc" },
+        },
       },
-      orderBy: [{ createdAt: "desc" }],
+      orderBy: [{ discipline: "asc" }, { code: "asc" }],
     }),
   ]);
 
@@ -55,33 +50,38 @@ export default async function AdminAcervoPage({
     clientName: p.client?.name || "Cliente",
   }));
 
-  const deliverables: AcervoDeliverableItem[] = rawDeliverables.map((d) => ({
-    id: d.id,
-    projectId: d.projectId,
-    projectName: d.project.name,
-    clientName: d.project.client?.name || "Cliente",
-    sheetCode: d.sheetCode || "DOC",
-    title: d.title,
-    discipline: d.discipline,
-    phaseFolder: d.phaseFolder,
-    version: d.version,
-    fileUrl: d.fileUrl,
-    fileSize: d.fileSize,
-    status: d.status,
-    isClientView: d.isClientView,
-    createdAt: d.createdAt.toISOString(),
-  }));
+  const documents: CdeDocumentItem[] = rawDocuments.map((d) => {
+    const currentRev = d.revisions.find((r) => r.isCurrent) || d.revisions[0];
+    return {
+      id: d.id,
+      projectId: d.projectId,
+      projectName: d.project.name,
+      clientName: d.project.client?.name || "Cliente",
+      code: d.code,
+      title: d.title,
+      discipline: d.discipline,
+      phase: d.phase,
+      category: d.category,
+      currentRevisionNumber: currentRev?.revisionNumber || "R00",
+      status: currentRev?.status || "EM_ELABORACAO",
+      fileName: currentRev?.fileName || `${d.code}.pdf`,
+      fileUrl: currentRev?.fileUrl || "#",
+      fileSize: currentRev?.fileSize || "4.2 MB",
+      revisionsCount: d.revisions.length,
+      updatedAt: currentRev?.updatedAt?.toISOString() || d.updatedAt.toISOString(),
+    };
+  });
 
   return (
-    <AppShell eyebrow="Acervo Técnico">
+    <AppShell eyebrow="Acervo Manager CDE">
       <SectionHeading
-        title="Empreendimentos & Acervo Técnico"
-        description="Repositório centralizado de pranchas, plantas e arquivos técnicos com filtros por empreendimento, disciplina, fase e controle de liberação."
+        title="Acervo Manager — Ambiente Comum de Dados (CDE)"
+        description="Gestão integrada de projetos, controle de revisões (R00, R01...), validação de nomenclatura, esteira Bom para Obra e emissão de GRDs."
       />
       <div className="mt-6">
-        <CentralAcervoView
+        <AcervoManagerView
           projects={projects}
-          deliverables={deliverables}
+          documents={documents}
           basePath="/admin"
           initialProjectId={projectId}
         />

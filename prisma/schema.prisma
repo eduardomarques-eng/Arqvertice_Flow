@@ -177,6 +177,15 @@ model User {
   proposalVersions ProposalVersion[]
   projectAccess ProjectAccess[]
   passwordResetTokens PasswordResetToken[]
+
+  // Acervo Manager CDE
+  acervoRevisionsUploaded   AcervoRevision[]            @relation("AcervoRevisionsUploaded")
+  acervoWorkflowLogs        AcervoWorkflowLog[]
+  acervoDisciplinePermissions AcervoDisciplinePermission[]
+  acervoGrdsCreated         AcervoGrd[]                 @relation("AcervoGrdsCreated")
+  acervoRfiCreated          AcervoRfiMarkup[]           @relation("AcervoRfiCreated")
+  acervoRfiAssigned         AcervoRfiMarkup[]           @relation("AcervoRfiAssigned")
+  acervoApiTokensCreated    AcervoApiToken[]            @relation("AcervoApiTokensCreated")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -389,6 +398,13 @@ model Project {
   environments   ProjectEnvironment[]
   checklists     ChecklistItem[]
   deliverableAccessLogs DeliverableAccessLog[]
+
+  // Acervo Manager CDE
+  acervoDocuments           AcervoDocument[]
+  acervoNamingRules         AcervoNamingRule[]
+  acervoGrds                AcervoGrd[]
+  acervoDisciplinePermissions AcervoDisciplinePermission[]
+  acervoApiTokens           AcervoApiToken[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -1242,4 +1258,245 @@ model StudioSetting {
   forceLgpdReacceptAt  DateTime?
   updatedAt            DateTime  @updatedAt
   updatedById          String?   @db.Uuid
+}
+
+// ==========================================
+// ACERVO MANAGER CDE (ConstruManager-style)
+// ==========================================
+
+enum AcervoWorkflowStatus {
+  EM_ELABORACAO
+  EM_REVISAO_TECNICA
+  APROVADO_COM_RESSALVAS
+  BOM_PARA_OBRA
+  OBSOLETO
+}
+
+enum AcervoNamingPolicy {
+  STRICT_BLOCK
+  WARN_ONLY
+}
+
+enum AcervoFileType {
+  PDF
+  DWG
+  DXF
+  IFC
+  RVT
+  IMG
+  DOC
+}
+
+enum AcervoRfiStatus {
+  ABERTA
+  RESPONDIDA
+  ENCERRADA
+}
+
+enum AcervoMarkupType {
+  PIN
+  CLOUD
+  DIMENSION
+}
+
+model AcervoNamingRule {
+  id          String             @id @default(uuid()) @db.Uuid
+  projectId   String?            @db.Uuid
+  name        String             @default("Padrão Construtora")
+  mask        String             @default("[EMPREENDIMENTO]-[DISCIPLINA]-[FASE]-[TIPO]-[SEQUENCIAL]-[REV]")
+  separator   String             @default("-")
+  policy      AcervoNamingPolicy @default(WARN_ONLY)
+  example     String             @default("ARQ-FAC-PE-DET-001-R00.dwg")
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  project     Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model AcervoDocument {
+  id                String            @id @default(uuid()) @db.Uuid
+  projectId         String            @db.Uuid
+  code              String            // Ex: ARQ-PE-001
+  title             String
+  discipline        ProjectDiscipline
+  phase             ProjectStagePhase @default(PROJETO_EXECUTIVO)
+  category          AcervoCategory    @default(PLANTA_TECNICA_PDF)
+  currentRevisionId String?           @db.Uuid
+  isArchived        Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisions         AcervoRevision[]
+  rfis              AcervoRfiMarkup[]
+
+  @@unique([projectId, code])
+  @@index([projectId, discipline])
+  @@index([projectId, phase])
+}
+
+model AcervoRevision {
+  id                 String               @id @default(uuid()) @db.Uuid
+  documentId         String               @db.Uuid
+  revisionNumber     String               @default("R00") // R00, R01, R02...
+  isCurrent          Boolean              @default(true)
+  status             AcervoWorkflowStatus @default(EM_ELABORACAO)
+  
+  // Arquivo Primário
+  fileUrl            String
+  fileKey            String?
+  fileName           String
+  fileSize           String?
+  fileType           AcervoFileType       @default(PDF)
+  checksumSha256     String?
+
+  // Arquivo Pareado Web (ex: PDF ou DXF para visualização de DWG/RVT)
+  viewUrl            String?
+  viewKey            String?
+  viewFileName       String?
+  viewFileType       AcervoFileType?
+
+  description        String?
+  extractedMetadata  Json?                // Selos, carimbos, áreas, esquadrias
+  uploadedById       String?              @db.Uuid
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  document           AcervoDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy         User?                @relation("AcervoRevisionsUploaded", fields: [uploadedById], references: [id], onDelete: SetNull)
+  workflowLogs       AcervoWorkflowLog[]
+  grdItems           AcervoGrdItem[]
+  rfis               AcervoRfiMarkup[]
+
+  @@index([documentId, revisionNumber])
+  @@index([documentId, isCurrent])
+  @@index([status])
+}
+
+model AcervoWorkflowLog {
+  id             String               @id @default(uuid()) @db.Uuid
+  revisionId     String               @db.Uuid
+  fromStatus     AcervoWorkflowStatus?
+  toStatus       AcervoWorkflowStatus
+  action         String               // APROVAR, REPROVAR, MARCAR_OBSOLETO, DOWNLOAD_OBSOLETO
+  notes          String?
+  performedById  String?              @db.Uuid
+  performedByName String
+  performedByRole String
+  createdAt      DateTime             @default(now())
+
+  revision       AcervoRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  performedBy    User?                @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([revisionId, createdAt])
+}
+
+model AcervoDisciplinePermission {
+  id                String            @id @default(uuid()) @db.Uuid
+  userId            String            @db.Uuid
+  projectId         String?           @db.Uuid
+  discipline        ProjectDiscipline
+  canView           Boolean           @default(true)
+  canDownload       Boolean           @default(true)
+  canCommentRfi     Boolean           @default(true)
+  canUploadRevision Boolean           @default(false)
+  canApproveForWork Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId, discipline])
+  @@index([userId, projectId])
+}
+
+model AcervoGrd {
+  id             String          @id @default(uuid()) @db.Uuid
+  code           String          @unique // GRD-2026-0001
+  projectId      String          @db.Uuid
+  recipientName  String
+  recipientEmail String?
+  recipientOrg   String?         // Nome da Construtora / Empreiteira
+  subject        String
+  notes          String?
+  hashToken      String          @unique // Token único para download/verificação
+  createdById    String?         @db.Uuid
+  createdAt      DateTime        @default(now())
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy      User?           @relation("AcervoGrdsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  items          AcervoGrdItem[]
+
+  @@index([projectId, createdAt])
+}
+
+model AcervoGrdItem {
+  id             String          @id @default(uuid()) @db.Uuid
+  grdId          String          @db.Uuid
+  revisionId     String          @db.Uuid
+  documentCode   String
+  documentTitle  String
+  revisionNumber String
+  statusAtIssue  String
+  fileUrl        String
+
+  grd            AcervoGrd       @relation(fields: [grdId], references: [id], onDelete: Cascade)
+  revision       AcervoRevision  @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@index([grdId])
+  @@index([revisionId])
+}
+
+// Preparação para Release 1B (Visualizador BIM & RFIs)
+model AcervoRfiMarkup {
+  id             String          @id @default(uuid()) @db.Uuid
+  code           String          // RFI-001
+  documentId     String          @db.Uuid
+  revisionId     String          @db.Uuid
+  title          String
+  description    String
+  status         AcervoRfiStatus @default(ABERTA)
+  markupType     AcervoMarkupType @default(PIN)
+  pageNumber     Int?            @default(1)
+  coordX         Float?
+  coordY         Float?
+  cameraState    Json?           // Câmera 3D BIM (position, target, zoom)
+  geometryJson   Json?           // Vetores da nuvem/cota
+  createdById    String?         @db.Uuid
+  assignedToId   String?         @db.Uuid
+  answer         String?
+  answeredAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  document       AcervoDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  revision       AcervoRevision  @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  createdBy      User?           @relation("AcervoRfiCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo     User?           @relation("AcervoRfiAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([documentId, status])
+  @@index([revisionId])
+}
+
+// Preparação para Release 1C (Sync API AutoCAD & Revit)
+model AcervoApiToken {
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String          // Ex: "Plugin Revit - Estação Wagner"
+  tokenHash      String          @unique // SHA-256 do token
+  tokenPrefix    String          // Ex: "av_revit_..."
+  projectId      String?         @db.Uuid
+  createdById    String?         @db.Uuid
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime        @default(now())
+
+  project        Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy      User?           @relation("AcervoApiTokensCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tokenHash])
 }

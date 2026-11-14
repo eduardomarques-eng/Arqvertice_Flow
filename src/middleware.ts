@@ -132,7 +132,7 @@ export function middleware(request: NextRequest) {
     if (moduleMatch) {
       const seg = moduleMatch[1];
       const mod =
-        seg === "acervo" || seg === "briefing" || seg === "propostas"
+        seg === "briefing" || seg === "propostas"
           ? "projetos"
           : seg === "configuracoes"
           ? "equipe"
