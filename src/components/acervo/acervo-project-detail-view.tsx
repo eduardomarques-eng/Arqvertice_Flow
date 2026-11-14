@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateBR } from "@/lib/formatters";
 import type { WorkspaceRfiItem } from "@/components/acervo/cde-workspace-viewer";
-import type { ExtractedIfcTakeoff } from "@/components/acervo/ifc-3d-viewer";
+import type { ExtractedIfcTakeoff } from "@/engines/bim-3d/types";
 import { AcervoQrCodeModal } from "@/components/acervo/acervo-qrcode-modal";
 import { AcervoUploadRevisionModal } from "@/components/acervo/acervo-upload-revision-modal";
 import {

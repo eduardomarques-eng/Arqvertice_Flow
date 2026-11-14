@@ -10,6 +10,24 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { TDSLoader } from "three/examples/jsm/loaders/TDSLoader.js";
+import { disposeObject3D } from "./gpu-cleanup";
+import { aggregateSceneTakeoffInWorker, type RawMeshMetric } from "./mesh-worker";
+export type {
+  IfcElementProperties,
+  Ifc3dRfiPin,
+  ExtractedIfcTakeoff,
+  RenderMode,
+  CameraNavMode,
+  QuickViewPreset,
+} from "./types";
+import type {
+  IfcElementProperties,
+  Ifc3dRfiPin,
+  ExtractedIfcTakeoff,
+  RenderMode,
+  CameraNavMode,
+  QuickViewPreset,
+} from "./types";
 const IconBox = ({ className = "h-3.5 w-3.5" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
@@ -98,43 +116,6 @@ const IconCompass = ({ className = "h-3 w-3" }: { className?: string }) => (
     <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
   </svg>
 );
-
-export interface IfcElementProperties {
-  expressId: number;
-  name: string;
-  category: string;
-  level: string;
-  material: string;
-  dimensions: string;
-  areaM2: number;
-  volumeM3: number;
-  format?: string;
-}
-
-export interface Ifc3dRfiPin {
-  id: string;
-  code: string;
-  title: string;
-  status: string;
-  cameraState?: {
-    position: [number, number, number];
-    target: [number, number, number];
-    pinPosition?: [number, number, number];
-    renderMode?: RenderMode;
-    sectionPlanes?: { open: boolean; x: number; y: number; z: number };
-  } | null;
-}
-
-export interface ExtractedIfcTakeoff {
-  category: "AREAS" | "ESQUADRIAS" | "REVESTIMENTOS" | "ELETRICO" | "HIDRAULICO" | "ESTRUTURA";
-  description: string;
-  quantity: number;
-  unit: string;
-}
-
-export type RenderMode = "PBR" | "CLAY" | "EDGES" | "WIREFRAME" | "XRAY" | "EXPLODED";
-export type CameraNavMode = "ORBIT" | "WALK";
-export type QuickViewPreset = "ISO" | "TOP" | "FRONT" | "BACK" | "LEFT" | "RIGHT";
 
 interface Viewer3dEngineProps {
   modelUrl?: string | null;
@@ -621,9 +602,10 @@ export function Viewer3dEngine({
       setHiddenIds(new Set());
       setIsolatedId(null);
 
-      // Clear previous model
+      // Clear previous model and dispose GPU resources
       if (modelRootRef.current) {
         scene.remove(modelRootRef.current);
+        disposeObject3D(modelRootRef.current);
         modelRootRef.current = null;
       }
       snapshotsRef.current.clear();
@@ -772,9 +754,23 @@ export function Viewer3dEngine({
 
       normalizeAndSnapshotModel(loadedGroup, activeFormat);
       if (!isProcedural) {
-        const sceneTakeoff = extractSceneTakeoff(loadedGroup, activeFormat);
-        if (sceneTakeoff.length > 0) {
-          onExtractedQuantities?.(sceneTakeoff);
+        const metrics: RawMeshMetric[] = [];
+        const mBox = new THREE.Box3();
+        const mSize = new THREE.Vector3();
+        loadedGroup.traverse((obj) => {
+          if (!(obj as THREE.Mesh).isMesh) return;
+          const mesh = obj as THREE.Mesh;
+          mBox.setFromObject(mesh);
+          mBox.getSize(mSize);
+          const matName = Array.isArray(mesh.material)
+            ? mesh.material[0]?.name || "Multi-Material"
+            : mesh.material?.name || "";
+          metrics.push({ name: mesh.name, materialName: matName, sx: mSize.x, sy: mSize.y, sz: mSize.z });
+        });
+        const workerTakeoff = await aggregateSceneTakeoffInWorker(metrics, activeFormat);
+        const finalTakeoff = workerTakeoff.length > 0 ? workerTakeoff : extractSceneTakeoff(loadedGroup, activeFormat);
+        if (finalTakeoff.length > 0) {
+          onExtractedQuantities?.(finalTakeoff);
         }
       }
       modelRootRef.current = loadedGroup;
@@ -984,8 +980,10 @@ export function Viewer3dEngine({
       window.removeEventListener("keyup", onKeyUp);
       renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
       renderer.domElement.removeEventListener("pointerup", handlePointerUp);
+      disposeObject3D(scene);
       controls.dispose();
       renderer.dispose();
+      renderer.forceContextLoss();
     };
   }, [loadModel]);
 
