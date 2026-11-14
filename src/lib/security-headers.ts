@@ -129,6 +129,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/propostas",
   "/portal",
   "/relatorio",
+  "/acervo",
 ] as const;
 
 export function isProtectedPath(pathname: string): boolean {

@@ -111,7 +111,13 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(target);
     }
 
-    if (currentBuildId && cookieBuildId !== currentBuildId) {
+    if (
+      currentBuildId &&
+      cookieBuildId &&
+      cookieBuildId !== currentBuildId &&
+      cookieBuildId !== "arqvertice-v1" &&
+      currentBuildId !== "arqvertice-v1"
+    ) {
       const target = new URL("/", request.url);
       const res = NextResponse.redirect(target);
       for (const name of [SESSION_COOKIE, ROLE_COOKIE, "arqvertice_permissions", "arqvertice_build_id"]) {
