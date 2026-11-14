@@ -40,6 +40,14 @@ const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; modu
   { label: "Equipe & Governança", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },
 ];
 
+const TEAM_SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }> = [
+  { label: "Briefing", href: "/equipe/briefing", module: "projetos" },
+  { label: "Propostas", href: "/equipe/propostas", module: "projetos" },
+  { label: "Mensagens", href: "/equipe/mensagens", module: "dashboard" },
+  { label: "Serviços", href: "/equipe/servicos", module: "dashboard" },
+  { label: "Configurações", href: "/equipe/configuracoes", module: "equipe" },
+];
+
 export async function AppShell({
   children,
   eyebrow = "Estúdio",
@@ -81,8 +89,13 @@ export async function AppShell({
     const primary = TEAM_MODULE_LINKS.filter(
       (item) => item.module === "dashboard" || effectivePermissions.includes(item.module)
     );
+    const secondary = TEAM_SECONDARY_LINKS.filter(
+      (item) => item.module === "dashboard" || effectivePermissions.includes(item.module)
+    );
 
-    allowedLinks = primary.map((item) => [item.label, item.href] as const);
+    allowedLinks = primary
+      .map((item) => [item.label, item.href] as const)
+      .concat(secondary.map((item) => [item.label, item.href] as const));
 
     if (allowedLinks.length === 0) {
       allowedLinks = [["Painel Técnico", "/equipe"]];

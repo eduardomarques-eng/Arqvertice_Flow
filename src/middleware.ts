@@ -126,9 +126,17 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
 
-    const moduleMatch = pathname.match(/^\/equipe\/(financeiro|equipe)/);
+    const moduleMatch = pathname.match(
+      /^\/equipe\/(projetos|acervo|cronograma|financeiro|clientes|equipe|briefing|propostas|configuracoes)/
+    );
     if (moduleMatch) {
-      const mod = moduleMatch[1];
+      const seg = moduleMatch[1];
+      const mod =
+        seg === "acervo" || seg === "briefing" || seg === "propostas"
+          ? "projetos"
+          : seg === "configuracoes"
+          ? "equipe"
+          : seg;
       const permsCookie = request.cookies.get("arqvertice_permissions")?.value;
       let perms: string[] = [];
       try {

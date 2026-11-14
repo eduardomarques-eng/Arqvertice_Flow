@@ -1,4 +1,4 @@
-﻿# ARqVértice Flow — Blueprint de Engenharia de Produção e Resiliência
+# ARqVértice Flow — Blueprint de Engenharia de Produção e Resiliência
 
 ## Visão Geral
 Este documento descreve os mecanismos operados pela camada de infraestrutura/nuvem do ArqVértice Flow, complementando a implementação em código da camada de aplicação. O objetivo é proporcionar consistência e auditabilidade para as 81 pilares de engenharia de produção.
