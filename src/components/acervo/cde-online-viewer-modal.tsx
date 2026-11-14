@@ -60,11 +60,56 @@ export function CdeOnlineViewerModal({
   const [newRfiTitle, setNewRfiTitle] = useState("");
   const [newRfiDesc, setNewRfiDesc] = useState("");
   const [fieldPhoto, setFieldPhoto] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"RFIS" | "LAYERS" | "METADATA">("RFIS");
+  const [activeTab, setActiveTab] = useState<"RFIS" | "LAYERS" | "QUANTITATIVOS">("RFIS");
   const [answerInput, setAnswerInput] = useState("");
   const [isSavingRfi, setIsSavingRfi] = useState(false);
 
+  const [takeoffs, setTakeoffs] = useState<
+    Array<{ category: string; description: string; quantity: number; unit: string }>
+  >([]);
+  const [extractSource, setExtractSource] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
+
+  async function handleExtractQuantities() {
+    setIsExtracting(true);
+    try {
+      const res = await fetch("/api/acervo/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          revisionId: revision.id,
+          sheetTitle: revision.documentTitle,
+          fileName: revision.fileName,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.takeoffs) {
+        setTakeoffs(data.takeoffs);
+        setExtractSource(data.source || "DETERMINISTIC_PARSER");
+      }
+    } catch {
+      // Silencioso em caso de erro de rede
+    } finally {
+      setIsExtracting(false);
+    }
+  }
+
+  function handleExportCsv() {
+    if (takeoffs.length === 0) return;
+    const header = "Categoria;Descricao;Quantidade;Unidade\n";
+    const rows = takeoffs
+      .map((item) => `"${item.category}";"${item.description.replace(/"/g, '""')}";${item.quantity};"${item.unit}"`)
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `quantitativos-${revision.documentCode}-${revision.revisionNumber}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -359,7 +404,22 @@ export function CdeOnlineViewerModal({
                 activeTab === "RFIS" ? "border-white text-white" : "border-transparent text-slate-400 hover:text-white"
               }`}
             >
-              RFIs & Dúvidas ({rfis.length})
+              RFIs ({rfis.length})
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("QUANTITATIVOS");
+                if (takeoffs.length === 0 && !isExtracting) {
+                  handleExtractQuantities();
+                }
+              }}
+              className={`flex-1 py-3 text-center border-b-2 transition ${
+                activeTab === "QUANTITATIVOS"
+                  ? "border-white text-white"
+                  : "border-transparent text-slate-400 hover:text-white"
+              }`}
+            >
+              Quantitativos (BIM/IA)
             </button>
             <button
               onClick={() => setActiveTab("LAYERS")}
@@ -367,7 +427,7 @@ export function CdeOnlineViewerModal({
                 activeTab === "LAYERS" ? "border-white text-white" : "border-transparent text-slate-400 hover:text-white"
               }`}
             >
-              Camadas / Info
+              Info
             </button>
           </div>
 
@@ -550,6 +610,80 @@ export function CdeOnlineViewerModal({
                       </div>
                     );
                   })
+                )}
+              </div>
+            )}
+
+            {activeTab === "QUANTITATIVOS" && (
+              <div className="space-y-4 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-white">Quantitativos Extraídos</p>
+                    <p className="text-[10px] text-slate-400">
+                      Motor: {extractSource || "Aguardando leitura"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleExtractQuantities}
+                      disabled={isExtracting}
+                      className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:bg-slate-700 transition"
+                    >
+                      {isExtracting ? "Lendo..." : "Reanalisar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportCsv}
+                      disabled={takeoffs.length === 0}
+                      className="rounded-lg bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-slate-100 disabled:opacity-40 transition"
+                    >
+                      Exportar CSV
+                    </button>
+                  </div>
+                </div>
+
+                {isExtracting ? (
+                  <div className="space-y-2.5 pt-2">
+                    <div className="h-10 w-full animate-pulse rounded-xl bg-slate-800/80" />
+                    <div className="h-10 w-full animate-pulse rounded-xl bg-slate-800/80" />
+                    <div className="h-10 w-full animate-pulse rounded-xl bg-slate-800/80" />
+                    <div className="h-10 w-full animate-pulse rounded-xl bg-slate-800/80" />
+                  </div>
+                ) : takeoffs.length === 0 ? (
+                  <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-6 text-center text-slate-400">
+                    Clique em &quot;Reanalisar&quot; para extrair áreas, esquadrias e pontos desta revisão.
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="border-b border-slate-800 bg-slate-900/90 text-[10px] uppercase text-slate-400">
+                        <tr>
+                          <th className="px-2.5 py-2">Item</th>
+                          <th className="px-2.5 py-2 text-right">Qtd</th>
+                          <th className="px-2.5 py-2 text-right">Un</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/70">
+                        {takeoffs.map((item, idx) => (
+                          <tr key={`${item.category}-${idx}`} className="hover:bg-slate-800/40">
+                            <td className="px-2.5 py-2">
+                              <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                {item.category}
+                              </span>
+                              <span className="text-slate-200">{item.description}</span>
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono font-semibold text-white">
+                              {item.quantity}
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono text-slate-400">
+                              {item.unit}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}

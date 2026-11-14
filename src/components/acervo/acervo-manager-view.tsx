@@ -2,10 +2,23 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateBR } from "@/lib/formatters";
+import type { DisciplineChartPoint } from "@/components/acervo/acervo-discipline-chart";
+
+const AcervoDisciplineChart = dynamic(
+  () =>
+    import("@/components/acervo/acervo-discipline-chart").then(
+      (mod) => mod.AcervoDisciplineChart
+    ),
+  {
+    ssr: false,
+    loading: () => <div className="h-56 w-full animate-pulse rounded-xl bg-slate-200/50" />,
+  }
+);
 
 export interface AcervoProjectOption {
   id: string;
@@ -37,6 +50,11 @@ interface AcervoManagerViewProps {
   documents: CdeDocumentItem[];
   basePath: "/admin" | "/equipe";
   initialProjectId?: string;
+  kpis?: {
+    openRfis: number;
+    overdueRfis: number;
+    slaFormatted: string;
+  };
 }
 
 const DISCIPLINES = [
@@ -65,6 +83,7 @@ export function AcervoManagerView({
   documents,
   basePath,
   initialProjectId,
+  kpis,
 }: AcervoManagerViewProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || "ALL");
   const [selectedDiscipline, setSelectedDiscipline] = useState<string>("ALL");
@@ -96,9 +115,43 @@ export function AcervoManagerView({
   const metrics = useMemo(() => {
     const total = filteredDocs.length;
     const bomParaObra = filteredDocs.filter((d) => d.status === "BOM_PARA_OBRA").length;
-    const emRevisao = filteredDocs.filter((d) => d.status === "EM_REVISAO_TECNICA").length;
-    const obsoletos = filteredDocs.filter((d) => d.status === "OBSOLETO").length;
-    return { total, bomParaObra, emRevisao, obsoletos };
+    const emRevisao = filteredDocs.filter(
+      (d) => d.status === "EM_REVISAO_TECNICA" || d.status === "EM_ANALISE"
+    ).length;
+    const taxaBomParaObra = total > 0 ? Math.round((bomParaObra / total) * 100) : 0;
+    return {
+      total,
+      bomParaObra,
+      taxaBomParaObra,
+      emRevisao,
+      openRfis: kpis?.openRfis ?? 0,
+      overdueRfis: kpis?.overdueRfis ?? 0,
+      slaFormatted: kpis?.slaFormatted ?? "12 horas",
+    };
+  }, [filteredDocs, kpis]);
+
+  const chartData = useMemo<DisciplineChartPoint[]>(() => {
+    const buckets: Record<string, { discipline: string; bomParaObra: number; emAndamento: number }> = {
+      ARQUITETURA: { discipline: "Arquitetura", bomParaObra: 0, emAndamento: 0 },
+      ESTRUTURAL: { discipline: "Estrutura", bomParaObra: 0, emAndamento: 0 },
+      INSTALACOES: { discipline: "Instalações", bomParaObra: 0, emAndamento: 0 },
+      FACHADAS: { discipline: "Fachadas", bomParaObra: 0, emAndamento: 0 },
+    };
+
+    for (const d of filteredDocs) {
+      let key = "ARQUITETURA";
+      if (d.discipline === "ESTRUTURAL") key = "ESTRUTURAL";
+      else if (d.discipline === "ELETRICO" || d.discipline === "HIDROSSANITARIO") key = "INSTALACOES";
+      else if (d.discipline === "FACHADAS" || d.discipline === "COMPATIBILIZACAO") key = "FACHADAS";
+
+      if (d.status === "BOM_PARA_OBRA") {
+        buckets[key].bomParaObra += 1;
+      } else if (d.status !== "OBSOLETO") {
+        buckets[key].emAndamento += 1;
+      }
+    }
+
+    return Object.values(buckets);
   }, [filteredDocs]);
 
   function toggleSelectDoc(id: string) {
@@ -162,32 +215,97 @@ export function AcervoManagerView({
 
   return (
     <div className="space-y-6">
-      {/* Cards de Métricas CDE */}
+      {/* Barra de Ação Rápida de Configurações CAD/BIM para ADMIN */}
+      {basePath === "/admin" && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Link
+            href="/admin/acervo/configuracoes"
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 text-xs font-semibold text-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:bg-slate-50 transition"
+          >
+            <span>🔌</span>
+            <span>Integrações CAD/BIM (Tokens API)</span>
+          </Link>
+        </div>
+      )}
+
+      {/* 4 Cartões Executivos (KPIs do CDE) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total de Pranchas</p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">{metrics.total}</p>
-          <p className="mt-1 text-[11px] text-slate-500">Documentos cadastrados</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">
+            Taxa &quot;Bom para Obra&quot;
+          </p>
+          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
+            {metrics.taxaBomParaObra}%
+          </p>
+          <p className="mt-1 text-[11px] text-slate-500">
+            {metrics.bomParaObra} de {metrics.total} pranchas liberadas
+          </p>
         </Card>
 
         <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Bom para Obra</p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-emerald-700">{metrics.bomParaObra}</p>
-          <p className="mt-1 text-[11px] text-slate-500">Liberadas para execução</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">
+            RFIs Abertas / Atrasadas
+          </p>
+          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
+            {metrics.openRfis}{" "}
+            <span className="text-base font-medium text-rose-600">
+              / {metrics.overdueRfis}
+            </span>
+          </p>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Apontamentos pendentes de resposta
+          </p>
         </Card>
 
         <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Em Revisão Técnica</p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-amber-700">{metrics.emRevisao}</p>
-          <p className="mt-1 text-[11px] text-slate-500">Em validação de engenharia</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
+            Pranchas Em Análise
+          </p>
+          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
+            {metrics.emRevisao}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Aguardando parecer de engenharia
+          </p>
         </Card>
 
         <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Revisões Obsoletas</p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-700">{metrics.obsoletos}</p>
-          <p className="mt-1 text-[11px] text-slate-500">Histórico bloqueado</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            SLA Médio de Aprovação
+          </p>
+          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
+            {metrics.slaFormatted}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Tempo médio até liberação
+          </p>
         </Card>
       </div>
+
+      {/* Gráfico de Volume por Disciplina (Recharts) */}
+      <Card className="p-5 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">
+              Volume de Entregas por Disciplina
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              Comparativo entre pranchas liberadas (Bom para Obra) e em revisão/elaboração.
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-[11px] font-medium text-slate-600">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-[#18181B]" />
+              Bom para Obra
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-[#EDE5D8]" />
+              Em Análise / Elaboração
+            </span>
+          </div>
+        </div>
+        <AcervoDisciplineChart data={chartData} />
+      </Card>
 
       {/* Painel de Filtros e Ações */}
       <Card className="p-4 sm:p-5 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">

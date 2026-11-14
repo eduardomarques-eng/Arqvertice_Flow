@@ -1,7 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { requirePageTeamRole } from "@/server/auth";
-import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { getEffectivePermissions } from "@/lib/rbac";
 import { prisma } from "@/server/db";
 import { AcervoProjectDetailView, type ProjectDetailData } from "@/components/acervo/acervo-project-detail-view";
 
@@ -13,7 +13,9 @@ export default async function EquipeAcervoProjectDetailPage({
   params: Promise<{ projectId: string }>;
 }) {
   const user = await requirePageTeamRole();
-  await requireModuleAccess("acervo");
+  if (user.role !== "ADMIN" && !getEffectivePermissions(user).includes("acervo")) {
+    redirect("/equipe");
+  }
   const { projectId } = await params;
 
   const rawProject = await prisma.project.findUnique({

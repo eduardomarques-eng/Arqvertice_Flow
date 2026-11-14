@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/server/db";
-import { uploadAcervoRevision } from "@/server/services/acervo-cde-service";
+import { uploadAcervoRevision, createAcervoGrd } from "@/server/services/acervo-cde-service";
+import { parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
 import crypto from "crypto";
-import { ProjectDiscipline, ProjectStagePhase, AcervoCategory, AcervoFileType } from "@prisma/client";
+import {
+  ProjectDiscipline,
+  ProjectStagePhase,
+  AcervoCategory,
+  AcervoFileType,
+  AcervoWorkflowStatus,
+} from "@prisma/client";
 
 export async function POST(request: Request) {
   try {
@@ -46,64 +53,134 @@ export async function POST(request: Request) {
     });
 
     const body = await request.json();
-    const {
-      projectId = apiToken.projectId,
-      code,
-      title,
-      discipline = "ARQUITETURA",
-      phase = "PROJETO_EXECUTIVO",
-      fileName,
-      fileUrl,
-      fileKey,
-      fileSize,
-      fileType = "DWG",
-      viewUrl,
-      viewKey,
-      viewFileName,
-      viewFileType,
-      extractedMetadata,
-      softwareSource = "AutoCAD/Revit Plugin",
-    } = body;
 
-    if (!projectId || !code || !fileName || !fileUrl) {
+    // Suporta tanto payload estruturado (sourceFile/previewFile/metadata) quanto payload plano
+    const sourceFile = body.sourceFile as
+      | { fileName?: string; fileUrl?: string; fileKey?: string; fileSize?: string; fileType?: string }
+      | undefined;
+    const previewFile = body.previewFile as
+      | { fileName?: string; fileUrl?: string; fileKey?: string; fileType?: string }
+      | undefined;
+
+    const projectCodeInput = (body.projectCode as string | undefined)?.trim();
+    let resolvedProjectId = (body.projectId as string | undefined) || apiToken.projectId;
+
+    if (!resolvedProjectId && projectCodeInput) {
+      const foundProject = await prisma.project.findFirst({
+        where: {
+          OR: [
+            { id: projectCodeInput },
+            { name: { contains: projectCodeInput, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (foundProject) {
+        resolvedProjectId = foundProject.id;
+      }
+    }
+
+    const fileName = sourceFile?.fileName || (body.fileName as string | undefined);
+    const fileUrl = sourceFile?.fileUrl || (body.fileUrl as string | undefined);
+    const fileKey = sourceFile?.fileKey || (body.fileKey as string | undefined);
+    const fileSize = sourceFile?.fileSize || (body.fileSize as string | undefined);
+    const fileType = (sourceFile?.fileType || body.fileType || "DWG") as AcervoFileType;
+
+    const viewUrl = previewFile?.fileUrl || (body.viewUrl as string | undefined);
+    const viewKey = previewFile?.fileKey || (body.viewKey as string | undefined);
+    const viewFileName = previewFile?.fileName || (body.viewFileName as string | undefined);
+    const viewFileType = (previewFile?.fileType || body.viewFileType) as AcervoFileType | undefined;
+
+    const rawCode = (body.code as string | undefined) || (fileName ? fileName.replace(/\.[^/.]+$/, "") : undefined);
+    const discipline = (body.discipline || "ARQUITETURA") as ProjectDiscipline;
+    const phase = (body.phase || "PROJETO_EXECUTIVO") as ProjectStagePhase;
+    const softwareSource = (body.softwareSource as string | undefined) || "AutoCAD/Revit Plugin";
+    const metadata = body.metadata ?? body.extractedMetadata;
+    const title = (body.title as string | undefined) || (metadata?.title as string | undefined) || rawCode;
+
+    if (!resolvedProjectId || !rawCode || !fileName || !fileUrl) {
       return NextResponse.json(
         {
           error:
-            "Parâmetros incompletos. 'projectId', 'code', 'fileName' e 'fileUrl' são obrigatórios.",
+            "Parâmetros incompletos. 'projectId'/'projectCode', 'code' (ou 'fileName') e 'sourceFile.fileUrl' são obrigatórios.",
         },
         { status: 400 }
       );
     }
 
+    // Valida regra de nomenclatura caso o projeto possua bloqueio configurado
+    const namingRule = await prisma.acervoNamingRule.findFirst({
+      where: { projectId: resolvedProjectId },
+    });
+
+    if (namingRule?.policy === "STRICT_BLOCK") {
+      const parsed = parseAndValidateSheetName(fileName, projectCodeInput);
+      if (!parsed.isValid) {
+        return NextResponse.json(
+          {
+            error: parsed.error || "Nome do arquivo fora da máscara CDE obrigatória do empreendimento.",
+            expectedExample: namingRule.example,
+          },
+          { status: 422 }
+        );
+      }
+    }
+
+    const normalizedCode = rawCode.trim().toUpperCase();
+
     const result = await uploadAcervoRevision({
-      projectId,
-      code: code.trim().toUpperCase(),
-      title: title || code,
-      discipline: discipline as ProjectDiscipline,
-      phase: phase as ProjectStagePhase,
+      projectId: resolvedProjectId,
+      code: normalizedCode,
+      title: title || normalizedCode,
+      discipline,
+      phase,
       category: AcervoCategory.PLANTA_TECNICA_PDF,
       fileName,
       fileUrl,
       fileKey,
       fileSize: fileSize || "Arquivo Nativo",
-      fileType: fileType as AcervoFileType,
+      fileType,
       viewUrl,
       viewKey,
       viewFileName,
-      viewFileType: viewFileType as AcervoFileType,
+      viewFileType,
       description: `Sincronizado automaticamente via plugin (${softwareSource})`,
       uploadedById: apiToken.createdById || undefined,
       performedByName: `${apiToken.name} (Plugin Sync)`,
       performedByRole: "SISTEMA_PLUGIN",
     });
 
-    // Se houver metadados extraídos pelo Revit/AutoCAD (selos, quantitativos), salva na revisão
-    if (extractedMetadata) {
+    // Marca revisões anteriores deste documento como OBSOLETO
+    await prisma.acervoRevision.updateMany({
+      where: {
+        documentId: result.document.id,
+        id: { not: result.revision.id },
+      },
+      data: {
+        status: AcervoWorkflowStatus.OBSOLETO,
+        isCurrent: false,
+      },
+    });
+
+    // Se houver metadados do carimbo extraídos pelo Revit/AutoCAD, salva na revisão
+    if (metadata) {
+      const serialized = typeof metadata === "string" ? metadata : JSON.stringify(metadata);
       await prisma.acervoRevision.update({
         where: { id: result.revision.id },
-        data: { extractedMetadata },
+        data: { extractedMetadata: serialized },
       });
     }
+
+    // Emite Guia de Remessa (GRD) automática para a sincronização
+    const grd = await createAcervoGrd({
+      projectId: resolvedProjectId,
+      recipientName: apiToken.createdBy?.name || "Coordenação CDE",
+      recipientOrg: softwareSource,
+      subject: `Sincronização Automática ${normalizedCode} (${result.revision.revisionNumber})`,
+      notes: `GRD emitida automaticamente via ${softwareSource} (Token: ${apiToken.name}).`,
+      revisionIds: [result.revision.id],
+      createdById: apiToken.createdById || undefined,
+    });
 
     return NextResponse.json({
       success: true,
@@ -111,7 +188,8 @@ export async function POST(request: Request) {
       revisionId: result.revision.id,
       revisionNumber: result.revision.revisionNumber,
       status: result.revision.status,
-      message: `Prancha ${result.document.code} revisão ${result.revision.revisionNumber} sincronizada com sucesso no Acervo Manager CDE.`,
+      grdCode: grd.code,
+      message: `Prancha ${result.document.code} revisão ${result.revision.revisionNumber} sincronizada com GRD ${grd.code} no Acervo Manager CDE.`,
     });
   } catch (err: unknown) {
     console.error("[ACERVO_SYNC_PLUGIN_ERROR]", err);

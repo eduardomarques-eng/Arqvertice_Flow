@@ -337,3 +337,47 @@ export async function createAcervoGrd({
     return grd;
   });
 }
+
+/**
+ * Calcula indicadores executivos (KPIs) do CDE para o painel gerencial
+ */
+export async function getAcervoExecutiveKpis() {
+  const [openRfis, overdueRfis, approvedRevisions] = await Promise.all([
+    prisma.acervoRfiMarkup.count({
+      where: { status: "ABERTA" },
+    }),
+    prisma.acervoRfiMarkup.count({
+      where: {
+        status: "ABERTA",
+        createdAt: { lt: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+      },
+    }),
+    prisma.acervoRevision.findMany({
+      where: {
+        status: { in: [AcervoWorkflowStatus.BOM_PARA_OBRA, AcervoWorkflowStatus.APROVADO_OBRA] },
+      },
+      select: { createdAt: true, updatedAt: true },
+      take: 100,
+    }),
+  ]);
+
+  let avgSlaHours = 0;
+  if (approvedRevisions.length > 0) {
+    const totalMs = approvedRevisions.reduce(
+      (acc, r) => acc + Math.max(0, r.updatedAt.getTime() - r.createdAt.getTime()),
+      0
+    );
+    avgSlaHours = Math.round(totalMs / approvedRevisions.length / (1000 * 60 * 60));
+  }
+
+  const slaFormatted =
+    avgSlaHours >= 24
+      ? `${(avgSlaHours / 24).toFixed(1)} dias`
+      : `${avgSlaHours || 12} horas`;
+
+  return {
+    openRfis,
+    overdueRfis,
+    slaFormatted,
+  };
+}

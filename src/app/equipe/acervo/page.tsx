@@ -1,9 +1,11 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
-import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { getEffectivePermissions } from "@/lib/rbac";
 import { prisma } from "@/server/db";
 import { AcervoManagerView, type AcervoProjectOption, type CdeDocumentItem } from "@/components/acervo/acervo-manager-view";
+import { getAcervoExecutiveKpis } from "@/server/services/acervo-cde-service";
 
 export const metadata = { title: "Acervo Manager (CDE) — Equipe ArqVértice" };
 export const dynamic = "force-dynamic";
@@ -14,10 +16,12 @@ export default async function EquipeAcervoPage({
   searchParams: Promise<{ projectId?: string }>;
 }) {
   const user = await requirePageTeamRole();
-  await requireModuleAccess("acervo");
+  if (user.role !== "ADMIN" && !getEffectivePermissions(user).includes("acervo")) {
+    redirect("/equipe");
+  }
   const { projectId } = await searchParams;
 
-  const [rawProjects, rawDocuments] = await Promise.all([
+  const [rawProjects, rawDocuments, kpis] = await Promise.all([
     prisma.project.findMany({
       select: {
         id: true,
@@ -40,6 +44,7 @@ export default async function EquipeAcervoPage({
       },
       orderBy: [{ discipline: "asc" }, { code: "asc" }],
     }),
+    getAcervoExecutiveKpis(),
   ]);
 
   const projects: AcervoProjectOption[] = rawProjects.map((p) => ({
@@ -82,6 +87,7 @@ export default async function EquipeAcervoPage({
           documents={documents}
           basePath="/equipe"
           initialProjectId={projectId}
+          kpis={kpis}
         />
       </div>
     </AppShell>

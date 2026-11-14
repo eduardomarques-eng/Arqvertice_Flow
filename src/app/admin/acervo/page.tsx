@@ -4,6 +4,7 @@ import { requirePageRole } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { AcervoManagerView, type AcervoProjectOption, type CdeDocumentItem } from "@/components/acervo/acervo-manager-view";
 import { seedAcervoManagerDemo } from "@/server/services/acervo-seed";
+import { getAcervoExecutiveKpis } from "@/server/services/acervo-cde-service";
 
 export const metadata = { title: "Acervo Manager (CDE) — ArqVértice Flow" };
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function AdminAcervoPage({
   // Garante carga inicial para homologação
   await seedAcervoManagerDemo();
 
-  const [rawProjects, rawDocuments] = await Promise.all([
+  const [rawProjects, rawDocuments, kpis] = await Promise.all([
     prisma.project.findMany({
       select: {
         id: true,
@@ -42,6 +43,7 @@ export default async function AdminAcervoPage({
       },
       orderBy: [{ discipline: "asc" }, { code: "asc" }],
     }),
+    getAcervoExecutiveKpis(),
   ]);
 
   const projects: AcervoProjectOption[] = rawProjects.map((p) => ({
@@ -84,6 +86,7 @@ export default async function AdminAcervoPage({
           documents={documents}
           basePath="/admin"
           initialProjectId={projectId}
+          kpis={kpis}
         />
       </div>
     </AppShell>
