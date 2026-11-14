@@ -24,8 +24,12 @@ export default async function EquipeAcervoProjectDetailPage({
   }
 
   return (
-    <AppShell eyebrow="Acervo Manager CDE" role={user.role}>
-      <AcervoProjectDetailView project={project} basePath="/equipe" userRole={user.role} />
+    <AppShell eyebrow="Acervo Manager CDE">
+      <AcervoProjectDetailView
+        project={project}
+        basePath="/equipe"
+        userRole={user.role === "ADMIN" ? "ADMIN" : "EQUIPE"}
+      />
     </AppShell>
   );
 }

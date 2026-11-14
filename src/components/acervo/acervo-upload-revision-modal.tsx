@@ -3,6 +3,11 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
+import {
+  ACCEPTED_PRIMARY_EXTENSIONS,
+  ACCEPTED_PREVIEW_EXTENSIONS,
+  normalizeAcervoFileType,
+} from "@/lib/acervo/file-types";
 
 export function AcervoUploadRevisionModal({
   projectId,
@@ -31,10 +36,10 @@ export function AcervoUploadRevisionModal({
   const [phase, setPhase] = useState(initialPhase);
   const [fileName, setFileName] = useState(initialCode ? `${initialCode}-R01.pdf` : "");
   const [fileUrl, setFileUrl] = useState("");
-  const [fileType, setFileType] = useState<"PDF" | "DWG" | "RVT" | "IFC" | "DXF" | "IMG">("PDF");
+  const [fileType, setFileType] = useState<string>("PDF");
   const [viewFileName, setViewFileName] = useState("");
   const [viewUrl, setViewUrl] = useState("");
-  const [viewFileType, setViewFileType] = useState<"PDF" | "DXF" | "IFC" | "IMG">("PDF");
+  const [viewFileType, setViewFileType] = useState<string>("PDF");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -49,16 +54,14 @@ export function AcervoUploadRevisionModal({
   function handleLocalFilePick(e: React.ChangeEvent<HTMLInputElement>, target: "PRIMARY" | "PREVIEW") {
     const file = e.target.files?.[0];
     if (!file) return;
-    const ext = file.name.split(".").pop()?.toUpperCase() || "PDF";
+    const detectedType = normalizeAcervoFileType(null, file.name);
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = typeof reader.result === "string" ? reader.result : "";
       if (target === "PRIMARY") {
         setFileName(file.name);
         setFileUrl(dataUrl || `https://storage.arqvertice.com.br/acervo/${file.name}`);
-        if (["PDF", "DWG", "RVT", "IFC", "DXF", "IMG"].includes(ext)) {
-          setFileType(ext as typeof fileType);
-        }
+        setFileType(detectedType);
         if (!code) {
           setCode(file.name.replace(/\.[^/.]+$/, "").replace(/[-_]R[0-9]{2}$/i, "").toUpperCase());
         }
@@ -68,9 +71,7 @@ export function AcervoUploadRevisionModal({
       } else {
         setViewFileName(file.name);
         setViewUrl(dataUrl || `https://storage.arqvertice.com.br/acervo/${file.name}`);
-        if (["PDF", "DXF", "IFC", "IMG"].includes(ext)) {
-          setViewFileType(ext as typeof viewFileType);
-        }
+        setViewFileType(detectedType);
       }
     };
     if (file.size <= 5 * 1024 * 1024) {
@@ -226,13 +227,13 @@ export function AcervoUploadRevisionModal({
         <div className="rounded-xl border border-slate-200/80 bg-[#F5F5F7] p-3.5 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-900">
-              1. Arquivo Principal (.pdf, .dwg, .rvt, .ifc, .dxf)
+              1. Arquivo Principal (.pdf, .dwg, .rvt, .max, .ifc, .fbx, .glb, .obj, .stl, .3ds)
             </span>
             <label className="cursor-pointer rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 transition">
               Selecionar Arquivo
               <input
                 type="file"
-                accept=".pdf,.dwg,.rvt,.ifc,.dxf,.png,.jpg"
+                accept={ACCEPTED_PRIMARY_EXTENSIONS}
                 className="hidden"
                 onChange={(e) => handleLocalFilePick(e, "PRIMARY")}
               />
@@ -249,13 +250,20 @@ export function AcervoUploadRevisionModal({
             />
             <select
               value={fileType}
-              onChange={(e) => setFileType(e.target.value as typeof fileType)}
+              onChange={(e) => setFileType(e.target.value)}
               className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-800"
             >
               <option value="PDF">PDF</option>
               <option value="DWG">DWG (AutoCAD)</option>
               <option value="RVT">RVT (Revit)</option>
+              <option value="MAX">MAX (3ds Max)</option>
               <option value="IFC">IFC (BIM 3D)</option>
+              <option value="FBX">FBX (3D)</option>
+              <option value="GLB">GLB (3D PBR)</option>
+              <option value="GLTF">GLTF (3D PBR)</option>
+              <option value="OBJ">OBJ (3D)</option>
+              <option value="STL">STL (3D)</option>
+              <option value="TDS">3DS (3D Studio)</option>
               <option value="DXF">DXF (CAD Web)</option>
               <option value="IMG">Imagem</option>
             </select>
@@ -282,13 +290,13 @@ export function AcervoUploadRevisionModal({
         <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-800">
-              2. Par de Visualização Web (Opcional: .pdf, .dxf ou .ifc)
+              2. Par de Visualização Web (Opcional: .pdf, .dxf, .ifc, .fbx, .glb, .obj, .stl, .3ds)
             </span>
             <label className="cursor-pointer rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 transition">
               Anexar Par Web
               <input
                 type="file"
-                accept=".pdf,.dxf,.ifc,.png,.jpg"
+                accept={ACCEPTED_PREVIEW_EXTENSIONS}
                 className="hidden"
                 onChange={(e) => handleLocalFilePick(e, "PREVIEW")}
               />
@@ -297,19 +305,25 @@ export function AcervoUploadRevisionModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <input
               type="text"
-              placeholder="Nome do par (ex: modelo.ifc)"
+              placeholder="Nome do par (ex: maquete.glb ou modelo.ifc)"
               value={viewFileName}
               onChange={(e) => setViewFileName(e.target.value)}
               className="sm:col-span-2 h-8 rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-[11px] text-slate-800"
             />
             <select
               value={viewFileType}
-              onChange={(e) => setViewFileType(e.target.value as typeof viewFileType)}
+              onChange={(e) => setViewFileType(e.target.value)}
               className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-800"
             >
               <option value="PDF">PDF</option>
               <option value="DXF">DXF</option>
               <option value="IFC">IFC 3D</option>
+              <option value="FBX">FBX 3D</option>
+              <option value="GLB">GLB 3D</option>
+              <option value="GLTF">GLTF 3D</option>
+              <option value="OBJ">OBJ 3D</option>
+              <option value="STL">STL 3D</option>
+              <option value="TDS">3DS 3D</option>
               <option value="IMG">Imagem</option>
             </select>
           </div>

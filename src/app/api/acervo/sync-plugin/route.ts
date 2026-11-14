@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/server/db";
 import { uploadAcervoRevision, createAcervoGrd } from "@/server/services/acervo-cde-service";
 import { parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
+import { normalizeAcervoFileType } from "@/lib/acervo/file-types";
 import crypto from "crypto";
 import {
   ProjectDiscipline,
   ProjectStagePhase,
   AcervoCategory,
-  AcervoFileType,
   AcervoWorkflowStatus,
 } from "@prisma/client";
 
@@ -84,12 +84,14 @@ export async function POST(request: Request) {
     const fileUrl = sourceFile?.fileUrl || (body.fileUrl as string | undefined);
     const fileKey = sourceFile?.fileKey || (body.fileKey as string | undefined);
     const fileSize = sourceFile?.fileSize || (body.fileSize as string | undefined);
-    const fileType = (sourceFile?.fileType || body.fileType || "DWG") as AcervoFileType;
+    const fileType = normalizeAcervoFileType(sourceFile?.fileType || (body.fileType as string | undefined) || "DWG", fileName);
 
     const viewUrl = previewFile?.fileUrl || (body.viewUrl as string | undefined);
     const viewKey = previewFile?.fileKey || (body.viewKey as string | undefined);
     const viewFileName = previewFile?.fileName || (body.viewFileName as string | undefined);
-    const viewFileType = (previewFile?.fileType || body.viewFileType) as AcervoFileType | undefined;
+    const viewFileType = viewUrl
+      ? normalizeAcervoFileType(previewFile?.fileType || (body.viewFileType as string | undefined), viewFileName)
+      : undefined;
 
     const rawCode = (body.code as string | undefined) || (fileName ? fileName.replace(/\.[^/.]+$/, "") : undefined);
     const discipline = (body.discipline || "ARQUITETURA") as ProjectDiscipline;

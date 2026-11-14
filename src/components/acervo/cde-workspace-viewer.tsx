@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
-import type { ExtractedIfcTakeoff, Ifc3dRfiPin } from "@/components/acervo/ifc-3d-viewer";
+import type { ExtractedIfcTakeoff, Ifc3dRfiPin, RenderMode } from "@/components/acervo/viewer-3d-engine";
+import { is3dAcervoFormat } from "@/lib/acervo/file-types";
 
 const Dxf2dViewer = dynamic(
   () => import("@/components/acervo/dxf-2d-viewer").then((m) => m.Dxf2dViewer),
@@ -12,8 +13,8 @@ const Dxf2dViewer = dynamic(
   }
 );
 
-const Ifc3dViewer = dynamic(
-  () => import("@/components/acervo/ifc-3d-viewer").then((m) => m.Ifc3dViewer),
+const Viewer3dEngine = dynamic(
+  () => import("@/components/acervo/viewer-3d-engine").then((m) => m.Viewer3dEngine),
   {
     ssr: false,
     loading: () => <div className="h-[520px] w-full animate-pulse rounded-xl bg-slate-200/50" />,
@@ -35,6 +36,8 @@ export interface WorkspaceRfiItem {
     position: [number, number, number];
     target: [number, number, number];
     pinPosition?: [number, number, number];
+    renderMode?: RenderMode;
+    sectionPlanes?: { open: boolean; x: number; y: number; z: number };
   } | null;
   answer?: string | null;
   createdAt: string | Date;
@@ -83,14 +86,18 @@ export function CdeWorkspaceViewer({
     position: [number, number, number];
     target: [number, number, number];
     pinPosition: [number, number, number];
+    renderMode?: RenderMode;
+    sectionPlanes?: { open: boolean; x: number; y: number; z: number };
   }) => void;
   onExtractedIfcQuantities?: (items: ExtractedIfcTakeoff[]) => void;
 }) {
-  const hasIfc =
-    revision.fileType === "IFC" ||
-    revision.viewFileType === "IFC" ||
-    revision.fileName.toLowerCase().endsWith(".ifc") ||
-    Boolean(revision.viewFileName?.toLowerCase().endsWith(".ifc"));
+  const isPrimary3d = is3dAcervoFormat(revision.fileType, revision.fileName);
+  const isView3d = is3dAcervoFormat(revision.viewFileType, revision.viewFileName);
+  const has3d = isPrimary3d || isView3d;
+
+  const active3dUrl = isView3d ? revision.viewUrl : isPrimary3d ? revision.fileUrl : revision.viewUrl || revision.fileUrl;
+  const active3dFileType = isView3d ? revision.viewFileType : isPrimary3d ? revision.fileType : revision.viewFileType || revision.fileType;
+  const active3dFileName = isView3d ? revision.viewFileName : isPrimary3d ? revision.fileName : revision.viewFileName || revision.fileName;
 
   const hasDxf =
     revision.fileType === "DXF" ||
@@ -98,9 +105,16 @@ export function CdeWorkspaceViewer({
     revision.fileName.toLowerCase().endsWith(".dxf") ||
     Boolean(revision.viewFileName?.toLowerCase().endsWith(".dxf"));
 
-  const [viewMode, setViewMode] = useState<"2D" | "3D">(
-    revision.fileType === "IFC" ? "3D" : "2D"
-  );
+  const [viewMode, setViewMode] = useState<"2D" | "3D">(has3d ? "3D" : "2D");
+
+  // Auto-switch to 3D when selecting a 3D RFI from the lateral panel
+  useEffect(() => {
+    if (!selectedRfiId) return;
+    const sel = rfis.find((r) => r.id === selectedRfiId);
+    if (sel?.cameraState && viewMode !== "3D") {
+      setViewMode("3D");
+    }
+  }, [selectedRfiId, rfis, viewMode]);
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
@@ -254,7 +268,7 @@ export function CdeWorkspaceViewer({
                 viewMode === "3D" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              3D BIM {hasIfc ? "(IFC)" : "(Modelo)"}
+              3D {has3d ? `(${active3dFileType || "BIM"})` : "(Modelo)"}
             </button>
           </div>
 
@@ -393,8 +407,10 @@ export function CdeWorkspaceViewer({
       {/* Área Principal do Visualizador */}
       <div className="relative min-h-[520px] w-full overflow-hidden bg-[#F5F5F7]">
         {viewMode === "3D" ? (
-          <Ifc3dViewer
-            ifcUrl={revision.fileType === "IFC" ? revision.fileUrl : revision.viewUrl}
+          <Viewer3dEngine
+            modelUrl={active3dUrl}
+            fileType={active3dFileType}
+            fileName={active3dFileName}
             rfis3d={rfis3d}
             focusedRfiId={selectedRfiId}
             isPlacing3dPin={activeTool === "PIN"}

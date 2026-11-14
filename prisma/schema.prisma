@@ -1289,6 +1289,13 @@ enum AcervoFileType {
   DXF
   IFC
   RVT
+  FBX
+  GLB
+  GLTF
+  OBJ
+  STL
+  TDS
+  MAX
   IMG
   DOC
 }

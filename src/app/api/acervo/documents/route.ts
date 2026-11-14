@@ -3,11 +3,11 @@ import { currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { uploadAcervoRevision, createAcervoGrd } from "@/server/services/acervo-cde-service";
 import { parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
+import { normalizeAcervoFileType } from "@/lib/acervo/file-types";
 import {
   ProjectDiscipline,
   ProjectStagePhase,
   AcervoCategory,
-  AcervoFileType,
   AcervoWorkflowStatus,
 } from "@prisma/client";
 
@@ -76,11 +76,11 @@ export async function POST(request: Request) {
       fileUrl,
       fileKey,
       fileSize,
-      fileType: fileType as AcervoFileType,
+      fileType: normalizeAcervoFileType(fileType, fileName),
       viewUrl,
       viewKey,
       viewFileName,
-      viewFileType: viewFileType as AcervoFileType | undefined,
+      viewFileType: viewUrl ? normalizeAcervoFileType(viewFileType, viewFileName) : undefined,
       description,
       uploadedById: user.id,
       performedByName: user.name,

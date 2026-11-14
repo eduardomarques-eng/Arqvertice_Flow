@@ -154,6 +154,8 @@ export function AcervoProjectDetailView({
       position: [number, number, number];
       target: [number, number, number];
       pinPosition: [number, number, number];
+      renderMode?: string;
+      sectionPlanes?: { open: boolean; x: number; y: number; z: number };
     };
   } | null>(null);
   const [newRfiTitle, setNewRfiTitle] = useState("");
@@ -499,7 +501,7 @@ export function AcervoProjectDetailView({
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => setIsQrOpen(true)}
                   className="h-9 rounded-xl border-slate-200 text-xs font-semibold"
                 >
@@ -509,7 +511,7 @@ export function AcervoProjectDetailView({
                 {!isObsoleteSelected ? (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() =>
                       handleDownloadClick(activeRevision.id, activeRevision.status, activeRevision.fileUrl)
                     }
@@ -521,7 +523,7 @@ export function AcervoProjectDetailView({
                   userRole === "ADMIN" && (
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       onClick={() =>
                         handleDownloadClick(activeRevision.id, activeRevision.status, activeRevision.fileUrl)
                       }
@@ -544,7 +546,7 @@ export function AcervoProjectDetailView({
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       disabled={isUpdatingStatus}
                       onClick={() =>
                         handleStatusTransition(activeRevision.id, "APROVADO_COM_RESSALVAS")
@@ -555,7 +557,7 @@ export function AcervoProjectDetailView({
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       disabled={isUpdatingStatus}
                       onClick={() => handleStatusTransition(activeRevision.id, "REPROVADO")}
                       className="h-9 rounded-xl border-rose-200 text-xs font-semibold text-rose-700 hover:bg-rose-50"
@@ -917,7 +919,7 @@ export function AcervoProjectDetailView({
                         <div className="flex flex-col gap-2 pt-1">
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="secondary"
                             onClick={handleExportCsv}
                             className="w-full h-9 rounded-xl border-slate-200 font-semibold"
                           >
@@ -996,9 +998,16 @@ export function AcervoProjectDetailView({
                                 <span className="font-mono font-bold text-slate-900">
                                   {rfi.code} · {rfi.markupType}
                                 </span>
-                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
-                                  {rfi.status}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  {rfi.cameraState?.renderMode && (
+                                    <span className="rounded bg-[#EDE5D8] px-1.5 py-0.5 text-[9px] font-semibold text-zinc-900">
+                                      3D · {rfi.cameraState.renderMode}
+                                    </span>
+                                  )}
+                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
+                                    {rfi.status}
+                                  </span>
+                                </div>
                               </div>
                               <p className="mt-1 font-semibold text-slate-900">{rfi.title}</p>
                               <p className="mt-0.5 text-[11px] text-slate-500">{rfi.description}</p>
@@ -1090,7 +1099,7 @@ export function AcervoProjectDetailView({
                       <Button
                         type="button"
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() =>
                           downloadTextFile(
                             "ArqVerticeSync.lsp",
@@ -1105,7 +1114,7 @@ export function AcervoProjectDetailView({
                       <Button
                         type="button"
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() =>
                           downloadTextFile(
                             "ArqVerticeSync_script.py",
