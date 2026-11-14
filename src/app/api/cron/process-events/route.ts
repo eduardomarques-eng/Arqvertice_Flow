@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import {
   listPendingEvents,
@@ -12,10 +13,13 @@ export const runtime = "nodejs";
 const CRON_SECRET = process.env.CRON_SECRET;
 
 function requireCronAuth(request: Request): boolean {
+  if (!CRON_SECRET || CRON_SECRET.length < 16) return false;
   const auth = request.headers.get("authorization");
   if (!auth) return false;
   const token = auth.replace(/^Bearer\s+/i, "");
-  return token === CRON_SECRET;
+  const a = Buffer.from(token);
+  const b = Buffer.from(CRON_SECRET);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function GET(request: Request) {

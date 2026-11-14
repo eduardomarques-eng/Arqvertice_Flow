@@ -102,10 +102,22 @@ export function middleware(request: NextRequest) {
   //    dos dois, já no primeiro byte da resposta.
   if (!isPublicPath(pathname) && isProtectedPath(pathname)) {
     const sessionCookie = request.cookies.get(SESSION_COOKIE);
+    const currentBuildId = process.env.APP_BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID;
+    const cookieBuildId = request.cookies.get("arqvertice_build_id")?.value;
+
     if (!sessionCookie) {
-      const target = new URL("/login", request.url);
+      const target = new URL("/", request.url);
       target.searchParams.set("next", pathname + request.nextUrl.search);
       return NextResponse.redirect(target);
+    }
+
+    if (currentBuildId && cookieBuildId !== currentBuildId) {
+      const target = new URL("/", request.url);
+      const res = NextResponse.redirect(target);
+      for (const name of [SESSION_COOKIE, ROLE_COOKIE, "arqvertice_permissions", "arqvertice_build_id"]) {
+        res.cookies.set(name, "", { maxAge: 0, path: "/" });
+      }
+      return res;
     }
 
     const role = request.cookies.get(ROLE_COOKIE)?.value ?? null;

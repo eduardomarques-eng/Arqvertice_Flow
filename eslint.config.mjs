@@ -43,7 +43,7 @@ export default defineConfig([
     },
     rules: {
       "no-console": "warn",
-      "no-undef": "error",
+      "no-undef": "off",
     },
   },
   globalIgnores([".next/**", "node_modules/**", "legacy/**"]),

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/server/db";
 import { createHash } from "crypto";
+import { getCurrentBuildId } from "@/server/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -59,6 +60,20 @@ export async function GET() {
         { valid: false, reason: "PERMISSIONS_UPDATED" },
         { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } }
       );
+    }
+
+    // 3. Novo build/deploy publicado -> invalida sessão antiga e limpa cookies
+    const currentBuildId = getCurrentBuildId();
+    if (session.buildId && session.buildId !== currentBuildId) {
+      await prisma.session.delete({ where: { id: session.id } }).catch(() => null);
+      const res = NextResponse.json(
+        { valid: false, reason: "BUILD_UPDATED" },
+        { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
+      for (const name of ["arqvertice_session", "arqvertice_role", "arqvertice_permissions", "arqvertice_build_id"]) {
+        res.cookies.set(name, "", { maxAge: 0, path: "/" });
+      }
+      return res;
     }
 
     // 3. Atualiza heartbeat lastSeenAt de forma assíncrona

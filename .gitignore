@@ -1,6 +1,6 @@
 *.ps1
 !scripts/*.ps1
-# Pastas pesadas e módulos desconectados
+# Pastas pesadas e mÃ³dulos desconectados
 OmniRoute/
 .tmp.*
 *.tmp
@@ -17,7 +17,7 @@ test-results/
 .whatsapp-session/
 *.session
 
-# Ambiente e segredos — mantenha apenas .env.example versionado.
+# Ambiente e segredos â€” mantenha apenas .env.example versionado.
 .env
 .env.*
 !.env.example
@@ -33,5 +33,7 @@ test-results/
 desktop.ini
 *.ini
 
-# Agente local � skills de auditoria e workspace do agent (n�o versionar)
+# Agente local — skills de auditoria e workspace do agent (não versionar)
 .agents/
+
+.next-custom-build-id

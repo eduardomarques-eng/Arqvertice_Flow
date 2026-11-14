@@ -13,8 +13,13 @@ const COOKIE = "arqvertice_session";
 // Cookie de papel (somente leitura na borda/middleware): isolamento de rota
 // antecipado (/admin vs /equipe vs /portal) sem consulta ao banco.
 const ROLE_COOKIE = "arqvertice_role";
+const BUILD_COOKIE = "arqvertice_build_id";
 // Session cookie: expira ao fechar o navegador (sem maxAge/expires no cookie).
 const SESSION_EXPIRES_MS = 1000 * 60 * 60 * 2; // 2 horas
+
+export function getCurrentBuildId(): string {
+  return process.env.APP_BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID || "dev-build";
+}
 
 export { hashPassword, verifyPassword };
 
@@ -39,11 +44,13 @@ export async function signIn(email: string, password: string) {
   }
 
   const token = randomBytes(32).toString("hex");
+  const currentBuildId = getCurrentBuildId();
   await prisma.session.create({
     data: {
       tokenHash: tokenHash(token),
       userId: user.id,
       sessionVersion: user.sessionVersion,
+      buildId: currentBuildId,
       expiresAt: new Date(Date.now() + SESSION_EXPIRES_MS),
     },
   });
@@ -80,8 +87,14 @@ export async function signIn(email: string, password: string) {
     sameSite: "lax",
     path: "/",
   });
+  (await cookies()).set(BUILD_COOKIE, currentBuildId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
 
-  return { id: user.id, name: user.name, role: user.role };
+  return { id: user.id, name: user.name, role: user.role, buildId: currentBuildId };
 }
 
 export async function signOut(reason?: string) {
@@ -107,6 +120,7 @@ export async function signOut(reason?: string) {
   store.delete(COOKIE);
   store.delete(ROLE_COOKIE);
   store.delete("arqvertice_permissions");
+  store.delete(BUILD_COOKIE);
 }
 
 export async function currentUser() {
@@ -155,6 +169,20 @@ export async function currentUser() {
       userRole: session.user.role,
       eventType: "FORCED_LOGOUT",
       deviceInfo: "Permissões ou credenciais atualizadas pelo Administrador",
+    });
+    await prisma.session.delete({ where: { id: session.id } });
+    return null;
+  }
+
+  // 4. Novo build/deploy publicado -> invalida sessões de builds anteriores
+  if (session.buildId && session.buildId !== getCurrentBuildId()) {
+    await logUserTrafficEvent({
+      userId: session.user.id,
+      userName: session.user.name,
+      userEmail: session.user.email,
+      userRole: session.user.role,
+      eventType: "FORCED_LOGOUT",
+      deviceInfo: "Sessão invalidada por novo build/deploy",
     });
     await prisma.session.delete({ where: { id: session.id } });
     return null;

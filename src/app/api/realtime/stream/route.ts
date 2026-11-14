@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eventBus, DomainEventEnvelope } from "@/server/events/event-bus";
+import { currentUser } from "@/server/auth";
 
 export const runtime = "nodejs";
 
@@ -36,8 +37,8 @@ function validateHeaders(headers: Headers): boolean {
  * Connection: keep-alive
  */
 export async function GET(request: NextRequest) {
-  const sessionToken = request.cookies.get("arqvertice_session")?.value;
-  if (!sessionToken) {
+  const user = await currentUser();
+  if (!user) {
     return NextResponse.json(
       { error: "Não autorizado. Sessão inválida." },
       { status: 401, headers: { "Content-Type": "application/json" } }
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
       send(`{"type":"connected","ts":${Date.now()}}`);
 
       // Registrar conexão ativa
-      console.log(`[SSE] Cliente conectado. Session: ${sessionToken.slice(0, 8)}...`);
+      console.log(`[SSE] Cliente conectado. User: ${user.id}`);
 
       // Timeout de inatividade
       let lastActivity = Date.now();
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
       try {
         navigator?.serviceWorker?.controller?.postMessage?.({
           type: "SSE_REGISTER",
-          sessionToken,
+          userId: user.id,
           onMessage: messageHandler,
         });
       } catch {

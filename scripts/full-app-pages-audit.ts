@@ -3,6 +3,7 @@ import path from "node:path";
 
 const BASE_URL = process.env.AUDIT_BASE_URL || "http://127.0.0.1:3000";
 const TARGET_PROJECT_ID = "8ed368d6-e601-4c67-98f3-db6bed920e0a";
+const SECOND_PROJECT_ID = "2b2bdf4e-4e85-4762-b57d-ac0274c53bb5";
 
 interface AuditRow {
   role: string;
@@ -136,8 +137,10 @@ async function main() {
     "/equipe",
     "/equipe/cronograma",
     `/equipe/cronograma/${TARGET_PROJECT_ID}`,
+    `/equipe/cronograma/${SECOND_PROJECT_ID}`,
     "/equipe/projetos",
     `/equipe/projetos/${TARGET_PROJECT_ID}`,
+    `/equipe/projetos/${SECOND_PROJECT_ID}`,
     `/equipe/projetos/${TARGET_PROJECT_ID}/cronograma`,
     `/equipe/projetos/${TARGET_PROJECT_ID}/relatorio`,
     "/equipe/financeiro",
@@ -153,10 +156,12 @@ async function main() {
     results.push(await probeRoute("ENGENHEIRO", r, wagnerCookie, [200], "/admin/"));
   }
 
-  // 5. Isolamento RBAC e Proteção de Borda
+  // 5. Isolamento RBAC, Proteção de Borda e BUILD_ID
   results.push(await probeRoute("ENGENHEIRO (RBAC)", "/admin", wagnerCookie, [307]));
   results.push(await probeRoute("ENGENHEIRO (RBAC)", "/admin/configuracoes", wagnerCookie, [307]));
   results.push(await probeRoute("ENGENHEIRO (RBAC)", "/api/admin/settings", wagnerCookie, [403]));
+  const staleBuildCookie = wagnerCookie.replace(/arqvertice_build_id=[^;]+/, "arqvertice_build_id=stale-build-000");
+  results.push(await probeRoute("ENGENHEIRO (STALE BUILD_ID)", "/equipe", staleBuildCookie, [307]));
   results.push(await probeRoute("ANON (RBAC)", "/portal", null, [307]));
   results.push(await probeRoute("ANON (RBAC)", "/portal/projetos", null, [307]));
   results.push(await probeRoute("ANON (RBAC)", "/portal/relatorio", null, [307]));

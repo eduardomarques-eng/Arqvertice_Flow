@@ -189,6 +189,7 @@ model Session {
   tokenHash      String   @unique
   userId         String   @db.Uuid
   sessionVersion Int      @default(1)
+  buildId        String?
   expiresAt      DateTime
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt      DateTime @default(now())

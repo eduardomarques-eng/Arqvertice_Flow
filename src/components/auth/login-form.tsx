@@ -41,6 +41,10 @@ export function LoginForm() {
 
       sessionStorage.setItem("arqvertice_active_tab_session", "1");
       sessionStorage.setItem("arqvertice_tab_authenticated", "true");
+      sessionStorage.setItem(
+        "arqvertice_build_id",
+        data?.user?.buildId || process.env.NEXT_PUBLIC_BUILD_ID || ""
+      );
       sessionStorage.setItem("arqvertice_last_activity", String(Date.now()));
       const role = data?.user?.role;
       const nextParam = searchParams.get("next");
