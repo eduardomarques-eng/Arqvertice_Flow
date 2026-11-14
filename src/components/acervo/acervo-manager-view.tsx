@@ -215,9 +215,16 @@ export function AcervoManagerView({
 
   return (
     <div className="space-y-6">
-      {/* Barra de Ação Rápida de Configurações CAD/BIM para ADMIN */}
-      {basePath === "/admin" && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
+      {/* Barra de Ação Rápida de Plugins & Configurações CAD/BIM */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Link
+          href={`${basePath}/acervo/plugins`}
+          className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#18181B] px-4 text-xs font-semibold text-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] hover:bg-zinc-800 transition"
+        >
+          <span>🧩</span>
+          <span>Central de Plugins (Revit · AutoCAD · TQS · 3ds Max)</span>
+        </Link>
+        {basePath === "/admin" && (
           <Link
             href="/admin/acervo/configuracoes"
             className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 text-xs font-semibold text-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:bg-slate-50 transition"
@@ -225,8 +232,8 @@ export function AcervoManagerView({
             <span>🔌</span>
             <span>Integrações CAD/BIM (Tokens API)</span>
           </Link>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 4 Cartões Executivos (KPIs do CDE) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
