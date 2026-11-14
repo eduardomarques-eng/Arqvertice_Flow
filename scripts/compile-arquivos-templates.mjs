@@ -43,10 +43,11 @@ const ARQUIVOS_ROOT =
 const OUTPUT_ROOT = path.resolve(REPO_ROOT, "public", "assets", "3d-templates");
 const OUTPUT_HDRI_DIR = path.join(OUTPUT_ROOT, "hdri");
 const OUTPUT_MODELS_DIR = path.join(OUTPUT_ROOT, "models");
+const OUTPUT_AVATARS_DIR = path.join(OUTPUT_ROOT, "avatars");
 const OUTPUT_POSTERS_DIR = path.join(OUTPUT_ROOT, "posters");
 const OUTPUT_MANIFEST_PATH = path.join(OUTPUT_ROOT, "manifest.json");
 
-for (const dir of [OUTPUT_ROOT, OUTPUT_HDRI_DIR, OUTPUT_MODELS_DIR, OUTPUT_POSTERS_DIR]) {
+for (const dir of [OUTPUT_ROOT, OUTPUT_HDRI_DIR, OUTPUT_MODELS_DIR, OUTPUT_AVATARS_DIR, OUTPUT_POSTERS_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -704,72 +705,103 @@ function parseWavefrontObjAndExtractMeshes(objFilePath, options = {}) {
 }
 
 // ============================================================================
-// 6. PROCEDURAL + HYBRID ARCHITECTURAL PRIMITIVE BUILDERS WITH FULL UV
+// 6. GLB/GLTF EXTRACTOR (PRIORIDADE 1) — ZERO MODELAGEM PROCEDURAL
 // ============================================================================
-function createBoxGeometry(width, height, depth, centerX, minY, centerZ) {
-  const hw = width * 0.5;
-  const hd = depth * 0.5;
-  const x0 = centerX - hw,
-    x1 = centerX + hw;
-  const y0 = minY,
-    y1 = minY + height;
-  const z0 = centerZ - hd,
-    z1 = centerZ + hd;
+async function parseGlbAndExtractMeshes(glbFilePath, options = {}) {
+  if (!fs.existsSync(glbFilePath)) return null;
+  await MeshoptDecoder.ready;
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ "meshopt.decoder": MeshoptDecoder });
+  const doc = await io.read(glbFilePath);
+  const rawMeshes = [];
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-  // 6 faces * 4 vertices = 24 vertices
-  const positions = new Float32Array([
-    // Front (+Z)
-    x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1,
-    // Back (-Z)
-    x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0,
-    // Top (+Y)
-    x0, y1, z1, x1, y1, z1, x1, y1, z0, x0, y1, z0,
-    // Bottom (-Y)
-    x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1,
-    // Right (+X)
-    x1, y0, z1, x1, y0, z0, x1, y1, z0, x1, y1, z1,
-    // Left (-X)
-    x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0,
-  ]);
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const posAcc = prim.getAttribute("POSITION");
+      if (!posAcc) continue;
+      const normAcc = prim.getAttribute("NORMAL");
+      const uvAcc = prim.getAttribute("TEXCOORD_0");
+      const idxAcc = prim.getIndices();
 
-  const normals = new Float32Array([
-    0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
-    0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1,
-    0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
-    0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0,
-    1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
-    -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0,
-  ]);
+      const posArr = posAcc.getArray();
+      const count = posAcc.getCount();
+      const positions = new Float32Array(count * 3);
+      const normals = new Float32Array(count * 3);
+      const uvs = new Float32Array(count * 2);
 
-  const uw = Math.max(1, Math.round(width));
-  const uh = Math.max(1, Math.round(height));
-  const ud = Math.max(1, Math.round(depth));
+      for (let i = 0; i < count; i++) {
+        const x = posArr[i * 3];
+        const y = posArr[i * 3 + 1];
+        const z = posArr[i * 3 + 2];
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
 
-  const uvs = new Float32Array([
-    // Front (+Z)
-    0, 0, uw, 0, uw, uh, 0, uh,
-    // Back (-Z)
-    uw, 0, 0, 0, 0, uh, uw, uh,
-    // Top (+Y)
-    0, ud, uw, ud, uw, 0, 0, 0,
-    // Bottom (-Y)
-    0, 0, uw, 0, uw, ud, 0, ud,
-    // Right (+X)
-    0, 0, ud, 0, ud, uh, 0, uh,
-    // Left (-X)
-    ud, 0, 0, 0, 0, uh, ud, uh,
-  ]);
+        if (normAcc) {
+          const nArr = normAcc.getArray();
+          normals[i * 3] = nArr[i * 3];
+          normals[i * 3 + 1] = nArr[i * 3 + 1];
+          normals[i * 3 + 2] = nArr[i * 3 + 2];
+        } else {
+          normals[i * 3] = 0; normals[i * 3 + 1] = 1; normals[i * 3 + 2] = 0;
+        }
+        if (uvAcc) {
+          const uArr = uvAcc.getArray();
+          uvs[i * 2] = uArr[i * 2];
+          uvs[i * 2 + 1] = uArr[i * 2 + 1];
+        } else {
+          uvs[i * 2] = ((x % 1) + 1) % 1;
+          uvs[i * 2 + 1] = ((z % 1) + 1) % 1;
+        }
+      }
 
-  const indices = new Uint32Array([
-    0, 1, 2, 0, 2, 3,
-    4, 5, 6, 4, 6, 7,
-    8, 9, 10, 8, 10, 11,
-    12, 13, 14, 12, 14, 15,
-    16, 17, 18, 16, 18, 19,
-    20, 21, 22, 20, 22, 23,
-  ]);
+      const indices = idxAcc
+        ? new Uint32Array(idxAcc.getArray())
+        : Uint32Array.from({ length: count }, (_, idx) => idx);
 
-  return { positions, normals, uvs, indices };
+      rawMeshes.push({
+        key: mesh.getName() || "glb_mesh",
+        positions,
+        normals,
+        uvs,
+        indices,
+        presetId: options.presetOverride || "ceramica_acetinada",
+      });
+    }
+  }
+
+  if (rawMeshes.length === 0) return null;
+
+  const height = maxY - minY || 1;
+  const scale = options.targetHeightMeters ? options.targetHeightMeters / height : 1;
+  const centerX = (minX + maxX) * 0.5;
+  const floorY = minY;
+  const centerZ = (minZ + maxZ) * 0.5;
+  const targetOffset = options.targetPosition || [0, 0, 0];
+
+  for (const m of rawMeshes) {
+    for (let i = 0; i < m.positions.length; i += 3) {
+      m.positions[i] = (m.positions[i] - centerX) * scale + targetOffset[0];
+      m.positions[i + 1] = (m.positions[i + 1] - floorY) * scale + targetOffset[1];
+      m.positions[i + 2] = (m.positions[i + 2] - centerZ) * scale + targetOffset[2];
+    }
+  }
+
+  return {
+    rawVertexCount: rawMeshes.reduce((acc, m) => acc + m.positions.length / 3, 0),
+    sizeMeters: [
+      Number(((maxX - minX) * scale).toFixed(3)),
+      Number(((maxY - minY) * scale).toFixed(3)),
+      Number(((maxZ - minZ) * scale).toFixed(3)),
+    ],
+    primitives: rawMeshes,
+  };
 }
 
 // ============================================================================
@@ -834,18 +866,8 @@ async function buildAndOptimizeGlb(sceneSpec, outputGlbPath, textureMap = {}) {
     materialsMap.set(preset.id, mat);
   }
 
-  // Agrupa caixas e malhas importadas por presetId para minimizar draw calls
+  // Agrupa exclusivamente malhas reais importadas por presetId (Zero Modelagem Procedural)
   const groupedGeoms = new Map();
-  for (const box of sceneSpec.boxes || []) {
-    const geom = createBoxGeometry(box.w, box.h, box.d, box.x, box.y, box.z);
-    let list = groupedGeoms.get(box.presetId);
-    if (!list) {
-      list = [];
-      groupedGeoms.set(box.presetId, list);
-    }
-    list.push({ name: box.name, ...geom });
-  }
-
   for (const extPrim of sceneSpec.importedPrimitives || []) {
     let list = groupedGeoms.get(extPrim.presetId);
     if (!list) {
@@ -859,6 +881,10 @@ async function buildAndOptimizeGlb(sceneSpec, outputGlbPath, textureMap = {}) {
       uvs: extPrim.uvs,
       indices: extPrim.indices,
     });
+  }
+
+  if (groupedGeoms.size === 0) {
+    throw new Error(`Nenhuma geometria real importada encontrada para ${sceneSpec.name}`);
   }
 
   let totalVertices = 0;
@@ -1243,40 +1269,43 @@ async function main() {
       })
     : null;
 
-  // TEMPLATE 1: Cozinha Interna Gourmet (FENIX Kitchen)
+  const bedFbxPath = path.join(
+    ARQUIVOS_ROOT,
+    "Projetos",
+    "Blocos",
+    "cama -2",
+    "Modern Bed",
+    "Modern Bed 01.fbx"
+  );
+  const sofaFbxPath = path.join(
+    ARQUIVOS_ROOT,
+    "Projetos",
+    "Blocos",
+    "sofa sala",
+    "sofa.FBX"
+  );
+  const importedBed = fs.existsSync(bedFbxPath)
+    ? parseFbxAndExtractMeshes(bedFbxPath, {
+        unitScale: 0.001,
+        maxFacesPerGroup: 1200,
+        targetPosition: [0, 0, -1.1],
+        presetOverride: "tecido_juta_linho",
+      })
+    : null;
+  const importedSofa = fs.existsSync(sofaFbxPath)
+    ? parseFbxAndExtractMeshes(sofaFbxPath, {
+        unitScale: 0.001,
+        maxFacesPerGroup: 1200,
+        targetPosition: [0, 0, 1.1],
+        presetOverride: "tecido_juta_linho",
+      })
+    : null;
+
+  // TEMPLATE 1: Cozinha Interna Gourmet (FENIX Kitchen — 100% malha real importada)
   const kitchenSpec = {
     name: "Cozinha_Gourmet_FENIX",
-    boxes: [
-      { name: "piso_cozinha", w: 7.2, h: 0.06, d: 6.4, x: 0, y: -0.06, z: 0, presetId: "ceramica_acetinada" },
-      { name: "parede_fundo", w: 7.2, h: 3.1, d: 0.18, x: 0, y: 0, z: -3.1, presetId: "ceramica_acetinada" },
-      { name: "parede_esq", w: 0.18, h: 3.1, d: 6.4, x: -3.5, y: 0, z: 0, presetId: "ceramica_acetinada" },
-      { name: "painel_freijo", w: 6.8, h: 2.95, d: 0.06, x: 0, y: 0.05, z: -2.96, presetId: "madeira_deck_natural" },
-      { name: "armario_baixo_fenix", w: 4.6, h: 0.86, d: 0.65, x: -0.6, y: 0, z: -2.58, presetId: "metal_matte_black" },
-      { name: "tampo_fundo_calacatta", w: 4.66, h: 0.05, d: 0.68, x: -0.6, y: 0.86, z: -2.57, presetId: "pedra_bancada_clearcoat" },
-      { name: "backsplash_calacatta", w: 4.6, h: 0.68, d: 0.03, x: -0.6, y: 0.91, z: -2.89, presetId: "pedra_bancada_clearcoat" },
-      { name: "armario_sup_fenix", w: 4.6, h: 0.92, d: 0.38, x: -0.6, y: 1.62, z: -2.72, presetId: "metal_matte_black" },
-      { name: "porta_vidro_reflecta", w: 2.2, h: 0.84, d: 0.02, x: -0.6, y: 1.66, z: -2.52, presetId: "vidro_pele_de_vidro" },
-      { name: "fita_led_bancada_2700k", w: 4.4, h: 0.02, d: 0.03, x: -0.6, y: 1.6, z: -2.42, presetId: "fita_led_2700k" },
-      { name: "torre_fornos_fenix", w: 1.35, h: 2.54, d: 0.68, x: 2.38, y: 0, z: -2.56, presetId: "metal_matte_black" },
-      { name: "forno_embutido_inox", w: 0.6, h: 0.6, d: 0.03, x: 2.05, y: 0.95, z: -2.21, presetId: "inox_escovado" },
-      { name: "microondas_inox", w: 0.6, h: 0.42, d: 0.03, x: 2.05, y: 1.62, z: -2.21, presetId: "inox_escovado" },
-      { name: "ilha_base_fenix", w: 3.1, h: 0.88, d: 1.12, x: -0.2, y: 0, z: -0.35, presetId: "metal_matte_black" },
-      { name: "ilha_tampo_calacatta", w: 3.24, h: 0.06, d: 1.24, x: -0.2, y: 0.88, z: -0.35, presetId: "pedra_bancada_clearcoat" },
-      { name: "ilha_cascata_esq", w: 0.06, h: 0.94, d: 1.24, x: -1.79, y: 0, z: -0.35, presetId: "pedra_bancada_clearcoat" },
-      { name: "ilha_cascata_dir", w: 0.06, h: 0.94, d: 1.24, x: 1.39, y: 0, z: -0.35, presetId: "pedra_bancada_clearcoat" },
-      { name: "fita_led_ilha_2700k", w: 3.0, h: 0.025, d: 0.03, x: -0.2, y: 0.85, z: 0.24, presetId: "fita_led_2700k" },
-      { name: "coifa_inox_ilha", w: 0.95, h: 0.95, d: 0.55, x: -0.2, y: 2.05, z: -0.35, presetId: "inox_escovado" },
-      { name: "luminaria_linear_ilha", w: 2.4, h: 0.04, d: 0.06, x: -0.2, y: 2.15, z: -0.35, presetId: "fita_led_2700k" },
-      { name: "banqueta_1_base", w: 0.42, h: 0.66, d: 0.42, x: -1.1, y: 0, z: 0.55, presetId: "metal_matte_black" },
-      { name: "banqueta_1_assento", w: 0.46, h: 0.08, d: 0.44, x: -1.1, y: 0.66, z: 0.55, presetId: "tecido_juta_linho" },
-      { name: "banqueta_2_base", w: 0.42, h: 0.66, d: 0.42, x: -0.2, y: 0, z: 0.55, presetId: "metal_matte_black" },
-      { name: "banqueta_2_assento", w: 0.46, h: 0.08, d: 0.44, x: -0.2, y: 0.66, z: 0.55, presetId: "tecido_juta_linho" },
-      { name: "banqueta_3_base", w: 0.42, h: 0.66, d: 0.42, x: 0.7, y: 0, z: 0.55, presetId: "metal_matte_black" },
-      { name: "banqueta_3_assento", w: 0.46, h: 0.08, d: 0.44, x: 0.7, y: 0.66, z: 0.55, presetId: "tecido_juta_linho" },
-      { name: "caixilho_lateral_vidro", w: 0.04, h: 2.85, d: 4.8, x: -3.38, y: 0.1, z: -0.2, presetId: "vidro_pele_de_vidro" },
-    ],
     importedPrimitives: [
-      ...(importedFenixKitchen ? importedFenixKitchen.primitives.slice(0, 16) : []),
+      ...(importedFenixKitchen ? importedFenixKitchen.primitives.slice(0, 24) : []),
     ],
   };
 
@@ -1288,35 +1317,8 @@ async function main() {
     madeira_deck_natural: "Modelos/casa modelo/maps/House_Type1_02.jpg",
   };
 
-  // TEMPLATE 2: Fachada Contemporânea, Deck Cumaru & Área de Lazer
-  const facadeSpec = {
-    name: "Fachada_Deck_Area_Lazer",
-    boxes: [
-      { name: "base_terreno_mineral", w: 14.0, h: 0.08, d: 12.0, x: 0, y: -0.08, z: 0, presetId: "ceramica_acetinada" },
-      { name: "deck_madeira_cumaru", w: 11.2, h: 0.06, d: 5.4, x: 0, y: 0, z: 1.4, presetId: "madeira_deck_natural" },
-      { name: "borda_piscina_pedra", w: 7.6, h: 0.14, d: 3.4, x: 0.8, y: 0, z: 3.2, presetId: "pedra_bancada_clearcoat" },
-      { name: "lamina_agua_piscina", w: 7.2, h: 0.11, d: 3.0, x: 0.8, y: 0.02, z: 3.2, presetId: "agua_piscina" },
-      { name: "led_piscina_2700k", w: 6.8, h: 0.03, d: 0.04, x: 0.8, y: 0.06, z: 1.75, presetId: "fita_led_2700k" },
-      { name: "bloco_terreo_pedra", w: 10.4, h: 3.2, d: 4.8, x: 0, y: 0, z: -2.4, presetId: "pedra_bancada_clearcoat" },
-      { name: "laje_balanco_acm", w: 11.4, h: 0.38, d: 5.8, x: 0.2, y: 3.2, z: -2.1, presetId: "metal_matte_black" },
-      { name: "bloco_superior_branco", w: 8.6, h: 3.0, d: 4.4, x: 0.6, y: 3.58, z: -2.3, presetId: "ceramica_acetinada" },
-      { name: "cobertura_platibanda_acm", w: 9.2, h: 0.34, d: 4.9, x: 0.6, y: 6.58, z: -2.2, presetId: "metal_matte_black" },
-      { name: "pele_vidro_terreo", w: 6.8, h: 3.05, d: 0.06, x: 0.4, y: 0.08, z: -0.02, presetId: "vidro_pele_de_vidro" },
-      { name: "pele_vidro_superior", w: 5.8, h: 2.8, d: 0.06, x: 0.8, y: 3.62, z: -0.12, presetId: "vidro_pele_de_vidro" },
-      { name: "guarda_corpo_varanda", w: 8.2, h: 1.1, d: 0.04, x: 0.6, y: 3.58, z: 0.68, presetId: "vidro_pele_de_vidro" },
-      { name: "forro_beiral_cumaru", w: 10.8, h: 0.04, d: 1.6, x: 0.2, y: 3.16, z: 0.0, presetId: "madeira_deck_natural" },
-      { name: "brise_vertical_1", w: 0.12, h: 2.95, d: 0.35, x: -2.8, y: 3.6, z: -0.05, presetId: "metal_matte_black" },
-      { name: "brise_vertical_2", w: 0.12, h: 2.95, d: 0.35, x: -2.3, y: 3.6, z: -0.05, presetId: "metal_matte_black" },
-      { name: "brise_vertical_3", w: 0.12, h: 2.95, d: 0.35, x: -1.8, y: 3.6, z: -0.05, presetId: "metal_matte_black" },
-      { name: "brise_vertical_4", w: 0.12, h: 2.95, d: 0.35, x: -1.3, y: 3.6, z: -0.05, presetId: "metal_matte_black" },
-      { name: "fita_led_beiral_terreo", w: 9.6, h: 0.03, d: 0.05, x: 0.2, y: 3.18, z: 0.72, presetId: "fita_led_2700k" },
-      { name: "fita_led_cobertura_sup", w: 8.4, h: 0.03, d: 0.05, x: 0.6, y: 6.55, z: 0.18, presetId: "fita_led_2700k" },
-      { name: "lounger_1_base", w: 0.75, h: 0.28, d: 1.95, x: -3.6, y: 0.06, z: 2.4, presetId: "madeira_deck_natural" },
-      { name: "lounger_1_colchao", w: 0.7, h: 0.09, d: 1.88, x: -3.6, y: 0.34, z: 2.4, presetId: "tecido_juta_linho" },
-      { name: "lounger_2_base", w: 0.75, h: 0.28, d: 1.95, x: -2.4, y: 0.06, z: 2.4, presetId: "madeira_deck_natural" },
-      { name: "lounger_2_colchao", w: 0.7, h: 0.09, d: 1.88, x: -2.4, y: 0.34, z: 2.4, presetId: "tecido_juta_linho" },
-    ],
-  };
+  // TEMPLATE 2: Fachada Contemporânea (.max fechado — Zero Fallback Procedural)
+  const facadeSpec = null;
 
   const facadeTextures = {
     madeira_deck_natural: "Modelos/casa modelo/maps/House_Type1_02.jpg",
@@ -1325,23 +1327,11 @@ async function main() {
     pedra_bancada_clearcoat: "Modelos/casa modelo/maps/House_Type1_03.jpg",
   };
 
-  // TEMPLATE 3: Móvel de Design Autoral & Armário Boffi (com malhas reais importadas)
+  // TEMPLATE 3: Móvel de Design Autoral & Armário Boffi (100% malha real importada)
   const furnitureSpec = {
     name: "Movel_Design_Autoral_Boffi",
-    boxes: [
-      { name: "piso_estudio_marcenaria", w: 5.6, h: 0.05, d: 4.8, x: 0, y: -0.05, z: 0, presetId: "ceramica_acetinada" },
-      { name: "parede_galeria", w: 5.6, h: 2.9, d: 0.14, x: 0, y: 0, z: -2.1, presetId: "ceramica_acetinada" },
-      { name: "boiserie_nogueira", w: 4.8, h: 2.75, d: 0.04, x: 0, y: 0.06, z: -2.0, presetId: "madeira_deck_natural" },
-      { name: "aparador_base_matte", w: 2.8, h: 0.52, d: 0.56, x: 0, y: 0.18, z: -1.55, presetId: "metal_matte_black" },
-      { name: "aparador_tampo_calacatta", w: 2.86, h: 0.04, d: 0.6, x: 0, y: 0.7, z: -1.55, presetId: "pedra_bancada_clearcoat" },
-      { name: "vitrine_cristal_esq", w: 0.92, h: 2.25, d: 0.52, x: -1.85, y: 0.06, z: -1.58, presetId: "vidro_pele_de_vidro" },
-      { name: "vitrine_cristal_dir", w: 0.92, h: 2.25, d: 0.52, x: 1.85, y: 0.06, z: -1.58, presetId: "vidro_pele_de_vidro" },
-      { name: "fita_led_marcenaria_2700k", w: 4.4, h: 0.025, d: 0.03, x: 0, y: 2.38, z: -1.88, presetId: "fita_led_2700k" },
-      { name: "mesa_centro_pedra", w: 1.35, h: 0.34, d: 0.85, x: 0, y: 0.02, z: 0.35, presetId: "pedra_bancada_clearcoat" },
-      { name: "poltrona_design_linho", w: 0.88, h: 0.72, d: 0.86, x: 1.45, y: 0.02, z: 0.45, presetId: "tecido_juta_linho" },
-    ],
     importedPrimitives: [
-      ...(importedBoffi ? importedBoffi.primitives.slice(0, 8) : []),
+      ...(importedBoffi ? importedBoffi.primitives.slice(0, 16) : []),
       ...(importedTapete ? importedTapete.primitives.slice(0, 4) : []),
       ...(importedMirror ? importedMirror.primitives.slice(0, 4) : []),
     ],
@@ -1354,22 +1344,12 @@ async function main() {
     pedra_bancada_clearcoat: "Modelos/cozinha modelo/maps/carapini.jpg",
   };
 
-  // TEMPLATE 4: Suíte Master & Living Executivo (Blocos integrados de Projetos\Blocos)
+  // TEMPLATE 4: Suíte Master & Living Executivo (100% malhas reais de Projetos\Blocos)
   const suiteSpec = {
     name: "Suite_Master_Living_Executivo",
-    boxes: [
-      { name: "piso_suite_madeira", w: 6.4, h: 0.05, d: 5.8, x: 0, y: -0.05, z: 0, presetId: "madeira_deck_natural" },
-      { name: "parede_cabeceira", w: 6.4, h: 3.0, d: 0.15, x: 0, y: 0, z: -2.4, presetId: "ceramica_acetinada" },
-      { name: "cabeceira_estofada_linho", w: 3.4, h: 1.35, d: 0.12, x: 0, y: 0.1, z: -2.25, presetId: "tecido_juta_linho" },
-      { name: "painel_ripado_cabeceira", w: 5.8, h: 2.85, d: 0.05, x: 0, y: 0.05, z: -2.31, presetId: "madeira_deck_natural" },
-      { name: "fita_led_cabeceira_2700k", w: 3.5, h: 0.025, d: 0.03, x: 0, y: 1.48, z: -2.22, presetId: "fita_led_2700k" },
-      { name: "cama_casal_base", w: 2.1, h: 0.36, d: 2.25, x: 0, y: 0.02, z: -1.1, presetId: "tecido_juta_linho" },
-      { name: "colchao_master_linho", w: 1.96, h: 0.28, d: 2.08, x: 0, y: 0.38, z: -1.12, presetId: "pedra_bancada_clearcoat" },
-      { name: "criado_esq_nogueira", w: 0.62, h: 0.48, d: 0.48, x: -1.48, y: 0.02, z: -1.95, presetId: "madeira_deck_natural" },
-      { name: "criado_dir_nogueira", w: 0.62, h: 0.48, d: 0.48, x: 1.48, y: 0.02, z: -1.95, presetId: "madeira_deck_natural" },
-      { name: "divisoria_vidro_closet", w: 0.04, h: 2.85, d: 3.6, x: 2.65, y: 0.05, z: -0.5, presetId: "vidro_pele_de_vidro" },
-    ],
     importedPrimitives: [
+      ...(importedBed ? importedBed.primitives.slice(0, 10) : []),
+      ...(importedSofa ? importedSofa.primitives.slice(0, 8) : []),
       ...(importedTapete ? importedTapete.primitives.slice(0, 4) : []),
       ...(importedTv ? importedTv.primitives.slice(0, 4) : []),
     ],
@@ -1647,14 +1627,77 @@ async function main() {
     },
   ];
 
+  fs.mkdirSync(OUTPUT_AVATARS_DIR, { recursive: true });
+
   const compiledModels = [];
   for (const item of modelsToCompile) {
     const outGlbPath = path.join(OUTPUT_MODELS_DIR, `${item.slug}.glb`);
     const outPosterPath = path.join(OUTPUT_POSTERS_DIR, `${item.slug}.svg`);
 
-    const stats = await buildAndOptimizeGlb(item.spec, outGlbPath, item.textures);
     const posterSvg = generatePosterSvg(item.title, item.subtitle, item.accentHex, item.tagText);
     fs.writeFileSync(outPosterPath, posterSvg, "utf8");
+
+    if (!item.spec) {
+      if (fs.existsSync(outGlbPath)) {
+        fs.unlinkSync(outGlbPath);
+      }
+      const emptyStats = {
+        originalSizeBytes: Math.round((item.sourceSizeMB || 0) * 1024 * 1024),
+        optimizedSizeBytes: 0,
+        compressionRatio: 0,
+        meshCount: 0,
+        triangleCount: 0,
+        textureCount: 0,
+        compressedWithMeshopt: false,
+      };
+      compiledModels.push({
+        id: item.id,
+        slug: item.slug,
+        title: item.title,
+        subtitle: item.subtitle,
+        category: item.category,
+        discipline: item.discipline,
+        sourcePath: item.sourcePath,
+        sourceFormat: item.sourceFormat,
+        sourceSizeMB: item.sourceSizeMB,
+        status: "NEEDS_EXPORT",
+        pipelineStatus: "ERROR",
+        diagnostics: [
+          item.fallbackReason ||
+            "Arquivo proprietário fechado (.max) sem exportação aberta (.glb/.usdz/.fbx). Zero modelagem procedural aplicada.",
+        ],
+        usedProceduralFallback: false,
+        fallbackReason: item.fallbackReason,
+        glbUrl: null,
+        usdzUrl: null,
+        posterUrl: `/assets/3d-templates/posters/${item.slug}.svg`,
+        fileSizeBytes: 0,
+        normalization: {
+          detectedTool: "3dsmax",
+          detectedUnit: "cm",
+          detectedUpAxis: "Z_UP",
+          unitScaleFactor: 0.01,
+          appliedZUpToYUp: true,
+          translationOffset: [0, 0, 0],
+          normalizedSizeMeters: item.normalizedSize,
+          floorY: 0,
+          firstPersonCamera: item.firstPersonCamera,
+          thirdPersonCamera: item.thirdPersonCamera,
+        },
+        optimizationStats: emptyStats,
+        firstPersonCamera: item.firstPersonCamera,
+        thirdPersonCamera: item.thirdPersonCamera,
+        defaultHdriId: item.defaultHdriId,
+        shaderPresetsUsed: item.shaderPresetsUsed,
+        annotations: item.annotations,
+      });
+      console.log(
+        `[NEEDS_EXPORT] ${item.slug} -> Sem .glb/.fbx/.usdz aberto (${item.sourcePath}). Fallback procedural removido.`
+      );
+      continue;
+    }
+
+    const stats = await buildAndOptimizeGlb(item.spec, outGlbPath, item.textures);
 
     compiledModels.push({
       id: item.id,
@@ -1666,9 +1709,15 @@ async function main() {
       sourcePath: item.sourcePath,
       sourceFormat: item.sourceFormat,
       sourceSizeMB: item.sourceSizeMB,
-      usedProceduralFallback: item.usedProceduralFallback,
+      status: "READY",
+      pipelineStatus: "READY",
+      diagnostics: [
+        `Malha real compilada (${stats.triangleCount} triângulos, ${stats.meshCount} draw calls, ${stats.textureCount} texturas PBR via Meshopt).`,
+      ],
+      usedProceduralFallback: false,
       fallbackReason: item.fallbackReason,
       glbUrl: `/assets/3d-templates/models/${item.slug}.glb`,
+      usdzUrl: null,
       posterUrl: `/assets/3d-templates/posters/${item.slug}.svg`,
       fileSizeBytes: stats.optimizedSizeBytes,
       normalization: {
@@ -1696,6 +1745,121 @@ async function main() {
     );
   }
 
+  // 8.2b Escaneia e compila Avatares (Blocos Perrsonagens / Blocos Personagens)
+  const avatarDirCandidates = [
+    path.join(ARQUIVOS_ROOT, "Modelos", "Blocos Perrsonagens"),
+    path.join(ARQUIVOS_ROOT, "Modelos", "Blocos Personagens"),
+  ];
+  const avatarDir = avatarDirCandidates.find((d) => fs.existsSync(d)) || null;
+  const compiledAvatars = [];
+
+  if (avatarDir) {
+    const avatarFiles = fs
+      .readdirSync(avatarDir, { withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => e.name);
+
+    const groups = new Map();
+    for (const fileName of avatarFiles) {
+      const ext = path.extname(fileName).toLowerCase();
+      const base = path.basename(fileName, ext);
+      const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      if (!groups.has(slug)) {
+        groups.set(slug, { base, slug, meshFile: null, previewFile: null });
+      }
+      const g = groups.get(slug);
+      if ([".glb", ".gltf", ".fbx", ".obj", ".usdz"].includes(ext)) {
+        g.meshFile = fileName;
+      } else if ([".jpg", ".jpeg", ".png", ".webp"].includes(ext)) {
+        g.previewFile = fileName;
+      }
+    }
+
+    for (const group of groups.values()) {
+      const displayName = `Avatar ${group.base}`;
+      const previewOutName = `${group.slug}-preview.webp`;
+      const previewOutPath = path.join(OUTPUT_AVATARS_DIR, previewOutName);
+      let previewUrl = null;
+      let sourceSizeMB = 0;
+
+      if (group.previewFile) {
+        const previewSrc = path.join(avatarDir, group.previewFile);
+        sourceSizeMB += fs.statSync(previewSrc).size / (1024 * 1024);
+        await sharp(previewSrc)
+          .resize(512, 512, { fit: "cover" })
+          .webp({ quality: 82 })
+          .toFile(previewOutPath);
+        previewUrl = `/assets/3d-templates/avatars/${previewOutName}`;
+      }
+
+      if (group.meshFile) {
+        const meshSrc = path.join(avatarDir, group.meshFile);
+        const meshExt = path.extname(group.meshFile).toLowerCase();
+        sourceSizeMB += fs.statSync(meshSrc).size / (1024 * 1024);
+        let parsed = null;
+        if (meshExt === ".obj") {
+          parsed = parseObjFile(meshSrc, group.slug, { scaleFactor: 0.01, swapYZ: false, maxPrimitives: 24, maxTrianglesPerMesh: 25000 });
+        } else if (meshExt === ".fbx") {
+          parsed = parseFbxAsciiFile(meshSrc, group.slug, { scaleFactor: 0.01, swapYZ: false, maxPrimitives: 24, maxTrianglesPerMesh: 25000 });
+        } else if (meshExt === ".glb") {
+          parsed = await parseGlbAndExtractMeshes(meshSrc, group.slug, { maxPrimitives: 24 });
+        }
+
+        const outAvatarGlb = path.join(OUTPUT_AVATARS_DIR, `${group.slug}.glb`);
+        if (parsed && parsed.primitives.length > 0) {
+          const stats = await buildAndOptimizeGlb(
+            { name: displayName, importedPrimitives: parsed.primitives },
+            outAvatarGlb,
+            {}
+          );
+          compiledAvatars.push({
+            id: `avatar-${group.slug}`,
+            slug: group.slug,
+            name: displayName,
+            sourcePath: `Modelos/${path.basename(avatarDir)}/${group.meshFile}`,
+            sourceFormat: meshExt.slice(1).toUpperCase(),
+            sourceSizeMB: Number(sourceSizeMB.toFixed(2)),
+            status: "READY",
+            pipelineStatus: "READY",
+            glbUrl: `/assets/3d-templates/avatars/${group.slug}.glb`,
+            usdzUrl: meshExt === ".usdz" ? `/assets/3d-templates/avatars/${group.meshFile}` : null,
+            previewUrl,
+            heightMeters: 1.72,
+            fileSizeBytes: stats.optimizedSizeBytes,
+            triangleCount: stats.triangleCount,
+            diagnostics: [
+              `Avatar compilado com ${stats.triangleCount} triângulos e ${(stats.optimizedSizeBytes / 1024).toFixed(1)} KB (Meshopt, Y=0).`,
+            ],
+          });
+          continue;
+        }
+      }
+
+      compiledAvatars.push({
+        id: `avatar-${group.slug}`,
+        slug: group.slug,
+        name: displayName,
+        sourcePath: `Modelos/${path.basename(avatarDir)}/${group.previewFile || group.base}`,
+        sourceFormat: group.previewFile ? path.extname(group.previewFile).slice(1).toUpperCase() : "DESCONHECIDO",
+        sourceSizeMB: Number(sourceSizeMB.toFixed(2)),
+        status: "NEEDS_EXPORT",
+        pipelineStatus: "ERROR",
+        glbUrl: null,
+        usdzUrl: null,
+        previewUrl,
+        heightMeters: 1.72,
+        fileSizeBytes: 0,
+        triangleCount: 0,
+        diagnostics: [
+          "Somente imagem de referência 2D (.jpg) encontrada em Blocos Perrsonagens. Envie a malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural).",
+        ],
+      });
+      console.log(
+        `[AVATAR NEEDS_EXPORT] ${group.slug} -> Apenas imagem 2D (${group.previewFile}); sem malha 3D aberta.`
+      );
+    }
+  }
+
   // 8.3 Cataloga todos os blocos de Projetos\Blocos
   const blocosDir = path.join(ARQUIVOS_ROOT, "Projetos", "Blocos");
   const projectBlocks = [];
@@ -1720,12 +1884,12 @@ async function main() {
 
       for (const f of allFiles) {
         const ext = path.extname(f.name).toLowerCase();
-        if ([".fbx", ".obj", ".max", ".3ds", ".glb", ".gltf"].includes(ext)) {
+        if ([".fbx", ".obj", ".max", ".3ds", ".glb", ".gltf", ".usdz"].includes(ext)) {
           formats.add(ext.slice(1).toUpperCase());
-          if ([".obj", ".fbx", ".3ds"].includes(ext) || f.size > primary.size) {
+          if ([".glb", ".usdz", ".obj", ".fbx", ".3ds"].includes(ext) || f.size > primary.size) {
             primary = f;
           }
-        } else if ([".jpg", ".jpeg", ".png", ".exr", ".tif", ".bmp"].includes(ext)) {
+        } else if ([".jpg", ".jpeg", ".png", ".exr", ".tif", ".bmp", ".webp"].includes(ext)) {
           texturesCount++;
         }
       }
@@ -1759,14 +1923,118 @@ async function main() {
     }
   }
 
+  const verificationItems = [
+    ...compiledModels.map((m) => ({
+      id: m.id,
+      name: m.title,
+      category: "MODEL",
+      sourcePath: m.sourcePath,
+      sourceFormat: m.sourceFormat,
+      outputUrl: m.glbUrl,
+      pipelineStatus: m.pipelineStatus,
+      stepCompleted: m.pipelineStatus === "READY" ? "BUILD_MESHOPT" : null,
+      fileSizeBytes: m.fileSizeBytes,
+      sourceSizeMB: m.sourceSizeMB,
+      triangleCount: m.optimizationStats.triangleCount,
+      textureCount: m.optimizationStats.textureCount,
+      diagnostics: m.diagnostics,
+    })),
+    ...compiledAvatars.map((a) => ({
+      id: a.id,
+      name: a.name,
+      category: "AVATAR",
+      sourcePath: a.sourcePath,
+      sourceFormat: a.sourceFormat,
+      outputUrl: a.glbUrl,
+      pipelineStatus: a.pipelineStatus,
+      stepCompleted: a.pipelineStatus === "READY" ? "BUILD_MESHOPT" : null,
+      fileSizeBytes: a.fileSizeBytes,
+      sourceSizeMB: a.sourceSizeMB,
+      triangleCount: a.triangleCount,
+      textureCount: a.previewUrl ? 1 : 0,
+      diagnostics: a.diagnostics,
+    })),
+    ...compiledHdris.map((h) => ({
+      id: h.id,
+      name: h.name,
+      category: "HDRI",
+      sourcePath: h.sourceFile || h.fileUrl || "",
+      sourceFormat: path.extname(h.sourceFile || h.fileUrl || "").slice(1).toUpperCase() || "HDR",
+      outputUrl: h.fileUrl,
+      pipelineStatus: "READY",
+      stepCompleted: "BUILD_MESHOPT",
+      fileSizeBytes: 0,
+      sourceSizeMB: h.sourceSizeMB,
+      triangleCount: 0,
+      textureCount: 1,
+      diagnostics: [`HDRI pré-processado (${h.resolution}, EV ${h.exposure}) pronto para PMREM.`],
+    })),
+    ...projectBlocks.map((b) => {
+      const hasOpenFormat = b.availableFormats.some((f) => ["GLB", "GLTF", "USDZ", "FBX", "OBJ"].includes(f));
+      const hasMaxOnly = !hasOpenFormat && b.availableFormats.includes("MAX");
+      return {
+        id: b.id,
+        name: b.name,
+        category: "PROJECT_BLOCK",
+        sourcePath: `${b.folderPath}/${b.primaryFile}`,
+        sourceFormat: b.availableFormats.join(" + ") || "DESCONHECIDO",
+        outputUrl: null,
+        pipelineStatus: hasMaxOnly ? "ERROR" : hasOpenFormat ? "WARNING" : "ERROR",
+        stepCompleted: hasOpenFormat ? "CONVERT_MESH" : null,
+        fileSizeBytes: 0,
+        sourceSizeMB: b.primarySizeMB,
+        triangleCount: 0,
+        textureCount: b.texturesCount,
+        diagnostics: hasMaxOnly
+          ? ["Somente arquivo fechado .MAX encontrado. Exporte .glb/.fbx/.usdz antes do build."]
+          : hasOpenFormat
+          ? [`Formato aberto (${b.availableFormats.join(", ")}) pronto para conversão individual para .glb + Meshopt.`]
+          : ["Nenhuma malha 3D reconhecida na pasta do bloco."],
+      };
+    }),
+    {
+      id: "raw-projeto-pedro-max",
+      name: "Projeto Pedro.max",
+      category: "PROPRIETARY_SCENE",
+      sourcePath: "Projetos/Projeto Pedro.max",
+      sourceFormat: "MAX",
+      outputUrl: null,
+      pipelineStatus: "ERROR",
+      stepCompleted: null,
+      fileSizeBytes: 0,
+      sourceSizeMB: 616.7,
+      triangleCount: 0,
+      textureCount: 0,
+      diagnostics: [
+        "Arquivo proprietário fechado 3ds Max (.max 616.7 MB) sem exportação .glb/.usdz/.fbx. Requer exportação prévia no 3ds Max.",
+      ],
+    },
+    {
+      id: "raw-hdri-crdownload",
+      name: "Não confirmado 632772.crdownload",
+      category: "INCOMPLETE",
+      sourcePath: "HDRI/Não confirmado 632772.crdownload",
+      sourceFormat: "CRDOWNLOAD",
+      outputUrl: null,
+      pipelineStatus: "ERROR",
+      stepCompleted: null,
+      fileSizeBytes: 0,
+      sourceSizeMB: 45.59,
+      triangleCount: 0,
+      textureCount: 0,
+      diagnostics: ["Download incompleto do navegador (.crdownload). Remova ou conclua o download."],
+    },
+  ];
+
   const manifest = {
-    version: "2.1.0",
+    version: "2.2.0",
     generatedAt: new Date().toISOString(),
     sourceRoot: ARQUIVOS_ROOT,
     summary: {
-      totalFilesScanned: 653,
+      totalFilesScanned: 655,
       hdriCount: compiledHdris.length,
-      compiledModelsCount: compiledModels.length,
+      compiledModelsCount: compiledModels.filter((m) => m.status === "READY").length,
+      avatarsCount: compiledAvatars.length,
       projectBlocksCataloged: projectBlocks.length,
       shaderPresetsCount: Object.keys(SMART_PBR_PRESETS).length,
       skippedProprietaryOrIncomplete: [
@@ -1778,20 +2046,22 @@ async function main() {
         {
           path: "Projetos/Projeto Pedro.max",
           reason:
-            "Arquivo proprietário fechado 3ds Max (.max 616.7 MB) sem exportação .fbx/.glb pareada; atendido pelo template compilado '2. Fachada Contemporânea, Deck Cumaru & Área de Lazer'.",
+            "Arquivo proprietário fechado 3ds Max (.max 616.7 MB) sem exportação .glb/.usdz/.fbx; bloqueado para exportação prévia.",
           sizeMB: 616.7,
         },
         {
           path: "Modelos/casa modelo/Little_Houses_max2016..max",
           reason:
-            "Arquivo proprietário 3ds Max (.max 1.42 MB) com 24 mapas de fachada catalogados; atendido pelo template compilado '2. Fachada Contemporânea, Deck Cumaru & Área de Lazer'.",
+            "Arquivo proprietário 3ds Max (.max 1.42 MB) sem exportação .glb/.usdz/.fbx; bloqueado no Pipeline Pré-Build 3D.",
           sizeMB: 1.42,
         },
       ],
     },
     hdris: compiledHdris,
     models: compiledModels,
+    avatars: compiledAvatars,
     projectBlocks,
+    verificationItems,
     shaderPresets: Object.values(SMART_PBR_PRESETS),
   };
 

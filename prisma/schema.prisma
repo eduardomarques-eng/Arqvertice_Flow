@@ -1576,3 +1576,20 @@ model Project3DAsset {
   @@index([documentId])
   @@index([revisionId])
 }
+
+model Pipeline3DAssetState {
+  id             String   @id
+  name           String
+  category       String
+  sourcePath     String
+  sourceFormat   String
+  pipelineStatus String   @default("WARNING")
+  stepCompleted  String?
+  outputUrl      String?
+  fileSizeBytes  Int      @default(0)
+  diagnostics    Json?
+  logs           Json?
+  updatedById    String?  @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

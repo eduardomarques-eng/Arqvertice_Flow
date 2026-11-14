@@ -156,6 +156,9 @@ export default async function AcervoStudio3DFullscreenPage({
       category: tpl.category,
       sourcePath: tpl.sourcePath,
       glbUrl: tpl.glbUrl,
+      usdzUrl: tpl.usdzUrl ?? null,
+      status: tpl.status ?? (tpl.glbUrl ? "READY" : "NEEDS_EXPORT"),
+      diagnostics: tpl.diagnostics,
       posterUrl: tpl.posterUrl,
       defaultHdriId: tpl.defaultHdriId,
       firstPersonCamera: tpl.normalization.firstPersonCamera,
@@ -177,6 +180,7 @@ export default async function AcervoStudio3DFullscreenPage({
         availableAssets={projectAssets}
         returnHref={safeReturnHref}
         returnLabel="Voltar ao Acervo"
+        pipelineHref={user.role === "ADMIN" ? "/admin/acervo/pipeline-3d" : "/equipe/acervo/pipeline-3d"}
         userRole={user.role}
       />
     </main>

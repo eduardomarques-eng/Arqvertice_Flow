@@ -450,7 +450,10 @@ export async function ensureProject3DShowcase(
 
   const existingGlbUrls = new Set(existing.map((e) => e.glbUrl));
   const missingTemplates = DEFAULT_3D_TEMPLATES_MANIFEST.models.filter(
-    (tpl) => !existingGlbUrls.has(tpl.glbUrl)
+    (tpl): tpl is typeof tpl & { glbUrl: string } =>
+      Boolean(tpl.glbUrl) &&
+      tpl.status !== "NEEDS_EXPORT" &&
+      !existingGlbUrls.has(tpl.glbUrl as string)
   );
 
   if (existing.length > 0 && missingTemplates.length === 0) {

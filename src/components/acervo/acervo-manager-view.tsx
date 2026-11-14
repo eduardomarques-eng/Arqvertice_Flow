@@ -258,6 +258,13 @@ export function AcervoManagerView({
 
         <div className="flex flex-wrap items-center gap-2">
           <Link
+            href={`${basePath}/acervo/pipeline-3d`}
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-[#EDE5D8]/60 px-3.5 text-xs font-semibold text-[#18181B] shadow-2xs hover:bg-[#EDE5D8] transition"
+          >
+            <span>⚙️</span>
+            <span>Pipeline Pré-Build 3D</span>
+          </Link>
+          <Link
             href={`${basePath}/acervo/plugins`}
             className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 text-xs font-semibold text-slate-800 shadow-2xs hover:bg-slate-50 transition"
           >

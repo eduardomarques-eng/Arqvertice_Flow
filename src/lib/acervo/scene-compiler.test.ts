@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyMaterialToPbrPreset,
+  classifyPipeline3DAsset,
   detectSceneNormalization,
+  findTemplate3DAvatar,
   findTemplate3DModel,
   normalizeVertexPosition,
 } from "./scene-compiler";
@@ -45,9 +47,57 @@ describe("scene-compiler — Universal Scene Normalization & Smart PBR Shader Co
     );
   });
 
-  it("resolves compiled 3D template models by slug or id", () => {
+  it("resolves compiled 3D template models by slug or id and enforces zero procedural fallback for NEEDS_EXPORT", () => {
     const kitchen = findTemplate3DModel("cozinha-interna");
     expect(kitchen).not.toBeNull();
     expect(kitchen?.glbUrl).toBe("/assets/3d-templates/models/cozinha-interna.glb");
+    expect(kitchen?.status).toBe("READY");
+    expect(kitchen?.usedProceduralFallback).toBe(false);
+
+    const facade = findTemplate3DModel("fachada-deck-lazer");
+    expect(facade).not.toBeNull();
+    expect(facade?.status).toBe("NEEDS_EXPORT");
+    expect(facade?.usedProceduralFallback).toBe(false);
+    expect(facade?.glbUrl).toBeNull();
+  });
+
+  it("classifies 3D pipeline assets into READY, WARNING and ERROR and resolves avatars", () => {
+    expect(
+      classifyPipeline3DAsset({
+        format: ".glb",
+        compiledUrl: "/assets/3d-templates/models/cozinha-interna.glb",
+        compiledSizeBytes: 120_000,
+        uvIntact: true,
+        texturesOptimized: true,
+        scaleNormalized: true,
+      }).status
+    ).toBe("READY");
+
+    expect(
+      classifyPipeline3DAsset({
+        format: ".fbx",
+        compiledUrl: "/assets/3d-templates/models/movel.glb",
+        compiledSizeBytes: 3_500_000,
+        uvIntact: true,
+        texturesOptimized: false,
+        scaleNormalized: true,
+      }).status
+    ).toBe("WARNING");
+
+    expect(
+      classifyPipeline3DAsset({
+        format: ".max",
+        compiledUrl: null,
+        compiledSizeBytes: 0,
+        uvIntact: false,
+        texturesOptimized: false,
+        scaleNormalized: false,
+      }).status
+    ).toBe("ERROR");
+
+    const fem = findTemplate3DAvatar("avatar-feminino");
+    expect(fem).not.toBeNull();
+    expect(fem?.status).toBe("NEEDS_EXPORT");
+    expect(fem?.glbUrl).toBeNull();
   });
 });

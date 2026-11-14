@@ -1,11 +1,12 @@
 {
-  "version": "2.1.0",
-  "generatedAt": "2026-11-14T22:38:08.357Z",
+  "version": "2.2.0",
+  "generatedAt": "2026-11-14T23:43:36.841Z",
   "sourceRoot": "C:\\Users\\eduar\\OneDrive\\Documentos\\ArqVertice_Flow\\Arquivos",
   "summary": {
-    "totalFilesScanned": 653,
+    "totalFilesScanned": 655,
     "hdriCount": 4,
-    "compiledModelsCount": 4,
+    "compiledModelsCount": 3,
+    "avatarsCount": 2,
     "projectBlocksCataloged": 29,
     "shaderPresetsCount": 9,
     "skippedProprietaryOrIncomplete": [
@@ -16,12 +17,12 @@
       },
       {
         "path": "Projetos/Projeto Pedro.max",
-        "reason": "Arquivo proprietário fechado 3ds Max (.max 616.7 MB) sem exportação .fbx/.glb pareada; atendido pelo template compilado '2. Fachada Contemporânea, Deck Cumaru & Área de Lazer'.",
+        "reason": "Arquivo proprietário fechado 3ds Max (.max 616.7 MB) sem exportação .glb/.usdz/.fbx; bloqueado para exportação prévia.",
         "sizeMB": 616.7
       },
       {
         "path": "Modelos/casa modelo/Little_Houses_max2016..max",
-        "reason": "Arquivo proprietário 3ds Max (.max 1.42 MB) com 24 mapas de fachada catalogados; atendido pelo template compilado '2. Fachada Contemporânea, Deck Cumaru & Área de Lazer'.",
+        "reason": "Arquivo proprietário 3ds Max (.max 1.42 MB) sem exportação .glb/.usdz/.fbx; bloqueado no Pipeline Pré-Build 3D.",
         "sizeMB": 1.42
       }
     ]
@@ -103,10 +104,16 @@
       "sourcePath": "Modelos/cozinha modelo/kitchen_fenix.FBX",
       "sourceFormat": "FBX + OBJ + PBR Maps",
       "sourceSizeMB": 67.79,
+      "status": "READY",
+      "pipelineStatus": "READY",
+      "diagnostics": [
+        "Malha real compilada (2816 triângulos, 1 draw calls, 5 texturas PBR via Meshopt)."
+      ],
       "usedProceduralFallback": false,
       "glbUrl": "/assets/3d-templates/models/cozinha-interna.glb",
+      "usdzUrl": null,
       "posterUrl": "/assets/3d-templates/posters/cozinha-interna.svg",
-      "fileSizeBytes": 261676,
+      "fileSizeBytes": 127556,
       "normalization": {
         "detectedTool": "3dsmax",
         "detectedUnit": "mm",
@@ -152,13 +159,13 @@
         }
       },
       "optimizationStats": {
-        "originalSizeBytes": 422940,
-        "optimizedSizeBytes": 261676,
-        "reductionPercent": 38.1,
-        "vertexCount": 5388,
-        "triangleCount": 1904,
-        "meshCount": 8,
-        "materialCount": 8,
+        "originalSizeBytes": 525936,
+        "optimizedSizeBytes": 127556,
+        "reductionPercent": 75.7,
+        "vertexCount": 8448,
+        "triangleCount": 2816,
+        "meshCount": 1,
+        "materialCount": 1,
         "textureCount": 5,
         "usedMeshopt": true,
         "usedSimplifier": false
@@ -294,11 +301,17 @@
       "sourcePath": "Modelos/casa modelo/Little_Houses_max2016..max",
       "sourceFormat": "3ds Max (.max) + Maps -> Procedural High-Precision PBR",
       "sourceSizeMB": 620.43,
-      "usedProceduralFallback": true,
+      "status": "NEEDS_EXPORT",
+      "pipelineStatus": "ERROR",
+      "diagnostics": [
+        "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais."
+      ],
+      "usedProceduralFallback": false,
       "fallbackReason": "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais.",
-      "glbUrl": "/assets/3d-templates/models/fachada-deck-lazer.glb",
+      "glbUrl": null,
+      "usdzUrl": null,
       "posterUrl": "/assets/3d-templates/posters/fachada-deck-lazer.svg",
-      "fileSizeBytes": 264464,
+      "fileSizeBytes": 0,
       "normalization": {
         "detectedTool": "3dsmax",
         "detectedUnit": "cm",
@@ -344,16 +357,13 @@
         }
       },
       "optimizationStats": {
-        "originalSizeBytes": 279092,
-        "optimizedSizeBytes": 264464,
-        "reductionPercent": 5.2,
-        "vertexCount": 552,
-        "triangleCount": 276,
-        "meshCount": 8,
-        "materialCount": 8,
-        "textureCount": 4,
-        "usedMeshopt": true,
-        "usedSimplifier": false
+        "originalSizeBytes": 650568008,
+        "optimizedSizeBytes": 0,
+        "compressionRatio": 0,
+        "meshCount": 0,
+        "triangleCount": 0,
+        "textureCount": 0,
+        "compressedWithMeshopt": false
       },
       "firstPersonCamera": {
         "position": [
@@ -486,10 +496,16 @@
       "sourcePath": "Projetos/Blocos/guarda roupa simples/export/ANTIBES._Armadio,_cabina_armadio_e_boiserie._Boffi_by_piero_lissoni.__corona.obj",
       "sourceFormat": "OBJ + FBX + PBR Maps",
       "sourceSizeMB": 12.85,
+      "status": "READY",
+      "pipelineStatus": "READY",
+      "diagnostics": [
+        "Malha real compilada (5660 triângulos, 3 draw calls, 4 texturas PBR via Meshopt)."
+      ],
       "usedProceduralFallback": false,
       "glbUrl": "/assets/3d-templates/models/movel-design-autoral.glb",
+      "usdzUrl": null,
       "posterUrl": "/assets/3d-templates/posters/movel-design-autoral.svg",
-      "fileSizeBytes": 293236,
+      "fileSizeBytes": 278232,
       "normalization": {
         "detectedTool": "3dsmax",
         "detectedUnit": "mm",
@@ -535,13 +551,13 @@
         }
       },
       "optimizationStats": {
-        "originalSizeBytes": 762260,
-        "optimizedSizeBytes": 293236,
-        "reductionPercent": 61.5,
-        "vertexCount": 15948,
-        "triangleCount": 5356,
-        "meshCount": 7,
-        "materialCount": 7,
+        "originalSizeBytes": 795532,
+        "optimizedSizeBytes": 278232,
+        "reductionPercent": 65,
+        "vertexCount": 16980,
+        "triangleCount": 5660,
+        "meshCount": 3,
+        "materialCount": 3,
         "textureCount": 4,
         "usedMeshopt": true,
         "usedSimplifier": false
@@ -648,10 +664,16 @@
       "sourcePath": "Projetos/Blocos",
       "sourceFormat": "Coleção Multi-Bloco OBJ + FBX",
       "sourceSizeMB": 245.6,
+      "status": "READY",
+      "pipelineStatus": "READY",
+      "diagnostics": [
+        "Malha real compilada (21600 triângulos, 2 draw calls, 4 texturas PBR via Meshopt)."
+      ],
       "usedProceduralFallback": false,
       "glbUrl": "/assets/3d-templates/models/living-suite-master.glb",
+      "usdzUrl": null,
       "posterUrl": "/assets/3d-templates/posters/living-suite-master.svg",
-      "fileSizeBytes": 244148,
+      "fileSizeBytes": 333672,
       "normalization": {
         "detectedTool": "3dsmax",
         "detectedUnit": "cm",
@@ -697,13 +719,13 @@
         }
       },
       "optimizationStats": {
-        "originalSizeBytes": 597308,
-        "optimizedSizeBytes": 244148,
-        "reductionPercent": 59.1,
-        "vertexCount": 12480,
-        "triangleCount": 4200,
-        "meshCount": 7,
-        "materialCount": 7,
+        "originalSizeBytes": 2476152,
+        "optimizedSizeBytes": 333672,
+        "reductionPercent": 86.5,
+        "vertexCount": 64800,
+        "triangleCount": 21600,
+        "meshCount": 2,
+        "materialCount": 2,
         "textureCount": 4,
         "usedMeshopt": true,
         "usedSimplifier": false
@@ -771,6 +793,46 @@
             -1.8
           ]
         }
+      ]
+    }
+  ],
+  "avatars": [
+    {
+      "id": "avatar-feminino",
+      "slug": "feminino",
+      "name": "Avatar Feminino",
+      "sourcePath": "Modelos/Blocos Perrsonagens/Feminino.jpg",
+      "sourceFormat": "JPG",
+      "sourceSizeMB": 2.24,
+      "status": "NEEDS_EXPORT",
+      "pipelineStatus": "ERROR",
+      "glbUrl": null,
+      "usdzUrl": null,
+      "previewUrl": "/assets/3d-templates/avatars/feminino-preview.webp",
+      "heightMeters": 1.72,
+      "fileSizeBytes": 0,
+      "triangleCount": 0,
+      "diagnostics": [
+        "Somente imagem de referência 2D (.jpg) encontrada em Blocos Perrsonagens. Envie a malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural)."
+      ]
+    },
+    {
+      "id": "avatar-masculino",
+      "slug": "masculino",
+      "name": "Avatar Masculino",
+      "sourcePath": "Modelos/Blocos Perrsonagens/Masculino.jpg",
+      "sourceFormat": "JPG",
+      "sourceSizeMB": 2.17,
+      "status": "NEEDS_EXPORT",
+      "pipelineStatus": "ERROR",
+      "glbUrl": null,
+      "usdzUrl": null,
+      "previewUrl": "/assets/3d-templates/avatars/masculino-preview.webp",
+      "heightMeters": 1.72,
+      "fileSizeBytes": 0,
+      "triangleCount": 0,
+      "diagnostics": [
+        "Somente imagem de referência 2D (.jpg) encontrada em Blocos Perrsonagens. Envie a malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural)."
       ]
     }
   ],
@@ -1157,6 +1219,697 @@
       "primarySizeMB": 128.49,
       "texturesCount": 0,
       "mappedShaderPreset": "ceramica_acetinada"
+    }
+  ],
+  "verificationItems": [
+    {
+      "id": "tpl-cozinha-interna",
+      "name": "1. Cozinha Gourmet FENIX & Ilha Calacatta",
+      "category": "MODEL",
+      "sourcePath": "Modelos/cozinha modelo/kitchen_fenix.FBX",
+      "sourceFormat": "FBX + OBJ + PBR Maps",
+      "outputUrl": "/assets/3d-templates/models/cozinha-interna.glb",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 127556,
+      "sourceSizeMB": 67.79,
+      "triangleCount": 2816,
+      "textureCount": 5,
+      "diagnostics": [
+        "Malha real compilada (2816 triângulos, 1 draw calls, 5 texturas PBR via Meshopt)."
+      ]
+    },
+    {
+      "id": "tpl-fachada-deck-lazer",
+      "name": "2. Fachada Contemporânea, Deck Cumaru & Área de Lazer",
+      "category": "MODEL",
+      "sourcePath": "Modelos/casa modelo/Little_Houses_max2016..max",
+      "sourceFormat": "3ds Max (.max) + Maps -> Procedural High-Precision PBR",
+      "outputUrl": null,
+      "pipelineStatus": "ERROR",
+      "stepCompleted": null,
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 620.43,
+      "triangleCount": 0,
+      "textureCount": 0,
+      "diagnostics": [
+        "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais."
+      ]
+    },
+    {
+      "id": "tpl-movel-design-autoral",
+      "name": "3. Móvel de Design Autoral & Armário Boffi Antibes",
+      "category": "MODEL",
+      "sourcePath": "Projetos/Blocos/guarda roupa simples/export/ANTIBES._Armadio,_cabina_armadio_e_boiserie._Boffi_by_piero_lissoni.__corona.obj",
+      "sourceFormat": "OBJ + FBX + PBR Maps",
+      "outputUrl": "/assets/3d-templates/models/movel-design-autoral.glb",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 278232,
+      "sourceSizeMB": 12.85,
+      "triangleCount": 5660,
+      "textureCount": 4,
+      "diagnostics": [
+        "Malha real compilada (5660 triângulos, 3 draw calls, 4 texturas PBR via Meshopt)."
+      ]
+    },
+    {
+      "id": "tpl-suite-master-blocos",
+      "name": "4. Suíte Master & Living Executivo (Biblioteca de Blocos)",
+      "category": "MODEL",
+      "sourcePath": "Projetos/Blocos",
+      "sourceFormat": "Coleção Multi-Bloco OBJ + FBX",
+      "outputUrl": "/assets/3d-templates/models/living-suite-master.glb",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 333672,
+      "sourceSizeMB": 245.6,
+      "triangleCount": 21600,
+      "textureCount": 4,
+      "diagnostics": [
+        "Malha real compilada (21600 triângulos, 2 draw calls, 4 texturas PBR via Meshopt)."
+      ]
+    },
+    {
+      "id": "avatar-feminino",
+      "name": "Avatar Feminino",
+      "category": "AVATAR",
+      "sourcePath": "Modelos/Blocos Perrsonagens/Feminino.jpg",
+      "sourceFormat": "JPG",
+      "outputUrl": null,
+      "pipelineStatus": "ERROR",
+      "stepCompleted": null,
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 2.24,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "Somente imagem de referência 2D (.jpg) encontrada em Blocos Perrsonagens. Envie a malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural)."
+      ]
+    },
+    {
+      "id": "avatar-masculino",
+      "name": "Avatar Masculino",
+      "category": "AVATAR",
+      "sourcePath": "Modelos/Blocos Perrsonagens/Masculino.jpg",
+      "sourceFormat": "JPG",
+      "outputUrl": null,
+      "pipelineStatus": "ERROR",
+      "stepCompleted": null,
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 2.17,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "Somente imagem de referência 2D (.jpg) encontrada em Blocos Perrsonagens. Envie a malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural)."
+      ]
+    },
+    {
+      "id": "dia-claro",
+      "category": "HDRI",
+      "sourcePath": "",
+      "sourceFormat": "HDR",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 557.88,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "HDRI pré-processado (undefined, EV undefined) pronto para PMREM."
+      ]
+    },
+    {
+      "id": "interno",
+      "category": "HDRI",
+      "sourcePath": "",
+      "sourceFormat": "HDR",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 809.77,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "HDRI pré-processado (undefined, EV undefined) pronto para PMREM."
+      ]
+    },
+    {
+      "id": "nublado-24k",
+      "category": "HDRI",
+      "sourcePath": "",
+      "sourceFormat": "HDR",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 790.39,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "HDRI pré-processado (undefined, EV undefined) pronto para PMREM."
+      ]
+    },
+    {
+      "id": "noite-24k",
+      "category": "HDRI",
+      "sourcePath": "",
+      "sourceFormat": "HDR",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 959.61,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "HDRI pré-processado (undefined, EV undefined) pronto para PMREM."
+      ]
+    },
+    {
+      "id": "bloco-acessorio-banheiro-homens",
+      "name": "acessorio banheiro homens",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/acessorio banheiro homens/shower set.max",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 3.06,
+      "triangleCount": 0,
+      "textureCount": 6,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-acessorio-banheiro-mulheres",
+      "name": "acessorio banheiro mulheres",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/acessorio banheiro mulheres/dekor.obj",
+      "sourceFormat": "MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 1.32,
+      "triangleCount": 0,
+      "textureCount": 7,
+      "diagnostics": [
+        "Formato aberto (MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-banheira-solo",
+      "name": "banheira solo",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/banheira solo/novak.max",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 2.79,
+      "triangleCount": 0,
+      "textureCount": 4,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-banheiro",
+      "name": "banheiro",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/banheiro/vray.max",
+      "sourceFormat": "MAX + FBX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 15.24,
+      "triangleCount": 0,
+      "textureCount": 7,
+      "diagnostics": [
+        "Formato aberto (MAX, FBX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-cama-2",
+      "name": "cama -2",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/cama -2/Modern white bedroom 2014.max",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 69.18,
+      "triangleCount": 0,
+      "textureCount": 8,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-cama-cals-master",
+      "name": "cama cals master",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/cama cals master/bedroom headboards set.FBX",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 30.22,
+      "triangleCount": 0,
+      "textureCount": 12,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-cama-casal",
+      "name": "CAMA CASAL",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/CAMA CASAL/Fills Bed m1_2014_vray.max",
+      "sourceFormat": "OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 126.02,
+      "triangleCount": 0,
+      "textureCount": 15,
+      "diagnostics": [
+        "Formato aberto (OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-chuveiro-quadrado-inox",
+      "name": "chuveiro quadrado inox",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/chuveiro quadrado inox/Rainshower Mono.max",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 9.56,
+      "triangleCount": 0,
+      "textureCount": 0,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-closet",
+      "name": "closet",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/closet/Slot6_2014_backup.max",
+      "sourceFormat": "OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 227.25,
+      "triangleCount": 0,
+      "textureCount": 36,
+      "diagnostics": [
+        "Formato aberto (OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-closet-armario",
+      "name": "closet armario",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/closet armario/lobby_cupboard__vray.obj",
+      "sourceFormat": "FBX + OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 1.9,
+      "triangleCount": 0,
+      "textureCount": 5,
+      "diagnostics": [
+        "Formato aberto (FBX, OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-cortina-tecido",
+      "name": "cortina tecido",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/cortina tecido/Curtain 006.obj",
+      "sourceFormat": "OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 108.89,
+      "triangleCount": 0,
+      "textureCount": 3,
+      "diagnostics": [
+        "Formato aberto (OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-criado-mudo",
+      "name": "criado mudo",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/criado mudo/Om Siori Anatawa B4.obj",
+      "sourceFormat": "FBX + MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 1.04,
+      "triangleCount": 0,
+      "textureCount": 4,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-decor-criado",
+      "name": "decor_criado",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/decor_criado/decorative set.obj",
+      "sourceFormat": "FBX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 4.33,
+      "triangleCount": 0,
+      "textureCount": 0,
+      "diagnostics": [
+        "Formato aberto (FBX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-espelhos",
+      "name": "espelhos",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/espelhos/LINDBYN mirror_2015.max",
+      "sourceFormat": "OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 0.97,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "Formato aberto (OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-guarda-roupa-simples",
+      "name": "guarda roupa simples",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/guarda roupa simples/ANTIBES._Armadio,_cabina_armadio_e_boiserie._Boffi_by_piero_lissoni.__corona.obj",
+      "sourceFormat": "MAX + 3DS + FBX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 0.09,
+      "triangleCount": 0,
+      "textureCount": 5,
+      "diagnostics": [
+        "Formato aberto (MAX, 3DS, FBX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-make",
+      "name": "make",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/make/Set for women.FBX",
+      "sourceFormat": "MAX + FBX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 11.59,
+      "triangleCount": 0,
+      "textureCount": 17,
+      "diagnostics": [
+        "Formato aberto (MAX, FBX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-mesa-apoio",
+      "name": "mesa apoio",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/mesa apoio/STO-1132_backup.max",
+      "sourceFormat": "MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 6.5,
+      "triangleCount": 0,
+      "textureCount": 22,
+      "diagnostics": [
+        "Formato aberto (MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-metais-banheiro",
+      "name": "metais banheiro",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/metais banheiro/duravit assessories_backup.max",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 22.02,
+      "triangleCount": 0,
+      "textureCount": 7,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-notebook",
+      "name": "Notebook",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/Notebook/Notebook ''LENOVO G770''.obj",
+      "sourceFormat": "MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 38.25,
+      "triangleCount": 0,
+      "textureCount": 9,
+      "diagnostics": [
+        "Formato aberto (MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-notebook-corona",
+      "name": "notebook corona",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/notebook corona/MacBook Pro.obj",
+      "sourceFormat": "OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 7.4,
+      "triangleCount": 0,
+      "textureCount": 7,
+      "diagnostics": [
+        "Formato aberto (OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-poltrona-suite",
+      "name": "Poltrona Suite",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/Poltrona Suite/chair-office-205-1-2018-obj.obj",
+      "sourceFormat": "MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 1.22,
+      "triangleCount": 0,
+      "textureCount": 2,
+      "diagnostics": [
+        "Formato aberto (MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-rack-tv",
+      "name": "rack tv",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/rack tv/MMRLT.obj",
+      "sourceFormat": "MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 2.13,
+      "triangleCount": 0,
+      "textureCount": 8,
+      "diagnostics": [
+        "Formato aberto (MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-rack-tv-2",
+      "name": "rack tv 2",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/rack tv 2/ML009+ML074+ML332+ML302.obj",
+      "sourceFormat": "MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 2.73,
+      "triangleCount": 0,
+      "textureCount": 19,
+      "diagnostics": [
+        "Formato aberto (MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-sofa-sala",
+      "name": "sofa sala",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/sofa sala/sofa.max",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 70.84,
+      "triangleCount": 0,
+      "textureCount": 3,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-tapete",
+      "name": "TAPETE",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/TAPETE/kover.obj",
+      "sourceFormat": "MAX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 0.2,
+      "triangleCount": 0,
+      "textureCount": 6,
+      "diagnostics": [
+        "Formato aberto (MAX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-tomada-minimalista",
+      "name": "tomada minimalista",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/tomada minimalista/TECE_Now.fbx",
+      "sourceFormat": "FBX + OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 0.75,
+      "triangleCount": 0,
+      "textureCount": 1,
+      "diagnostics": [
+        "Formato aberto (FBX, OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-tv",
+      "name": "tv",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/tv/TV_SONY.obj",
+      "sourceFormat": "MAX + FBX + OBJ",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 0.48,
+      "triangleCount": 0,
+      "textureCount": 2,
+      "diagnostics": [
+        "Formato aberto (MAX, FBX, OBJ) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-vaso-planta",
+      "name": "vaso planta",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/vaso planta/Indoor_Plants_Set_03.obj",
+      "sourceFormat": "OBJ + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 16.15,
+      "triangleCount": 0,
+      "textureCount": 66,
+      "diagnostics": [
+        "Formato aberto (OBJ, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "bloco-vaso-sanit-rio",
+      "name": "vaso sanitário",
+      "category": "PROJECT_BLOCK",
+      "sourcePath": "Projetos/Blocos/vaso sanitário/BOHEME_FIORE_Corona_2021.max",
+      "sourceFormat": "FBX + MAX",
+      "outputUrl": null,
+      "pipelineStatus": "WARNING",
+      "stepCompleted": "CONVERT_MESH",
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 128.49,
+      "triangleCount": 0,
+      "textureCount": 0,
+      "diagnostics": [
+        "Formato aberto (FBX, MAX) pronto para conversão individual para .glb + Meshopt."
+      ]
+    },
+    {
+      "id": "raw-projeto-pedro-max",
+      "name": "Projeto Pedro.max",
+      "category": "PROPRIETARY_SCENE",
+      "sourcePath": "Projetos/Projeto Pedro.max",
+      "sourceFormat": "MAX",
+      "outputUrl": null,
+      "pipelineStatus": "ERROR",
+      "stepCompleted": null,
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 616.7,
+      "triangleCount": 0,
+      "textureCount": 0,
+      "diagnostics": [
+        "Arquivo proprietário fechado 3ds Max (.max 616.7 MB) sem exportação .glb/.usdz/.fbx. Requer exportação prévia no 3ds Max."
+      ]
+    },
+    {
+      "id": "raw-hdri-crdownload",
+      "name": "Não confirmado 632772.crdownload",
+      "category": "INCOMPLETE",
+      "sourcePath": "HDRI/Não confirmado 632772.crdownload",
+      "sourceFormat": "CRDOWNLOAD",
+      "outputUrl": null,
+      "pipelineStatus": "ERROR",
+      "stepCompleted": null,
+      "fileSizeBytes": 0,
+      "sourceSizeMB": 45.59,
+      "triangleCount": 0,
+      "textureCount": 0,
+      "diagnostics": [
+        "Download incompleto do navegador (.crdownload). Remova ou conclua o download."
+      ]
     }
   ],
   "shaderPresets": [

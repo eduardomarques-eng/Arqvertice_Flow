@@ -566,6 +566,45 @@ export interface Template3DHdriEntry {
   skyHorizonHex: string;
 }
 
+export type Pipeline3DStatus = "READY" | "WARNING" | "ERROR";
+export type Pipeline3DStepId = "CONVERT_MESH" | "OPTIMIZE_IMAGES_PBR" | "BUILD_MESHOPT";
+
+export interface Template3DAvatarEntry {
+  id: string;
+  slug: string;
+  name: string;
+  gender: "FEMININO" | "MASCULINO";
+  sourcePath: string;
+  sourceFormat: string;
+  previewUrl: string;
+  glbUrl: string | null;
+  fileSizeBytes: number;
+  heightMeters: number;
+  status: "READY" | "NEEDS_EXPORT";
+  pipelineStatus: Pipeline3DStatus;
+  diagnosticMessage?: string;
+  sourceSizeMB?: number;
+  triangleCount?: number;
+  diagnostics?: string[];
+}
+
+export interface Pipeline3DAssetItem {
+  id: string;
+  name: string;
+  category: "MODEL" | "AVATAR" | "HDRI" | "PROJECT_BLOCK" | "PROPRIETARY_SCENE" | "INCOMPLETE";
+  sourcePath: string;
+  sourceFormat: string;
+  outputUrl: string | null;
+  pipelineStatus: Pipeline3DStatus;
+  stepCompleted: Pipeline3DStepId | null;
+  fileSizeBytes: number;
+  sourceSizeMB: number;
+  triangleCount: number;
+  textureCount: number;
+  diagnostics: string[];
+  templateSlug?: string;
+}
+
 export interface Template3DModelEntry {
   id: string;
   slug: string;
@@ -576,9 +615,13 @@ export interface Template3DModelEntry {
   sourcePath: string;
   sourceFormat: string;
   sourceSizeMB: number;
+  status?: "READY" | "NEEDS_EXPORT";
+  pipelineStatus?: Pipeline3DStatus;
+  diagnostics?: string[];
   usedProceduralFallback: boolean;
   fallbackReason?: string;
-  glbUrl: string;
+  glbUrl: string | null;
+  usdzUrl?: string | null;
   posterUrl: string;
   fileSizeBytes: number;
   normalization: SceneNormalizationResult;
@@ -619,6 +662,8 @@ export interface Templates3DManifest {
   };
   hdris: Template3DHdriEntry[];
   models: Template3DModelEntry[];
+  avatars: Template3DAvatarEntry[];
+  verificationItems: Pipeline3DAssetItem[];
   projectBlocks: Template3DProjectBlockSummary[];
   shaderPresets: SmartPbrShaderPreset[];
 }
@@ -729,6 +774,8 @@ export const DEFAULT_3D_TEMPLATES_MANIFEST: Templates3DManifest = {
       sourceFormat: "FBX + OBJ + PBR Maps",
       sourceSizeMB: 67.79,
       usedProceduralFallback: false,
+      status: "READY",
+      pipelineStatus: "READY",
       glbUrl: "/assets/3d-templates/models/cozinha-interna.glb",
       posterUrl: "/assets/3d-templates/posters/cozinha-interna.svg",
       fileSizeBytes: 261676,
@@ -819,14 +866,21 @@ export const DEFAULT_3D_TEMPLATES_MANIFEST: Templates3DManifest = {
       category: "FACHADA_DECK_LAZER",
       discipline: "ARQUITETURA",
       sourcePath: "Modelos/casa modelo/Little_Houses_max2016..max",
-      sourceFormat: "3ds Max (.max) + Maps -> Procedural High-Precision PBR",
+      sourceFormat: "3ds Max (.max) Fechado (Aguardando Exportação)",
       sourceSizeMB: 620.43,
-      usedProceduralFallback: true,
+      status: "NEEDS_EXPORT",
+      pipelineStatus: "ERROR",
+      diagnostics: [
+        "Arquivo proprietário 3ds Max (.max) sem exportação aberta (.glb, .usdz ou .fbx).",
+        "Fallback procedural desativado pela política Zero Modelagem 3D.",
+        "Exporte o modelo em .glb/.usdz/.fbx no 3ds Max e processe na Central Pré-Build.",
+      ],
+      usedProceduralFallback: false,
       fallbackReason:
-        "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e shaders das texturas originais.",
-      glbUrl: "/assets/3d-templates/models/fachada-deck-lazer.glb",
+        "Arquivo binário fechado 3ds Max (.max) sem geometria .glb/.usdz/.fbx exportada; fallback procedural removido.",
+      glbUrl: null,
       posterUrl: "/assets/3d-templates/posters/fachada-deck-lazer.svg",
-      fileSizeBytes: 264464,
+      fileSizeBytes: 0,
       normalization: {
         detectedTool: "3dsmax",
         detectedUnit: "cm",
@@ -1049,15 +1103,114 @@ export const DEFAULT_3D_TEMPLATES_MANIFEST: Templates3DManifest = {
       ],
     },
   ],
+  avatars: [
+    {
+      id: "avatar-feminino",
+      slug: "feminino",
+      name: "Avatar 01 — Feminino",
+      gender: "FEMININO",
+      sourcePath: "Modelos/Blocos Perrsonagens/Feminino.jpg",
+      sourceFormat: "Referência 2D (.jpg) — Aguardando Malha 3D",
+      previewUrl: "/assets/3d-templates/avatars/feminino-preview.webp",
+      glbUrl: null,
+      fileSizeBytes: 0,
+      heightMeters: 1.7,
+      status: "NEEDS_EXPORT",
+      pipelineStatus: "ERROR",
+      diagnosticMessage:
+        "Pasta Blocos Perrsonagens contém apenas referência 2D (Feminino.jpg) sem malha 3D (.glb/.usdz/.fbx). Exporte ou envie o bloco 3D na Central Pré-Build.",
+    },
+    {
+      id: "avatar-masculino",
+      slug: "masculino",
+      name: "Avatar 02 — Masculino",
+      gender: "MASCULINO",
+      sourcePath: "Modelos/Blocos Perrsonagens/Masculino.jpg",
+      sourceFormat: "Referência 2D (.jpg) — Aguardando Malha 3D",
+      previewUrl: "/assets/3d-templates/avatars/masculino-preview.webp",
+      glbUrl: null,
+      fileSizeBytes: 0,
+      heightMeters: 1.75,
+      status: "NEEDS_EXPORT",
+      pipelineStatus: "ERROR",
+      diagnosticMessage:
+        "Pasta Blocos Perrsonagens contém apenas referência 2D (Masculino.jpg) sem malha 3D (.glb/.usdz/.fbx). Exporte ou envie o bloco 3D na Central Pré-Build.",
+    },
+  ],
+  verificationItems: [],
   projectBlocks: [],
   shaderPresets: Object.values(SMART_PBR_SHADER_PRESETS),
 };
+
+export function classifyPipeline3DAsset(input: {
+  format: string;
+  compiledUrl: string | null;
+  compiledSizeBytes: number;
+  uvIntact: boolean;
+  texturesOptimized: boolean;
+  scaleNormalized: boolean;
+  isCorrupted?: boolean;
+  missingTextures?: boolean;
+}): { status: Pipeline3DStatus; diagnostics: string[] } {
+  const diagnostics: string[] = [];
+  const fmt = input.format.toLowerCase();
+
+  if (input.isCorrupted || fmt.includes("crdownload")) {
+    diagnostics.push("Arquivo incompleto ou corrompido (.crdownload / download interrompido).");
+  }
+  if (fmt === ".max" || fmt === ".rvt" || fmt.includes("max") || fmt.includes("rvt")) {
+    if (!input.compiledUrl) {
+      diagnostics.push("Formato proprietário fechado sem exportação aberta (.glb, .usdz ou .fbx).");
+    }
+  }
+  if (input.missingTextures) {
+    diagnostics.push("Textura referenciada ausente na pasta maps/.");
+  }
+  if (!input.compiledUrl && diagnostics.length === 0) {
+    diagnostics.push("Ativo ainda não compilado para .glb otimizado.");
+  }
+
+  if (diagnostics.length > 0) {
+    return { status: "ERROR", diagnostics };
+  }
+
+  if (!input.uvIntact) {
+    diagnostics.push("Sub-objeto sem UV map íntegro; projeção automática sugerida no Passo 2.");
+  }
+  if (!input.texturesOptimized) {
+    diagnostics.push("Texturas acima de 2K antes da compressão; execute o Passo 2.");
+  }
+  if (!input.scaleNormalized) {
+    diagnostics.push("Escala em milímetros/centímetros aguardando normalização para metros (Passo 1).");
+  }
+  if (input.compiledSizeBytes > 2 * 1024 * 1024) {
+    diagnostics.push("Tamanho compilado acima de 2 MB; execute a compressão Meshopt (Passo 3).");
+  }
+
+  if (diagnostics.length > 0) {
+    return { status: "WARNING", diagnostics };
+  }
+
+  return {
+    status: "READY",
+    diagnostics: ["Modelo compilado, leve (< 2 MB), texturas otimizadas e UVs íntegros."],
+  };
+}
 
 export function findTemplate3DModel(idOrSlug: string): Template3DModelEntry | null {
   const clean = idOrSlug.trim().toLowerCase();
   return (
     DEFAULT_3D_TEMPLATES_MANIFEST.models.find(
       (m) => m.id.toLowerCase() === clean || m.slug.toLowerCase() === clean
+    ) || null
+  );
+}
+
+export function findTemplate3DAvatar(idOrSlug: string): Template3DAvatarEntry | null {
+  const clean = idOrSlug.trim().toLowerCase();
+  return (
+    DEFAULT_3D_TEMPLATES_MANIFEST.avatars.find(
+      (a) => a.id.toLowerCase() === clean || a.slug.toLowerCase() === clean
     ) || null
   );
 }

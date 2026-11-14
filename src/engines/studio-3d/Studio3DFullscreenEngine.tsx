@@ -28,7 +28,10 @@ export interface Studio3DAssetInput {
   description?: string | null;
   category?: string;
   sourcePath?: string;
-  glbUrl: string;
+  glbUrl: string | null;
+  usdzUrl?: string | null;
+  status?: "READY" | "NEEDS_EXPORT";
+  diagnostics?: string[];
   posterUrl?: string | null;
   defaultHdriId?: string;
   firstPersonCamera?: {
@@ -55,6 +58,7 @@ export interface Studio3DFullscreenEngineProps {
   availableAssets?: Studio3DAssetInput[];
   returnHref: string;
   returnLabel?: string;
+  pipelineHref?: string;
   userRole?: string;
 }
 
@@ -70,34 +74,40 @@ export default function Studio3DFullscreenEngine({
   availableAssets,
   returnHref,
   returnLabel = "Voltar ao Acervo",
+  pipelineHref = "/admin/acervo/pipeline-3d",
 }: Studio3DFullscreenEngineProps) {
   const catalogAssets = useMemo<Studio3DAssetInput[]>(() => {
-    const baseTemplates: Studio3DAssetInput[] = DEFAULT_3D_TEMPLATES_MANIFEST.models.map((tpl: Template3DModelEntry) => ({
-      id: tpl.id,
-      projectId: initialAsset.projectId ?? null,
-      projectName: initialAsset.projectName ?? "Acervo Manager CDE",
-      title: tpl.title,
-      description: tpl.subtitle,
-      category: tpl.category,
-      sourcePath: tpl.sourcePath,
-      glbUrl: tpl.glbUrl,
-      posterUrl: tpl.posterUrl,
-      defaultHdriId: tpl.defaultHdriId,
-      firstPersonCamera: tpl.normalization.firstPersonCamera,
-      thirdPersonCamera: tpl.normalization.thirdPersonCamera,
-      annotations: tpl.annotations,
-      stats: {
-        originalBytes: tpl.optimizationStats.originalBytes,
-        optimizedBytes: tpl.optimizationStats.optimizedBytes,
-        drawCalls: tpl.optimizationStats.drawCalls,
-        triangles: Math.round(tpl.optimizationStats.vertexCount / 3),
-      },
-    }));
+    const baseTemplates: Studio3DAssetInput[] = DEFAULT_3D_TEMPLATES_MANIFEST.models
+      .filter((tpl: Template3DModelEntry) => Boolean(tpl.glbUrl) && tpl.status !== "NEEDS_EXPORT")
+      .map((tpl: Template3DModelEntry) => ({
+        id: tpl.id,
+        projectId: initialAsset.projectId ?? null,
+        projectName: initialAsset.projectName ?? "Acervo Manager CDE",
+        title: tpl.title,
+        description: tpl.subtitle,
+        category: tpl.category,
+        sourcePath: tpl.sourcePath,
+        glbUrl: tpl.glbUrl,
+        usdzUrl: tpl.usdzUrl ?? null,
+        status: tpl.status ?? "READY",
+        diagnostics: tpl.diagnostics,
+        posterUrl: tpl.posterUrl,
+        defaultHdriId: tpl.defaultHdriId,
+        firstPersonCamera: tpl.normalization.firstPersonCamera,
+        thirdPersonCamera: tpl.normalization.thirdPersonCamera,
+        annotations: tpl.annotations,
+        stats: {
+          originalBytes: tpl.optimizationStats.originalBytes,
+          optimizedBytes: tpl.optimizationStats.optimizedBytes,
+          drawCalls: tpl.optimizationStats.drawCalls,
+          triangles: Math.round(tpl.optimizationStats.vertexCount / 3),
+        },
+      }));
 
-    const merged: Studio3DAssetInput[] = [initialAsset];
+    const merged: Studio3DAssetInput[] = initialAsset.glbUrl ? [initialAsset] : [];
     if (availableAssets && availableAssets.length > 0) {
       for (const item of availableAssets) {
-        if (!merged.some((m) => m.id === item.id || m.glbUrl === item.glbUrl)) {
+        if (item.glbUrl && !merged.some((m) => m.id === item.id || m.glbUrl === item.glbUrl)) {
           merged.push(item);
         }
       }
@@ -110,6 +120,11 @@ export default function Studio3DFullscreenEngine({
     return merged;
   }, [initialAsset, availableAssets]);
 
+  const avatarCatalog = useMemo(
+    () => DEFAULT_3D_TEMPLATES_MANIFEST.avatars || [],
+    []
+  );
+
   const hdriCatalog = useMemo<Template3DHdriEntry[]>(
     () => DEFAULT_3D_TEMPLATES_MANIFEST.hdris,
     []
@@ -117,6 +132,9 @@ export default function Studio3DFullscreenEngine({
 
   const [activeAsset, setActiveAsset] = useState<Studio3DAssetInput>(initialAsset);
   const [cameraMode, setCameraMode] = useState<StudioCameraMode>("third-person");
+  const [selectedAvatarId, setSelectedAvatarId] = useState<string>("none");
+  const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
+  const [arNotice, setArNotice] = useState<string | null>(null);
   const [visualMode, setVisualMode] = useState<StudioVisualMode>("realista-pbr-rt");
   const [turntable, setTurntable] = useState<boolean>(false);
   const [activeHdriId, setActiveHdriId] = useState<string>(
@@ -154,6 +172,7 @@ export default function Studio3DFullscreenEngine({
   const fillLightRef = useRef<THREE.HemisphereLight | null>(null);
   const envGroupRef = useRef<THREE.Group | null>(null);
   const modelRootRef = useRef<THREE.Group | null>(null);
+  const avatarRootRef = useRef<THREE.Group | null>(null);
   const edgeLinesGroupRef = useRef<THREE.Group | null>(null);
   const teleportRingRef = useRef<THREE.Mesh | null>(null);
   const pmremGeneratorRef = useRef<THREE.PMREMGenerator | null>(null);
@@ -416,6 +435,13 @@ export default function Studio3DFullscreenEngine({
         edgeLinesGroupRef.current = null;
       }
       storedMaterialsRef.current = [];
+
+      if (!asset.glbUrl) {
+        setIsLoaded(true);
+        setLoadingProgress(100);
+        setLoadError(null);
+        return;
+      }
 
       const loader = new GLTFLoader();
       try {
@@ -1558,17 +1584,104 @@ export default function Studio3DFullscreenEngine({
           </button>
 
           {cameraMode === "third-person" && (
+            <>
+              <select
+                value={selectedAvatarId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setSelectedAvatarId(id);
+                  if (id === "none") {
+                    setAvatarNotice(null);
+                    if (avatarRootRef.current && sceneRef.current) {
+                      sceneRef.current.remove(avatarRootRef.current);
+                      disposeObject3D(avatarRootRef.current);
+                      avatarRootRef.current = null;
+                    }
+                    return;
+                  }
+                  const av = avatarCatalog.find((a) => a.id === id);
+                  if (!av) return;
+                  if (!av.glbUrl) {
+                    setAvatarNotice(
+                      `${av.name}: aguardando malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural).`
+                    );
+                    return;
+                  }
+                  setAvatarNotice(null);
+                  const avLoader = new GLTFLoader();
+                  try {
+                    avLoader.setMeshoptDecoder(MeshoptDecoder);
+                  } catch {}
+                  avLoader.load(av.glbUrl, (gltf) => {
+                    if (!sceneRef.current) return;
+                    if (avatarRootRef.current) {
+                      sceneRef.current.remove(avatarRootRef.current);
+                      disposeObject3D(avatarRootRef.current);
+                    }
+                    const avRoot = gltf.scene || new THREE.Group();
+                    const box = new THREE.Box3().setFromObject(avRoot);
+                    if (!box.isEmpty()) {
+                      const sz = new THREE.Vector3();
+                      box.getSize(sz);
+                      const scale = sz.y > 0.01 ? 1.72 / sz.y : 1;
+                      avRoot.scale.setScalar(scale);
+                      avRoot.updateMatrixWorld(true);
+                      const sb = new THREE.Box3().setFromObject(avRoot);
+                      avRoot.position.set(0, -sb.min.y, 1.4);
+                    }
+                    avatarRootRef.current = avRoot;
+                    sceneRef.current.add(avRoot);
+                  });
+                }}
+                aria-label="Selecionar Avatar 3ª Pessoa"
+                className="h-9 rounded-full border border-white/15 bg-black/35 px-3 text-xs font-semibold text-white/90 backdrop-blur-xl outline-none hover:bg-black/50 transition"
+              >
+                <option value="none" className="bg-[#18181B] text-white">
+                  👤 Sem Avatar (Orbit)
+                </option>
+                {avatarCatalog.map((av) => (
+                  <option key={av.id} value={av.id} className="bg-[#18181B] text-white">
+                    🧍 {av.name} {av.glbUrl ? "" : "(Exportar 3D)"}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setTurntable((prev) => !prev)}
+                className={`rounded-full border border-white/15 px-3.5 py-2 text-xs font-semibold backdrop-blur-xl transition ${
+                  turntable
+                    ? "bg-[#EDE5D8] text-[#18181B]"
+                    : "bg-black/25 text-white/90 hover:bg-black/45"
+                }`}
+                title="Giro automático da maquete (Turntable)"
+              >
+                ↻ Turntable
+              </button>
+            </>
+          )}
+
+          {activeAsset.usdzUrl ? (
+            <a
+              href={activeAsset.usdzUrl}
+              rel="ar"
+              className="rounded-full border border-white/15 bg-black/25 px-3.5 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl hover:bg-black/45 transition"
+            >
+              📱 AR
+            </a>
+          ) : (
             <button
               type="button"
-              onClick={() => setTurntable((prev) => !prev)}
-              className={`rounded-full border border-white/15 px-3.5 py-2 text-xs font-semibold backdrop-blur-xl transition ${
-                turntable
-                  ? "bg-[#EDE5D8] text-[#18181B]"
-                  : "bg-black/25 text-white/90 hover:bg-black/45"
-              }`}
-              title="Giro automático da maquete (Turntable)"
+              onClick={() =>
+                setArNotice(
+                  activeAsset.glbUrl
+                    ? `AR QuickLook / SceneViewer pronto para ${activeAsset.title} (.GLB ativo). Anexe .USDZ no Pipeline para iOS.`
+                    : "Exporte .GLB / .USDZ no Pipeline Pré-Build 3D para habilitar Realidade Aumentada."
+                )
+              }
+              className="rounded-full border border-white/15 bg-black/25 px-3.5 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl hover:bg-black/45 transition"
             >
-              ↻ Turntable
+              📱 AR
             </button>
           )}
 
@@ -1585,6 +1698,59 @@ export default function Studio3DFullscreenEngine({
           </button>
         </div>
       </div>
+
+      {/* Avisos não-bloqueantes de Avatar / AR */}
+      {(avatarNotice || arNotice) && (
+        <div className="pointer-events-auto absolute bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-black/80 px-4 py-2.5 text-xs text-white/90 backdrop-blur-xl shadow-2xl">
+          <span>{avatarNotice || arNotice}</span>
+          <Link
+            href={pipelineHref}
+            className="shrink-0 rounded-lg bg-[#EDE5D8] px-2.5 py-1 text-[11px] font-semibold text-[#18181B] hover:opacity-90"
+          >
+            Pipeline 3D
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              setAvatarNotice(null);
+              setArNotice(null);
+            }}
+            className="text-white/60 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Aviso explícito NEEDS_EXPORT quando o ativo selecionado não possui .glb/.usdz/.fbx compilado */}
+      {!activeAsset.glbUrl && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#111215]/90 p-6 backdrop-blur-md">
+          <div className="max-w-md rounded-2xl border border-white/15 bg-[#18181B] p-6 text-center text-white shadow-2xl space-y-4">
+            <span className="inline-block rounded-full border border-rose-400/40 bg-rose-500/15 px-3 py-1 text-[11px] font-semibold text-rose-300">
+              NEEDS_EXPORT · Zero Modelagem Procedural
+            </span>
+            <h2 className="text-base font-semibold">{activeAsset.title}</h2>
+            <p className="text-xs text-white/70 leading-relaxed">
+              {activeAsset.diagnostics?.[0] ||
+                "Este ativo é um arquivo proprietário fechado (.max/.rvt) ou imagem 2D sem malha 3D aberta (.glb/.usdz/.fbx)."}
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Link
+                href={pipelineHref}
+                className="rounded-xl bg-[#EDE5D8] px-4 py-2 text-xs font-semibold text-[#18181B] hover:opacity-90 transition"
+              >
+                Abrir Pipeline Pré-Build 3D
+              </Link>
+              <Link
+                href={returnHref}
+                className="rounded-xl border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 hover:bg-white/10 transition"
+              >
+                {returnLabel}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 9. OVERLAY DE CARREGAMENTO PROGRESSIVO */}
       {!isLoaded && (
