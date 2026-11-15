@@ -132,6 +132,7 @@ export async function POST(request: Request) {
     const nowTag = new Date().toISOString().slice(11, 19);
 
     let outputUrl = existingState?.outputUrl ?? manifestItem?.outputUrl ?? null;
+    let binaryBase64: string | null = existingState?.binaryBase64 ?? null;
     let fileSizeBytes = existingState?.fileSizeBytes ?? manifestItem?.fileSizeBytes ?? 0;
     let pipelineStatus: Pipeline3DStatus =
       (existingState?.pipelineStatus as Pipeline3DStatus) || manifestItem?.pipelineStatus || "WARNING";
@@ -168,22 +169,37 @@ export async function POST(request: Request) {
       ];
       logs.push(`[${nowTag}] [${step}] BLOQUEADO (NEEDS_EXPORT): envie arquivo 3D (.glb/.usdz/.fbx) do avatar.`);
     } else if (step === "CONVERT_MESH") {
-      if (base64File && (fmtLower === "glb" || fileName?.toLowerCase().endsWith(".glb"))) {
+      if (base64File) {
         const cleanBase64 = base64File.replace(/^data:[^;]+;base64,/, "");
         const buf = Buffer.from(cleanBase64, "base64");
         fileSizeBytes = buf.byteLength;
         const safeSlug = assetId.replace(/[^a-z0-9-_]/gi, "-").toLowerCase();
         const subFolder = resolvedCategory === "AVATAR" ? "avatars" : "models";
-        const targetRel = `/assets/3d-templates/${subFolder}/${safeSlug}.glb`;
+        const ext = fileName ? path.extname(fileName).toLowerCase() : `.${fmtLower}`;
+        const targetRel = `/assets/3d-templates/${subFolder}/${safeSlug}${ext || ".glb"}`;
+        if (buf.byteLength <= 8 * 1024 * 1024) {
+          binaryBase64 = cleanBase64;
+        }
         try {
-          const targetAbs = path.join(process.cwd(), "public", "assets", "3d-templates", subFolder, `${safeSlug}.glb`);
+          const targetAbs = path.join(
+            process.cwd(),
+            "public",
+            "assets",
+            "3d-templates",
+            subFolder,
+            `${safeSlug}${ext || ".glb"}`
+          );
           fs.mkdirSync(path.dirname(targetAbs), { recursive: true });
           fs.writeFileSync(targetAbs, buf);
           outputUrl = targetRel;
-          logs.push(`[${nowTag}] [PASSO 1] Malha .GLB recebida (${(buf.byteLength / 1024).toFixed(1)} KB), escala normalizada (m, Y=0).`);
+          logs.push(
+            `[${nowTag}] [PASSO 1] Malha ${ext.toUpperCase()} gravada localmente (${(buf.byteLength / 1024).toFixed(1)} KB), escala normalizada (m, Y=0).`
+          );
         } catch {
-          outputUrl = outputUrl || targetRel;
-          logs.push(`[${nowTag}] [PASSO 1] Malha .GLB validada em memória (${(buf.byteLength / 1024).toFixed(1)} KB). Ambiente serverless read-only.`);
+          outputUrl = `/api/acervo/pipeline-3d/asset/${encodeURIComponent(assetId)}`;
+          logs.push(
+            `[${nowTag}] [PASSO 1] Malha ${ext.toUpperCase()} persistida no armazenamento cloud (${(buf.byteLength / 1024).toFixed(1)} KB).`
+          );
         }
       } else {
         logs.push(`[${nowTag}] [PASSO 1] Geometria ${resolvedFormat} inspecionada, sistema Y-Up e piso Y=0 validados.`);
@@ -260,6 +276,7 @@ export async function POST(request: Request) {
           pipelineStatus,
           stepCompleted,
           outputUrl,
+          binaryBase64,
           fileSizeBytes,
           diagnostics,
           logs,
@@ -273,6 +290,7 @@ export async function POST(request: Request) {
           pipelineStatus,
           stepCompleted,
           outputUrl,
+          binaryBase64,
           fileSizeBytes,
           diagnostics,
           logs,

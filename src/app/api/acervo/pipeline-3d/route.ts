@@ -138,6 +138,22 @@ export async function GET() {
       path.resolve(process.cwd(), "..", "Arquivos")
     );
 
+    const mergedAvatars = (manifest.avatars || []).map((av) => {
+      const override = stateMap.get(av.id);
+      if (!override) return av;
+      return {
+        ...av,
+        sourceFormat: override.sourceFormat || av.sourceFormat,
+        glbUrl: override.outputUrl ?? av.glbUrl,
+        pipelineStatus: (override.pipelineStatus as Pipeline3DStatus) || av.pipelineStatus,
+        status: (override.pipelineStatus === "READY" ? "READY" : "NEEDS_EXPORT") as "READY" | "NEEDS_EXPORT",
+        fileSizeBytes: override.fileSizeBytes || av.fileSizeBytes,
+        diagnostics: Array.isArray(override.diagnostics)
+          ? (override.diagnostics as string[])
+          : av.diagnostics,
+      };
+    });
+
     return NextResponse.json({
       success: true,
       manifestVersion: manifest.version,
@@ -145,7 +161,7 @@ export async function GET() {
       localArquivosAvailable,
       summary,
       items,
-      avatars: manifest.avatars || [],
+      avatars: mergedAvatars,
       hdris: manifest.hdris || [],
     });
   } catch (err) {

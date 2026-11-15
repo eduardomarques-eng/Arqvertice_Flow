@@ -1,12 +1,12 @@
 {
   "version": "2.2.0",
-  "generatedAt": "2026-11-14T23:43:36.841Z",
+  "generatedAt": "2026-11-15T00:29:21.848Z",
   "sourceRoot": "C:\\Users\\eduar\\OneDrive\\Documentos\\ArqVertice_Flow\\Arquivos",
   "summary": {
     "totalFilesScanned": 655,
     "hdriCount": 4,
     "compiledModelsCount": 3,
-    "avatarsCount": 2,
+    "avatarsCount": 4,
     "projectBlocksCataloged": 29,
     "shaderPresetsCount": 9,
     "skippedProprietaryOrIncomplete": [
@@ -798,17 +798,17 @@
   ],
   "avatars": [
     {
-      "id": "avatar-feminino",
-      "slug": "feminino",
-      "name": "Avatar Feminino",
-      "sourcePath": "Modelos/Blocos Perrsonagens/Feminino.jpg",
+      "id": "avatar-1-feminino",
+      "slug": "1-feminino",
+      "name": "Avatar 1 - Feminino",
+      "sourcePath": "Modelos/Blocos Perrsonagens/1 - Feminino.jpg",
       "sourceFormat": "JPG",
-      "sourceSizeMB": 2.24,
+      "sourceSizeMB": 0.22,
       "status": "NEEDS_EXPORT",
       "pipelineStatus": "ERROR",
       "glbUrl": null,
       "usdzUrl": null,
-      "previewUrl": "/assets/3d-templates/avatars/feminino-preview.webp",
+      "previewUrl": "/assets/3d-templates/avatars/1-feminino-preview.webp",
       "heightMeters": 1.72,
       "fileSizeBytes": 0,
       "triangleCount": 0,
@@ -817,22 +817,60 @@
       ]
     },
     {
-      "id": "avatar-masculino",
-      "slug": "masculino",
-      "name": "Avatar Masculino",
-      "sourcePath": "Modelos/Blocos Perrsonagens/Masculino.jpg",
+      "id": "avatar-1-masculino",
+      "slug": "1-masculino",
+      "name": "Avatar 1 - Masculino",
+      "sourcePath": "Modelos/Blocos Perrsonagens/1 - Masculino.jpg",
       "sourceFormat": "JPG",
-      "sourceSizeMB": 2.17,
+      "sourceSizeMB": 0.18,
       "status": "NEEDS_EXPORT",
       "pipelineStatus": "ERROR",
       "glbUrl": null,
       "usdzUrl": null,
-      "previewUrl": "/assets/3d-templates/avatars/masculino-preview.webp",
+      "previewUrl": "/assets/3d-templates/avatars/1-masculino-preview.webp",
       "heightMeters": 1.72,
       "fileSizeBytes": 0,
       "triangleCount": 0,
       "diagnostics": [
         "Somente imagem de referência 2D (.jpg) encontrada em Blocos Perrsonagens. Envie a malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural)."
+      ]
+    },
+    {
+      "id": "avatar-feminino",
+      "slug": "feminino",
+      "name": "Avatar feminino",
+      "sourcePath": "Modelos/Blocos Perrsonagens/feminino.glb",
+      "sourceFormat": "GLB",
+      "sourceSizeMB": 2.58,
+      "status": "READY",
+      "pipelineStatus": "READY",
+      "glbUrl": "/assets/3d-templates/avatars/feminino.glb",
+      "usdzUrl": null,
+      "previewUrl": "/assets/3d-templates/avatars/feminino-preview.webp",
+      "heightMeters": 1.72,
+      "fileSizeBytes": 75464,
+      "triangleCount": 20000,
+      "diagnostics": [
+        "Avatar compilado com 20000 triângulos e 73.7 KB (Meshopt, Y=0)."
+      ]
+    },
+    {
+      "id": "avatar-masculino",
+      "slug": "masculino",
+      "name": "Avatar masculino",
+      "sourcePath": "Modelos/Blocos Perrsonagens/masculino.glb",
+      "sourceFormat": "GLB",
+      "sourceSizeMB": 2.49,
+      "status": "READY",
+      "pipelineStatus": "READY",
+      "glbUrl": "/assets/3d-templates/avatars/masculino.glb",
+      "usdzUrl": null,
+      "previewUrl": "/assets/3d-templates/avatars/masculino-preview.webp",
+      "heightMeters": 1.72,
+      "fileSizeBytes": 74432,
+      "triangleCount": 20000,
+      "diagnostics": [
+        "Avatar compilado com 20000 triângulos e 72.7 KB (Meshopt, Y=0)."
       ]
     }
   ],
@@ -1291,16 +1329,16 @@
       ]
     },
     {
-      "id": "avatar-feminino",
-      "name": "Avatar Feminino",
+      "id": "avatar-1-feminino",
+      "name": "Avatar 1 - Feminino",
       "category": "AVATAR",
-      "sourcePath": "Modelos/Blocos Perrsonagens/Feminino.jpg",
+      "sourcePath": "Modelos/Blocos Perrsonagens/1 - Feminino.jpg",
       "sourceFormat": "JPG",
       "outputUrl": null,
       "pipelineStatus": "ERROR",
       "stepCompleted": null,
       "fileSizeBytes": 0,
-      "sourceSizeMB": 2.24,
+      "sourceSizeMB": 0.22,
       "triangleCount": 0,
       "textureCount": 1,
       "diagnostics": [
@@ -1308,20 +1346,54 @@
       ]
     },
     {
-      "id": "avatar-masculino",
-      "name": "Avatar Masculino",
+      "id": "avatar-1-masculino",
+      "name": "Avatar 1 - Masculino",
       "category": "AVATAR",
-      "sourcePath": "Modelos/Blocos Perrsonagens/Masculino.jpg",
+      "sourcePath": "Modelos/Blocos Perrsonagens/1 - Masculino.jpg",
       "sourceFormat": "JPG",
       "outputUrl": null,
       "pipelineStatus": "ERROR",
       "stepCompleted": null,
       "fileSizeBytes": 0,
-      "sourceSizeMB": 2.17,
+      "sourceSizeMB": 0.18,
       "triangleCount": 0,
       "textureCount": 1,
       "diagnostics": [
         "Somente imagem de referência 2D (.jpg) encontrada em Blocos Perrsonagens. Envie a malha .glb/.usdz/.fbx no Pipeline Pré-Build 3D (zero modelagem procedural)."
+      ]
+    },
+    {
+      "id": "avatar-feminino",
+      "name": "Avatar feminino",
+      "category": "AVATAR",
+      "sourcePath": "Modelos/Blocos Perrsonagens/feminino.glb",
+      "sourceFormat": "GLB",
+      "outputUrl": "/assets/3d-templates/avatars/feminino.glb",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 75464,
+      "sourceSizeMB": 2.58,
+      "triangleCount": 20000,
+      "textureCount": 1,
+      "diagnostics": [
+        "Avatar compilado com 20000 triângulos e 73.7 KB (Meshopt, Y=0)."
+      ]
+    },
+    {
+      "id": "avatar-masculino",
+      "name": "Avatar masculino",
+      "category": "AVATAR",
+      "sourcePath": "Modelos/Blocos Perrsonagens/masculino.glb",
+      "sourceFormat": "GLB",
+      "outputUrl": "/assets/3d-templates/avatars/masculino.glb",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 74432,
+      "sourceSizeMB": 2.49,
+      "triangleCount": 20000,
+      "textureCount": 1,
+      "diagnostics": [
+        "Avatar compilado com 20000 triângulos e 72.7 KB (Meshopt, Y=0)."
       ]
     },
     {

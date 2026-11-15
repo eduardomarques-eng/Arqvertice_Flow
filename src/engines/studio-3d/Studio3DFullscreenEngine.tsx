@@ -15,8 +15,9 @@ import {
   type Template3DModelEntry,
 } from "@/lib/acervo/scene-compiler";
 import type { Project3DAnnotation } from "@/lib/acervo/showcase-3d-defaults";
+import { updateStudioCameraFrame, type StudioCameraMode } from "./StudioCameraRig";
 
-export type StudioCameraMode = "third-person" | "first-person";
+export type { StudioCameraMode };
 export type StudioVisualMode = "realista-pbr-rt" | "clay-maquete" | "tecnico-arestas" | "wireframe";
 export type RenderPipelineStage = "NAVIGATING_60FPS" | "CONVERGING_RT_GI" | "CONVERGED_IDLE_0GPU";
 
@@ -75,6 +76,7 @@ export default function Studio3DFullscreenEngine({
   returnHref,
   returnLabel = "Voltar ao Acervo",
   pipelineHref = "/admin/acervo/pipeline-3d",
+  userRole,
 }: Studio3DFullscreenEngineProps) {
   const catalogAssets = useMemo<Studio3DAssetInput[]>(() => {
     const baseTemplates: Studio3DAssetInput[] = DEFAULT_3D_TEMPLATES_MANIFEST.models
@@ -875,37 +877,14 @@ export default function Studio3DFullscreenEngine({
       const now = performance.now();
       const st = camStateRef.current;
 
-      // Keyboard WASD / Arrows & Mobile Touch Joystick movement
-      const keys = st.keysPressed;
-      const moveSpeed = 0.065;
-      let movedByKeys = false;
-
-      const forwardInput =
-        (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
-        (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) +
-        joystickVectorRef.current.forward;
-      const rightInput =
-        (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) -
-        (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0) +
-        joystickVectorRef.current.right;
-
-      if (Math.abs(forwardInput) > 0.01 || Math.abs(rightInput) > 0.01) {
-        movedByKeys = true;
-        if (st.mode === "first-person") {
-          const forwardVec = new THREE.Vector3(-Math.sin(st.fpYaw), 0, -Math.cos(st.fpYaw));
-          const rightVec = new THREE.Vector3(Math.cos(st.fpYaw), 0, -Math.sin(st.fpYaw));
-          st.fpDesiredPosition.addScaledVector(forwardVec, forwardInput * moveSpeed);
-          st.fpDesiredPosition.addScaledVector(rightVec, rightInput * moveSpeed);
-          st.fpDesiredPosition.y = 1.65;
-        } else {
-          st.desiredTheta -= rightInput * 0.025;
-          st.desiredRadius = THREE.MathUtils.clamp(
-            st.desiredRadius - forwardInput * 0.12,
-            1.4,
-            35
-          );
-        }
-      }
+      const { movedByKeys, dampingActive: rigDamping } = updateStudioCameraFrame({
+        st: st as unknown as Parameters<typeof updateStudioCameraFrame>[0]["st"],
+        camera,
+        joystick: joystickVectorRef.current,
+        avatarRoot: avatarRootRef.current,
+        modelRoot: modelRootRef.current,
+        raycaster,
+      });
 
       if (movedByKeys) {
         lastInteractionTimeRef.current = now;
@@ -913,42 +892,7 @@ export default function Studio3DFullscreenEngine({
         rtPassCompletedRef.current = false;
       }
 
-      // Smooth damping convergence check
-      let dampingActive = false;
-      if (st.mode === "first-person") {
-        const posDiff = st.fpPosition.distanceTo(st.fpDesiredPosition);
-        const yawDiff = Math.abs(st.fpYaw - st.fpDesiredYaw);
-        const pitchDiff = Math.abs(st.fpPitch - st.fpDesiredPitch);
-        if (posDiff > 0.0015 || yawDiff > 0.0008 || pitchDiff > 0.0008) {
-          dampingActive = true;
-          st.fpPosition.lerp(st.fpDesiredPosition, 0.14);
-          st.fpYaw = THREE.MathUtils.lerp(st.fpYaw, st.fpDesiredYaw, 0.18);
-          st.fpPitch = THREE.MathUtils.lerp(st.fpPitch, st.fpDesiredPitch, 0.18);
-        }
-        camera.position.copy(st.fpPosition);
-        const lookDir = new THREE.Vector3(
-          -Math.sin(st.fpYaw) * Math.cos(st.fpPitch),
-          Math.sin(st.fpPitch),
-          -Math.cos(st.fpYaw) * Math.cos(st.fpPitch)
-        );
-        camera.lookAt(camera.position.clone().add(lookDir));
-      } else {
-        const radDiff = Math.abs(st.spherical.radius - st.desiredRadius);
-        const phiDiff = Math.abs(st.spherical.phi - st.desiredPhi);
-        const thetaDiff = Math.abs(st.spherical.theta - st.desiredTheta);
-        const targetDiff = st.target.distanceTo(st.desiredTarget);
-
-        if (radDiff > 0.002 || phiDiff > 0.001 || thetaDiff > 0.001 || targetDiff > 0.002) {
-          dampingActive = true;
-          st.spherical.radius = THREE.MathUtils.lerp(st.spherical.radius, st.desiredRadius, 0.14);
-          st.spherical.phi = THREE.MathUtils.lerp(st.spherical.phi, st.desiredPhi, 0.14);
-          st.spherical.theta = THREE.MathUtils.lerp(st.spherical.theta, st.desiredTheta, 0.14);
-          st.target.lerp(st.desiredTarget, 0.14);
-        }
-        const offset = new THREE.Vector3().setFromSpherical(st.spherical);
-        camera.position.copy(st.target).add(offset);
-        camera.lookAt(st.target);
-      }
+      let dampingActive = rigDamping;
 
       if (st.teleportRingTimer > 0.01 && teleportRingRef.current) {
         st.teleportRingTimer *= 0.92;
@@ -1107,6 +1051,67 @@ export default function Studio3DFullscreenEngine({
     wakeRenderLoop();
   };
 
+  const stepPinTour = (delta: -1 | 1) => {
+    const list = activeAsset.annotations || [];
+    if (list.length === 0) return;
+    const currentIdx = selectedPin ? list.findIndex((p) => p.id === selectedPin.id) : -1;
+    const nextIdx =
+      currentIdx === -1
+        ? delta > 0
+          ? 0
+          : list.length - 1
+        : (currentIdx + delta + list.length) % list.length;
+    handleSelectAnnotation(list[nextIdx]);
+  };
+
+  const toggleFullscreen = () => {
+    if (typeof document === "undefined") return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  const handleCaptureVistaPin = async () => {
+    if (!cameraRef.current) return;
+    const camPos: [number, number, number] = [
+      Number(cameraRef.current.position.x.toFixed(2)),
+      Number(cameraRef.current.position.y.toFixed(2)),
+      Number(cameraRef.current.position.z.toFixed(2)),
+    ];
+    const tgt = camStateRef.current.target;
+    const camTgt: [number, number, number] = [
+      Number(tgt.x.toFixed(2)),
+      Number(tgt.y.toFixed(2)),
+      Number(tgt.z.toFixed(2)),
+    ];
+    const existing = activeAsset.annotations || [];
+    const nextIdx = existing.length + 1;
+    const newPin: Project3DAnnotation = {
+      id: `pin-vista-${Date.now()}`,
+      index: nextIdx,
+      x: camTgt[0],
+      y: camTgt[1],
+      z: camTgt[2],
+      cameraPosition: camPos,
+      cameraTarget: camTgt,
+      title: `Vista Técnica ${nextIdx}`,
+      description: "Enquadramento técnico capturado no Studio 3D.",
+      materialSpec: "PBR + HDRI Calibrado",
+    };
+    const updatedAnnotations = [...existing, newPin];
+    setActiveAsset((prev) => ({ ...prev, annotations: updatedAnnotations }));
+    setSelectedPin(newPin);
+    if (/^[0-9a-f-]{36}$/i.test(activeAsset.id)) {
+      await fetch(`/api/acervo/3d-assets/${activeAsset.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annotations: updatedAnnotations }),
+      }).catch(() => {});
+    }
+  };
+
   const hudOpacityClass =
     hudIdle && activeDrawer === "none" && !selectedPin
       ? "opacity-15 hover:opacity-100"
@@ -1234,6 +1239,27 @@ export default function Studio3DFullscreenEngine({
             <div className="mt-2 flex items-center justify-between text-[11px] text-white/70">
               <span>Cota / Escala Real:</span>
               <span className="font-mono font-semibold text-[#EDE5D8]">{selectedPin.dimensions}</span>
+            </div>
+          )}
+          {(activeAsset.annotations?.length || 0) > 1 && (
+            <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => stepPinTour(-1)}
+                className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 font-semibold text-white/85 hover:bg-white/15 transition"
+              >
+                ← Anterior
+              </button>
+              <span className="font-mono text-white/60">
+                {selectedPin.index} / {activeAsset.annotations?.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => stepPinTour(1)}
+                className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 font-semibold text-white/85 hover:bg-white/15 transition"
+              >
+                Próximo →
+              </button>
             </div>
           )}
         </div>
@@ -1685,16 +1711,54 @@ export default function Studio3DFullscreenEngine({
             </button>
           )}
 
+          <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/25 p-1 text-xs backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={() => stepPinTour(-1)}
+              className="rounded-full px-2 py-1 text-white/75 hover:bg-black/45 hover:text-white transition"
+              title="Pino anterior"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHotspots((prev) => !prev)}
+              className={`rounded-full px-2.5 py-1 font-semibold transition ${
+                showHotspots
+                  ? "bg-black/45 text-[#EDE5D8]"
+                  : "text-white/60 hover:bg-black/45"
+              }`}
+            >
+              📍 {selectedPin ? `${selectedPin.index}/${activeAsset.annotations?.length || 0}` : `Pinos (${activeAsset.annotations?.length || 0})`}
+            </button>
+            <button
+              type="button"
+              onClick={() => stepPinTour(1)}
+              className="rounded-full px-2 py-1 text-white/75 hover:bg-black/45 hover:text-white transition"
+              title="Próximo pino"
+            >
+              ›
+            </button>
+          </div>
+
+          {userRole === "ADMIN" && (
+            <button
+              type="button"
+              onClick={() => void handleCaptureVistaPin()}
+              className="rounded-full border border-white/15 bg-black/25 px-3 py-2 text-xs font-semibold text-[#EDE5D8] backdrop-blur-xl hover:bg-black/45 transition"
+              title="Capturar câmera atual como novo pino técnico"
+            >
+              + Vista
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => setShowHotspots((prev) => !prev)}
-            className={`rounded-full border border-white/15 px-3.5 py-2 text-xs font-semibold backdrop-blur-xl transition ${
-              showHotspots
-                ? "bg-black/45 text-[#EDE5D8]"
-                : "bg-black/25 text-white/60 hover:bg-black/45"
-            }`}
+            onClick={toggleFullscreen}
+            className="rounded-full border border-white/15 bg-black/25 px-3 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl hover:bg-black/45 transition"
+            title="Alternar Tela Cheia"
           >
-            📍 Pins ({activeAsset.annotations?.length || 0})
+            ⛶
           </button>
         </div>
       </div>

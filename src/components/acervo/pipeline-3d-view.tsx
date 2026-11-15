@@ -6,6 +6,7 @@ import type {
   Pipeline3DAssetItem,
   Pipeline3DStatus,
   Pipeline3DStepId,
+  Template3DAvatarEntry,
 } from "@/lib/acervo/scene-compiler";
 
 interface ExtendedPipelineItem extends Pipeline3DAssetItem {
@@ -25,6 +26,7 @@ interface PipelineResponse {
     error: number;
   };
   items: ExtendedPipelineItem[];
+  avatars?: Template3DAvatarEntry[];
 }
 
 const STATUS_BADGE: Record<
@@ -197,6 +199,45 @@ export function Pipeline3DView({ basePath }: { basePath: "/admin" | "/equipe" })
     reader.readAsDataURL(file);
   };
 
+  const handleAvatarDirectUpload = async (avatar: Template3DAvatarEntry, file: File) => {
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!["glb", "gltf", "usdz", "fbx"].includes(ext)) {
+      setUploadFeedback(
+        `Formato .${ext} não suportado para avatar. Envie .glb, .fbx ou .usdz exportado do Tripo 3D / Blender / 3ds Max.`
+      );
+      return;
+    }
+
+    const avatarItem: ExtendedPipelineItem = {
+      id: avatar.id,
+      name: avatar.name,
+      category: "AVATAR",
+      sourcePath: `Modelos/Blocos Perrsonagens/${file.name}`,
+      sourceFormat: ext.toUpperCase(),
+      outputUrl: avatar.glbUrl,
+      pipelineStatus: avatar.pipelineStatus,
+      stepCompleted: null,
+      fileSizeBytes: file.size,
+      sourceSizeMB: Number((file.size / (1024 * 1024)).toFixed(2)),
+      triangleCount: avatar.triangleCount || 0,
+      textureCount: 1,
+      diagnostics: avatar.diagnostics || [],
+    };
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64File = typeof reader.result === "string" ? reader.result : undefined;
+      await runPipelineStep(avatarItem, "CONVERT_MESH", {
+        fileName: file.name,
+        base64File,
+      });
+      await runPipelineStep(avatarItem, "OPTIMIZE_IMAGES_PBR");
+      await runPipelineStep(avatarItem, "BUILD_MESHOPT");
+      setUploadFeedback(`Avatar ${avatar.name} (${file.name}) compilado e pronto para 3ª pessoa.`);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho Apple-minimalista + Warm Minimalist */}
@@ -273,6 +314,76 @@ export function Pipeline3DView({ basePath }: { basePath: "/admin" | "/equipe" })
           </p>
         </div>
       </div>
+
+      {/* Avatares de 3ª Pessoa (Blocos Perrsonagens) */}
+      {data?.avatars && data.avatars.length > 0 && (
+        <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Avatares de 3ª Pessoa (Blocos Perrsonagens)
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Zero modelagem procedural: envie a malha pronta (.GLB / .FBX / .USDZ) exportada do Tripo 3D, Blender ou 3ds Max (~1,72m, Y=0).
+              </p>
+            </div>
+            <span className="rounded-full bg-[#EDE5D8]/70 px-2.5 py-1 text-[11px] font-semibold text-[#18181B]">
+              {data.localArquivosAvailable ? "Pasta Local Conectada" : "Modo Cloud (Vercel + Postgres)"}
+            </span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {data.avatars.map((av) => {
+              const badge = STATUS_BADGE[av.pipelineStatus];
+              return (
+                <div
+                  key={av.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-[#F5F5F7]/70 p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    {av.previewUrl ? (
+                      <img
+                        src={av.previewUrl}
+                        alt={av.name}
+                        className="h-12 w-12 rounded-xl object-cover border border-slate-200/80 bg-white"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EDE5D8] text-lg">
+                        🧍
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-semibold text-[#18181B]">{av.name}</p>
+                      <p className="text-[11px] text-slate-500">
+                        {av.sourceFormat} · {av.heightMeters}m · {av.glbUrl ? "Pronto p/ 3ª Pessoa" : "Aguardando malha 3D"}
+                      </p>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.pill}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
+                        {badge.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  <label className="shrink-0 cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-[#18181B] shadow-2xs hover:bg-[#EDE5D8]/60 transition">
+                    <span>Enviar .GLB / .FBX / .USDZ</span>
+                    <input
+                      type="file"
+                      accept=".glb,.gltf,.fbx,.usdz"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleAvatarDirectUpload(av, file);
+                      }}
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Zona de Upload & Filtros */}
       <div className="grid gap-4 lg:grid-cols-3">
