@@ -1657,6 +1657,7 @@ export default function Studio3DFullscreenEngine({
                     }
                     avatarRootRef.current = avRoot;
                     sceneRef.current.add(avRoot);
+                    wakeRenderLoop();
                   });
                 }}
                 aria-label="Selecionar Avatar 3ª Pessoa"

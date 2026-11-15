@@ -932,6 +932,34 @@ export function AcervoProjectDetailView({
                       >
                         {isExtracting ? "Extraindo..." : "Ler Carimbo e Quadros da Prancha (IA/PDF)"}
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isExtracting}
+                        onClick={async () => {
+                          setIsExtracting(true);
+                          try {
+                            const res = await fetch("/api/acervo/extract", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                sourceType: "MODEL_3D",
+                                model3dSlug: "cozinha-interna",
+                              }),
+                            });
+                            const data = await res.json();
+                            if (res.ok && data.success) {
+                              setTakeoffs(data.takeoffs || []);
+                              setExtractSource(data.source || "SCENE_3D_INSPECTOR");
+                            }
+                          } finally {
+                            setIsExtracting(false);
+                          }
+                        }}
+                        className="w-full h-8 rounded-xl border-slate-200 bg-[#F5F5F7] text-[11px] font-semibold text-slate-800 hover:bg-[#EDE5D8]/60"
+                      >
+                        Inspecionar Quantitativos 3D (.GLB / Materiais PBR)
+                      </Button>
                       <p className="text-[10px] text-slate-500 text-center">
                         Para modelos 3D, use também &quot;Extrair Quantitativos IFC&quot; na barra do visualizador 3D.
                       </p>

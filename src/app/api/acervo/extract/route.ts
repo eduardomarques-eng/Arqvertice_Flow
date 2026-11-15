@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
+import {
+  DEFAULT_3D_TEMPLATES_MANIFEST,
+  SMART_PBR_SHADER_PRESETS,
+} from "@/lib/acervo/scene-compiler";
 
 export interface ExtractedTakeoffItem {
   category: "AREAS" | "ESQUADRIAS" | "REVESTIMENTOS" | "ELETRICO" | "HIDRAULICO" | "ESTRUTURA";
@@ -137,12 +141,51 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { revisionId, textContent, sheetTitle, fileName } = body as {
+    const { revisionId, textContent, sheetTitle, fileName, sourceType, model3dSlug } = body as {
       revisionId?: string;
       textContent?: string;
       sheetTitle?: string;
       fileName?: string;
+      sourceType?: "PDF_CAD" | "MODEL_3D";
+      model3dSlug?: string;
     };
+
+    if (sourceType === "MODEL_3D") {
+      const model =
+        DEFAULT_3D_TEMPLATES_MANIFEST.models.find(
+          (m) => m.slug === model3dSlug || m.id === model3dSlug
+        ) || DEFAULT_3D_TEMPLATES_MANIFEST.models[0];
+
+      const [w, h, d] = model.normalization.normalizedSizeMeters || [6.0, 3.0, 5.0];
+      const estimatedArea = Number((w * d).toFixed(2));
+      const wallArea = Number((2 * (w + d) * h * 0.45).toFixed(2));
+      const takeoffs3d: ExtractedTakeoffItem[] = (model.shaderPresetsUsed || []).map((presetId, idx) => {
+        const preset = SMART_PBR_SHADER_PRESETS[presetId];
+        const category: ExtractedTakeoffItem["category"] =
+          presetId.includes("vidro")
+            ? "ESQUADRIAS"
+            : presetId.includes("metal") || presetId.includes("inox")
+            ? "ESTRUTURA"
+            : "REVESTIMENTOS";
+        return {
+          category,
+          description: `${preset?.label || presetId} (${w.toFixed(1)}×${d.toFixed(1)}×${h.toFixed(1)}m)`,
+          quantity: idx === 0 ? estimatedArea : Number((wallArea / Math.max(1, model.shaderPresetsUsed.length - 1)).toFixed(2)),
+          unit: "m²",
+        };
+      });
+
+      return NextResponse.json({
+        success: true,
+        source: "SCENE_3D_INSPECTOR",
+        metadata: {
+          title: model.title,
+          scale: "1:1 (Metros PBR)",
+          revision: "GLB-MESHOPT",
+        },
+        takeoffs: takeoffs3d,
+      });
+    }
 
     const geminiKey = process.env.GEMINI_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;

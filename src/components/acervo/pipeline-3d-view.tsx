@@ -207,6 +207,12 @@ export function Pipeline3DView({ basePath }: { basePath: "/admin" | "/equipe" })
       );
       return;
     }
+    if (file.size > 4 * 1024 * 1024) {
+      setUploadFeedback(
+        `Avatar excede o limite serverless de 4 MB (${(file.size / (1024 * 1024)).toFixed(2)} MB). Comprima via Meshopt/Blender antes do envio.`
+      );
+      return;
+    }
 
     const avatarItem: ExtendedPipelineItem = {
       id: avatar.id,

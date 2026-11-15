@@ -1,74 +1,61 @@
-# Relatório Final de Encerramento e Validação — Acervo Manager (CDE)
+# Relatório Técnico Final — Acervo Manager CDE, Pipeline Pré-Build 3D, Studio 3D Isolado & Plugins Windows (2022–2026)
 
-**Produto:** ArqVértice Flow — Módulo Acervo Manager (Ambiente Comum de Dados)  
-**Repositório:** `Arqvertice_Flow` (`main`)  
-**URL de Produção:** https://arqvertice-flow.vercel.app  
-**Status da Release:** Aprovada e Publicada (`READY`)  
-
----
-
-## 1. Arquitetura CDE & Banco de Dados (Prisma / Neon Postgres)
-
-O núcleo do **Acervo Manager** foi modelado no `prisma/schema.prisma` para garantir rastreabilidade imutável de revisões e controle de engenharia no padrão ConstruManager:
-
-- **Estrutura de Documentos e Revisões Imutáveis:**
-  - `AcervoFolder`: Organização hierárquica por fase (`Estudo Preliminar`, `Executivo`, `As Built`) e disciplina.
-  - `AcervoDocument` e `AcervoRevision`: Controle sequencial automático de revisões (`R00` ➔ `R01` ➔ `R02`), ponteiro para revisão vigente (`currentRevisionId`, `isCurrent`) e histórico bloqueado para versões substituídas (`OBSOLETO`).
-  - `AcervoWorkflowConfig` e `AcervoWorkflowLog`: Esteira de aprovação com trilha completa de auditoria (`EM_ELABORACAO`, `EM_REVISAO_TECNICA`, `EM_ANALISE`, `APROVADO_COM_RESSALVAS`, `APROVADO_OBRA`, `BOM_PARA_OBRA`, `OBSOLETO`), registrando autor, papel e timestamps para cálculo de SLA.
-  - **Sincronização com Portal do Cliente:** Ao atingir `BOM_PARA_OBRA` em `transitionAcervoWorkflow` (`src/server/services/acervo-cde-service.ts`), o sistema marca revisões anteriores como `OBSOLETO` e espelha automaticamente o entregável no `ProjectDeliverable` do Portal do Cliente (`/portal/[id]`).
-- **Motor de Regras de Nomenclatura (`src/lib/acervo/naming-engine.ts`):**
-  - `AcervoNamingRule` com políticas `STRICT_BLOCK` e `WARN_ONLY` validando a máscara `[EMP]-[DISC]-[FASE]-[TIPO]-[SEQ]-[REV]` (`parseAndValidateSheetName` e `getNextRevisionNumber`).
-- **Permissões Granulares:**
-  - `AcervoDisciplinePermission` para restrição por disciplina e controle de acesso modular (`acervo`) via `src/lib/rbac.ts`.
+**Repositório:** `ArqVertice_Flow/Arqvertice_Flow`  
+**Ambiente de Produção:** `https://arqvertice-flow.vercel.app`  
+**Data de Fechamento:** 14 de Novembro de 2026  
 
 ---
 
-## 2. Colaboração, BIM & Visualização Web
+## 1. Arquitetura Consolidada do Módulo Acervo Manager (CDE)
 
-- **Visualizador Online Fullscreen (`src/components/acervo/cde-online-viewer-modal.tsx`):**
-  - Carregado dinamicamente com `next/dynamic` (`ssr: false`).
-  - Suporte integrado para pranchas PDF/Imagem, pareamento de arquivos nativos (`.dwg` / `.rvt`) com visualização web (`.pdf` / `.dxf`) e seletor rápido entre revisões (`R00` vs `R01`).
-  - Controles de zoom (`50%` a `300%`) e camada interativa de marcação por coordenadas percentuais `(x, y)`.
-- **Fluxo de RFIs & Markups (`src/app/api/acervo/revisions/[id]/rfi/route.ts`):**
-  - CRUD completo para `AcervoRfiMarkup` com códigos sequenciais (`RFI-001`, `RFI-002`...), tipos (`PIN`, `CLOUD`, `DIMENSION`), estado de câmera 3D (`cameraState`) e ciclo `ABERTA` ➔ `RESPONDIDA` ➔ `ENCERRADA`.
+O módulo **Acervo Manager** opera como um Ambiente Comum de Dados (CDE) completo para escritórios de Arquitetura e Engenharia, com paridade 1:1 entre `/admin/acervo/**` e `/equipe/acervo/**`, governança estrita por empreendimento (`ProjectAccess`), bloqueio de revisões `OBSOLETO` e conformidade com LGPD / CSP.
 
----
-
-## 3. Operação de Canteiro & Mobilidade
-
-- **Guia de Remessa de Documentos (GRD):**
-  - Modelos `AcervoGrd` e `AcervoGrdItem` com geração sequencial (`GRD-YYYY-XXXX`), protocolo rastreável (`hashToken`) e emissão via `/api/acervo/grd` e `/api/acervo/upload-grd`.
-- **Carimbo Digital e Rastreabilidade via QR Code:**
-  - Serviço de carimbo digital (`src/server/services/acervo-stamp-service.ts` e `/api/acervo/revisions/[id]/stamp`).
-  - Geração dinâmica de QR Code via `/api/acervo/revisions/[id]/qrcode` vinculado ao `qrVerificationToken`.
-  - Rota pública de auditoria de canteiro `/verificar/[qrToken]` (`src/app/verificar/[qrToken]/page.tsx`):
-    - **Prancha Vigente (`BOM_PARA_OBRA` / `APROVADO_OBRA`):** Selo verde de liberação, ficha técnica, hash SHA-256 e acesso ao arquivo.
-    - **Prancha Obsoleta (`OBSOLETO` ou `isCurrent = false`):** Alerta vermelho de alto contraste com bloqueio preventivo de download.
-- **PWA Offline & Apontamentos Fotográficos de Campo:**
-  - Manifesto PWA (`public/manifest.json`), Service Worker (`public/sw.js`) e registro global (`src/components/acervo/pwa-register.tsx`) montado no `RootLayout` (`src/app/layout.tsx`) com aviso em tempo real de modo offline.
-  - Captura direta via câmera (`capture="environment"`) anexada aos pinos de RFI e armazenada em `geometryJson`.
+### 1.1 Gestão Documental, GRD, QR Code & Plugins Windows (2022–2026)
+- **Workspace Unificado (`/admin/acervo/[projectId]` & `/equipe/acervo/[projectId]`):**
+  - Zona A (Cabeçalho Técnico, Código `EMP-DIS-FASE-PRANCHA`, Seletor de Revisões `R00..RN` com alerta de obsolescência e emissão de GRD).
+  - Visualizador Dual 2D (PDF/PRANCHA) + 3D (IFC/GLB/FBX) + QR Code de conferência em obra (`/verificar/[qrToken]`).
+  - Central de Plugins Windows (`/admin/acervo/plugins` & `/equipe/acervo/plugins`) conectando Revit, AutoCAD, TQS e 3ds Max via Tokens API (`AcervoApiToken` SHA-256).
 
 ---
 
-## 4. Integrações, IA & Dashboards Executivos
+## 2. Pipeline Pré-Build 3D & Política Zero Modelagem Procedural
 
-- **AutoCAD & Revit Sync API (`/api/acervo/sync-plugin` e `/admin/acervo/configuracoes`):**
-  - Gerenciamento de chaves `AcervoApiToken` (armazenadas com hash SHA-256) em `/admin/acervo/configuracoes` (`src/app/admin/acervo/configuracoes/page.tsx` e `src/components/acervo/cad-bim-integration-tab.tsx`).
-  - Endpoint `POST /api/acervo/sync-plugin` autenticado por `Bearer Token`, validando máscara CDE, incrementando revisão, marcando anteriores como `OBSOLETO`, salvando metadados do carimbo e emitindo GRD automática.
-- **Extração Híbrida de Quantitativos (`POST /api/acervo/extract`):**
-  - Integração com **Gemini (`GEMINI_API_KEY`)** ou **OpenAI (`OPENAI_API_KEY`)** com *fallback* determinístico local por regex.
-  - Aba **Quantitativos (BIM/IA)** no visualizador com tabela estruturada e exportação **CSV** (UTF-8 com BOM) para orçamentistas.
-- **Dashboards Executivos (KPIs & Recharts):**
-  - 4 cartões executivos Warm Minimalist (`bg-white`, `shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]`) em `/admin/acervo` e `/equipe/acervo`: *Taxa "Bom para Obra"*, *RFIs Abertas / Atrasadas*, *Pranchas Em Análise* e *SLA Médio de Aprovação* (`getAcervoExecutiveKpis`).
-  - Gráfico empilhado por disciplina (`src/components/acervo/acervo-discipline-chart.tsx`) em `recharts` utilizando a paleta `#18181B` e `#EDE5D8`.
+Para preservar performance WebGL 2.0 e fidelidade visual arquitetônica, toda conversão, otimização de texturas e compressão Meshopt foi isolada fora do visualizador 3D na **Central de Pipeline Pré-Build 3D** (`/admin/acervo/pipeline-3d` e `/equipe/acervo/pipeline-3d`):
+
+- **Regra Estrita Zero Modelagem 3D:** Nenhum modelo, parede ou personagem humano é gerado proceduralmente por código. Arquivos proprietários fechados (`.max`, `.rvt`) ou imagens 2D sem malha aberta são marcados como `NEEDS_EXPORT` (`ERROR`) até exportação prévia em `.glb`, `.usdz` ou `.fbx`.
+- **Ativos Reais Compilados (`npm run compile:3d` -> `public/assets/3d-templates/`):**
+  - `cozinha-interna.glb` (124.6 KB, 2.816 triângulos, 5 texturas PBR, Meshopt) — `READY`
+  - `movel-design-autoral.glb` (271.7 KB, 5.660 triângulos, 4 texturas PBR, Meshopt) — `READY`
+  - `living-suite-master.glb` (325.9 KB, 21.600 triângulos, 4 texturas PBR, Meshopt) — `READY`
+  - `fachada-deck-lazer` (`Little_Houses_max2016..max`) — `NEEDS_EXPORT` (sem fallback procedural)
+  - Avatares (`Blocos Perrsonagens`): `feminino.glb`, `masculino.glb` + previews `.webp`
+  - 4 mapas HDRI (`dia-claro.hdr`, `interno.hdr`, `nublado-24k.hdr`, `noite-24k.hdr`)
+- **Resiliência Cloud & Serverless (`<= 4 MB`):**
+  - `GET /api/acervo/pipeline-3d` lê `manifest.json` + estado persistido no PostgreSQL (`Pipeline3DAssetState`), protegido por `fs.existsSync(...)` contra erros `ENOENT` em servidores Linux/Vercel.
+  - `POST /api/acervo/pipeline-3d/step` executa os 3 passos sequenciais (`CONVERT_MESH`, `OPTIMIZE_IMAGES_PBR`, `BUILD_MESHOPT`), comprime `.glb` via Meshopt (`optimizeGlbBuffer`), valida teto serverless de `4 MB` e persiste `binaryBase64` servido por `GET /api/acervo/pipeline-3d/asset/[id]`.
 
 ---
 
-## 5. Governança, UX/UI & DevOps
+## 3. Studio 3D Isolado (`/acervo/studio-3d/[assetId]`)
 
-- **Paridade e Segurança RBAC:** Paridade completa entre `/admin/acervo` e `/equipe/acervo`, com redirecionamento limpo para `/equipe` caso o toggle `acervo` esteja desativado para o membro da equipe.
-- **Polimento Apple-Minimalist:** Superfícies `#F5F5F7`, cartões `bg-white` com bordas `border-slate-200/60`, skeletons dedicados (`src/components/acervo/acervo-skeleton.tsx`, `loading.tsx`) e remoção de código legado órfão.
-- **Pipeline de Produção:**
-  - `npx tsc --noEmit`: **0 erros**.
-  - `npm run build`: **Exit code 0**.
-  - Publicação automatizada via Vercel CLI (`npx vercel --prod --archive=tgz`) em https://arqvertice-flow.vercel.app.
+- **Motor WebGL 2.0 Híbrido (`Studio3DFullscreenEngine.tsx` + `StudioCameraRig.tsx`):**
+  - Renderização em 2 estágios: `60 FPS` (`DPR 1.5`) durante interação -> convergência `RT + GI` após `300 ms` de inatividade -> modo *idle* (`0% GPU`).
+  - **1ª Pessoa (Tour Virtual):** Olhar a `1,65 m` acima do piso via raycast, `FOV = 55°`, `WASD`/Setas, teleporte suave ao clicar no piso (`#EDE5D8`) e joystick virtual touch em dispositivos móveis.
+  - **3ª Pessoa (Órbita & Avatares):** Órbita com *damping*, duplo-clique para centralizar pivô, *Turntable* opcional e seletor de Avatar (`Sem Avatar` | `Avatar 01 — Feminino` | `Avatar 02 — Masculino`) posicionado em `Y = 0` com orientação suave e `dispose()` ao alternar.
+  - **Tour Guiado `< 1 / N >`, `+ Vista` (`ADMIN`), `AR`, `Tela Cheia` & HUD Auto-Hide:** Pílulas translúcidas padrão VisionOS com recuo para `opacity-15` após `3 s` de inatividade.
+
+---
+
+## 4. Inteligência Quantitativa Multi-Formato & Ponte Comercial
+
+- **Extração Híbrida (`POST /api/acervo/extract`):**
+  - Suporta leitura de pranchas PDF/CAD (`GEMINI_API_KEY` / `OPENAI_API_KEY` com fallback determinístico local), extração nativa IFC (`web-ifc`) no visualizador 3D e inspeção quantitativa de modelos 3D PBR (`SCENE_3D_INSPECTOR`).
+- **Ações Comerciais (`POST /api/acervo/send-to-proposal`):**
+  - Tabela editável na aba **BIM & Quantitativos** com **Exportar CSV** (PT-BR) e **Enviar Quantitativos para Proposta** conectado às propostas do empreendimento.
+
+---
+
+## 5. Segurança & PWA
+
+- **CSP (`src/lib/security-headers.ts`):** Mantém `'wasm-unsafe-eval'` em `script-src` e `blob: data:` em `connect-src` para decodificação Meshopt WASM e texturas embutidas no `GLTFLoader`.
+- **Service Worker (`public/sw.js`):** Estratégia *network-first* para rotas HTML, `/_next/`, `/api/` e `/acervo/studio-3d`, evitando cache obsoleto de CSP/bundles entre deploys.

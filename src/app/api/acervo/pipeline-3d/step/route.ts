@@ -171,15 +171,33 @@ export async function POST(request: Request) {
     } else if (step === "CONVERT_MESH") {
       if (base64File) {
         const cleanBase64 = base64File.replace(/^data:[^;]+;base64,/, "");
-        const buf = Buffer.from(cleanBase64, "base64");
-        fileSizeBytes = buf.byteLength;
+        let buf = Buffer.from(cleanBase64, "base64");
         const safeSlug = assetId.replace(/[^a-z0-9-_]/gi, "-").toLowerCase();
         const subFolder = resolvedCategory === "AVATAR" ? "avatars" : "models";
         const ext = fileName ? path.extname(fileName).toLowerCase() : `.${fmtLower}`;
         const targetRel = `/assets/3d-templates/${subFolder}/${safeSlug}${ext || ".glb"}`;
-        if (buf.byteLength <= 8 * 1024 * 1024) {
-          binaryBase64 = cleanBase64;
+
+        if (ext === ".glb") {
+          try {
+            const { optimizedBuffer } = await optimizeGlbBuffer(new Uint8Array(buf));
+            buf = Buffer.from(optimizedBuffer);
+          } catch {
+            // Mantém buffer original se não exigir otimização adicional
+          }
         }
+
+        const MAX_SERVERLESS_BYTES = 4 * 1024 * 1024;
+        if (buf.byteLength > MAX_SERVERLESS_BYTES) {
+          return NextResponse.json(
+            {
+              error: `Arquivo excede o limite serverless de 4 MB após otimização (${(buf.byteLength / (1024 * 1024)).toFixed(2)} MB). Reduza as texturas para ≤ 1024px WebP ou simplifique a malha antes do envio.`,
+            },
+            { status: 413 }
+          );
+        }
+
+        fileSizeBytes = buf.byteLength;
+        binaryBase64 = buf.toString("base64");
         try {
           const targetAbs = path.join(
             process.cwd(),
@@ -198,7 +216,7 @@ export async function POST(request: Request) {
         } catch {
           outputUrl = `/api/acervo/pipeline-3d/asset/${encodeURIComponent(assetId)}`;
           logs.push(
-            `[${nowTag}] [PASSO 1] Malha ${ext.toUpperCase()} persistida no armazenamento cloud (${(buf.byteLength / 1024).toFixed(1)} KB).`
+            `[${nowTag}] [PASSO 1] Malha ${ext.toUpperCase()} otimizada e persistida no armazenamento cloud (${(buf.byteLength / 1024).toFixed(1)} KB).`
           );
         }
       } else {
