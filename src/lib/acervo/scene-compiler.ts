@@ -557,6 +557,8 @@ export interface Template3DHdriEntry {
   sourceResolution: string;
   compiledUrl: string;
   compiledSizeBytes: number;
+  skyboxUrl?: string;
+  skyboxSizeBytes?: number;
   exposureDefault: number;
   sunElevationDeg: number;
   sunAzimuthDeg: number;
@@ -704,7 +706,9 @@ export const DEFAULT_3D_TEMPLATES_MANIFEST: Templates3DManifest = {
       sourceSizeMB: 557.88,
       sourceResolution: "20480x10240",
       compiledUrl: "/assets/3d-templates/hdri/dia-claro.hdr",
-      compiledSizeBytes: 142680,
+      compiledSizeBytes: 131144,
+      skyboxUrl: "/assets/3d-templates/hdri/dia-claro-sky.webp",
+      skyboxSizeBytes: 10035,
       exposureDefault: 1.05,
       sunElevationDeg: 52,
       sunAzimuthDeg: 135,
@@ -720,7 +724,9 @@ export const DEFAULT_3D_TEMPLATES_MANIFEST: Templates3DManifest = {
       sourceSizeMB: 809.77,
       sourceResolution: "20480x10240",
       compiledUrl: "/assets/3d-templates/hdri/interno.hdr",
-      compiledSizeBytes: 138420,
+      compiledSizeBytes: 131144,
+      skyboxUrl: "/assets/3d-templates/hdri/interno-sky.webp",
+      skyboxSizeBytes: 7578,
       exposureDefault: 1.15,
       sunElevationDeg: 38,
       sunAzimuthDeg: 65,
@@ -736,7 +742,9 @@ export const DEFAULT_3D_TEMPLATES_MANIFEST: Templates3DManifest = {
       sourceSizeMB: 790.39,
       sourceResolution: "20480x10240",
       compiledUrl: "/assets/3d-templates/hdri/nublado-24k.hdr",
-      compiledSizeBytes: 134910,
+      compiledSizeBytes: 131144,
+      skyboxUrl: "/assets/3d-templates/hdri/nublado-24k-sky.webp",
+      skyboxSizeBytes: 7372,
       exposureDefault: 1.1,
       sunElevationDeg: 62,
       sunAzimuthDeg: 180,
@@ -752,7 +760,9 @@ export const DEFAULT_3D_TEMPLATES_MANIFEST: Templates3DManifest = {
       sourceSizeMB: 959.61,
       sourceResolution: "20480x10240",
       compiledUrl: "/assets/3d-templates/hdri/noite-24k.hdr",
-      compiledSizeBytes: 129840,
+      compiledSizeBytes: 131144,
+      skyboxUrl: "/assets/3d-templates/hdri/noite-24k-sky.webp",
+      skyboxSizeBytes: 12492,
       exposureDefault: 0.92,
       sunElevationDeg: 14,
       sunAzimuthDeg: 245,
@@ -1214,4 +1224,207 @@ export function findTemplate3DAvatar(idOrSlug: string): Template3DAvatarEntry | 
     ) || null
   );
 }
+
+// ============================================================================
+// SKETCHFAB & 3DS MAX VIEWPORT PRESETS (GROUND, MODEL INSPECTOR, SHORTCUTS)
+// ============================================================================
+
+export type StudioGroundMaterialId =
+  | "concreto"
+  | "cumaru"
+  | "pedra"
+  | "shadow-catcher";
+
+export interface StudioGroundPreset {
+  id: StudioGroundMaterialId;
+  label: string;
+  shortLabel: string;
+  textureUrl: string | null;
+  baseColorHex: string;
+  roughness: number;
+  metalness: number;
+  clearcoat: number;
+  repeatTiling: number;
+  isShadowCatcherOnly: boolean;
+}
+
+export const STUDIO_GROUND_PRESETS: Record<StudioGroundMaterialId, StudioGroundPreset> = {
+  concreto: {
+    id: "concreto",
+    label: "Concreto Arquitetônico Polido",
+    shortLabel: "Concreto Polido",
+    textureUrl: "/assets/3d-templates/hdri/ground-concreto.webp",
+    baseColorHex: "#E2DCD2",
+    roughness: 0.62,
+    metalness: 0.04,
+    clearcoat: 0.14,
+    repeatTiling: 10,
+    isShadowCatcherOnly: false,
+  },
+  cumaru: {
+    id: "cumaru",
+    label: "Deck / Madeira Natural Cumaru",
+    shortLabel: "Deck Cumaru",
+    textureUrl: "/assets/3d-templates/hdri/ground-cumaru.webp",
+    baseColorHex: "#8C5A32",
+    roughness: 0.54,
+    metalness: 0.03,
+    clearcoat: 0.18,
+    repeatTiling: 12,
+    isShadowCatcherOnly: false,
+  },
+  pedra: {
+    id: "pedra",
+    label: "Mármore / Pedra Acetinada",
+    shortLabel: "Pedra Acetinada",
+    textureUrl: "/assets/3d-templates/hdri/ground-pedra.webp",
+    baseColorHex: "#EFECE6",
+    roughness: 0.24,
+    metalness: 0.02,
+    clearcoat: 0.68,
+    repeatTiling: 8,
+    isShadowCatcherOnly: false,
+  },
+  "shadow-catcher": {
+    id: "shadow-catcher",
+    label: "Sombra Invisível (Shadow Catcher Puro)",
+    shortLabel: "Shadow Catcher",
+    textureUrl: null,
+    baseColorHex: "#EDE5D8",
+    roughness: 0.95,
+    metalness: 0,
+    clearcoat: 0,
+    repeatTiling: 1,
+    isShadowCatcherOnly: true,
+  },
+};
+
+export type StudioVisualInspectorModeId =
+  | "realista-pbr-rt"
+  | "shaded-edged-f4"
+  | "clay-maquete"
+  | "wireframe"
+  | "base-color-albedo";
+
+export interface StudioInspectorModeMeta {
+  id: StudioVisualInspectorModeId;
+  label: string;
+  shortcut?: string;
+  description: string;
+}
+
+export const STUDIO_INSPECTOR_MODES: StudioInspectorModeMeta[] = [
+  {
+    id: "realista-pbr-rt",
+    label: "1. Final Render (PBR + GI/RT)",
+    shortcut: "F3",
+    description: "Texturas PBR reais + Iluminação Global HDRI + Sombras de Contato.",
+  },
+  {
+    id: "shaded-edged-f4",
+    label: "2. Shaded + Edged Faces (F4)",
+    shortcut: "F4",
+    description: "Padrão 3ds Max: materiais PBR somados às linhas técnicas de aresta.",
+  },
+  {
+    id: "clay-maquete",
+    label: "3. MatCap / Clay Render",
+    description: "Maquete monocromática #EDE5D8 para estudo volumétrico de luz e sombra.",
+  },
+  {
+    id: "wireframe",
+    label: "4. Wireframe Puro (F3)",
+    shortcut: "F3",
+    description: "Inspeção da topologia e densidade da malha 3D.",
+  },
+  {
+    id: "base-color-albedo",
+    label: "5. Base Color (Albedo sem luz)",
+    description: "Inspeção das texturas difusas puras sem interferência de sombras.",
+  },
+];
+
+export const MAX_VIEWPORT_SHORTCUTS = [
+  { key: "Alt + MMB / LMB", action: "Orbitar Câmera (3ds Max / Sketchfab)" },
+  { key: "MMB / RMB", action: "Pan (Arrastar Vista Lateralmente)" },
+  { key: "Scroll / Ctrl+Alt+MMB", action: "Zoom Suave Adaptativo" },
+  { key: "Duplo-Clique", action: "Centralizar Pivô na Superfície Clicada" },
+  { key: "Z", action: "Zoom Extents (Enquadrar Modelo Inteiro)" },
+  { key: "F3", action: "Alternar Realista PBR (Shaded) ↔ Wireframe" },
+  { key: "F4", action: "Alternar Edged Faces (Shaded + Arestas)" },
+  { key: "G", action: "Mostrar / Ocultar Grid Arquitetônico (1m × 1m)" },
+  { key: "C / V", action: "Alternar 3ª Pessoa (Órbita) ↔ 1ª Pessoa (1,65m)" },
+  { key: "WASD / Setas", action: "Caminhar pelo Ambiente / Deslocar Pivô" },
+] as const;
+
+export interface MaxShortcutStateInput {
+  visualMode: StudioVisualInspectorModeId;
+  showGrid: boolean;
+  cameraMode: "third-person" | "first-person" | "avatar-third-person";
+}
+
+export interface MaxShortcutResolution extends MaxShortcutStateInput {
+  handled: boolean;
+  triggerZoomExtents: boolean;
+}
+
+export function resolve3dsMaxShortcut(
+  keyOrCode: string,
+  state: MaxShortcutStateInput
+): MaxShortcutResolution {
+  const token = keyOrCode.trim();
+  const upper = token.toUpperCase();
+
+  if (upper === "Z" || upper === "KEYZ") {
+    return {
+      ...state,
+      handled: true,
+      triggerZoomExtents: true,
+    };
+  }
+
+  if (upper === "F3") {
+    return {
+      ...state,
+      visualMode: state.visualMode === "wireframe" ? "realista-pbr-rt" : "wireframe",
+      handled: true,
+      triggerZoomExtents: false,
+    };
+  }
+
+  if (upper === "F4") {
+    return {
+      ...state,
+      visualMode:
+        state.visualMode === "shaded-edged-f4" ? "realista-pbr-rt" : "shaded-edged-f4",
+      handled: true,
+      triggerZoomExtents: false,
+    };
+  }
+
+  if (upper === "G" || upper === "KEYG") {
+    return {
+      ...state,
+      showGrid: !state.showGrid,
+      handled: true,
+      triggerZoomExtents: false,
+    };
+  }
+
+  if (upper === "C" || upper === "KEYC" || upper === "V" || upper === "KEYV") {
+    return {
+      ...state,
+      cameraMode: state.cameraMode === "first-person" ? "third-person" : "first-person",
+      handled: true,
+      triggerZoomExtents: false,
+    };
+  }
+
+  return {
+    ...state,
+    handled: false,
+    triggerZoomExtents: false,
+  };
+}
+
 

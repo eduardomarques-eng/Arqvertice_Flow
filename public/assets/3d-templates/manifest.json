@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generatedAt": "2026-11-15T00:29:21.848Z",
+  "generatedAt": "2026-11-15T01:18:16.650Z",
   "sourceRoot": "C:\\Users\\eduar\\OneDrive\\Documentos\\ArqVertice_Flow\\Arquivos",
   "summary": {
     "totalFilesScanned": 655,
@@ -36,6 +36,8 @@
       "sourceResolution": "20480x10240",
       "compiledUrl": "/assets/3d-templates/hdri/dia-claro.hdr",
       "compiledSizeBytes": 131165,
+      "skyboxUrl": "/assets/3d-templates/hdri/dia-claro-sky.webp",
+      "skyboxSizeBytes": 10036,
       "exposureDefault": 1.05,
       "sunElevationDeg": 52,
       "sunAzimuthDeg": 135,
@@ -52,6 +54,8 @@
       "sourceResolution": "24576x12288",
       "compiledUrl": "/assets/3d-templates/hdri/interno.hdr",
       "compiledSizeBytes": 131165,
+      "skyboxUrl": "/assets/3d-templates/hdri/interno-sky.webp",
+      "skyboxSizeBytes": 7584,
       "exposureDefault": 1.15,
       "sunElevationDeg": 38,
       "sunAzimuthDeg": 65,
@@ -68,6 +72,8 @@
       "sourceResolution": "24576x12288",
       "compiledUrl": "/assets/3d-templates/hdri/nublado-24k.hdr",
       "compiledSizeBytes": 131165,
+      "skyboxUrl": "/assets/3d-templates/hdri/nublado-24k-sky.webp",
+      "skyboxSizeBytes": 7322,
       "exposureDefault": 1.1,
       "sunElevationDeg": 62,
       "sunAzimuthDeg": 180,
@@ -84,6 +90,8 @@
       "sourceResolution": "24576x12288",
       "compiledUrl": "/assets/3d-templates/hdri/noite-24k.hdr",
       "compiledSizeBytes": 131165,
+      "skyboxUrl": "/assets/3d-templates/hdri/noite-24k-sky.webp",
+      "skyboxSizeBytes": 12524,
       "exposureDefault": 0.92,
       "sunElevationDeg": 14,
       "sunAzimuthDeg": 245,
@@ -848,10 +856,10 @@
       "usdzUrl": null,
       "previewUrl": "/assets/3d-templates/avatars/feminino-preview.webp",
       "heightMeters": 1.72,
-      "fileSizeBytes": 75464,
+      "fileSizeBytes": 72860,
       "triangleCount": 20000,
       "diagnostics": [
-        "Avatar compilado com 20000 triângulos e 73.7 KB (Meshopt, Y=0)."
+        "Avatar compilado com 20000 triângulos e 71.2 KB (Meshopt, Y=0)."
       ]
     },
     {
@@ -867,10 +875,10 @@
       "usdzUrl": null,
       "previewUrl": "/assets/3d-templates/avatars/masculino-preview.webp",
       "heightMeters": 1.72,
-      "fileSizeBytes": 74432,
+      "fileSizeBytes": 72808,
       "triangleCount": 20000,
       "diagnostics": [
-        "Avatar compilado com 20000 triângulos e 72.7 KB (Meshopt, Y=0)."
+        "Avatar compilado com 20000 triângulos e 71.1 KB (Meshopt, Y=0)."
       ]
     }
   ],
@@ -1371,12 +1379,12 @@
       "outputUrl": "/assets/3d-templates/avatars/feminino.glb",
       "pipelineStatus": "READY",
       "stepCompleted": "BUILD_MESHOPT",
-      "fileSizeBytes": 75464,
+      "fileSizeBytes": 72860,
       "sourceSizeMB": 2.58,
       "triangleCount": 20000,
       "textureCount": 1,
       "diagnostics": [
-        "Avatar compilado com 20000 triângulos e 73.7 KB (Meshopt, Y=0)."
+        "Avatar compilado com 20000 triângulos e 71.2 KB (Meshopt, Y=0)."
       ]
     },
     {
@@ -1388,12 +1396,12 @@
       "outputUrl": "/assets/3d-templates/avatars/masculino.glb",
       "pipelineStatus": "READY",
       "stepCompleted": "BUILD_MESHOPT",
-      "fileSizeBytes": 74432,
+      "fileSizeBytes": 72808,
       "sourceSizeMB": 2.49,
       "triangleCount": 20000,
       "textureCount": 1,
       "diagnostics": [
-        "Avatar compilado com 20000 triângulos e 72.7 KB (Meshopt, Y=0)."
+        "Avatar compilado com 20000 triângulos e 71.1 KB (Meshopt, Y=0)."
       ]
     },
     {

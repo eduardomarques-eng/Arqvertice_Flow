@@ -36,13 +36,18 @@ Para preservar performance WebGL 2.0 e fidelidade visual arquitetônica, toda co
 
 ---
 
-## 3. Studio 3D Isolado (`/acervo/studio-3d/[assetId]`)
+## 3. Studio 3D Isolado — Viewport Padrão Sketchfab 1:1 + Controles Nativos 3ds Max (`/acervo/studio-3d/[assetId]`)
 
-- **Motor WebGL 2.0 Híbrido (`Studio3DFullscreenEngine.tsx` + `StudioCameraRig.tsx`):**
-  - Renderização em 2 estágios: `60 FPS` (`DPR 1.5`) durante interação -> convergência `RT + GI` após `300 ms` de inatividade -> modo *idle* (`0% GPU`).
-  - **1ª Pessoa (Tour Virtual):** Olhar a `1,65 m` acima do piso via raycast, `FOV = 55°`, `WASD`/Setas, teleporte suave ao clicar no piso (`#EDE5D8`) e joystick virtual touch em dispositivos móveis.
-  - **3ª Pessoa (Órbita & Avatares):** Órbita com *damping*, duplo-clique para centralizar pivô, *Turntable* opcional e seletor de Avatar (`Sem Avatar` | `Avatar 01 — Feminino` | `Avatar 02 — Masculino`) posicionado em `Y = 0` com orientação suave e `dispose()` ao alternar.
-  - **Tour Guiado `< 1 / N >`, `+ Vista` (`ADMIN`), `AR`, `Tela Cheia` & HUD Auto-Hide:** Pílulas translúcidas padrão VisionOS com recuo para `opacity-15` após `3 s` de inatividade.
+- **Céu Real HDRI (2K WebP) + Grounded Skybox + Chão Físico PBR (`StudioGroundSystem.tsx`):**
+  - Cada um dos 4 mapas em `\Arquivos\HDRI` (`Dia Claro`, `Interno`, `Nublado`, `Noite`) compila tanto o mapa `.hdr` (`256×128` RGBE para iluminação difusa PMREM) quanto o **Skybox Equiretangular 2K** (`2048×1024` WebP `q82` com *ACES Filmic Tone Mapping*): `dia-claro-sky.webp` (9.8 KB), `interno-sky.webp` (7.4 KB), `nublado-24k-sky.webp` (7.2 KB) e `noite-24k-sky.webp` (12.2 KB).
+  - **Domo 360° Ground-Projected:** Hemisfério inferior suavizado sobre o plano do solo e rotacionado em sincronia com o azimute solar (`0°–360°`), com controle de **Suavização / Desfoque do Céu (`0%–100%`)** ou alternância para **Estúdio Infinito Sketchfab** (`Warm Minimalist #EDE5D8`, `Studio Dark #18181B`, `Pure White #F5F5F7`).
+  - **Plano de Solo PBR com Fade Radial Infinito (`Y = 0`):** Sem bordas quadradas duras nem *Z-fighting* (`polygonOffset`), com 4 superfícies selecionáveis: *Concreto Arquitetônico Polido* (`ground-concreto.webp`), *Deck / Madeira Natural Cumaru* (`ground-cumaru.webp`), *Mármore / Pedra Acetinada* (`ground-pedra.webp`) e *Shadow Catcher Puro*.
+- **Navegação Híbrida Nativa 3ds Max + Sketchfab (`StudioCameraRig.tsx`):**
+  - **Mouse:** Orbitar via `Alt + MMB` (3ds Max) ou `LMB` (Sketchfab); Pan via `MMB` (3ds Max) ou `RMB` / `Shift + LMB`; Zoom suave via `Scroll Wheel` adaptativo ou `Ctrl + Alt + MMB`; Duplo-Clique com **Anel de Foco Dinâmico (`#EDE5D8`)** orientado pela normal da superfície clicada.
+  - **Atalhos de Teclado 3ds Max:** `Z` (*Zoom Extents* — enquadra o modelo inteiro), `F3` (alterna *Realista PBR Shaded* ↔ *Wireframe*), `F4` (alterna *Edged Faces* — PBR + linhas técnicas de aresta), `G` (mostra/oculta o *Grid Arquitetônico 1m × 1m*), `C` / `V` (alterna *3ª Pessoa Órbita* ↔ *1ª Pessoa 1,65 m*).
+- **Model Inspector (5 Modos) & Anisotropic Filtering (`8x` Desktop / `4x` Mobile):**
+  - `1. Final Render (PBR + GI/RT)`, `2. Shaded + Edged Faces (F4)`, `3. MatCap / Clay Render`, `4. Wireframe Puro (F3)` e `5. Base Color (Albedo sem luz)`.
+  - Preserva o pipeline sob demanda em 2 estágios (`60 FPS` navegando -> convergência `RT + GI` após `300 ms` parado -> `0% GPU` em repouso).
 
 ---
 

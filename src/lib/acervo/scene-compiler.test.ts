@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_3D_TEMPLATES_MANIFEST,
+  STUDIO_GROUND_PRESETS,
+  STUDIO_INSPECTOR_MODES,
   classifyMaterialToPbrPreset,
   classifyPipeline3DAsset,
   detectSceneNormalization,
   findTemplate3DAvatar,
   findTemplate3DModel,
   normalizeVertexPosition,
+  resolve3dsMaxShortcut,
 } from "./scene-compiler";
+import { resolvePointerDragAction } from "@/engines/studio-3d/StudioCameraRig";
 
 describe("scene-compiler — Universal Scene Normalization & Smart PBR Shader Compiler", () => {
   it("converts millimeter scenes (3ds Max/CAD) to meters with floor at Y = 0 and 1st-person camera at Y = 1.65m", () => {
@@ -99,5 +104,65 @@ describe("scene-compiler — Universal Scene Normalization & Smart PBR Shader Co
     expect(fem).not.toBeNull();
     expect(fem?.status).toBe("NEEDS_EXPORT");
     expect(fem?.glbUrl).toBeNull();
+  });
+
+  it("exposes 2K WebP skyboxUrl on all 4 HDRIs, 4 PBR ground presets, and 5 Sketchfab Model Inspector modes", () => {
+    expect(DEFAULT_3D_TEMPLATES_MANIFEST.hdris).toHaveLength(4);
+    for (const hdri of DEFAULT_3D_TEMPLATES_MANIFEST.hdris) {
+      expect(hdri.skyboxUrl).toBe(`/assets/3d-templates/hdri/${hdri.id}-sky.webp`);
+    }
+
+    expect(Object.keys(STUDIO_GROUND_PRESETS)).toEqual([
+      "concreto",
+      "cumaru",
+      "pedra",
+      "shadow-catcher",
+    ]);
+    expect(STUDIO_GROUND_PRESETS.concreto.textureUrl).toBe(
+      "/assets/3d-templates/hdri/ground-concreto.webp"
+    );
+    expect(STUDIO_GROUND_PRESETS["shadow-catcher"].isShadowCatcherOnly).toBe(true);
+
+    expect(STUDIO_INSPECTOR_MODES.map((m) => m.id)).toEqual([
+      "realista-pbr-rt",
+      "shaded-edged-f4",
+      "clay-maquete",
+      "wireframe",
+      "base-color-albedo",
+    ]);
+  });
+
+  it("maps native 3ds Max and Sketchfab keyboard & mouse shortcuts (Z, F3, F4, G, C/V, Alt+MMB, MMB)", () => {
+    // 1. Mouse buttons: 3ds Max Alt+MMB -> orbit, MMB -> pan, Ctrl+Alt+MMB -> zoom; Sketchfab LMB -> orbit, RMB -> pan
+    expect(resolvePointerDragAction(1, true, false, false)).toBe("orbit");
+    expect(resolvePointerDragAction(1, false, false, false)).toBe("pan");
+    expect(resolvePointerDragAction(1, true, true, false)).toBe("zoom");
+    expect(resolvePointerDragAction(0, false, false, false)).toBe("orbit");
+    expect(resolvePointerDragAction(2, false, false, false)).toBe("pan");
+
+    // 2. Keyboard shortcuts: Z (Zoom Extents), F3 (Wireframe <-> PBR), F4 (Edged Faces), G (Grid), C/V (Camera)
+    const baseState = {
+      visualMode: "realista-pbr-rt" as const,
+      showGrid: false,
+      cameraMode: "third-person" as const,
+    };
+
+    const zRes = resolve3dsMaxShortcut("Z", baseState);
+    expect(zRes.handled).toBe(true);
+    expect(zRes.triggerZoomExtents).toBe(true);
+
+    const f3Res = resolve3dsMaxShortcut("F3", baseState);
+    expect(f3Res.visualMode).toBe("wireframe");
+    expect(resolve3dsMaxShortcut("F3", f3Res).visualMode).toBe("realista-pbr-rt");
+
+    const f4Res = resolve3dsMaxShortcut("F4", baseState);
+    expect(f4Res.visualMode).toBe("shaded-edged-f4");
+    expect(resolve3dsMaxShortcut("F4", f4Res).visualMode).toBe("realista-pbr-rt");
+
+    const gRes = resolve3dsMaxShortcut("G", baseState);
+    expect(gRes.showGrid).toBe(true);
+
+    const cRes = resolve3dsMaxShortcut("C", baseState);
+    expect(cRes.cameraMode).toBe("first-person");
   });
 });

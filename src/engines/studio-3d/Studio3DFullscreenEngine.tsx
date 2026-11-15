@@ -9,17 +9,66 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
   DEFAULT_3D_TEMPLATES_MANIFEST,
+  MAX_VIEWPORT_SHORTCUTS,
+  STUDIO_GROUND_PRESETS,
+  STUDIO_INSPECTOR_MODES,
   classifyMaterialToPbrPreset,
+  resolve3dsMaxShortcut,
   type SmartPbrShaderPreset,
+  type StudioGroundMaterialId,
+  type StudioVisualInspectorModeId,
   type Template3DHdriEntry,
   type Template3DModelEntry,
 } from "@/lib/acervo/scene-compiler";
 import type { Project3DAnnotation } from "@/lib/acervo/showcase-3d-defaults";
-import { updateStudioCameraFrame, type StudioCameraMode } from "./StudioCameraRig";
+import {
+  applyZoomExtentsToRig,
+  resolvePointerDragAction,
+  updateStudioCameraFrame,
+  type StudioCameraMode,
+  type StudioDragAction,
+} from "./StudioCameraRig";
+import {
+  createStudioGroundSystem,
+  type StudioGroundSystemController,
+} from "./StudioGroundSystem";
 
 export type { StudioCameraMode };
-export type StudioVisualMode = "realista-pbr-rt" | "clay-maquete" | "tecnico-arestas" | "wireframe";
-export type RenderPipelineStage = "NAVIGATING_60FPS" | "CONVERGING_RT_GI" | "CONVERGED_IDLE_0GPU";
+export type StudioVisualMode =
+  | StudioVisualInspectorModeId
+  | "tecnico-arestas";
+export type RenderPipelineStage =
+  | "NAVIGATING_60FPS"
+  | "CONVERGING_RT_GI"
+  | "CONVERGED_IDLE_0GPU";
+export type StudioBackgroundMode = "hdri-sky" | "studio-vignette";
+export type StudioVignettePresetId = "warm-minimalist" | "studio-dark" | "pure-white";
+
+export const STUDIO_VIGNETTE_PRESETS: Record<
+  StudioVignettePresetId,
+  { id: StudioVignettePresetId; label: string; bgHex: string; fogHex: string; textDark?: boolean }
+> = {
+  "warm-minimalist": {
+    id: "warm-minimalist",
+    label: "Warm Minimalist (#EDE5D8)",
+    bgHex: "#EDE5D8",
+    fogHex: "#E5DDD0",
+    textDark: true,
+  },
+  "studio-dark": {
+    id: "studio-dark",
+    label: "Studio Dark (#18181B)",
+    bgHex: "#18181B",
+    fogHex: "#111215",
+  },
+  "pure-white": {
+    id: "pure-white",
+    label: "Pure White (#F5F5F7)",
+    bgHex: "#F5F5F7",
+    fogHex: "#ECECEE",
+    textDark: true,
+  },
+};
 
 export interface Studio3DAssetInput {
   id: string;
@@ -67,6 +116,7 @@ interface StoredOriginalMaterial {
   mesh: THREE.Mesh;
   originalMaterial: THREE.Material | THREE.Material[];
   pbrMaterial: THREE.MeshPhysicalMaterial;
+  albedoMaterial: THREE.MeshBasicMaterial;
   preset: SmartPbrShaderPreset;
 }
 
@@ -137,18 +187,27 @@ export default function Studio3DFullscreenEngine({
   const [selectedAvatarId, setSelectedAvatarId] = useState<string>("none");
   const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
   const [arNotice, setArNotice] = useState<string | null>(null);
+  const [shortcutToast, setShortcutToast] = useState<string | null>(null);
   const [visualMode, setVisualMode] = useState<StudioVisualMode>("realista-pbr-rt");
   const [turntable, setTurntable] = useState<boolean>(false);
   const [activeHdriId, setActiveHdriId] = useState<string>(
     initialAsset.defaultHdriId || "dia-claro"
   );
-  const [sunAzimuthDeg, setSunAzimuthDeg] = useState<number>(48);
+  const [backgroundMode, setBackgroundMode] = useState<StudioBackgroundMode>("hdri-sky");
+  const [vignettePreset, setVignettePreset] = useState<StudioVignettePresetId>("studio-dark");
+  const [skyBlurPercent, setSkyBlurPercent] = useState<number>(12);
+  const [groundPresetId, setGroundPresetId] = useState<StudioGroundMaterialId>("concreto");
+  const [showGrid, setShowGrid] = useState<boolean>(false);
+
+  const [sunAzimuthDeg, setSunAzimuthDeg] = useState<number>(135);
   const [sunElevationDeg, setSunElevationDeg] = useState<number>(52);
-  const [exposure, setExposure] = useState<number>(1.12);
+  const [exposure, setExposure] = useState<number>(1.08);
   const [giAoIntensity, setGiAoIntensity] = useState<number>(1.15);
   const [showHotspots, setShowHotspots] = useState<boolean>(true);
   const [selectedPin, setSelectedPin] = useState<Project3DAnnotation | null>(null);
-  const [activeDrawer, setActiveDrawer] = useState<"none" | "lighting" | "models" | "shaders">("none");
+  const [activeDrawer, setActiveDrawer] = useState<
+    "none" | "lighting" | "models" | "shaders" | "shortcuts"
+  >("none");
 
   const [pipelineStage, setPipelineStage] = useState<RenderPipelineStage>("NAVIGATING_60FPS");
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
@@ -157,7 +216,7 @@ export default function Studio3DFullscreenEngine({
   const [hudIdle, setHudIdle] = useState<boolean>(false);
   const [shaderBreakdown, setShaderBreakdown] = useState<Record<string, number>>({});
   const [projectedPins, setProjectedPins] = useState<
-    Array<{ pin: Project3DAnnotation; x: number; y: number; visible: boolean }>
+    Array<{ pin: Project3DAnnotation; x: number; y: number; visible: boolean; occluded: boolean }>
   >([]);
 
   // Touch joystick state for 1st person mobile navigation
@@ -172,19 +231,30 @@ export default function Studio3DFullscreenEngine({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const fillLightRef = useRef<THREE.HemisphereLight | null>(null);
-  const envGroupRef = useRef<THREE.Group | null>(null);
+  const groundSystemRef = useRef<StudioGroundSystemController | null>(null);
   const modelRootRef = useRef<THREE.Group | null>(null);
   const avatarRootRef = useRef<THREE.Group | null>(null);
   const edgeLinesGroupRef = useRef<THREE.Group | null>(null);
   const teleportRingRef = useRef<THREE.Mesh | null>(null);
   const pmremGeneratorRef = useRef<THREE.PMREMGenerator | null>(null);
   const currentEnvMapRef = useRef<THREE.Texture | null>(null);
+  const currentSkyTextureRef = useRef<THREE.Texture | null>(null);
+  const groundTexturesCacheRef = useRef<Map<string, THREE.Texture>>(new Map());
   const storedMaterialsRef = useRef<StoredOriginalMaterial[]>([]);
+
+  // Live state refs for keyboard shortcuts inside event listeners
+  const visualModeRef = useRef<StudioVisualMode>(visualMode);
+  visualModeRef.current = visualMode;
+  const showGridRef = useRef<boolean>(showGrid);
+  showGridRef.current = showGrid;
+  const cameraModeRef = useRef<StudioCameraMode>(cameraMode);
+  cameraModeRef.current = cameraMode;
 
   // Demand-driven 2-stage rendering loop refs
   const rafIdRef = useRef<number | null>(null);
   const lastInteractionTimeRef = useRef<number>(performance.now());
   const hudIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageRef = useRef<RenderPipelineStage>("NAVIGATING_60FPS");
   const needsRenderRef = useRef<boolean>(true);
   const rtPassCompletedRef = useRef<boolean>(false);
@@ -192,28 +262,33 @@ export default function Studio3DFullscreenEngine({
   // Camera state (supports both 3rd-person spherical orbit and 1st-person eye walk)
   const camStateRef = useRef({
     mode: "third-person" as StudioCameraMode,
-    // 3rd person spherical coordinates around target
     spherical: new THREE.Spherical(9.5, Math.PI / 2.65, Math.PI / 4),
     target: new THREE.Vector3(0, 1.15, 0),
     desiredTarget: new THREE.Vector3(0, 1.15, 0),
     desiredRadius: 9.5,
     desiredPhi: Math.PI / 2.65,
     desiredTheta: Math.PI / 4,
-    // 1st person coordinates (human eye height Y = 1.65m)
     fpPosition: new THREE.Vector3(0, 1.65, 3.6),
     fpDesiredPosition: new THREE.Vector3(0, 1.65, 3.6),
     fpYaw: 0,
     fpPitch: -0.05,
     fpDesiredYaw: 0,
     fpDesiredPitch: -0.05,
-    // Pointer interaction
     isDragging: false,
-    isPanning: false,
+    dragAction: "none" as StudioDragAction,
     pointerDownPos: { x: 0, y: 0 },
     prevPointer: { x: 0, y: 0 },
     keysPressed: new Set<string>(),
     teleportRingTimer: 0,
   });
+
+  const showTransientShortcutToast = useCallback((msg: string) => {
+    setShortcutToast(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setShortcutToast(null);
+    }, 1800);
+  }, []);
 
   // Auto-hide HUD after 3 seconds of inactivity
   const registerUserActivity = useCallback(() => {
@@ -280,40 +355,40 @@ export default function Studio3DFullscreenEngine({
     const overlay = rtOverlayCanvasRef.current;
     if (!renderer || !scene || !camera || !overlay) return;
 
-    // Upsample to high-DPI retina (dpr = 2)
     const highDpr = Math.min(window.devicePixelRatio || 1, 2.0);
     renderer.setPixelRatio(highDpr);
     renderer.render(scene, camera);
 
-    // Synthesize Screen-Space Contact AO + Specular GI Bloom on the overlay canvas
     const glCanvas = renderer.domElement;
     overlay.width = glCanvas.width;
     overlay.height = glCanvas.height;
     const ctx = overlay.getContext("2d");
     if (ctx) {
       ctx.clearRect(0, 0, overlay.width, overlay.height);
-      if (visualMode === "realista-pbr-rt" && giAoIntensity > 0.05) {
+      const isLitMode =
+        visualMode === "realista-pbr-rt" || visualMode === "shaded-edged-f4";
+      if (isLitMode && giAoIntensity > 0.05) {
         ctx.save();
         // Soft Indirect GI Bounce + Specular Highlight Bloom
         ctx.globalCompositeOperation = "screen";
-        ctx.globalAlpha = Math.min(0.22 * giAoIntensity, 0.35);
-        ctx.filter = "blur(18px) contrast(125%)";
+        ctx.globalAlpha = Math.min(0.18 * giAoIntensity, 0.3);
+        ctx.filter = "blur(16px) contrast(120%)";
         ctx.drawImage(glCanvas, 0, 0, overlay.width, overlay.height);
 
-        // Contact Ambient Occlusion & Subtle Architectural Vignette
+        // Contact Ambient Occlusion & Subtle Optical Vignette
         ctx.filter = "none";
         ctx.globalCompositeOperation = "multiply";
-        ctx.globalAlpha = Math.min(0.28 * giAoIntensity, 0.45);
+        ctx.globalAlpha = Math.min(0.24 * giAoIntensity, 0.38);
         const grad = ctx.createRadialGradient(
           overlay.width * 0.5,
           overlay.height * 0.5,
-          overlay.width * 0.22,
+          overlay.width * 0.25,
           overlay.width * 0.5,
           overlay.height * 0.5,
-          overlay.width * 0.72
+          overlay.width * 0.75
         );
         grad.addColorStop(0, "rgba(255,255,255,1)");
-        grad.addColorStop(1, "rgba(18,18,24,0.88)");
+        grad.addColorStop(1, "rgba(18,18,24,0.86)");
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, overlay.width, overlay.height);
         ctx.restore();
@@ -321,14 +396,14 @@ export default function Studio3DFullscreenEngine({
     }
   }, [visualMode, giAoIntensity]);
 
-  // Apply Visual Mode (Realista PBR+RT / Maquete Clay / Técnico Arestas / Wireframe)
+  // Apply Model Inspector Mode (5 Sketchfab & 3ds Max modes)
   const applyVisualModeToMaterials = useCallback(
     (mode: StudioVisualMode) => {
       const clayMaterial = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color("#EFECE6"),
-        roughness: 0.78,
+        color: new THREE.Color("#EDE5D8"),
+        roughness: 0.76,
         metalness: 0.02,
-        clearcoat: 0.05,
+        clearcoat: 0.06,
         envMapIntensity: 0.85 * giAoIntensity,
       });
 
@@ -343,9 +418,12 @@ export default function Studio3DFullscreenEngine({
       });
 
       for (const entry of storedMaterialsRef.current) {
-        const { mesh, pbrMaterial } = entry;
-        if (mode === "realista-pbr-rt") {
+        const { mesh, pbrMaterial, albedoMaterial } = entry;
+        if (mode === "realista-pbr-rt" || mode === "shaded-edged-f4") {
           pbrMaterial.wireframe = false;
+          pbrMaterial.polygonOffset = mode === "shaded-edged-f4";
+          pbrMaterial.polygonOffsetFactor = 1;
+          pbrMaterial.polygonOffsetUnits = 1;
           pbrMaterial.envMapIntensity = entry.preset.reflectivity * 1.35 * giAoIntensity;
           mesh.material = pbrMaterial;
         } else if (mode === "clay-maquete") {
@@ -355,11 +433,14 @@ export default function Studio3DFullscreenEngine({
         } else if (mode === "wireframe") {
           pbrMaterial.wireframe = true;
           mesh.material = pbrMaterial;
+        } else if (mode === "base-color-albedo") {
+          mesh.material = albedoMaterial;
         }
       }
 
       if (edgeLinesGroupRef.current) {
-        edgeLinesGroupRef.current.visible = mode === "tecnico-arestas";
+        edgeLinesGroupRef.current.visible =
+          mode === "shaded-edged-f4" || mode === "tecnico-arestas";
       }
 
       wakeRenderLoop();
@@ -367,7 +448,91 @@ export default function Studio3DFullscreenEngine({
     [giAoIntensity, wakeRenderLoop]
   );
 
-  // Load HDRI from /assets/3d-templates/hdri/{slug}.hdr with RGBELoader + PMREMGenerator
+  // Sync SkyDome & Scene Background with HDRI / Vignette settings
+  const syncEnvironmentBackground = useCallback(() => {
+    const scene = sceneRef.current;
+    const groundSys = groundSystemRef.current;
+    if (!scene || !groundSys) return;
+
+    const hdriEntry =
+      hdriCatalog.find((h) => h.id === activeHdriId) || hdriCatalog[0];
+
+    if (backgroundMode === "hdri-sky" && currentSkyTextureRef.current) {
+      scene.background = new THREE.Color(hdriEntry?.skyHorizonHex || "#18181B");
+      scene.fog = new THREE.FogExp2(hdriEntry?.skyHorizonHex || "#18181B", 0.008);
+      groundSys.updateSkyDome({
+        visible: true,
+        texture: currentSkyTextureRef.current,
+        sunAzimuthDeg,
+        blurNormalized: skyBlurPercent / 100,
+        tintHex: hdriEntry?.ambientTintHex,
+      });
+    } else {
+      const vig = STUDIO_VIGNETTE_PRESETS[vignettePreset] || STUDIO_VIGNETTE_PRESETS["studio-dark"];
+      scene.background = new THREE.Color(vig.bgHex);
+      scene.fog = new THREE.FogExp2(vig.fogHex, 0.012);
+      groundSys.updateSkyDome({
+        visible: false,
+        texture: null,
+        sunAzimuthDeg,
+        blurNormalized: 0,
+      });
+    }
+    wakeRenderLoop();
+  }, [
+    activeHdriId,
+    backgroundMode,
+    hdriCatalog,
+    skyBlurPercent,
+    sunAzimuthDeg,
+    vignettePreset,
+    wakeRenderLoop,
+  ]);
+
+  // Load Ground PBR Texture and update StudioGroundSystem
+  const loadAndApplyGroundPreset = useCallback(
+    (presetId: StudioGroundMaterialId) => {
+      const groundSys = groundSystemRef.current;
+      const renderer = rendererRef.current;
+      if (!groundSys) return;
+
+      const preset = STUDIO_GROUND_PRESETS[presetId] || STUDIO_GROUND_PRESETS.concreto;
+      const maxAniso = renderer
+        ? Math.min(renderer.capabilities.getMaxAnisotropy(), 8)
+        : 8;
+
+      if (!preset.textureUrl || preset.isShadowCatcherOnly) {
+        groundSys.updateGroundPreset(presetId, null, maxAniso);
+        wakeRenderLoop();
+        return;
+      }
+
+      const cached = groundTexturesCacheRef.current.get(preset.textureUrl);
+      if (cached) {
+        groundSys.updateGroundPreset(presetId, cached, maxAniso);
+        wakeRenderLoop();
+        return;
+      }
+
+      const texLoader = new THREE.TextureLoader();
+      texLoader.load(
+        preset.textureUrl,
+        (tex) => {
+          groundTexturesCacheRef.current.set(preset.textureUrl!, tex);
+          groundSys.updateGroundPreset(presetId, tex, maxAniso);
+          wakeRenderLoop();
+        },
+        undefined,
+        () => {
+          groundSys.updateGroundPreset(presetId, null, maxAniso);
+          wakeRenderLoop();
+        }
+      );
+    },
+    [wakeRenderLoop]
+  );
+
+  // Load HDRI (.hdr for PMREM GI + 2K -sky.webp for crisp Grounded Skybox)
   const loadHdriEnvironment = useCallback(
     (hdriId: string) => {
       const scene = sceneRef.current;
@@ -383,6 +548,7 @@ export default function Studio3DFullscreenEngine({
       setSunElevationDeg(entry.sunElevationDeg);
       setExposure(entry.exposureDefault);
 
+      // 1. Load 256x128 Radiance .hdr for physical IBL / PMREM reflections
       const rgbeLoader = new RGBELoader();
       rgbeLoader.load(
         entry.compiledUrl,
@@ -400,7 +566,6 @@ export default function Studio3DFullscreenEngine({
         },
         undefined,
         () => {
-          // Fallback to procedural RoomEnvironment if HDR file fails to fetch
           const fallbackEnv = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
           if (currentEnvMapRef.current) {
             currentEnvMapRef.current.dispose();
@@ -410,14 +575,45 @@ export default function Studio3DFullscreenEngine({
           wakeRenderLoop();
         }
       );
+
+      // 2. Load 2048x1024 WebP Skybox for crisp 360° background dome
+      const skyUrl = entry.skyboxUrl || `/assets/3d-templates/hdri/${entry.id}-sky.webp`;
+      const texLoader = new THREE.TextureLoader();
+      texLoader.load(
+        skyUrl,
+        (skyTex) => {
+          skyTex.colorSpace = THREE.SRGBColorSpace;
+          skyTex.minFilter = THREE.LinearFilter;
+          skyTex.magFilter = THREE.LinearFilter;
+          if (currentSkyTextureRef.current) {
+            currentSkyTextureRef.current.dispose();
+          }
+          currentSkyTextureRef.current = skyTex;
+          if (groundSystemRef.current) {
+            groundSystemRef.current.updateSkyDome({
+              visible: backgroundMode === "hdri-sky",
+              texture: skyTex,
+              sunAzimuthDeg: entry.sunAzimuthDeg,
+              blurNormalized: skyBlurPercent / 100,
+              tintHex: entry.ambientTintHex,
+            });
+          }
+          wakeRenderLoop();
+        },
+        undefined,
+        () => {
+          wakeRenderLoop();
+        }
+      );
     },
-    [hdriCatalog, wakeRenderLoop]
+    [backgroundMode, hdriCatalog, skyBlurPercent, wakeRenderLoop]
   );
 
-  // Load and normalize 3D model + compile Smart PBR Shaders
+  // Load and normalize 3D model + preserve embedded PBR textures with Anisotropic Filtering
   const loadAssetModel = useCallback(
     (asset: Studio3DAssetInput) => {
       const scene = sceneRef.current;
+      const renderer = rendererRef.current;
       if (!scene) return;
 
       setIsLoaded(false);
@@ -444,6 +640,15 @@ export default function Studio3DFullscreenEngine({
         setLoadError(null);
         return;
       }
+
+      const isMobileViewport =
+        typeof window !== "undefined" && window.innerWidth < 768;
+      const maxAniso = renderer
+        ? Math.min(
+            renderer.capabilities.getMaxAnisotropy(),
+            isMobileViewport ? 4 : 8
+          )
+        : 4;
 
       const loader = new GLTFLoader();
       try {
@@ -483,11 +688,13 @@ export default function Studio3DFullscreenEngine({
           }
 
           const edgesGroup = new THREE.Group();
-          edgesGroup.visible = visualMode === "tecnico-arestas";
+          edgesGroup.visible =
+            visualModeRef.current === "shaded-edged-f4" ||
+            visualModeRef.current === "tecnico-arestas";
           const edgeMat = new THREE.LineBasicMaterial({
             color: 0x18181b,
             transparent: true,
-            opacity: 0.42,
+            opacity: 0.45,
           });
 
           const presetCounts: Record<string, number> = {};
@@ -510,14 +717,32 @@ export default function Studio3DFullscreenEngine({
               ? (mesh.material[0] as THREE.MeshStandardMaterial)
               : (mesh.material as THREE.MeshStandardMaterial);
 
-            const baseColor =
-              origMat && origMat.color
-                ? origMat.color.clone()
-                : new THREE.Color(preset.baseColorHex);
+            // Preserve real embedded textures from .glb and apply Anisotropic Filtering
+            const diffuseMap = origMat?.map || null;
+            const normalMap = origMat?.normalMap || null;
+            const roughnessMap = origMat?.roughnessMap || null;
+            const metalnessMap = origMat?.metalnessMap || null;
+
+            for (const tex of [diffuseMap, normalMap, roughnessMap, metalnessMap]) {
+              if (tex) {
+                tex.anisotropy = maxAniso;
+                tex.needsUpdate = true;
+              }
+            }
+
+            const baseColor = diffuseMap
+              ? new THREE.Color("#FFFFFF")
+              : origMat && origMat.color
+              ? origMat.color.clone()
+              : new THREE.Color(preset.baseColorHex);
 
             const pbrMat = new THREE.MeshPhysicalMaterial({
               name: `${preset.label} (${matName || mesh.name})`,
               color: baseColor,
+              map: diffuseMap,
+              normalMap,
+              roughnessMap,
+              metalnessMap,
               roughness: origMat?.roughness ?? preset.roughness,
               metalness: origMat?.metalness ?? preset.metalness,
               transmission: preset.transmission,
@@ -535,16 +760,22 @@ export default function Studio3DFullscreenEngine({
               pbrMat.emissiveIntensity = preset.emissiveIntensity;
             }
 
+            const albedoMat = new THREE.MeshBasicMaterial({
+              color: diffuseMap ? new THREE.Color("#FFFFFF") : new THREE.Color(preset.baseColorHex),
+              map: diffuseMap,
+            });
+
             storedList.push({
               mesh,
               originalMaterial: mesh.material,
               pbrMaterial: pbrMat,
+              albedoMaterial: albedoMat,
               preset,
             });
             mesh.material = pbrMat;
 
             if (mesh.geometry) {
-              const edgesGeo = new THREE.EdgesGeometry(mesh.geometry, 26);
+              const edgesGeo = new THREE.EdgesGeometry(mesh.geometry, 24);
               const line = new THREE.LineSegments(edgesGeo, edgeMat);
               line.position.copy(mesh.getWorldPosition(new THREE.Vector3()));
               line.quaternion.copy(mesh.getWorldQuaternion(new THREE.Quaternion()));
@@ -561,13 +792,19 @@ export default function Studio3DFullscreenEngine({
           modelRootRef.current = root;
           edgeLinesGroupRef.current = edgesGroup;
 
+          applyVisualModeToMaterials(visualModeRef.current);
+
           // Configure initial camera positions from asset normalization
           const normBox = new THREE.Box3().setFromObject(root);
           const normSize = new THREE.Vector3();
           normBox.getSize(normSize);
 
           const tp = asset.thirdPersonCamera || {
-            position: [normSize.x * 0.95 + 3.5, Math.max(normSize.y * 0.85, 2.8), normSize.z * 1.15 + 4.2],
+            position: [
+              normSize.x * 0.95 + 3.5,
+              Math.max(normSize.y * 0.85, 2.8),
+              normSize.z * 1.15 + 4.2,
+            ],
             target: [0, Math.min(normSize.y * 0.4, 1.35), 0],
             fov: 42,
           };
@@ -580,7 +817,11 @@ export default function Studio3DFullscreenEngine({
           const st = camStateRef.current;
           st.target.set(tp.target[0], tp.target[1], tp.target[2]);
           st.desiredTarget.set(tp.target[0], tp.target[1], tp.target[2]);
-          const offset = new THREE.Vector3(tp.position[0], tp.position[1], tp.position[2]).sub(st.target);
+          const offset = new THREE.Vector3(
+            tp.position[0],
+            tp.position[1],
+            tp.position[2]
+          ).sub(st.target);
           st.spherical.setFromVector3(offset);
           st.desiredRadius = st.spherical.radius;
           st.desiredPhi = st.spherical.phi;
@@ -609,10 +850,40 @@ export default function Studio3DFullscreenEngine({
         }
       );
     },
-    [disposeObject3D, giAoIntensity, visualMode, wakeRenderLoop]
+    [applyVisualModeToMaterials, disposeObject3D, giAoIntensity, wakeRenderLoop]
   );
 
-  // Initialize WebGLRenderer, Scene, Cameras, Lights, Floor Grid & Demand Loop
+  // Trigger 3ds Max 'Z' Zoom Extents
+  const handleZoomExtents = useCallback(() => {
+    registerUserActivity();
+    applyZoomExtentsToRig(
+      camStateRef.current as unknown as Parameters<typeof applyZoomExtentsToRig>[0],
+      modelRootRef.current
+    );
+    showTransientShortcutToast("Zoom Extents (Z) · Modelo enquadrado");
+    wakeRenderLoop();
+  }, [registerUserActivity, showTransientShortcutToast, wakeRenderLoop]);
+
+  // Switch between 1st-person (Y = 1.65m, FOV 55°) and 3rd-person (Orbit, FOV 42°)
+  const handleSwitchCameraMode = useCallback(
+    (nextMode: StudioCameraMode) => {
+      registerUserActivity();
+      setCameraMode(nextMode);
+      cameraModeRef.current = nextMode;
+      camStateRef.current.mode = nextMode;
+      if (cameraRef.current) {
+        cameraRef.current.fov = nextMode === "first-person" ? 55 : 42;
+        cameraRef.current.updateProjectionMatrix();
+      }
+      if (nextMode === "first-person") {
+        setTurntable(false);
+      }
+      wakeRenderLoop();
+    },
+    [registerUserActivity, wakeRenderLoop]
+  );
+
+  // Initialize WebGLRenderer, Scene, Cameras, Lights, StudioGroundSystem & Demand Loop
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
@@ -623,8 +894,8 @@ export default function Studio3DFullscreenEngine({
     const height = container.clientHeight || window.innerHeight;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#111215");
-    scene.fog = new THREE.FogExp2("#111215", 0.015);
+    scene.background = new THREE.Color("#18181B");
+    scene.fog = new THREE.FogExp2("#111215", 0.01);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 250);
@@ -650,7 +921,6 @@ export default function Studio3DFullscreenEngine({
     pmremGenerator.compileEquirectangularShader();
     pmremGeneratorRef.current = pmremGenerator;
 
-    // Initial procedural studio environment until HDRI finishes loading
     const initialEnv = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
     currentEnvMapRef.current = initialEnv;
     scene.environment = initialEnv;
@@ -677,23 +947,12 @@ export default function Studio3DFullscreenEngine({
     scene.add(sunLight);
     sunLightRef.current = sunLight;
 
-    // Subtle Infinite Studio Floor & Reference Grid at Y = 0
-    const envGroup = new THREE.Group();
-    const shadowCatcherGeo = new THREE.PlaneGeometry(80, 80);
-    const shadowCatcherMat = new THREE.ShadowMaterial({ opacity: 0.34 });
-    const shadowCatcher = new THREE.Mesh(shadowCatcherGeo, shadowCatcherMat);
-    shadowCatcher.rotation.x = -Math.PI / 2;
-    shadowCatcher.position.y = -0.002;
-    shadowCatcher.receiveShadow = true;
-    envGroup.add(shadowCatcher);
+    // Initialize StudioGroundSystem (Grounded Skybox + Radial Fade PBR Ground + 1m Grid + Focus Ring)
+    const groundSys = createStudioGroundSystem();
+    scene.add(groundSys.group);
+    groundSystemRef.current = groundSys;
 
-    const grid = new THREE.GridHelper(36, 36, 0x3f3f46, 0x27272a);
-    grid.position.y = -0.001;
-    (grid.material as THREE.Material).transparent = true;
-    (grid.material as THREE.Material).opacity = 0.25;
-    envGroup.add(grid);
-
-    // Smooth Teleport Target Ring on Floor (Y = 0.01m)
+    // Smooth Teleport Target Ring on Floor (Y = 0.012m) for 1st-person walk
     const ringGeo = new THREE.RingGeometry(0.18, 0.26, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xede5d8,
@@ -704,26 +963,32 @@ export default function Studio3DFullscreenEngine({
     const teleportRing = new THREE.Mesh(ringGeo, ringMat);
     teleportRing.rotation.x = -Math.PI / 2;
     teleportRing.position.y = 0.012;
-    envGroup.add(teleportRing);
+    groundSys.group.add(teleportRing);
     teleportRingRef.current = teleportRing;
 
-    scene.add(envGroup);
-    envGroupRef.current = envGroup;
-
-    // Load initial HDRI and 3D model
+    // Load initial HDRI, Ground PBR Texture, and 3D model
     loadHdriEnvironment(activeAsset.defaultHdriId || "dia-claro");
+    loadAndApplyGroundPreset("concreto");
     loadAssetModel(activeAsset);
 
-    // Raycaster for floor click teleport and double-click pivot focus
     const raycaster = new THREE.Raycaster();
     const pointerNdc = new THREE.Vector2();
 
+    // Native 3ds Max + Sketchfab Mouse Controls
     const onPointerDown = (e: PointerEvent) => {
       registerUserActivity();
       wakeRenderLoop();
+      if (e.button === 1) {
+        e.preventDefault(); // Prevent browser middle-click auto-scroll icon
+      }
       const st = camStateRef.current;
       st.isDragging = true;
-      st.isPanning = e.button === 2 || e.shiftKey;
+      st.dragAction = resolvePointerDragAction(
+        e.button,
+        e.altKey,
+        e.ctrlKey,
+        e.shiftKey
+      );
       st.pointerDownPos = { x: e.clientX, y: e.clientY };
       st.prevPointer = { x: e.clientX, y: e.clientY };
     };
@@ -739,22 +1004,37 @@ export default function Studio3DFullscreenEngine({
       st.prevPointer = { x: e.clientX, y: e.clientY };
 
       if (st.mode === "first-person") {
-        st.fpDesiredYaw -= dx * 0.0042;
-        st.fpDesiredPitch = THREE.MathUtils.clamp(
-          st.fpDesiredPitch - dy * 0.0038,
-          -Math.PI / 2.4,
-          Math.PI / 2.4
-        );
+        if (st.dragAction === "pan") {
+          const right = new THREE.Vector3(Math.cos(st.fpYaw), 0, -Math.sin(st.fpYaw));
+          st.fpDesiredPosition.addScaledVector(right, -dx * 0.008);
+        } else {
+          st.fpDesiredYaw -= dx * 0.0042;
+          st.fpDesiredPitch = THREE.MathUtils.clamp(
+            st.fpDesiredPitch - dy * 0.0038,
+            -Math.PI / 2.4,
+            Math.PI / 2.4
+          );
+        }
       } else {
-        if (st.isPanning) {
-          const panSpeed = st.desiredRadius * 0.0014;
+        if (st.dragAction === "zoom") {
+          // 3ds Max Ctrl + Alt + MMB Smooth Zoom
+          const zoomFactor = 1 + dy * 0.0045;
+          st.desiredRadius = THREE.MathUtils.clamp(
+            st.desiredRadius * zoomFactor,
+            0.85,
+            38
+          );
+        } else if (st.dragAction === "pan") {
+          // 3ds Max MMB / Sketchfab RMB Pan
+          const panSpeed = Math.max(0.4, st.desiredRadius) * 0.0014;
           const right = new THREE.Vector3();
           const up = new THREE.Vector3();
           camera.matrix.extractBasis(right, up, new THREE.Vector3());
           st.desiredTarget.addScaledVector(right, -dx * panSpeed);
           st.desiredTarget.addScaledVector(up, dy * panSpeed);
-          st.desiredTarget.y = Math.max(0.1, st.desiredTarget.y);
+          st.desiredTarget.y = Math.max(0.05, st.desiredTarget.y);
         } else {
+          // 3ds Max Alt+MMB / Sketchfab LMB Orbit
           st.desiredTheta -= dx * 0.0065;
           st.desiredPhi = THREE.MathUtils.clamp(
             st.desiredPhi - dy * 0.0055,
@@ -772,7 +1052,7 @@ export default function Studio3DFullscreenEngine({
         e.clientY - st.pointerDownPos.y
       );
       st.isDragging = false;
-      st.isPanning = false;
+      st.dragAction = "none";
 
       // In 1st-person mode: short click on floor triggers Smooth Teleport
       if (st.mode === "first-person" && moveDist < 6 && e.button === 0) {
@@ -796,37 +1076,54 @@ export default function Studio3DFullscreenEngine({
       }
     };
 
+    // Sketchfab Double-Click Dynamic Pivot with Surface Normal Focus Ring
     const onDoubleClick = (e: MouseEvent) => {
       registerUserActivity();
-      if (!modelRootRef.current) return;
       const rect = renderer.domElement.getBoundingClientRect();
       pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointerNdc, camera);
 
-      const hits = raycaster.intersectObject(modelRootRef.current, true);
+      const candidates: THREE.Object3D[] = [];
+      if (modelRootRef.current) candidates.push(modelRootRef.current);
+      if (groundSystemRef.current) candidates.push(groundSystemRef.current.groundPlaneMesh);
+
+      const hits = raycaster.intersectObjects(candidates, true);
       if (hits.length > 0) {
-        const hit = hits[0].point;
+        const firstHit = hits[0];
+        const hitPoint = firstHit.point;
+        const worldNormal = firstHit.face
+          ? firstHit.face.normal
+              .clone()
+              .transformDirection(firstHit.object.matrixWorld)
+          : new THREE.Vector3(0, 1, 0);
+
+        if (groundSystemRef.current) {
+          groundSystemRef.current.triggerFocusRing(hitPoint, worldNormal);
+        }
+
         const st = camStateRef.current;
         if (st.mode === "third-person") {
-          st.desiredTarget.copy(hit);
-          st.desiredRadius = Math.max(2.2, st.desiredRadius * 0.72);
+          st.desiredTarget.copy(hitPoint);
+          st.desiredRadius = Math.max(1.4, st.desiredRadius * 0.72);
         } else {
-          st.fpDesiredPosition.set(hit.x, 1.65, hit.z + 1.2);
+          st.fpDesiredPosition.set(hitPoint.x, 1.65, hitPoint.z + 1.1);
         }
         wakeRenderLoop();
       }
     };
 
+    // Adaptive Scroll Wheel Zoom (never gets stuck near surfaces)
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       registerUserActivity();
       wakeRenderLoop();
       const st = camStateRef.current;
       if (st.mode === "third-person") {
+        const adaptiveStep = Math.max(0.25, st.desiredRadius) * 0.0011;
         st.desiredRadius = THREE.MathUtils.clamp(
-          st.desiredRadius * (1 + e.deltaY * 0.001),
-          1.2,
+          st.desiredRadius + e.deltaY * adaptiveStep,
+          0.75,
           38
         );
       } else {
@@ -839,8 +1136,75 @@ export default function Studio3DFullscreenEngine({
       }
     };
 
+    // 3ds Max Keyboard Shortcuts (Z, F3, F4, G, C/V) + WASD Walk/Pan
     const onKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (targetTag === "input" || targetTag === "textarea" || targetTag === "select") {
+        return;
+      }
       registerUserActivity();
+
+      if (e.key === "F3" || e.key === "F4") {
+        e.preventDefault();
+      }
+
+      const currentInspMode: StudioVisualInspectorModeId =
+        visualModeRef.current === "tecnico-arestas"
+          ? "shaded-edged-f4"
+          : visualModeRef.current;
+
+      const shortcutRes = resolve3dsMaxShortcut(e.key || e.code, {
+        visualMode: currentInspMode,
+        showGrid: showGridRef.current,
+        cameraMode: cameraModeRef.current,
+      });
+
+      if (shortcutRes.handled) {
+        if (shortcutRes.triggerZoomExtents) {
+          applyZoomExtentsToRig(
+            camStateRef.current as unknown as Parameters<typeof applyZoomExtentsToRig>[0],
+            modelRootRef.current
+          );
+          showTransientShortcutToast("Zoom Extents (Z) · Modelo enquadrado");
+        }
+        if (shortcutRes.visualMode !== currentInspMode) {
+          setVisualMode(shortcutRes.visualMode);
+          const modeInfo = STUDIO_INSPECTOR_MODES.find(
+            (m) => m.id === shortcutRes.visualMode
+          );
+          if (modeInfo) {
+            showTransientShortcutToast(`Modo: ${modeInfo.label}`);
+          }
+        }
+        if (shortcutRes.showGrid !== showGridRef.current) {
+          setShowGrid(shortcutRes.showGrid);
+          if (groundSystemRef.current) {
+            groundSystemRef.current.setGridVisible(shortcutRes.showGrid);
+          }
+          showTransientShortcutToast(
+            `Grid Arquitetônico 1m×1m (G): ${shortcutRes.showGrid ? "Visível" : "Oculto"}`
+          );
+        }
+        if (shortcutRes.cameraMode !== cameraModeRef.current) {
+          const nextCam: StudioCameraMode =
+            shortcutRes.cameraMode === "first-person" ? "first-person" : "third-person";
+          setCameraMode(nextCam);
+          cameraModeRef.current = nextCam;
+          camStateRef.current.mode = nextCam;
+          if (cameraRef.current) {
+            cameraRef.current.fov = nextCam === "first-person" ? 55 : 42;
+            cameraRef.current.updateProjectionMatrix();
+          }
+          showTransientShortcutToast(
+            nextCam === "first-person"
+              ? "Câmera 1ª Pessoa (1,65m) [C/V]"
+              : "Câmera 3ª Pessoa (Órbita) [C/V]"
+          );
+        }
+        wakeRenderLoop();
+        return;
+      }
+
       camStateRef.current.keysPressed.add(e.code);
       wakeRenderLoop();
     };
@@ -872,9 +1236,13 @@ export default function Studio3DFullscreenEngine({
     window.addEventListener("resize", onResize);
 
     // 2-Stage Hybrid Render Loop (60 FPS Navigation -> 300ms Idle RT/GI Convergence -> Demand Freeze)
+    let prevFrameTime = performance.now();
     const animate = () => {
       rafIdRef.current = requestAnimationFrame(animate);
       const now = performance.now();
+      const dt = Math.min(0.1, (now - prevFrameTime) / 1000);
+      prevFrameTime = now;
+
       const st = camStateRef.current;
 
       const { movedByKeys, dampingActive: rigDamping } = updateStudioCameraFrame({
@@ -893,6 +1261,10 @@ export default function Studio3DFullscreenEngine({
       }
 
       let dampingActive = rigDamping;
+
+      if (groundSystemRef.current && groundSystemRef.current.stepFocusRing(dt)) {
+        dampingActive = true;
+      }
 
       if (st.teleportRingTimer > 0.01 && teleportRingRef.current) {
         st.teleportRingTimer *= 0.92;
@@ -925,7 +1297,7 @@ export default function Studio3DFullscreenEngine({
         stageRef.current = "CONVERGED_IDLE_0GPU";
         setPipelineStage("CONVERGED_IDLE_0GPU");
 
-        // Project 3D annotation pins to 2D screen coordinates
+        // Project 3D annotation pins to 2D screen coordinates with occlusion check
         if (activeAsset.annotations && activeAsset.annotations.length > 0) {
           const w = renderer.domElement.clientWidth;
           const h = renderer.domElement.clientHeight;
@@ -935,12 +1307,24 @@ export default function Studio3DFullscreenEngine({
             const x = (projected.x * 0.5 + 0.5) * w;
             const y = (-projected.y * 0.5 + 0.5) * h;
             const visible = projected.z < 1 && x >= 0 && x <= w && y >= 0 && y <= h;
-            return { pin, x, y, visible };
+
+            let occluded = false;
+            if (visible && modelRootRef.current) {
+              const dirToPin = worldPos.clone().sub(camera.position);
+              const distToPin = dirToPin.length();
+              if (distToPin > 0.2) {
+                raycaster.set(camera.position, dirToPin.normalize());
+                const hits = raycaster.intersectObject(modelRootRef.current, true);
+                if (hits.length > 0 && hits[0].distance < distToPin - 0.35) {
+                  occluded = true;
+                }
+              }
+            }
+            return { pin, x, y, visible, occluded };
           });
           setProjectedPins(mapped);
         }
       }
-      // When rtPassCompletedRef.current === true, the loop does ZERO WebGL draw calls (frameloop="demand" behavior)
     };
 
     rafIdRef.current = requestAnimationFrame(animate);
@@ -948,6 +1332,7 @@ export default function Studio3DFullscreenEngine({
     return () => {
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
       if (hudIdleTimerRef.current) clearTimeout(hudIdleTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       domElem.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
@@ -960,13 +1345,39 @@ export default function Studio3DFullscreenEngine({
       // Strict WebGL memory disposal on route exit
       disposeObject3D(modelRootRef.current);
       disposeObject3D(edgeLinesGroupRef.current);
-      disposeObject3D(envGroupRef.current);
+      disposeObject3D(avatarRootRef.current);
+      if (groundSystemRef.current) groundSystemRef.current.dispose();
+      ringGeo.dispose();
+      ringMat.dispose();
+      for (const tex of groundTexturesCacheRef.current.values()) {
+        tex.dispose();
+      }
+      groundTexturesCacheRef.current.clear();
+      if (currentSkyTextureRef.current) currentSkyTextureRef.current.dispose();
       if (currentEnvMapRef.current) currentEnvMapRef.current.dispose();
       if (pmremGeneratorRef.current) pmremGeneratorRef.current.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
     };
   }, []);
+
+  // Sync Background Mode, Sky Blur, Vignette Preset & Sun Azimuth with SkyDome
+  useEffect(() => {
+    syncEnvironmentBackground();
+  }, [syncEnvironmentBackground]);
+
+  // Sync Ground Material Preset
+  useEffect(() => {
+    loadAndApplyGroundPreset(groundPresetId);
+  }, [groundPresetId, loadAndApplyGroundPreset]);
+
+  // Sync Grid visibility
+  useEffect(() => {
+    if (groundSystemRef.current) {
+      groundSystemRef.current.setGridVisible(showGrid);
+      wakeRenderLoop();
+    }
+  }, [showGrid, wakeRenderLoop]);
 
   // Turntable rotation effect
   useEffect(() => {
@@ -1002,21 +1413,6 @@ export default function Studio3DFullscreenEngine({
   useEffect(() => {
     applyVisualModeToMaterials(visualMode);
   }, [visualMode, giAoIntensity, applyVisualModeToMaterials]);
-
-  // Switch between 1st-person (Y = 1.65m, FOV 55°) and 3rd-person (Orbit, FOV 42°)
-  const handleSwitchCameraMode = (nextMode: StudioCameraMode) => {
-    registerUserActivity();
-    setCameraMode(nextMode);
-    camStateRef.current.mode = nextMode;
-    if (cameraRef.current) {
-      cameraRef.current.fov = nextMode === "first-person" ? 55 : 42;
-      cameraRef.current.updateProjectionMatrix();
-    }
-    if (nextMode === "first-person") {
-      setTurntable(false);
-    }
-    wakeRenderLoop();
-  };
 
   // Switch active 3D template/asset
   const handleSelectAsset = (nextAsset: Studio3DAssetInput) => {
@@ -1067,9 +1463,9 @@ export default function Studio3DFullscreenEngine({
   const toggleFullscreen = () => {
     if (typeof document === "undefined") return;
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => { });
+      document.documentElement.requestFullscreen?.().catch(() => {});
     } else {
-      document.exitFullscreen?.().catch(() => { });
+      document.exitFullscreen?.().catch(() => {});
     }
   };
 
@@ -1108,23 +1504,46 @@ export default function Studio3DFullscreenEngine({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ annotations: updatedAnnotations }),
-      }).catch(() => { });
+      }).catch(() => {});
     }
   };
 
   const hudOpacityClass =
     hudIdle && activeDrawer === "none" && !selectedPin
-      ? "opacity-15 hover:opacity-100"
+      ? "opacity-20 hover:opacity-100"
       : "opacity-100";
+
+  const visualModeShortLabel =
+    visualMode === "realista-pbr-rt"
+      ? "Final PBR"
+      : visualMode === "shaded-edged-f4" || visualMode === "tecnico-arestas"
+      ? "Edged (F4)"
+      : visualMode === "clay-maquete"
+      ? "Clay"
+      : visualMode === "wireframe"
+      ? "Wire (F3)"
+      : "Albedo";
 
   return (
     <div
       onPointerMove={registerUserActivity}
       onKeyDown={registerUserActivity}
-      className="relative h-screen w-screen overflow-hidden bg-[#111215] select-none font-sans"
+      className="relative h-screen w-screen overflow-hidden bg-[#18181B] select-none font-sans"
     >
       {/* 1. CANVAS WEBGL PRINCIPAL (ESTÁGIO 1 & 2) */}
-      <div ref={mountRef} className="absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing" />
+      <div
+        ref={mountRef}
+        className="absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing"
+      />
+
+      {/* 1B. VINHETA ÓPTICA SUTIL ESTILO SKETCHFAB VIEWPORT */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 58%, rgba(12,12,16,0.34) 100%)",
+        }}
+      />
 
       {/* 2. OVERLAY DE RAY TRACING / CONTACT AO / GI CONVERGIDO (ESTÁGIO 2) */}
       <canvas
@@ -1135,20 +1554,24 @@ export default function Studio3DFullscreenEngine({
         }}
       />
 
-      {/* 3. PINS DE ANOTAÇÃO 3D PROJETADOS */}
+      {/* 3. PINS DE ANOTAÇÃO 3D PROJETADOS (COM ATENUAÇÃO DE OCLUSÃO SKETCHFAB) */}
       {showHotspots &&
         isLoaded &&
-        projectedPins.map(({ pin, x, y, visible }) =>
+        projectedPins.map(({ pin, x, y, visible, occluded }) =>
           visible ? (
             <button
               key={pin.id}
               type="button"
               onClick={() => handleSelectAnnotation(pin)}
-              style={{ transform: `translate3d(${x - 16}px, ${y - 16}px, 0)` }}
-              className={`absolute left-0 top-0 z-20 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition-all duration-200 ${selectedPin?.id === pin.id
-                ? "scale-125 border-[#EDE5D8] bg-[#18181B] text-[#EDE5D8] shadow-[0_0_20px_rgba(237,229,216,0.5)]"
-                : "border-white/30 bg-black/45 text-white/95 backdrop-blur-md hover:scale-110 hover:bg-black/75"
-                }`}
+              style={{
+                transform: `translate3d(${x - 15}px, ${y - 15}px, 0)`,
+                opacity: occluded && selectedPin?.id !== pin.id ? 0.32 : 1,
+              }}
+              className={`absolute left-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-bold transition-all duration-200 ${
+                selectedPin?.id === pin.id
+                  ? "scale-125 border-[#EDE5D8] bg-[#18181B] text-[#EDE5D8] shadow-[0_0_20px_rgba(237,229,216,0.55)]"
+                  : "border-white/40 bg-black/55 text-white/95 backdrop-blur-md hover:scale-110 hover:bg-black/80"
+              }`}
               title={pin.title}
             >
               {pin.index}
@@ -1160,17 +1583,16 @@ export default function Studio3DFullscreenEngine({
       <div
         className={`pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between p-4 sm:px-6 transition-opacity duration-500 ${hudOpacityClass}`}
       >
-        {/* Botão Discreto Voltar ao Acervo + Identificação do Modelo */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2.5">
           <Link
             href={returnHref}
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-4 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl transition hover:bg-black/45 active:scale-95"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-4 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl transition hover:bg-black/55 active:scale-95"
           >
             <span>←</span>
             <span>{returnLabel}</span>
           </Link>
 
-          <div className="hidden sm:flex items-center gap-2.5 rounded-full border border-white/15 bg-black/25 px-4 py-1.5 text-xs text-white/90 backdrop-blur-xl">
+          <div className="hidden sm:flex items-center gap-2.5 rounded-full border border-white/15 bg-black/35 px-4 py-1.5 text-xs text-white/90 backdrop-blur-xl">
             <span className="h-2 w-2 rounded-full bg-[#EDE5D8]" />
             <span className="font-semibold tracking-tight">{activeAsset.title}</span>
             {activeAsset.category && (
@@ -1183,21 +1605,22 @@ export default function Studio3DFullscreenEngine({
 
         {/* Telemetria do Motor Híbrido (Estágio 1 vs Estágio 2 On-Demand RT) */}
         <div className="pointer-events-auto flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-3.5 py-1.5 text-[11px] font-medium text-white/90 backdrop-blur-xl">
+          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3.5 py-1.5 text-[11px] font-medium text-white/90 backdrop-blur-xl">
             <span
-              className={`h-2 w-2 rounded-full ${pipelineStage === "NAVIGATING_60FPS"
-                ? "bg-amber-400 animate-pulse"
-                : pipelineStage === "CONVERGING_RT_GI"
+              className={`h-2 w-2 rounded-full ${
+                pipelineStage === "NAVIGATING_60FPS"
+                  ? "bg-amber-400 animate-pulse"
+                  : pipelineStage === "CONVERGING_RT_GI"
                   ? "bg-sky-400 animate-ping"
                   : "bg-emerald-400"
-                }`}
+              }`}
             />
             <span className="hidden md:inline">
               {pipelineStage === "NAVIGATING_60FPS"
-                ? "Estágio 1 · Navegação 60 FPS (DPR 1.5)"
+                ? "Estágio 1 · 60 FPS (3ds Max / Sketchfab)"
                 : pipelineStage === "CONVERGING_RT_GI"
-                  ? "Estágio 2 · Convergindo Ray Tracing & GI..."
-                  : "Estágio 2 · RT + GI Convergido (0% GPU Idle)"}
+                ? "Estágio 2 · Convergindo RT & GI..."
+                : "Estágio 2 · RT + GI Convergido (0% GPU Idle)"}
             </span>
             <span className="md:hidden">
               {pipelineStage === "CONVERGED_IDLE_0GPU" ? "RT + GI Ativo" : "60 FPS"}
@@ -1206,9 +1629,16 @@ export default function Studio3DFullscreenEngine({
         </div>
       </div>
 
+      {/* TOAST DE ATALHO 3DS MAX (Z / F3 / F4 / G / C) */}
+      {shortcutToast && (
+        <div className="pointer-events-none absolute left-1/2 top-16 z-40 -translate-x-1/2 rounded-full border border-[#EDE5D8]/40 bg-black/75 px-4 py-1.5 text-xs font-semibold text-[#EDE5D8] shadow-xl backdrop-blur-xl animate-in fade-in duration-150">
+          {shortcutToast}
+        </div>
+      )}
+
       {/* 5. PAINEL DE ESPECIFICAÇÃO DO PIN SELECIONADO */}
       {selectedPin && (
-        <div className=" absolute right-6 top-20 z-30 w-80 rounded-3xl border border-white/15 bg-black/55 p-4 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-200">
+        <div className="absolute right-6 top-20 z-30 w-80 rounded-3xl border border-white/15 bg-black/65 p-4 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-200">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#EDE5D8] text-xs font-bold text-[#18181B]">
@@ -1224,7 +1654,9 @@ export default function Studio3DFullscreenEngine({
               ✕
             </button>
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-white/75">{selectedPin.description}</p>
+          <p className="mt-2 text-[11px] leading-relaxed text-white/75">
+            {selectedPin.description}
+          </p>
           {selectedPin.materialSpec && (
             <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-2.5 text-[11px]">
               <span className="block text-[9px] font-bold uppercase tracking-wider text-[#EDE5D8]">
@@ -1236,7 +1668,9 @@ export default function Studio3DFullscreenEngine({
           {selectedPin.dimensions && (
             <div className="mt-2 flex items-center justify-between text-[11px] text-white/70">
               <span>Cota / Escala Real:</span>
-              <span className="font-mono font-semibold text-[#EDE5D8]">{selectedPin.dimensions}</span>
+              <span className="font-mono font-semibold text-[#EDE5D8]">
+                {selectedPin.dimensions}
+              </span>
             </div>
           )}
           {(activeAsset.annotations?.length || 0) > 1 && (
@@ -1295,7 +1729,7 @@ export default function Studio3DFullscreenEngine({
               window.addEventListener("pointermove", moveHandler);
               window.addEventListener("pointerup", upHandler);
             }}
-            className="relative flex h-24 w-24 items-center justify-center rounded-full border border-white/20 bg-black/30 backdrop-blur-xl cursor-pointer touch-none"
+            className="relative flex h-24 w-24 items-center justify-center rounded-full border border-white/20 bg-black/35 backdrop-blur-xl cursor-pointer touch-none"
             title="Arraste para caminhar em 1ª pessoa (altura 1.65m)"
           >
             <div
@@ -1305,24 +1739,24 @@ export default function Studio3DFullscreenEngine({
               className="h-9 w-9 rounded-full border border-[#EDE5D8]/60 bg-[#EDE5D8]/80 shadow-md transition-transform duration-75"
             />
           </div>
-          <span className="rounded-full bg-black/35 px-2.5 py-0.5 text-[10px] font-medium text-white/80 backdrop-blur-md">
+          <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-[10px] font-medium text-white/80 backdrop-blur-md">
             Passeio 1.65m · Clique no piso p/ ir
           </span>
         </div>
       )}
 
-      {/* 7. GAVETAS FLUTUANTES DE CONTROLE (ILUMINAÇÃO HDRI / MODELOS / SHADERS PBR) */}
+      {/* 7. POPOVERS FLUTUANTES ESTILO SKETCHFAB (AMBIENTE & CHÃO / MODEL INSPECTOR / MODELOS / ATALHOS) */}
       {activeDrawer !== "none" && (
-        <div className="absolute bottom-20 left-1/2 z-30 w-[92vw] max-w-2xl -translate-x-1/2 rounded-3xl border border-white/15 bg-black/60 p-5 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-150">
+        <div className="absolute bottom-20 left-1/2 z-30 w-[94vw] max-w-2xl -translate-x-1/2 rounded-3xl border border-white/15 bg-[#18181B]/90 p-5 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-150">
           {activeDrawer === "lighting" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#EDE5D8]">
-                    Iluminação HDRI (\Arquivos\HDRI) & Ray Tracing Solar
+                    Ambiente, Céu Real HDRI (360°) & Chão PBR
                   </h3>
                   <p className="text-[11px] text-white/65">
-                    Troca instantânea de mapas Radiance `.hdr` pré-filtrados (PMREM) e posição solar.
+                    Domo esférico Ground-Projected + Plano de solo físico com fade radial infinito no horizonte.
                   </p>
                 </div>
                 <button
@@ -1334,35 +1768,130 @@ export default function Studio3DFullscreenEngine({
                 </button>
               </div>
 
-              {/* Seletor de HDRIs compilados */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {hdriCatalog.map((hdri) => {
-                  const selected = activeHdriId === hdri.id;
-                  return (
-                    <button
-                      key={hdri.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveHdriId(hdri.id);
-                        loadHdriEnvironment(hdri.id);
-                      }}
-                      className={`rounded-2xl border p-2.5 text-left transition ${selected
-                        ? "border-[#EDE5D8] bg-white/15 text-white"
-                        : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
+              {/* Modo de Fundo: Céu Real HDRI 360° vs Estúdio Infinito Sketchfab */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/30 p-2.5">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setBackgroundMode("hdri-sky")}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                      backgroundMode === "hdri-sky"
+                        ? "bg-[#EDE5D8] text-[#18181B]"
+                        : "text-white/75 hover:bg-white/10"
+                    }`}
+                  >
+                    🌤️ Céu Real HDRI (Domo 360°)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBackgroundMode("studio-vignette")}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                      backgroundMode === "studio-vignette"
+                        ? "bg-[#EDE5D8] text-[#18181B]"
+                        : "text-white/75 hover:bg-white/10"
+                    }`}
+                  >
+                    🎨 Estúdio Infinito Sketchfab
+                  </button>
+                </div>
+
+                {backgroundMode === "studio-vignette" && (
+                  <div className="flex items-center gap-1.5">
+                    {Object.values(STUDIO_VIGNETTE_PRESETS).map((vp) => (
+                      <button
+                        key={vp.id}
+                        type="button"
+                        onClick={() => setVignettePreset(vp.id)}
+                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
+                          vignettePreset === vp.id
+                            ? "border-[#EDE5D8] bg-white/15 text-white"
+                            : "border-white/10 text-white/70 hover:bg-white/10"
                         }`}
-                    >
-                      <p className="text-xs font-bold truncate">{hdri.title}</p>
-                      <p className="mt-0.5 text-[10px] text-white/55 truncate">{hdri.sourceFileName}</p>
-                    </button>
-                  );
-                })}
+                      >
+                        {vp.label.split(" ")[0]}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Sliders de Rotação do Sol/HDRI, Elevação, Exposição e GI/AO */}
+              {/* Seletor dos 4 HDRIs compilados */}
+              <div>
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">
+                  1. Mapa de Iluminação & Céu HDRI (\Arquivos\HDRI)
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {hdriCatalog.map((hdri) => {
+                    const selected = activeHdriId === hdri.id;
+                    return (
+                      <button
+                        key={hdri.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveHdriId(hdri.id);
+                          loadHdriEnvironment(hdri.id);
+                        }}
+                        className={`rounded-2xl border p-2.5 text-left transition ${
+                          selected
+                            ? "border-[#EDE5D8] bg-white/15 text-white"
+                            : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
+                        }`}
+                      >
+                        <p className="text-xs font-bold truncate">{hdri.title}</p>
+                        <p className="mt-0.5 text-[10px] text-white/55 truncate">
+                          {hdri.sourceFileName}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Seletor de Material do Chão PBR */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                    2. Plano de Solo PBR (Y = 0 · Fade Infinito)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowGrid((prev) => !prev)}
+                    className={`rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold transition ${
+                      showGrid
+                        ? "border-[#EDE5D8] bg-[#EDE5D8] text-[#18181B]"
+                        : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"
+                    }`}
+                  >
+                    ⊞ Grid 1m×1m (G): {showGrid ? "ON" : "OFF"}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {Object.values(STUDIO_GROUND_PRESETS).map((gp) => {
+                    const selected = groundPresetId === gp.id;
+                    return (
+                      <button
+                        key={gp.id}
+                        type="button"
+                        onClick={() => setGroundPresetId(gp.id)}
+                        className={`rounded-2xl border p-2.5 text-left transition ${
+                          selected
+                            ? "border-[#EDE5D8] bg-white/15 text-white"
+                            : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
+                        }`}
+                      >
+                        <p className="text-xs font-bold truncate">{gp.shortLabel}</p>
+                        <p className="mt-0.5 text-[10px] text-white/55 truncate">{gp.label}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Sliders de Rotação do Sol/Céu, Sky Blur, Exposição e GI/AO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
                 <label className="space-y-1">
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-white/75">Rotação do Sol / HDRI</span>
+                    <span className="text-white/75">Rotação do Sol & Céu HDRI</span>
                     <span className="font-mono text-[#EDE5D8]">{sunAzimuthDeg}°</span>
                   </div>
                   <input
@@ -1377,15 +1906,15 @@ export default function Studio3DFullscreenEngine({
 
                 <label className="space-y-1">
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-white/75">Elevação Solar</span>
-                    <span className="font-mono text-[#EDE5D8]">{sunElevationDeg}°</span>
+                    <span className="text-white/75">Suavização / Desfoque do Céu</span>
+                    <span className="font-mono text-[#EDE5D8]">{skyBlurPercent}%</span>
                   </div>
                   <input
                     type="range"
-                    min={5}
-                    max={85}
-                    value={sunElevationDeg}
-                    onChange={(e) => setSunElevationDeg(Number(e.target.value))}
+                    min={0}
+                    max={100}
+                    value={skyBlurPercent}
+                    onChange={(e) => setSkyBlurPercent(Number(e.target.value))}
                     className="w-full accent-[#EDE5D8]"
                   />
                 </label>
@@ -1430,10 +1959,10 @@ export default function Studio3DFullscreenEngine({
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#EDE5D8]">
-                    Modos de Leitura & Compilador Inteligente de Shaders PBR
+                    Model Inspector (Padrão Sketchfab & 3ds Max F3 / F4)
                   </h3>
                   <p className="text-[11px] text-white/65">
-                    Conversão automática de materiais legados (3ds Max/Corona/CAD) em `MeshPhysicalMaterial`.
+                    Inspeção de materiais PBR com filtro anisotrópico 8x, Edged Faces (`F4`), MatCap Clay, Wireframe (`F3`) e Albedo.
                   </p>
                 </div>
                 <button
@@ -1445,26 +1974,36 @@ export default function Studio3DFullscreenEngine({
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: "realista-pbr-rt" as const, label: "Realista PBR + RT", desc: "Clearcoat, vidro IOR 1.52 & GI" },
-                  { id: "clay-maquete" as const, label: "Maquete Branca Clay", desc: "Estudo volumétrico puro" },
-                  { id: "tecnico-arestas" as const, label: "Técnico com Arestas", desc: "Linhas de projeto + cotas" },
-                  { id: "wireframe" as const, label: "Malha Wireframe", desc: "Inspeção topológica GLB" },
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setVisualMode(m.id)}
-                    className={`rounded-2xl border p-2.5 text-left transition ${visualMode === m.id
-                      ? "border-[#EDE5D8] bg-white/15 text-white"
-                      : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                {STUDIO_INSPECTOR_MODES.map((m) => {
+                  const selected =
+                    visualMode === m.id ||
+                    (visualMode === "tecnico-arestas" && m.id === "shaded-edged-f4");
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setVisualMode(m.id)}
+                      className={`rounded-2xl border p-2.5 text-left transition ${
+                        selected
+                          ? "border-[#EDE5D8] bg-white/15 text-white"
+                          : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
                       }`}
-                  >
-                    <p className="text-xs font-bold">{m.label}</p>
-                    <p className="mt-0.5 text-[10px] text-white/55">{m.desc}</p>
-                  </button>
-                ))}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-xs font-bold">{m.label}</p>
+                        {m.shortcut && (
+                          <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-[#EDE5D8]">
+                            {m.shortcut}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[10px] text-white/55 leading-snug">
+                        {m.description}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1511,10 +2050,11 @@ export default function Studio3DFullscreenEngine({
                         handleSelectAsset(item);
                         setActiveDrawer("none");
                       }}
-                      className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${selected
-                        ? "border-[#EDE5D8] bg-white/15 text-white"
-                        : "border-white/10 bg-black/30 text-white/80 hover:bg-white/10"
-                        }`}
+                      className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${
+                        selected
+                          ? "border-[#EDE5D8] bg-white/15 text-white"
+                          : "border-white/10 bg-black/30 text-white/80 hover:bg-white/10"
+                      }`}
                     >
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate">{item.title}</p>
@@ -1533,70 +2073,120 @@ export default function Studio3DFullscreenEngine({
               </div>
             </div>
           )}
+
+          {activeDrawer === "shortcuts" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#EDE5D8]">
+                    Atalhos Nativos 3ds Max + Sketchfab Player
+                  </h3>
+                  <p className="text-[11px] text-white/65">
+                    Navegação híbrida imediata para quem modela no 3ds Max ou inspeciona no Sketchfab.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveDrawer("none")}
+                  className="rounded-full px-2.5 py-1 text-xs text-white/70 hover:bg-white/10"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {MAX_VIEWPORT_SHORTCUTS.map((sc) => (
+                  <div
+                    key={sc.key}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs"
+                  >
+                    <span className="text-white/80">{sc.action}</span>
+                    <kbd className="shrink-0 rounded-md border border-[#EDE5D8]/30 bg-white/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#EDE5D8]">
+                      {sc.key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 8. DOCK INFERIOR FLUTUANTE TRANSPARENTE (AUTO-HIDE APÓS 3s) */}
+      {/* 8. BARRA INFERIOR COMPACTA ESTILO SKETCHFAB PLAYER (AUTO-HIDE APÓS 3s) */}
       <div
-        className={`pointer-events-none absolute inset-x-0 bottom-5 z-30 flex justify-center px-4 transition-opacity duration-500 ${hudOpacityClass}`}
+        className={`pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-3 transition-opacity duration-500 ${hudOpacityClass}`}
       >
-        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
-          {/* Pill 1: Câmera 3ª Pessoa vs 1ª Pessoa (1.65m) */}
-          <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/25 p-1 text-xs text-white/90 backdrop-blur-xl">
+        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/15 bg-[#18181B]/80 px-3 py-1.5 text-xs text-white/90 shadow-2xl backdrop-blur-2xl">
+          {/* Esquerda: Anotações / Tour (< 1 / N >) */}
+          <div className="flex items-center gap-0.5 rounded-full border border-white/10 bg-black/35 px-1.5 py-0.5">
+            <button
+              type="button"
+              onClick={() => stepPinTour(-1)}
+              className="rounded-full px-2 py-1 text-white/75 hover:bg-white/10 hover:text-white transition"
+              title="Anotação anterior"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHotspots((prev) => !prev)}
+              className={`rounded-full px-2 py-1 font-semibold transition ${
+                showHotspots
+                  ? "text-[#EDE5D8]"
+                  : "text-white/50 hover:text-white/80"
+              }`}
+              title="Mostrar/Ocultar Anotações 3D"
+            >
+              📍{" "}
+              {selectedPin
+                ? `${selectedPin.index}/${activeAsset.annotations?.length || 0}`
+                : `1/${activeAsset.annotations?.length || 0}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => stepPinTour(1)}
+              className="rounded-full px-2 py-1 text-white/75 hover:bg-white/10 hover:text-white transition"
+              title="Próxima anotação"
+            >
+              ›
+            </button>
+          </div>
+
+          {/* Centro: Seletor de Câmera (Órbita 3ds Max/Sketchfab | 1ª Pessoa 1,65m) + Zoom Extents (Z) */}
+          <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/35 p-0.5">
             <button
               type="button"
               onClick={() => handleSwitchCameraMode("third-person")}
-              className={`rounded-full px-3.5 py-1.5 font-semibold transition ${cameraMode === "third-person"
-                ? "bg-[#EDE5D8] text-[#18181B]"
-                : "text-white/85 hover:bg-black/45"
-                }`}
+              className={`rounded-full px-3 py-1 font-semibold transition ${
+                cameraMode === "third-person"
+                  ? "bg-[#EDE5D8] text-[#18181B]"
+                  : "text-white/80 hover:bg-white/10"
+              }`}
+              title="Órbita 3ds Max (Alt+MMB) / Sketchfab (LMB)"
             >
-              Orbit 3ª Pessoa
+              Orbit 3ªP
             </button>
             <button
               type="button"
               onClick={() => handleSwitchCameraMode("first-person")}
-              className={`rounded-full px-3.5 py-1.5 font-semibold transition ${cameraMode === "first-person"
-                ? "bg-[#EDE5D8] text-[#18181B]"
-                : "text-white/85 hover:bg-black/45"
-                }`}
+              className={`rounded-full px-3 py-1 font-semibold transition ${
+                cameraMode === "first-person"
+                  ? "bg-[#EDE5D8] text-[#18181B]"
+                  : "text-white/80 hover:bg-white/10"
+              }`}
+              title="Passeio 1ª Pessoa (Altura humana 1,65m · Atalho C/V)"
             >
-              Passeio 1ª Pessoa (1.65m)
+              1ª Pessoa (1.65m)
             </button>
           </div>
 
-          {/* Pill 2: Controles de Iluminação HDRI, Shaders, Modelos e Giro */}
           <button
             type="button"
-            onClick={() => setActiveDrawer(activeDrawer === "lighting" ? "none" : "lighting")}
-            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${activeDrawer === "lighting"
-              ? "bg-[#EDE5D8] text-[#18181B]"
-              : "bg-black/25 text-white/90 hover:bg-black/45"
-              }`}
+            onClick={handleZoomExtents}
+            className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1.5 font-semibold text-white/85 hover:bg-white/10 transition"
+            title="Zoom Extents (Atalho Z do 3ds Max)"
           >
-            ☀️ HDRI & Sol ({hdriCatalog.find((h) => h.id === activeHdriId)?.title.split(" ")[0] || "HDRI"})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveDrawer(activeDrawer === "shaders" ? "none" : "shaders")}
-            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${activeDrawer === "shaders"
-              ? "bg-[#EDE5D8] text-[#18181B]"
-              : "bg-black/25 text-white/90 hover:bg-black/45"
-              }`}
-          >
-            ✨ Shaders ({visualMode === "realista-pbr-rt" ? "PBR + RT" : visualMode === "clay-maquete" ? "Clay" : visualMode === "tecnico-arestas" ? "Técnico" : "Wireframe"})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveDrawer(activeDrawer === "models" ? "none" : "models")}
-            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${activeDrawer === "models"
-              ? "bg-[#EDE5D8] text-[#18181B]"
-              : "bg-black/25 text-white/90 hover:bg-black/45"
-              }`}
-          >
-            🧊 Modelos ({catalogAssets.length})
+            🎯 Zoom (Z)
           </button>
 
           {cameraMode === "third-person" && (
@@ -1627,7 +2217,7 @@ export default function Studio3DFullscreenEngine({
                   const avLoader = new GLTFLoader();
                   try {
                     avLoader.setMeshoptDecoder(MeshoptDecoder);
-                  } catch { }
+                  } catch {}
                   avLoader.load(av.glbUrl, (gltf) => {
                     if (!sceneRef.current) return;
                     if (avatarRootRef.current) {
@@ -1651,7 +2241,7 @@ export default function Studio3DFullscreenEngine({
                   });
                 }}
                 aria-label="Selecionar Avatar 3ª Pessoa"
-                className="h-9 rounded-full border border-white/15 bg-black/35 px-3 text-xs font-semibold text-white/90 backdrop-blur-xl outline-none hover:bg-black/50 transition"
+                className="h-8 rounded-full border border-white/10 bg-black/35 px-2.5 text-xs font-semibold text-white/90 outline-none hover:bg-white/10 transition"
               >
                 <option value="none" className="bg-[#18181B] text-white">
                   👤 Sem Avatar (Orbit)
@@ -1666,22 +2256,68 @@ export default function Studio3DFullscreenEngine({
               <button
                 type="button"
                 onClick={() => setTurntable((prev) => !prev)}
-                className={`rounded-full border border-white/15 px-3.5 py-2 text-xs font-semibold backdrop-blur-xl transition ${turntable
-                  ? "bg-[#EDE5D8] text-[#18181B]"
-                  : "bg-black/25 text-white/90 hover:bg-black/45"
-                  }`}
+                className={`rounded-full border border-white/10 px-2.5 py-1.5 font-semibold transition ${
+                  turntable
+                    ? "bg-[#EDE5D8] text-[#18181B]"
+                    : "bg-black/35 text-white/85 hover:bg-white/10"
+                }`}
                 title="Giro automático da maquete (Turntable)"
               >
-                ↻ Turntable
+                ↻ Giro
               </button>
             </>
           )}
+
+          {/* Direita: Model Inspector, Ambiente HDRI & Chão, Modelos, Atalhos (?), AR e Fullscreen */}
+          <button
+            type="button"
+            onClick={() =>
+              setActiveDrawer(activeDrawer === "shaders" ? "none" : "shaders")
+            }
+            className={`rounded-full border border-white/10 px-3 py-1.5 font-semibold transition ${
+              activeDrawer === "shaders"
+                ? "bg-[#EDE5D8] text-[#18181B]"
+                : "bg-black/35 text-white/90 hover:bg-white/10"
+            }`}
+            title="Model Inspector (F3 Wireframe / F4 Edged Faces / Clay / Albedo)"
+          >
+            🔍 Inspector ({visualModeShortLabel})
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setActiveDrawer(activeDrawer === "lighting" ? "none" : "lighting")
+            }
+            className={`rounded-full border border-white/10 px-3 py-1.5 font-semibold transition ${
+              activeDrawer === "lighting"
+                ? "bg-[#EDE5D8] text-[#18181B]"
+                : "bg-black/35 text-white/90 hover:bg-white/10"
+            }`}
+            title="Ambiente, Céu Real HDRI 360° & Material do Chão"
+          >
+            ☀️ Céu & Chão ({STUDIO_GROUND_PRESETS[groundPresetId].shortLabel})
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setActiveDrawer(activeDrawer === "models" ? "none" : "models")
+            }
+            className={`rounded-full border border-white/10 px-3 py-1.5 font-semibold transition ${
+              activeDrawer === "models"
+                ? "bg-[#EDE5D8] text-[#18181B]"
+                : "bg-black/35 text-white/90 hover:bg-white/10"
+            }`}
+          >
+            🧊 Modelos ({catalogAssets.length})
+          </button>
 
           {activeAsset.usdzUrl ? (
             <a
               href={activeAsset.usdzUrl}
               rel="ar"
-              className="rounded-full border border-white/15 bg-black/25 px-3.5 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl hover:bg-black/45 transition"
+              className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1.5 font-semibold text-white/90 hover:bg-white/10 transition"
             >
               📱 AR
             </a>
@@ -1695,46 +2331,17 @@ export default function Studio3DFullscreenEngine({
                     : "Exporte .GLB / .USDZ no Pipeline Pré-Build 3D para habilitar Realidade Aumentada."
                 )
               }
-              className="rounded-full border border-white/15 bg-black/25 px-3.5 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl hover:bg-black/45 transition"
+              className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1.5 font-semibold text-white/90 hover:bg-white/10 transition"
             >
               📱 AR
             </button>
           )}
 
-          <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/25 p-1 text-xs backdrop-blur-xl">
-            <button
-              type="button"
-              onClick={() => stepPinTour(-1)}
-              className="rounded-full px-2 py-1 text-white/75 hover:bg-black/45 hover:text-white transition"
-              title="Pino anterior"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowHotspots((prev) => !prev)}
-              className={`rounded-full px-2.5 py-1 font-semibold transition ${showHotspots
-                ? "bg-black/45 text-[#EDE5D8]"
-                : "text-white/60 hover:bg-black/45"
-                }`}
-            >
-              📍 {selectedPin ? `${selectedPin.index}/${activeAsset.annotations?.length || 0}` : `Pinos (${activeAsset.annotations?.length || 0})`}
-            </button>
-            <button
-              type="button"
-              onClick={() => stepPinTour(1)}
-              className="rounded-full px-2 py-1 text-white/75 hover:bg-black/45 hover:text-white transition"
-              title="Próximo pino"
-            >
-              ›
-            </button>
-          </div>
-
           {userRole === "ADMIN" && (
             <button
               type="button"
               onClick={() => void handleCaptureVistaPin()}
-              className="rounded-full border border-white/15 bg-black/25 px-3 py-2 text-xs font-semibold text-[#EDE5D8] backdrop-blur-xl hover:bg-black/45 transition"
+              className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1.5 font-semibold text-[#EDE5D8] hover:bg-white/10 transition"
               title="Capturar câmera atual como novo pino técnico"
             >
               + Vista
@@ -1743,8 +2350,23 @@ export default function Studio3DFullscreenEngine({
 
           <button
             type="button"
+            onClick={() =>
+              setActiveDrawer(activeDrawer === "shortcuts" ? "none" : "shortcuts")
+            }
+            className={`rounded-full border border-white/10 px-2.5 py-1.5 font-bold transition ${
+              activeDrawer === "shortcuts"
+                ? "bg-[#EDE5D8] text-[#18181B]"
+                : "bg-black/35 text-white/90 hover:bg-white/10"
+            }`}
+            title="Atalhos 3ds Max & Sketchfab (?)"
+          >
+            ?
+          </button>
+
+          <button
+            type="button"
             onClick={toggleFullscreen}
-            className="rounded-full border border-white/15 bg-black/25 px-3 py-2 text-xs font-semibold text-white/90 backdrop-blur-xl hover:bg-black/45 transition"
+            className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1.5 font-semibold text-white/90 hover:bg-white/10 transition"
             title="Alternar Tela Cheia"
           >
             ⛶
@@ -1754,7 +2376,7 @@ export default function Studio3DFullscreenEngine({
 
       {/* Avisos não-bloqueantes de Avatar / AR */}
       {(avatarNotice || arNotice) && (
-        <div className="pointer-events-auto absolute bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-black/80 px-4 py-2.5 text-xs text-white/90 backdrop-blur-xl shadow-2xl">
+        <div className="pointer-events-auto absolute bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-black/85 px-4 py-2.5 text-xs text-white/90 backdrop-blur-xl shadow-2xl">
           <span>{avatarNotice || arNotice}</span>
           <Link
             href={pipelineHref}

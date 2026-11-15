@@ -3,6 +3,7 @@
 import * as THREE from "three";
 
 export type StudioCameraMode = "third-person" | "first-person";
+export type StudioDragAction = "orbit" | "pan" | "zoom" | "none";
 
 export interface CameraRigState {
   mode: StudioCameraMode;
@@ -20,6 +21,7 @@ export interface CameraRigState {
   fpDesiredPitch: number;
   isDragging: boolean;
   dragButton: number;
+  dragAction?: StudioDragAction;
   lastPointerX: number;
   lastPointerY: number;
   pointerDownX: number;
@@ -27,6 +29,77 @@ export interface CameraRigState {
   keysPressed: Set<string>;
   teleportRingTimer: number;
   avatarHeading?: number;
+}
+
+/**
+ * Mapeia os botões do mouse + teclas modificadoras para conviverem
+ * nativamente entre 3ds Max (Alt+MMB Orbit, MMB Pan, Ctrl+Alt+MMB Zoom)
+ * e Sketchfab (LMB Orbit, RMB Pan).
+ */
+export function resolvePointerDragAction(
+  button: number,
+  altKey: boolean,
+  ctrlKey: boolean,
+  shiftKey: boolean
+): StudioDragAction {
+  // 3ds Max Zoom Suave: Ctrl + Alt + MMB
+  if (button === 1 && altKey && ctrlKey) {
+    return "zoom";
+  }
+  // 3ds Max Orbit: Alt + MMB
+  if (button === 1 && altKey && !shiftKey) {
+    return "orbit";
+  }
+  // 3ds Max Pan: MMB puro ou Shift + MMB
+  if (button === 1) {
+    return "pan";
+  }
+  // Sketchfab Pan: RMB (Botão Direito) ou Shift + LMB
+  if (button === 2 || (button === 0 && shiftKey)) {
+    return "pan";
+  }
+  // Sketchfab Orbit: LMB (Botão Esquerdo)
+  if (button === 0) {
+    return "orbit";
+  }
+  return "none";
+}
+
+/**
+ * Atalho 'Z' (Zoom Extents do 3ds Max): enquadra suavemente toda a malha 3D
+ * na câmera ativa, recalculando o pivô e o raio ideal.
+ */
+export function applyZoomExtentsToRig(
+  st: CameraRigState,
+  modelRoot: THREE.Object3D | null
+): void {
+  if (!modelRoot) {
+    st.desiredTarget.set(0, 1.1, 0);
+    st.desiredRadius = 6.2;
+    st.desiredPhi = THREE.MathUtils.clamp(st.desiredPhi, 0.35, Math.PI / 2 - 0.08);
+    return;
+  }
+
+  const box = new THREE.Box3().setFromObject(modelRoot);
+  if (box.isEmpty()) return;
+
+  const center = new THREE.Vector3();
+  const size = new THREE.Vector3();
+  box.getCenter(center);
+  box.getSize(size);
+
+  const maxSpan = Math.max(size.x, size.y, size.z, 1.2);
+  const optimalRadius = THREE.MathUtils.clamp(maxSpan * 1.18, 1.8, 32);
+
+  if (st.mode === "first-person") {
+    st.fpDesiredPosition.set(center.x, 1.65, center.z + Math.max(2.0, size.z * 0.42));
+    st.fpDesiredPitch = -0.04;
+    st.fpDesiredYaw = 0;
+  } else {
+    st.desiredTarget.set(center.x, Math.max(0.45, center.y), center.z);
+    st.desiredRadius = optimalRadius;
+    st.desiredPhi = THREE.MathUtils.clamp(1.12, 0.25, Math.PI / 2 - 0.05);
+  }
 }
 
 export function detectFloorHeight(
@@ -115,12 +188,12 @@ export function updateStudioCameraFrame(params: {
         avatarRoot.position.z
       );
     } else {
-      st.desiredTheta -= rightInput * 0.025;
-      st.desiredRadius = THREE.MathUtils.clamp(
-        st.desiredRadius - forwardInput * 0.12,
-        1.4,
-        35
-      );
+      // Em Órbita 3ds Max / Sketchfab, WASD / Setas deslocam suavemente o pivô (Target Pan) no plano XZ
+      const camYaw = st.spherical.theta;
+      const forwardVec = new THREE.Vector3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
+      const rightVec = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
+      st.desiredTarget.addScaledVector(forwardVec, forwardInput * moveSpeed * 0.85);
+      st.desiredTarget.addScaledVector(rightVec, rightInput * moveSpeed * 0.85);
     }
   }
 

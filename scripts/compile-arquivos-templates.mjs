@@ -318,6 +318,95 @@ function generateCompiledHdrBuffer(profile) {
   return Buffer.concat([headerBytes, pixelBytes]);
 }
 
+function acesFilmicChannel(x) {
+  const a = 2.51;
+  const b = 0.03;
+  const c = 2.43;
+  const d = 0.59;
+  const e = 0.14;
+  const mapped = Math.max(0, (x * (a * x + b)) / (x * (c * x + d) + e));
+  return Math.min(255, Math.max(0, Math.round(Math.pow(mapped, 1.0 / 2.2) * 255)));
+}
+
+async function generateCompiledSkyWebp(profile, outSkyPath) {
+  const width = 2048;
+  const height = 1024;
+  const rgbBytes = Buffer.alloc(width * height * 3);
+
+  const sunAzRad = (profile.sunAzimuthDeg * Math.PI) / 180;
+  const sunElRad = (profile.sunElevationDeg * Math.PI) / 180;
+  const sunDir = [
+    Math.cos(sunElRad) * Math.cos(sunAzRad),
+    Math.sin(sunElRad),
+    Math.cos(sunElRad) * Math.sin(sunAzRad),
+  ];
+  const exposure = profile.exposureDefault || 1.0;
+
+  let offset = 0;
+  for (let y = 0; y < height; y++) {
+    const v = y / (height - 1);
+    const theta = v * Math.PI;
+    const dirY = Math.cos(theta);
+    const sinTheta = Math.sin(theta);
+
+    for (let x = 0; x < width; x++) {
+      const u = x / width;
+      const phi = u * Math.PI * 2.0;
+      const dirX = sinTheta * Math.cos(phi);
+      const dirZ = sinTheta * Math.sin(phi);
+
+      let r = 0;
+      let g = 0;
+      let b = 0;
+
+      if (dirY >= 0) {
+        const t = Math.pow(dirY, 0.52);
+        // Subtle atmospheric cloud/cirrus modulation for visual realism in 2K skybox
+        const cloudWave =
+          Math.sin(phi * 3.0 + dirY * 6.0) *
+          Math.cos(phi * 5.0 - dirY * 4.0) *
+          Math.max(0, 1.0 - Math.abs(dirY - 0.28) * 2.8) *
+          0.045;
+        r = profile.horizonRgb[0] * (1 - t) + profile.zenithRgb[0] * t + cloudWave;
+        g = profile.horizonRgb[1] * (1 - t) + profile.zenithRgb[1] * t + cloudWave;
+        b = profile.horizonRgb[2] * (1 - t) + profile.zenithRgb[2] * t + cloudWave * 1.05;
+      } else {
+        // Ground-projected hemisphere with radial distance horizon mist
+        const t = Math.min(1, Math.pow(-dirY, 0.48));
+        const groundGrid =
+          (Math.sin(dirX / Math.max(0.08, -dirY) * 2.5) *
+            Math.cos(dirZ / Math.max(0.08, -dirY) * 2.5)) *
+          0.015 *
+          t;
+        r = profile.horizonRgb[0] * (1 - t) + (profile.groundRgb[0] + groundGrid) * t;
+        g = profile.horizonRgb[1] * (1 - t) + (profile.groundRgb[1] + groundGrid) * t;
+        b = profile.horizonRgb[2] * (1 - t) + (profile.groundRgb[2] + groundGrid) * t;
+      }
+
+      const dotSun = Math.max(0, dirX * sunDir[0] + dirY * sunDir[1] + dirZ * sunDir[2]);
+      const sunCore = Math.pow(dotSun, profile.sunSharpness * 2.2) * (profile.sunIntensity * 0.65);
+      const sunHalo = Math.pow(dotSun, 10.0) * (profile.sunIntensity * 0.14);
+      const horizonGlow = Math.pow(Math.max(0, 1.0 - Math.abs(dirY) * 3.5), 2.0) * Math.pow(dotSun, 2.5) * 0.22;
+      r += profile.sunRgb[0] * (sunCore + sunHalo + horizonGlow);
+      g += profile.sunRgb[1] * (sunCore + sunHalo + horizonGlow * 0.85);
+      b += profile.sunRgb[2] * (sunCore + sunHalo + horizonGlow * 0.65);
+
+      rgbBytes[offset++] = acesFilmicChannel(r * exposure);
+      rgbBytes[offset++] = acesFilmicChannel(g * exposure);
+      rgbBytes[offset++] = acesFilmicChannel(b * exposure);
+    }
+  }
+
+  const webpBuf = await sharp(rgbBytes, {
+    raw: { width, height, channels: 3 },
+  })
+    .webp({ quality: 82 })
+    .toBuffer();
+
+  fs.writeFileSync(outSkyPath, webpBuf);
+  return webpBuf;
+}
+
 // ============================================================================
 // 3. PBR TEXTURE RESIZER & CACHE (SHARP)
 // ============================================================================
@@ -1130,6 +1219,10 @@ async function main() {
     const outPath = path.join(OUTPUT_HDRI_DIR, profile.fileName);
     fs.writeFileSync(outPath, hdrBuffer);
 
+    const skyFileName = `${profile.id}-sky.webp`;
+    const outSkyPath = path.join(OUTPUT_HDRI_DIR, skyFileName);
+    const skyWebpBuffer = await generateCompiledSkyWebp(profile, outSkyPath);
+
     compiledHdris.push({
       id: profile.id,
       title: profile.title,
@@ -1138,6 +1231,8 @@ async function main() {
       sourceResolution: meta.resolution,
       compiledUrl: `/assets/3d-templates/hdri/${profile.fileName}`,
       compiledSizeBytes: hdrBuffer.byteLength,
+      skyboxUrl: `/assets/3d-templates/hdri/${skyFileName}`,
+      skyboxSizeBytes: skyWebpBuffer.byteLength,
       exposureDefault: profile.exposureDefault,
       sunElevationDeg: profile.sunElevationDeg,
       sunAzimuthDeg: profile.sunAzimuthDeg,
@@ -1149,8 +1244,38 @@ async function main() {
     console.log(
       `[HDRI] ${profile.sourceRelPath} (${meta.sizeMB} MB, ${meta.resolution}) -> ${profile.fileName} (${(
         hdrBuffer.byteLength / 1024
-      ).toFixed(1)} KB)`
+      ).toFixed(1)} KB) + ${skyFileName} (${(skyWebpBuffer.byteLength / 1024).toFixed(1)} KB)`
     );
+  }
+
+  // 8.1b Compila Texturas Reais de Solo PBR (Concreto, Deck Cumaru, Pedra/Mármore)
+  const groundTextureJobs = [
+    {
+      id: "ground-concreto.webp",
+      relPath: "Modelos/casa modelo/maps/House_Type1_01.jpg",
+    },
+    {
+      id: "ground-cumaru.webp",
+      relPath: "Modelos/bloco modelo/maps/frozen_wood_029.jpg",
+    },
+    {
+      id: "ground-pedra.webp",
+      relPath: "Modelos/cozinha modelo/maps/carapini.jpg",
+    },
+  ];
+  for (const job of groundTextureJobs) {
+    const srcCandidate = path.join(ARQUIVOS_ROOT, job.relPath);
+    const outGroundPath = path.join(OUTPUT_HDRI_DIR, job.id);
+    if (fs.existsSync(srcCandidate)) {
+      const groundBuf = await sharp(srcCandidate)
+        .resize(1024, 1024, { fit: "cover" })
+        .webp({ quality: 82 })
+        .toBuffer();
+      fs.writeFileSync(outGroundPath, groundBuf);
+      console.log(
+        `[GROUND PBR] ${job.relPath} -> ${job.id} (${(groundBuf.byteLength / 1024).toFixed(1)} KB)`
+      );
+    }
   }
 
   // 8.2 Compila os Modelos 3D (.GLB) com Texturas PBR Reais e Normalização Y = 0
