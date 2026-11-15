@@ -1067,9 +1067,9 @@ export default function Studio3DFullscreenEngine({
   const toggleFullscreen = () => {
     if (typeof document === "undefined") return;
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
+      document.documentElement.requestFullscreen?.().catch(() => { });
     } else {
-      document.exitFullscreen?.().catch(() => {});
+      document.exitFullscreen?.().catch(() => { });
     }
   };
 
@@ -1108,7 +1108,7 @@ export default function Studio3DFullscreenEngine({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ annotations: updatedAnnotations }),
-      }).catch(() => {});
+      }).catch(() => { });
     }
   };
 
@@ -1145,11 +1145,10 @@ export default function Studio3DFullscreenEngine({
               type="button"
               onClick={() => handleSelectAnnotation(pin)}
               style={{ transform: `translate3d(${x - 16}px, ${y - 16}px, 0)` }}
-              className={`absolute left-0 top-0 z-20 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition-all duration-200 ${
-                selectedPin?.id === pin.id
-                  ? "scale-125 border-[#EDE5D8] bg-[#18181B] text-[#EDE5D8] shadow-[0_0_20px_rgba(237,229,216,0.5)]"
-                  : "border-white/30 bg-black/45 text-white/95 backdrop-blur-md hover:scale-110 hover:bg-black/75"
-              }`}
+              className={`absolute left-0 top-0 z-20 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition-all duration-200 ${selectedPin?.id === pin.id
+                ? "scale-125 border-[#EDE5D8] bg-[#18181B] text-[#EDE5D8] shadow-[0_0_20px_rgba(237,229,216,0.5)]"
+                : "border-white/30 bg-black/45 text-white/95 backdrop-blur-md hover:scale-110 hover:bg-black/75"
+                }`}
               title={pin.title}
             >
               {pin.index}
@@ -1186,20 +1185,19 @@ export default function Studio3DFullscreenEngine({
         <div className="pointer-events-auto flex items-center gap-2">
           <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-3.5 py-1.5 text-[11px] font-medium text-white/90 backdrop-blur-xl">
             <span
-              className={`h-2 w-2 rounded-full ${
-                pipelineStage === "NAVIGATING_60FPS"
-                  ? "bg-amber-400 animate-pulse"
-                  : pipelineStage === "CONVERGING_RT_GI"
+              className={`h-2 w-2 rounded-full ${pipelineStage === "NAVIGATING_60FPS"
+                ? "bg-amber-400 animate-pulse"
+                : pipelineStage === "CONVERGING_RT_GI"
                   ? "bg-sky-400 animate-ping"
                   : "bg-emerald-400"
-              }`}
+                }`}
             />
             <span className="hidden md:inline">
               {pipelineStage === "NAVIGATING_60FPS"
                 ? "Estágio 1 · Navegação 60 FPS (DPR 1.5)"
                 : pipelineStage === "CONVERGING_RT_GI"
-                ? "Estágio 2 · Convergindo Ray Tracing & GI..."
-                : "Estágio 2 · RT + GI Convergido (0% GPU Idle)"}
+                  ? "Estágio 2 · Convergindo Ray Tracing & GI..."
+                  : "Estágio 2 · RT + GI Convergido (0% GPU Idle)"}
             </span>
             <span className="md:hidden">
               {pipelineStage === "CONVERGED_IDLE_0GPU" ? "RT + GI Ativo" : "60 FPS"}
@@ -1348,11 +1346,10 @@ export default function Studio3DFullscreenEngine({
                         setActiveHdriId(hdri.id);
                         loadHdriEnvironment(hdri.id);
                       }}
-                      className={`rounded-2xl border p-2.5 text-left transition ${
-                        selected
-                          ? "border-[#EDE5D8] bg-white/15 text-white"
-                          : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
-                      }`}
+                      className={`rounded-2xl border p-2.5 text-left transition ${selected
+                        ? "border-[#EDE5D8] bg-white/15 text-white"
+                        : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
+                        }`}
                     >
                       <p className="text-xs font-bold truncate">{hdri.title}</p>
                       <p className="mt-0.5 text-[10px] text-white/55 truncate">{hdri.sourceFileName}</p>
@@ -1459,11 +1456,10 @@ export default function Studio3DFullscreenEngine({
                     key={m.id}
                     type="button"
                     onClick={() => setVisualMode(m.id)}
-                    className={`rounded-2xl border p-2.5 text-left transition ${
-                      visualMode === m.id
-                        ? "border-[#EDE5D8] bg-white/15 text-white"
-                        : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
-                    }`}
+                    className={`rounded-2xl border p-2.5 text-left transition ${visualMode === m.id
+                      ? "border-[#EDE5D8] bg-white/15 text-white"
+                      : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
+                      }`}
                   >
                     <p className="text-xs font-bold">{m.label}</p>
                     <p className="mt-0.5 text-[10px] text-white/55">{m.desc}</p>
@@ -1515,11 +1511,10 @@ export default function Studio3DFullscreenEngine({
                         handleSelectAsset(item);
                         setActiveDrawer("none");
                       }}
-                      className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${
-                        selected
-                          ? "border-[#EDE5D8] bg-white/15 text-white"
-                          : "border-white/10 bg-black/30 text-white/80 hover:bg-white/10"
-                      }`}
+                      className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${selected
+                        ? "border-[#EDE5D8] bg-white/15 text-white"
+                        : "border-white/10 bg-black/30 text-white/80 hover:bg-white/10"
+                        }`}
                     >
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate">{item.title}</p>
@@ -1551,22 +1546,20 @@ export default function Studio3DFullscreenEngine({
             <button
               type="button"
               onClick={() => handleSwitchCameraMode("third-person")}
-              className={`rounded-full px-3.5 py-1.5 font-semibold transition ${
-                cameraMode === "third-person"
-                  ? "bg-[#EDE5D8] text-[#18181B]"
-                  : "text-white/85 hover:bg-black/45"
-              }`}
+              className={`rounded-full px-3.5 py-1.5 font-semibold transition ${cameraMode === "third-person"
+                ? "bg-[#EDE5D8] text-[#18181B]"
+                : "text-white/85 hover:bg-black/45"
+                }`}
             >
               Orbit 3ª Pessoa
             </button>
             <button
               type="button"
               onClick={() => handleSwitchCameraMode("first-person")}
-              className={`rounded-full px-3.5 py-1.5 font-semibold transition ${
-                cameraMode === "first-person"
-                  ? "bg-[#EDE5D8] text-[#18181B]"
-                  : "text-white/85 hover:bg-black/45"
-              }`}
+              className={`rounded-full px-3.5 py-1.5 font-semibold transition ${cameraMode === "first-person"
+                ? "bg-[#EDE5D8] text-[#18181B]"
+                : "text-white/85 hover:bg-black/45"
+                }`}
             >
               Passeio 1ª Pessoa (1.65m)
             </button>
@@ -1576,11 +1569,10 @@ export default function Studio3DFullscreenEngine({
           <button
             type="button"
             onClick={() => setActiveDrawer(activeDrawer === "lighting" ? "none" : "lighting")}
-            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${
-              activeDrawer === "lighting"
-                ? "bg-[#EDE5D8] text-[#18181B]"
-                : "bg-black/25 text-white/90 hover:bg-black/45"
-            }`}
+            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${activeDrawer === "lighting"
+              ? "bg-[#EDE5D8] text-[#18181B]"
+              : "bg-black/25 text-white/90 hover:bg-black/45"
+              }`}
           >
             ☀️ HDRI & Sol ({hdriCatalog.find((h) => h.id === activeHdriId)?.title.split(" ")[0] || "HDRI"})
           </button>
@@ -1588,11 +1580,10 @@ export default function Studio3DFullscreenEngine({
           <button
             type="button"
             onClick={() => setActiveDrawer(activeDrawer === "shaders" ? "none" : "shaders")}
-            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${
-              activeDrawer === "shaders"
-                ? "bg-[#EDE5D8] text-[#18181B]"
-                : "bg-black/25 text-white/90 hover:bg-black/45"
-            }`}
+            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${activeDrawer === "shaders"
+              ? "bg-[#EDE5D8] text-[#18181B]"
+              : "bg-black/25 text-white/90 hover:bg-black/45"
+              }`}
           >
             ✨ Shaders ({visualMode === "realista-pbr-rt" ? "PBR + RT" : visualMode === "clay-maquete" ? "Clay" : visualMode === "tecnico-arestas" ? "Técnico" : "Wireframe"})
           </button>
@@ -1600,11 +1591,10 @@ export default function Studio3DFullscreenEngine({
           <button
             type="button"
             onClick={() => setActiveDrawer(activeDrawer === "models" ? "none" : "models")}
-            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${
-              activeDrawer === "models"
-                ? "bg-[#EDE5D8] text-[#18181B]"
-                : "bg-black/25 text-white/90 hover:bg-black/45"
-            }`}
+            className={`rounded-full border border-white/15 px-4 py-2 text-xs font-semibold backdrop-blur-xl transition ${activeDrawer === "models"
+              ? "bg-[#EDE5D8] text-[#18181B]"
+              : "bg-black/25 text-white/90 hover:bg-black/45"
+              }`}
           >
             🧊 Modelos ({catalogAssets.length})
           </button>
@@ -1637,7 +1627,7 @@ export default function Studio3DFullscreenEngine({
                   const avLoader = new GLTFLoader();
                   try {
                     avLoader.setMeshoptDecoder(MeshoptDecoder);
-                  } catch {}
+                  } catch { }
                   avLoader.load(av.glbUrl, (gltf) => {
                     if (!sceneRef.current) return;
                     if (avatarRootRef.current) {
@@ -1676,11 +1666,10 @@ export default function Studio3DFullscreenEngine({
               <button
                 type="button"
                 onClick={() => setTurntable((prev) => !prev)}
-                className={`rounded-full border border-white/15 px-3.5 py-2 text-xs font-semibold backdrop-blur-xl transition ${
-                  turntable
-                    ? "bg-[#EDE5D8] text-[#18181B]"
-                    : "bg-black/25 text-white/90 hover:bg-black/45"
-                }`}
+                className={`rounded-full border border-white/15 px-3.5 py-2 text-xs font-semibold backdrop-blur-xl transition ${turntable
+                  ? "bg-[#EDE5D8] text-[#18181B]"
+                  : "bg-black/25 text-white/90 hover:bg-black/45"
+                  }`}
                 title="Giro automático da maquete (Turntable)"
               >
                 ↻ Turntable
@@ -1724,11 +1713,10 @@ export default function Studio3DFullscreenEngine({
             <button
               type="button"
               onClick={() => setShowHotspots((prev) => !prev)}
-              className={`rounded-full px-2.5 py-1 font-semibold transition ${
-                showHotspots
-                  ? "bg-black/45 text-[#EDE5D8]"
-                  : "text-white/60 hover:bg-black/45"
-              }`}
+              className={`rounded-full px-2.5 py-1 font-semibold transition ${showHotspots
+                ? "bg-black/45 text-[#EDE5D8]"
+                : "text-white/60 hover:bg-black/45"
+                }`}
             >
               📍 {selectedPin ? `${selectedPin.index}/${activeAsset.annotations?.length || 0}` : `Pinos (${activeAsset.annotations?.length || 0})`}
             </button>

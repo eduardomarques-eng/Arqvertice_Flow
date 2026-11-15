@@ -934,7 +934,7 @@ export function AcervoProjectDetailView({
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         disabled={isExtracting}
                         onClick={async () => {
                           setIsExtracting(true);
