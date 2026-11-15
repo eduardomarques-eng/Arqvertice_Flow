@@ -104,18 +104,20 @@ export function MobileNav({ links, areaLabel, groupLabel }: MobileNavProps) {
           {links.map(([label, href]) => {
             const isActive =
               pathname === href || (!ROOT_PATHS.has(href) && pathname.startsWith(href));
+            const is3D = label === "3D Viewer";
             return (
               <Link
                 key={href}
                 href={href}
                 onClick={() => setIsOpen(false)}
-                className={`flex min-h-[44px] items-center rounded-xl px-4 py-2.5 text-sm tracking-tight active:scale-[0.98] transition-all duration-100 select-none ${
+                className={`flex min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-sm tracking-tight active:scale-[0.98] transition-all duration-100 select-none ${
                   isActive
-                    ? "bg-[#EDE5D8]/80 text-[#18181B] font-semibold"
-                    : "font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
+                    ? "bg-[#EDE5D8]/80 dark:bg-white/15 text-[#18181B] dark:text-[#EDE5D8] font-semibold"
+                    : "font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                {label}
+                {is3D && <span aria-hidden="true">🧊</span>}
+                <span>{label}</span>
               </Link>
             );
           })}

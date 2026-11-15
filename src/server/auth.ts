@@ -334,8 +334,51 @@ export async function requirePageClientPortal() {
 export async function requirePageTeamRole() {
   const user = await currentUser();
   if (!user) redirect("/?next=%2Fequipe");
-  if (!isTeamRole(user.role)) redirect("/");
+  if (!isTeamRole(user.role) && !isClientRole(user.role) && user.role !== "ADMIN") {
+    redirect("/");
+  }
   return user;
+}
+
+export async function getUserFeatureVisibility(userId: string, role: string) {
+  if (role === "ADMIN") {
+    return {
+      viewerMode: "FULL_RENDER_EXPORT" as const,
+      canNavigate: true,
+      canProceduralEdit: true,
+      canExportRenders: true,
+      canManageRfi: true,
+    };
+  }
+
+  const record = await prisma.featureVisibility.findUnique({
+    where: { userId },
+  }).catch(() => null);
+
+  if (record) {
+    return {
+      viewerMode: (record.viewerMode || "READ_ONLY") as
+        | "READ_ONLY"
+        | "PROCEDURAL_EDIT"
+        | "FULL_RENDER_EXPORT",
+      canNavigate: record.canNavigate,
+      canProceduralEdit: record.canProceduralEdit,
+      canExportRenders: record.canExportRenders,
+      canManageRfi: record.canManageRfi,
+    };
+  }
+
+  const isTech = role === "ARQUITETO" || role === "ENGENHEIRO";
+  return {
+    viewerMode: (isTech ? "PROCEDURAL_EDIT" : "READ_ONLY") as
+      | "READ_ONLY"
+      | "PROCEDURAL_EDIT"
+      | "FULL_RENDER_EXPORT",
+    canNavigate: true,
+    canProceduralEdit: isTech,
+    canExportRenders: role === "ARQUITETO",
+    canManageRfi: true,
+  };
 }
 
 /**

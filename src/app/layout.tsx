@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { CookieConsentBanner } from "@/components/cookie-consent-banner";
 import { PwaRegister } from "@/components/acervo/pwa-register";
+import { ThemeProvider } from "@/components/theme-provider";
+import { IdleTimerProvider } from "@/components/idle-timer-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -29,11 +31,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="pt-BR">
-      <body className="antialiased min-h-screen">
-        <PwaRegister />
-        <CookieConsentBanner />
-        {children}
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className="antialiased min-h-screen bg-[#F5F5F7] text-slate-900 dark:bg-[#09090B] dark:text-slate-300 transition-colors duration-200">
+        <ThemeProvider>
+          <IdleTimerProvider>
+            <PwaRegister />
+            <CookieConsentBanner />
+            {children}
+          </IdleTimerProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

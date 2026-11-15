@@ -33,6 +33,7 @@ export default async function EquipePage() {
           isActive: true,
           permissions: true,
           projectAccess: { select: { projectId: true, canEdit: true } },
+          featureVisibility: true,
         },
         orderBy: [{ role: "asc" }, { name: "asc" }],
       }),
@@ -193,6 +194,21 @@ export default async function EquipePage() {
 
     const canEdit = u.projectAccess.some((a) => a.canEdit);
     const assignedProjectIds = u.projectAccess.map((a) => a.projectId);
+    const defaultTech = u.role === "ADMIN" || u.role === "ARQUITETO" || u.role === "ENGENHEIRO";
+    const viewerMode = (u.featureVisibility?.viewerMode ||
+      (u.role === "ADMIN"
+        ? "FULL_RENDER_EXPORT"
+        : defaultTech
+        ? "PROCEDURAL_EDIT"
+        : "READ_ONLY")) as "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT";
+    const canProceduralEdit =
+      u.role === "ADMIN"
+        ? true
+        : (u.featureVisibility?.canProceduralEdit ?? defaultTech);
+    const canExportRenders =
+      u.role === "ADMIN"
+        ? true
+        : (u.featureVisibility?.canExportRenders ?? u.role === "ARQUITETO");
 
     return {
       id: u.id,
@@ -205,6 +221,9 @@ export default async function EquipePage() {
       permissions: u.permissions || [],
       assignedProjectIds,
       canEdit,
+      viewerMode,
+      canProceduralEdit,
+      canExportRenders,
       stages: userStages,
       logs: userLogs,
     };

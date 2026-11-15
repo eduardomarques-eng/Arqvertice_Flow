@@ -47,6 +47,9 @@ export interface TeamMemberData {
   permissions: string[];
   assignedProjectIds: string[];
   canEdit: boolean;
+  viewerMode?: "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT";
+  canProceduralEdit?: boolean;
+  canExportRenders?: boolean;
   stages: TeamMemberStage[];
   logs: ReminderLogItem[];
 }
@@ -101,7 +104,8 @@ const AVAILABLE_PERMISSIONS = [
   { key: "dashboard", label: "Painel Geral", desc: "Métricas executivas do estúdio" },
   { key: "cronograma", label: "Cronograma & Operação", desc: "Quadro Kanban e avanço físico" },
   { key: "projetos", label: "Empreendimentos & Fichas", desc: "Gestão executiva e Ficha Técnica 360" },
-  { key: "acervo", label: "Acervo Manager (CDE + 3D)", desc: "Acesso universal p/ equipe (filtrado por projeto)" },
+  { key: "acervo", label: "Acervo Manager (CDE)", desc: "Pranchas, revisões R00/R01 e GRD (filtrado por projeto)" },
+  { key: "3d-viewer", label: "3D Viewer (Estúdio Isolado)", desc: "Acesso ao módulo 3D (governado por FeatureVisibility)" },
   { key: "financeiro", label: "Gestão Financeira", desc: "Controle de parcelas e contratos" },
   { key: "clientes", label: "Gestão de Clientes", desc: "Base de contratantes e briefing" },
   { key: "equipe", label: "Equipe & Governança", desc: "Administração de perfis e RBAC" },
@@ -165,6 +169,11 @@ export function TeamGovernanceHub({
   const [editCanEdit, setEditCanEdit] = useState(true);
   const [editProjects, setEditProjects] = useState<string[]>([]);
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const [editViewerMode, setEditViewerMode] = useState<
+    "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT"
+  >("READ_ONLY");
+  const [editCanProcedural, setEditCanProcedural] = useState(false);
+  const [editCanExportRenders, setEditCanExportRenders] = useState(false);
 
   // Form state de Novo Perfil
   const [newProfile, setNewProfile] = useState<CreateProfileInput>({
@@ -202,6 +211,9 @@ export function TeamGovernanceHub({
     setEditCanEdit(member.canEdit);
     setEditProjects(member.assignedProjectIds);
     setEditPermissions(member.permissions || []);
+    setEditViewerMode(member.viewerMode || "READ_ONLY");
+    setEditCanProcedural(Boolean(member.canProceduralEdit));
+    setEditCanExportRenders(Boolean(member.canExportRenders));
     setFeedback(null);
   };
 
@@ -258,6 +270,9 @@ export function TeamGovernanceHub({
           canEdit: editCanEdit,
           projectIds: editProjects,
           permissions: editPermissions,
+          viewerMode: editViewerMode,
+          canProceduralEdit: editCanProcedural,
+          canExportRenders: editCanExportRenders,
         });
         setFeedback({
           text: "Permissões RBAC atualizadas! Sessão do usuário invalidada para aplicação imediata.",
@@ -529,13 +544,25 @@ export function TeamGovernanceHub({
                         </span>
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200/80 bg-[#F5F5F7] px-3 py-2 text-[11px]">
-                      <span className="font-semibold text-slate-600">📁 Acervo Manager (CDE):</span>
-                      <span className="font-bold text-slate-900">
-                        {member.role === "ADMIN"
-                          ? `Irrestrito (${projects.length} obras)`
-                          : `${member.assignedProjectIds.length} de ${projects.length} obras`}
-                      </span>
+                    <div className="mt-3 space-y-1.5 rounded-xl border border-slate-200/80 bg-[#F5F5F7] dark:border-white/10 dark:bg-[#09090B] px-3 py-2 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">📁 Acervo & Projetos:</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100">
+                          {member.role === "ADMIN"
+                            ? `Irrestrito (${projects.length} obras)`
+                            : `${member.assignedProjectIds.length} de ${projects.length} obras`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200/60 dark:border-white/10 pt-1">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">🧊 3D Viewer:</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100">
+                          {member.role === "ADMIN" || member.viewerMode === "FULL_RENDER_EXPORT"
+                            ? "Exportação de Renders + Edição"
+                            : member.viewerMode === "PROCEDURAL_EDIT"
+                            ? "Edição Procedural"
+                            : "Navegação Leitura"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -1220,7 +1247,72 @@ export function TeamGovernanceHub({
                     </div>
                   </div>
 
-                  {/* Projetos Atribuídos (Governança do Acervo Manager por Empreendimento) */}
+                  {/* Governança 3D Viewer (FeatureVisibility) */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-white/10">
+                    <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1">
+                      🧊 Governança Unificada do 3D Viewer (`FeatureVisibility`):
+                    </label>
+                    <p className="text-[11px] text-slate-500 mb-2.5">
+                      Define o nível de operação permitido dentro de `/equipe/3d-viewer` e `/3d-viewer/workspace/[id]`.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {[
+                        {
+                          mode: "READ_ONLY" as const,
+                          title: "Navegação Leitura",
+                          desc: "Órbita livre, 1ª pessoa (1,65m), inspeção de objetos e leitura de RFIs.",
+                          procedural: false,
+                          exportRenders: false,
+                        },
+                        {
+                          mode: "PROCEDURAL_EDIT" as const,
+                          title: "Edição Procedural",
+                          desc: "Ajuste de Céu/Sol Procedural, Edição de Chão, troca de materiais e criação de RFIs.",
+                          procedural: true,
+                          exportRenders: false,
+                        },
+                        {
+                          mode: "FULL_RENDER_EXPORT" as const,
+                          title: "Exportação de Renders",
+                          desc: "Acesso total: Edição Procedural + Geração/Exportação de Renders e pacotes 3D.",
+                          procedural: true,
+                          exportRenders: true,
+                        },
+                      ].map((opt) => {
+                        const selected = editViewerMode === opt.mode;
+                        return (
+                          <button
+                            key={opt.mode}
+                            type="button"
+                            onClick={() => {
+                              setEditViewerMode(opt.mode);
+                              setEditCanProcedural(opt.procedural);
+                              setEditCanExportRenders(opt.exportRenders);
+                            }}
+                            className={`flex flex-col items-start rounded-2xl border p-3 text-left transition ${
+                              selected
+                                ? "border-[#18181B] bg-[#EDE5D8]/60 text-[#18181B] dark:border-[#EDE5D8] dark:bg-white/10 dark:text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-[#18181B] dark:text-slate-300"
+                            }`}
+                          >
+                            <div className="flex w-full items-center justify-between">
+                              <span className="text-xs font-bold">{opt.title}</span>
+                              <span
+                                className={`h-3 w-3 rounded-full border ${
+                                  selected
+                                    ? "border-[#18181B] bg-[#18181B] dark:border-[#EDE5D8] dark:bg-[#EDE5D8]"
+                                    : "border-slate-300"
+                                }`}
+                              />
+                            </div>
+                            <p className="mt-1 text-[10px] leading-snug opacity-80">{opt.desc}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Projetos Atribuídos (Governança do Acervo Manager e 3D Viewer por Empreendimento) */}
                   <div className="pt-3 border-t border-slate-100">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                       <div>

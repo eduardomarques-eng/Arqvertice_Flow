@@ -115,6 +115,8 @@ describe("scene-compiler — Universal Scene Normalization & Smart PBR Shader Co
     expect(Object.keys(STUDIO_GROUND_PRESETS)).toEqual([
       "concreto",
       "cumaru",
+      "asfalto",
+      "relva",
       "pedra",
       "shadow-catcher",
     ]);

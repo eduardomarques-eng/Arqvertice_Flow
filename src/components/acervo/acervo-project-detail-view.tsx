@@ -486,25 +486,6 @@ export function AcervoProjectDetailView({
             ))}
           </select>
 
-          <Link
-            href={`/acervo/studio-3d/${featured3DAsset.id || "cozinha-interna"}?projectId=${project.id}&returnTo=${encodeURIComponent(
-              `${basePath}/acervo/${project.id}`
-            )}`}
-            className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#18181B] px-4 text-xs font-bold text-[#EDE5D8] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.18)] hover:bg-zinc-800 active:scale-[0.98] transition"
-          >
-            <span>🧊</span>
-            <span>Entrar no Ambiente 3D</span>
-          </Link>
-
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setIsShowcaseVisible((v) => !v)}
-            className="h-9 rounded-xl border-slate-200 text-xs font-semibold"
-          >
-            {isShowcaseVisible ? "Ocultar Preview 3D" : "Abrir Preview 3D"}
-          </Button>
-
           <Button
             size="sm"
             onClick={() => setIsUploadOpen(true)}
@@ -514,24 +495,6 @@ export function AcervoProjectDetailView({
           </Button>
         </div>
       </div>
-
-      {/* PROTAGONISMO 3D — Visualizador Estilo Sketchfab (GLB Meshopt + Pinos Numerados) */}
-      {isShowcaseVisible && (
-        <SketchfabShowcaseViewer
-          assetId={featured3DAsset.id}
-          projectId={project.id}
-          title={featured3DAsset.title}
-          description={featured3DAsset.description}
-          glbUrl={featured3DAsset.glbUrl}
-          posterUrl={featured3DAsset.posterUrl}
-          cameraPreset={featured3DAsset.cameraPreset}
-          annotations={featured3DAsset.annotations}
-          optimizationStats={featured3DAsset.optimizationStats}
-          canManageAnnotations={
-            userRole === "ADMIN" || userRole === "ARQUITETO" || userRole === "ENGENHEIRO"
-          }
-        />
-      )}
 
       {!currentDoc || !activeRevision ? (
         <Card className="rounded-2xl border-slate-200/60 bg-white p-12 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">

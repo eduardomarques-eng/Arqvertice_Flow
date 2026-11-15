@@ -27,6 +27,9 @@ export interface UpdateGovernanceInput {
   canEdit: boolean;
   projectIds: string[];
   permissions?: string[];
+  viewerMode?: "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT";
+  canProceduralEdit?: boolean;
+  canExportRenders?: boolean;
 }
 
 export interface CreateProfileInput {
@@ -127,8 +130,20 @@ export async function updateTeamMemberGovernanceAction(input: UpdateGovernanceIn
     },
   });
 
-  // Atualiza acesso aos projetos
+  // Atualiza acesso aos projetos e governança do 3D Viewer (FeatureVisibility)
   const validProjectIds = [...new Set(input.projectIds)];
+  const resolvedViewerMode =
+    input.viewerMode ||
+    (input.canExportRenders
+      ? "FULL_RENDER_EXPORT"
+      : input.canProceduralEdit
+      ? "PROCEDURAL_EDIT"
+      : "READ_ONLY");
+  const resolvedCanProcedural =
+    input.canProceduralEdit ??
+    (resolvedViewerMode === "PROCEDURAL_EDIT" || resolvedViewerMode === "FULL_RENDER_EXPORT");
+  const resolvedCanExport =
+    input.canExportRenders ?? resolvedViewerMode === "FULL_RENDER_EXPORT";
 
   await prisma.$transaction(async (tx) => {
     await tx.projectAccess.deleteMany({ where: { userId: input.userId } });
@@ -142,11 +157,31 @@ export async function updateTeamMemberGovernanceAction(input: UpdateGovernanceIn
         skipDuplicates: true,
       });
     }
+
+    await tx.featureVisibility.upsert({
+      where: { userId: input.userId },
+      create: {
+        userId: input.userId,
+        viewerMode: resolvedViewerMode,
+        canNavigate: true,
+        canProceduralEdit: resolvedCanProcedural,
+        canExportRenders: resolvedCanExport,
+        canManageRfi: true,
+      },
+      update: {
+        viewerMode: resolvedViewerMode,
+        canNavigate: true,
+        canProceduralEdit: resolvedCanProcedural,
+        canExportRenders: resolvedCanExport,
+      },
+    });
   });
 
   revalidatePath("/admin/equipe");
   revalidatePath("/admin/acervo");
   revalidatePath("/equipe/acervo");
+  revalidatePath("/admin/3d-viewer");
+  revalidatePath("/equipe/3d-viewer");
   return { success: true };
 }
 

@@ -6,14 +6,17 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
   DEFAULT_3D_TEMPLATES_MANIFEST,
   MAX_VIEWPORT_SHORTCUTS,
+  SMART_PBR_SHADER_PRESETS,
   STUDIO_GROUND_PRESETS,
   STUDIO_INSPECTOR_MODES,
   classifyMaterialToPbrPreset,
   resolve3dsMaxShortcut,
+  type SmartPbrPresetId,
   type SmartPbrShaderPreset,
   type StudioGroundMaterialId,
   type StudioVisualInspectorModeId,
@@ -41,8 +44,22 @@ export type RenderPipelineStage =
   | "NAVIGATING_60FPS"
   | "CONVERGING_RT_GI"
   | "CONVERGED_IDLE_0GPU";
-export type StudioBackgroundMode = "hdri-sky" | "studio-vignette";
+export type StudioBackgroundMode = "procedural-sky" | "hdri-sky" | "studio-vignette";
 export type StudioVignettePresetId = "warm-minimalist" | "studio-dark" | "pure-white";
+
+export interface SelectedObjectInspectorState {
+  meshId: string;
+  meshName: string;
+  materialName: string;
+  dimensionsMeters: string;
+  hitPoint: [number, number, number];
+  screenX: number;
+  screenY: number;
+  isHidden: boolean;
+  isIsolated: boolean;
+  colorHex: string;
+  presetId: SmartPbrPresetId;
+}
 
 export const STUDIO_VIGNETTE_PRESETS: Record<
   StudioVignettePresetId,
@@ -110,6 +127,13 @@ export interface Studio3DFullscreenEngineProps {
   returnLabel?: string;
   pipelineHref?: string;
   userRole?: string;
+  governance?: {
+    viewerMode: "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT";
+    canNavigate: boolean;
+    canProceduralEdit: boolean;
+    canExportRenders: boolean;
+    canManageRfi: boolean;
+  };
 }
 
 interface StoredOriginalMaterial {
@@ -124,10 +148,13 @@ export default function Studio3DFullscreenEngine({
   initialAsset,
   availableAssets,
   returnHref,
-  returnLabel = "Voltar ao Acervo",
-  pipelineHref = "/admin/acervo/pipeline-3d",
+  returnLabel = "Voltar ao 3D Viewer",
+  pipelineHref = "/admin/3d-viewer",
   userRole,
+  governance,
 }: Studio3DFullscreenEngineProps) {
+  const canProceduralEdit = governance ? governance.canProceduralEdit : true;
+  const canManageRfi = governance ? governance.canManageRfi : true;
   const catalogAssets = useMemo<Studio3DAssetInput[]>(() => {
     const baseTemplates: Studio3DAssetInput[] = DEFAULT_3D_TEMPLATES_MANIFEST.models
       .filter((tpl: Template3DModelEntry) => Boolean(tpl.glbUrl) && tpl.status !== "NEEDS_EXPORT")
@@ -193,10 +220,15 @@ export default function Studio3DFullscreenEngine({
   const [activeHdriId, setActiveHdriId] = useState<string>(
     initialAsset.defaultHdriId || "dia-claro"
   );
-  const [backgroundMode, setBackgroundMode] = useState<StudioBackgroundMode>("hdri-sky");
+  const [backgroundMode, setBackgroundMode] = useState<StudioBackgroundMode>("procedural-sky");
   const [vignettePreset, setVignettePreset] = useState<StudioVignettePresetId>("studio-dark");
   const [skyBlurPercent, setSkyBlurPercent] = useState<number>(12);
+  const [skyTurbidity, setSkyTurbidity] = useState<number>(3.2);
+  const [skyRayleigh, setSkyRayleigh] = useState<number>(1.8);
   const [groundPresetId, setGroundPresetId] = useState<StudioGroundMaterialId>("concreto");
+  const [groundScale, setGroundScale] = useState<number>(10);
+  const [groundRotationDeg, setGroundRotationDeg] = useState<number>(0);
+  const [groundColorHex, setGroundColorHex] = useState<string>("#E2DCD2");
   const [showGrid, setShowGrid] = useState<boolean>(false);
 
   const [sunAzimuthDeg, setSunAzimuthDeg] = useState<number>(135);
@@ -205,6 +237,10 @@ export default function Studio3DFullscreenEngine({
   const [giAoIntensity, setGiAoIntensity] = useState<number>(1.15);
   const [showHotspots, setShowHotspots] = useState<boolean>(true);
   const [selectedPin, setSelectedPin] = useState<Project3DAnnotation | null>(null);
+  const [selectedObject, setSelectedObject] = useState<SelectedObjectInspectorState | null>(null);
+  const [rfiDraftOpen, setRfiDraftOpen] = useState<boolean>(false);
+  const [rfiDraftTitle, setRfiDraftTitle] = useState<string>("");
+  const [rfiDraftDescription, setRfiDraftDescription] = useState<string>("");
   const [activeDrawer, setActiveDrawer] = useState<
     "none" | "lighting" | "models" | "shaders" | "shortcuts"
   >("none");
@@ -231,6 +267,8 @@ export default function Studio3DFullscreenEngine({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const fillLightRef = useRef<THREE.HemisphereLight | null>(null);
+  const proceduralSkyRef = useRef<Sky | null>(null);
+  const selectionOutlineRef = useRef<THREE.LineSegments | null>(null);
   const groundSystemRef = useRef<StudioGroundSystemController | null>(null);
   const modelRootRef = useRef<THREE.Group | null>(null);
   const avatarRootRef = useRef<THREE.Group | null>(null);
@@ -448,16 +486,72 @@ export default function Studio3DFullscreenEngine({
     [giAoIntensity, wakeRenderLoop]
   );
 
-  // Sync SkyDome & Scene Background with HDRI / Vignette settings
+  // Sync Procedural Sky, SkyDome & Scene Background with HDRI / Vignette settings
   const syncEnvironmentBackground = useCallback(() => {
     const scene = sceneRef.current;
     const groundSys = groundSystemRef.current;
+    const procSky = proceduralSkyRef.current;
+    const pmrem = pmremGeneratorRef.current;
     if (!scene || !groundSys) return;
 
     const hdriEntry =
       hdriCatalog.find((h) => h.id === activeHdriId) || hdriCatalog[0];
 
-    if (backgroundMode === "hdri-sky" && currentSkyTextureRef.current) {
+    const azRad = THREE.MathUtils.degToRad(sunAzimuthDeg);
+    const elRad = THREE.MathUtils.degToRad(sunElevationDeg);
+    const sunDir = new THREE.Vector3(
+      Math.cos(elRad) * Math.sin(azRad),
+      Math.sin(elRad),
+      Math.cos(elRad) * Math.cos(azRad)
+    );
+
+    if (procSky) {
+      procSky.visible = backgroundMode === "procedural-sky";
+      const uniforms = procSky.material.uniforms;
+      if (uniforms) {
+        if (uniforms["turbidity"]) uniforms["turbidity"].value = skyTurbidity;
+        if (uniforms["rayleigh"]) uniforms["rayleigh"].value = skyRayleigh;
+        if (uniforms["mieCoefficient"]) uniforms["mieCoefficient"].value = 0.005;
+        if (uniforms["mieDirectionalG"]) uniforms["mieDirectionalG"].value = 0.82;
+        if (uniforms["sunPosition"]) uniforms["sunPosition"].value.copy(sunDir);
+      }
+    }
+
+    if (backgroundMode === "procedural-sky") {
+      scene.background = new THREE.Color("#DCE7F5");
+      scene.fog = new THREE.FogExp2("#DCE7F5", 0.004);
+      groundSys.updateSkyDome({
+        visible: false,
+        texture: null,
+        sunAzimuthDeg,
+        blurNormalized: 0,
+      });
+      // Conecta a cúpula do céu procedural ao PMREMGenerator para atualizar GI e reflexos em tempo real
+      if (pmrem && procSky) {
+        try {
+          const skyEnvScene = new THREE.Scene();
+          const cloneSky = new Sky();
+          cloneSky.scale.setScalar(100);
+          const cu = cloneSky.material.uniforms;
+          if (cu["turbidity"]) cu["turbidity"].value = skyTurbidity;
+          if (cu["rayleigh"]) cu["rayleigh"].value = skyRayleigh;
+          if (cu["mieCoefficient"]) cu["mieCoefficient"].value = 0.005;
+          if (cu["mieDirectionalG"]) cu["mieDirectionalG"].value = 0.82;
+          if (cu["sunPosition"]) cu["sunPosition"].value.copy(sunDir);
+          skyEnvScene.add(cloneSky);
+          const envTex = pmrem.fromScene(skyEnvScene, 0.04).texture;
+          if (currentEnvMapRef.current) {
+            currentEnvMapRef.current.dispose();
+          }
+          currentEnvMapRef.current = envTex;
+          scene.environment = envTex;
+          cloneSky.geometry.dispose();
+          cloneSky.material.dispose();
+        } catch {
+          // Safe fallback if WebGL context is busy
+        }
+      }
+    } else if (backgroundMode === "hdri-sky" && currentSkyTextureRef.current) {
       scene.background = new THREE.Color(hdriEntry?.skyHorizonHex || "#18181B");
       scene.fog = new THREE.FogExp2(hdriEntry?.skyHorizonHex || "#18181B", 0.008);
       groundSys.updateSkyDome({
@@ -484,14 +578,20 @@ export default function Studio3DFullscreenEngine({
     backgroundMode,
     hdriCatalog,
     skyBlurPercent,
+    skyRayleigh,
+    skyTurbidity,
     sunAzimuthDeg,
+    sunElevationDeg,
     vignettePreset,
     wakeRenderLoop,
   ]);
 
-  // Load Ground PBR Texture and update StudioGroundSystem
+  // Load Ground PBR Texture and update StudioGroundSystem with procedural scale, rotation & color
   const loadAndApplyGroundPreset = useCallback(
-    (presetId: StudioGroundMaterialId) => {
+    (
+      presetId: StudioGroundMaterialId,
+      customOpts?: { scale?: number; rotationDeg?: number; colorHex?: string }
+    ) => {
       const groundSys = groundSystemRef.current;
       const renderer = rendererRef.current;
       if (!groundSys) return;
@@ -501,15 +601,21 @@ export default function Studio3DFullscreenEngine({
         ? Math.min(renderer.capabilities.getMaxAnisotropy(), 8)
         : 8;
 
+      const opts = {
+        scale: customOpts?.scale ?? groundScale,
+        rotationDeg: customOpts?.rotationDeg ?? groundRotationDeg,
+        colorHex: customOpts?.colorHex ?? groundColorHex,
+      };
+
       if (!preset.textureUrl || preset.isShadowCatcherOnly) {
-        groundSys.updateGroundPreset(presetId, null, maxAniso);
+        groundSys.updateGroundPreset(presetId, null, maxAniso, opts);
         wakeRenderLoop();
         return;
       }
 
       const cached = groundTexturesCacheRef.current.get(preset.textureUrl);
       if (cached) {
-        groundSys.updateGroundPreset(presetId, cached, maxAniso);
+        groundSys.updateGroundPreset(presetId, cached, maxAniso, opts);
         wakeRenderLoop();
         return;
       }
@@ -519,17 +625,17 @@ export default function Studio3DFullscreenEngine({
         preset.textureUrl,
         (tex) => {
           groundTexturesCacheRef.current.set(preset.textureUrl!, tex);
-          groundSys.updateGroundPreset(presetId, tex, maxAniso);
+          groundSys.updateGroundPreset(presetId, tex, maxAniso, opts);
           wakeRenderLoop();
         },
         undefined,
         () => {
-          groundSys.updateGroundPreset(presetId, null, maxAniso);
+          groundSys.updateGroundPreset(presetId, null, maxAniso, opts);
           wakeRenderLoop();
         }
       );
     },
-    [wakeRenderLoop]
+    [groundColorHex, groundRotationDeg, groundScale, wakeRenderLoop]
   );
 
   // Load HDRI (.hdr for PMREM GI + 2K -sky.webp for crisp Grounded Skybox)
@@ -947,6 +1053,29 @@ export default function Studio3DFullscreenEngine({
     scene.add(sunLight);
     sunLightRef.current = sunLight;
 
+    // Initialize Procedural Sky Dome (three/examples/jsm/objects/Sky.js)
+    const procSky = new Sky();
+    procSky.scale.setScalar(450);
+    procSky.name = "StudioProceduralPreethamSky";
+    const skyUniforms = procSky.material.uniforms;
+    if (skyUniforms) {
+      if (skyUniforms["turbidity"]) skyUniforms["turbidity"].value = 3.2;
+      if (skyUniforms["rayleigh"]) skyUniforms["rayleigh"].value = 1.8;
+      if (skyUniforms["mieCoefficient"]) skyUniforms["mieCoefficient"].value = 0.005;
+      if (skyUniforms["mieDirectionalG"]) skyUniforms["mieDirectionalG"].value = 0.82;
+      const initAz = THREE.MathUtils.degToRad(135);
+      const initEl = THREE.MathUtils.degToRad(52);
+      if (skyUniforms["sunPosition"]) {
+        skyUniforms["sunPosition"].value.set(
+          Math.cos(initEl) * Math.sin(initAz),
+          Math.sin(initEl),
+          Math.cos(initEl) * Math.cos(initAz)
+        );
+      }
+    }
+    scene.add(procSky);
+    proceduralSkyRef.current = procSky;
+
     // Initialize StudioGroundSystem (Grounded Skybox + Radial Fade PBR Ground + 1m Grid + Focus Ring)
     const groundSys = createStudioGroundSystem();
     scene.add(groundSys.group);
@@ -1009,10 +1138,11 @@ export default function Studio3DFullscreenEngine({
           st.fpDesiredPosition.addScaledVector(right, -dx * 0.008);
         } else {
           st.fpDesiredYaw -= dx * 0.0042;
+          // Câmera 100% Livre em 1ª Pessoa: permite olhar até Zênite (+90°) e Nadir (-90°)
           st.fpDesiredPitch = THREE.MathUtils.clamp(
             st.fpDesiredPitch - dy * 0.0038,
-            -Math.PI / 2.4,
-            Math.PI / 2.4
+            -Math.PI / 2 + 0.005,
+            Math.PI / 2 - 0.005
           );
         }
       } else {
@@ -1021,25 +1151,24 @@ export default function Studio3DFullscreenEngine({
           const zoomFactor = 1 + dy * 0.0045;
           st.desiredRadius = THREE.MathUtils.clamp(
             st.desiredRadius * zoomFactor,
-            0.85,
-            38
+            0.45,
+            45
           );
         } else if (st.dragAction === "pan") {
-          // 3ds Max MMB / Sketchfab RMB Pan
+          // 3ds Max MMB / Sketchfab RMB Pan (100% livre em X, Y e Z)
           const panSpeed = Math.max(0.4, st.desiredRadius) * 0.0014;
           const right = new THREE.Vector3();
           const up = new THREE.Vector3();
           camera.matrix.extractBasis(right, up, new THREE.Vector3());
           st.desiredTarget.addScaledVector(right, -dx * panSpeed);
           st.desiredTarget.addScaledVector(up, dy * panSpeed);
-          st.desiredTarget.y = Math.max(0.05, st.desiredTarget.y);
         } else {
-          // 3ds Max Alt+MMB / Sketchfab LMB Orbit
+          // 3ds Max Alt+MMB / Sketchfab LMB Orbit — 100% Livre (maxPolarAngle = Math.PI, Zênite ao Nadir)
           st.desiredTheta -= dx * 0.0065;
           st.desiredPhi = THREE.MathUtils.clamp(
             st.desiredPhi - dy * 0.0055,
-            0.12,
-            Math.PI / 2 - 0.02
+            0.001,
+            Math.PI - 0.001
           );
         }
       }
@@ -1054,25 +1183,124 @@ export default function Studio3DFullscreenEngine({
       st.isDragging = false;
       st.dragAction = "none";
 
-      // In 1st-person mode: short click on floor triggers Smooth Teleport
-      if (st.mode === "first-person" && moveDist < 6 && e.button === 0) {
+      // Short primary click: Raycaster Object Selection & Outline Highlight (or 1st-person floor teleport)
+      if (moveDist < 6 && e.button === 0) {
         const rect = renderer.domElement.getBoundingClientRect();
         pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(pointerNdc, camera);
 
-        const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-        const hitPoint = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
-          if (hitPoint.length() < 28) {
-            st.fpDesiredPosition.set(hitPoint.x, 1.65, hitPoint.z);
-            if (teleportRingRef.current) {
-              teleportRingRef.current.position.set(hitPoint.x, 0.015, hitPoint.z);
-              st.teleportRingTimer = 1.0;
+        if (modelRootRef.current) {
+          const meshHits = raycaster.intersectObject(modelRootRef.current, true);
+          const validHit = meshHits.find(
+            (h) => (h.object as THREE.Mesh).isMesh && h.object.visible
+          );
+
+          if (validHit) {
+            const hitMesh = validHit.object as THREE.Mesh;
+            const storedEntry = storedMaterialsRef.current.find(
+              (entry) => entry.mesh.uuid === hitMesh.uuid
+            );
+
+            // Remove previous outline
+            if (selectionOutlineRef.current) {
+              scene.remove(selectionOutlineRef.current);
+              selectionOutlineRef.current.geometry.dispose();
+              (selectionOutlineRef.current.material as THREE.Material).dispose();
+              selectionOutlineRef.current = null;
             }
+
+            // Create crisp 3D Outline Highlight around the selected mesh
+            if (hitMesh.geometry) {
+              const outlineGeo = new THREE.EdgesGeometry(hitMesh.geometry, 15);
+              const outlineMat = new THREE.LineBasicMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.95,
+                depthTest: false,
+              });
+              const outlineLines = new THREE.LineSegments(outlineGeo, outlineMat);
+              outlineLines.renderOrder = 950;
+              outlineLines.position.copy(hitMesh.getWorldPosition(new THREE.Vector3()));
+              outlineLines.quaternion.copy(hitMesh.getWorldQuaternion(new THREE.Quaternion()));
+              outlineLines.scale.copy(hitMesh.getWorldScale(new THREE.Vector3()));
+              scene.add(outlineLines);
+              selectionOutlineRef.current = outlineLines;
+            }
+
+            // Compute estimated world dimensions (L x A x P in meters)
+            const meshBox = new THREE.Box3().setFromObject(hitMesh);
+            const sz = new THREE.Vector3();
+            meshBox.getSize(sz);
+            const dimsStr = `${Math.max(0.02, sz.x).toFixed(2)}m × ${Math.max(0.02, sz.y).toFixed(2)}m × ${Math.max(0.02, sz.z).toFixed(2)}m`;
+
+            const matName =
+              storedEntry?.pbrMaterial.name ||
+              (Array.isArray(hitMesh.material)
+                ? hitMesh.material[0]?.name
+                : hitMesh.material?.name) ||
+              "PBR Calibrado";
+            const hexColor = storedEntry
+              ? `#${storedEntry.pbrMaterial.color.getHexString()}`
+              : "#EDE5D8";
+
+            const clampedX = Math.min(
+              Math.max(20, e.clientX + 16),
+              Math.max(20, window.innerWidth - 340)
+            );
+            const clampedY = Math.min(
+              Math.max(72, e.clientY - 24),
+              Math.max(72, window.innerHeight - 360)
+            );
+
+            setSelectedObject({
+              meshId: hitMesh.uuid,
+              meshName: hitMesh.name || "Elemento Arquitetônico 3D",
+              materialName: matName,
+              dimensionsMeters: dimsStr,
+              hitPoint: [
+                Number(validHit.point.x.toFixed(2)),
+                Number(validHit.point.y.toFixed(2)),
+                Number(validHit.point.z.toFixed(2)),
+              ],
+              screenX: clampedX,
+              screenY: clampedY,
+              isHidden: !hitMesh.visible,
+              isIsolated: false,
+              colorHex: hexColor,
+              presetId: storedEntry?.preset.id || "ceramica_acetinada",
+            });
+            setRfiDraftOpen(false);
             wakeRenderLoop();
+            return;
           }
         }
+
+        // Clicked empty space / floor: clear object selection
+        if (selectionOutlineRef.current) {
+          scene.remove(selectionOutlineRef.current);
+          selectionOutlineRef.current.geometry.dispose();
+          (selectionOutlineRef.current.material as THREE.Material).dispose();
+          selectionOutlineRef.current = null;
+        }
+        setSelectedObject(null);
+        setRfiDraftOpen(false);
+
+        if (st.mode === "first-person") {
+          const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+          const hitPoint = new THREE.Vector3();
+          if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
+            if (hitPoint.length() < 28) {
+              st.fpDesiredPosition.set(hitPoint.x, 1.65, hitPoint.z);
+              if (teleportRingRef.current) {
+                teleportRingRef.current.position.set(hitPoint.x, 0.015, hitPoint.z);
+                st.teleportRingTimer = 1.0;
+              }
+              wakeRenderLoop();
+            }
+          }
+        }
+        wakeRenderLoop();
       }
     };
 
@@ -1346,6 +1574,14 @@ export default function Studio3DFullscreenEngine({
       disposeObject3D(modelRootRef.current);
       disposeObject3D(edgeLinesGroupRef.current);
       disposeObject3D(avatarRootRef.current);
+      if (proceduralSkyRef.current) {
+        proceduralSkyRef.current.geometry.dispose();
+        proceduralSkyRef.current.material.dispose();
+      }
+      if (selectionOutlineRef.current) {
+        selectionOutlineRef.current.geometry.dispose();
+        (selectionOutlineRef.current.material as THREE.Material).dispose();
+      }
       if (groundSystemRef.current) groundSystemRef.current.dispose();
       ringGeo.dispose();
       ringMat.dispose();
@@ -1508,8 +1744,128 @@ export default function Studio3DFullscreenEngine({
     }
   };
 
+  // Object Inspector Actions (Fase 4 — Requisito 7)
+  const handleClearObjectSelection = useCallback(() => {
+    if (selectionOutlineRef.current && sceneRef.current) {
+      sceneRef.current.remove(selectionOutlineRef.current);
+      selectionOutlineRef.current.geometry.dispose();
+      (selectionOutlineRef.current.material as THREE.Material).dispose();
+      selectionOutlineRef.current = null;
+    }
+    setSelectedObject(null);
+    setRfiDraftOpen(false);
+    wakeRenderLoop();
+  }, [wakeRenderLoop]);
+
+  const handleToggleHideSelectedObject = () => {
+    if (!selectedObject) return;
+    const entry = storedMaterialsRef.current.find((e) => e.mesh.uuid === selectedObject.meshId);
+    if (!entry) return;
+    const nextVisible = !entry.mesh.visible;
+    entry.mesh.visible = nextVisible;
+    setSelectedObject((prev) => (prev ? { ...prev, isHidden: !nextVisible } : null));
+    wakeRenderLoop();
+  };
+
+  const handleToggleIsolateSelectedObject = () => {
+    if (!selectedObject) return;
+    const nextIsolated = !selectedObject.isIsolated;
+    for (const entry of storedMaterialsRef.current) {
+      entry.mesh.visible = nextIsolated ? entry.mesh.uuid === selectedObject.meshId : true;
+    }
+    setSelectedObject((prev) =>
+      prev ? { ...prev, isIsolated: nextIsolated, isHidden: false } : null
+    );
+    wakeRenderLoop();
+  };
+
+  const handleChangeSelectedObjectColor = (hex: string) => {
+    if (!selectedObject) return;
+    const entry = storedMaterialsRef.current.find((e) => e.mesh.uuid === selectedObject.meshId);
+    if (!entry) return;
+    entry.pbrMaterial.color.set(hex);
+    entry.pbrMaterial.needsUpdate = true;
+    entry.albedoMaterial.color.set(hex);
+    entry.albedoMaterial.needsUpdate = true;
+    setSelectedObject((prev) => (prev ? { ...prev, colorHex: hex } : null));
+    wakeRenderLoop();
+  };
+
+  const handleChangeSelectedObjectPreset = (presetId: SmartPbrPresetId) => {
+    if (!selectedObject) return;
+    const preset = SMART_PBR_SHADER_PRESETS[presetId];
+    const entry = storedMaterialsRef.current.find((e) => e.mesh.uuid === selectedObject.meshId);
+    if (!preset || !entry) return;
+    entry.preset = preset;
+    entry.pbrMaterial.color.set(preset.baseColorHex);
+    entry.pbrMaterial.roughness = preset.roughness;
+    entry.pbrMaterial.metalness = preset.metalness;
+    entry.pbrMaterial.clearcoat = preset.clearcoat;
+    entry.pbrMaterial.clearcoatRoughness = preset.clearcoatRoughness;
+    entry.pbrMaterial.transmission = preset.transmission;
+    entry.pbrMaterial.ior = preset.ior;
+    entry.pbrMaterial.reflectivity = preset.reflectivity;
+    entry.pbrMaterial.transparent = preset.transmission > 0.1;
+    entry.pbrMaterial.opacity = preset.transmission > 0.1 ? 0.42 : 1.0;
+    entry.pbrMaterial.name = preset.label;
+    entry.pbrMaterial.needsUpdate = true;
+    setSelectedObject((prev) =>
+      prev
+        ? {
+            ...prev,
+            presetId,
+            materialName: preset.label,
+            colorHex: preset.baseColorHex,
+          }
+        : null
+    );
+    wakeRenderLoop();
+  };
+
+  const handleCreateObjectRfiPin = async () => {
+    if (!selectedObject || !cameraRef.current) return;
+    const existing = activeAsset.annotations || [];
+    const nextIdx = existing.length + 1;
+    const camPos: [number, number, number] = [
+      Number(cameraRef.current.position.x.toFixed(2)),
+      Number(cameraRef.current.position.y.toFixed(2)),
+      Number(cameraRef.current.position.z.toFixed(2)),
+    ];
+    const newPin: Project3DAnnotation = {
+      id: `rfi-pin-${Date.now()}`,
+      index: nextIdx,
+      x: selectedObject.hitPoint[0],
+      y: selectedObject.hitPoint[1],
+      z: selectedObject.hitPoint[2],
+      cameraPosition: camPos,
+      cameraTarget: selectedObject.hitPoint,
+      title: rfiDraftTitle.trim() || `RFI #${nextIdx} · ${selectedObject.meshName}`,
+      description:
+        rfiDraftDescription.trim() ||
+        `Revisão técnica solicitada na peça "${selectedObject.meshName}" (${selectedObject.dimensionsMeters}).`,
+      materialSpec: selectedObject.materialName,
+      dimensions: selectedObject.dimensionsMeters,
+    };
+    const updatedAnnotations = [...existing, newPin];
+    setActiveAsset((prev) => ({ ...prev, annotations: updatedAnnotations }));
+    setSelectedPin(newPin);
+    setRfiDraftOpen(false);
+    setRfiDraftTitle("");
+    setRfiDraftDescription("");
+    showTransientShortcutToast(`Pino RFI #${nextIdx} ancorado na coordenada 3D`);
+
+    if (/^[0-9a-f-]{36}$/i.test(activeAsset.id)) {
+      await fetch(`/api/acervo/3d-assets/${activeAsset.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annotations: updatedAnnotations }),
+      }).catch(() => {});
+    }
+    wakeRenderLoop();
+  };
+
   const hudOpacityClass =
-    hudIdle && activeDrawer === "none" && !selectedPin
+    hudIdle && activeDrawer === "none" && !selectedPin && !selectedObject
       ? "opacity-20 hover:opacity-100"
       : "opacity-100";
 
@@ -1697,6 +2053,183 @@ export default function Studio3DFullscreenEngine({
         </div>
       )}
 
+      {/* 5B. JANELA FLUTUANTE DE PROPRIEDADES & RFI (GLASSMORPHISM APPLE VISIONOS — FASE 4) */}
+      {selectedObject && (
+        <div
+          data-testid="object-inspector-card"
+          style={{
+            left: `${selectedObject.screenX}px`,
+            top: `${selectedObject.screenY}px`,
+          }}
+          className="pointer-events-auto absolute z-30 w-80 rounded-3xl border border-white/10 bg-black/30 p-4 text-white shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-2.5">
+            <div className="min-w-0">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-sky-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
+                Objeto Selecionado (Mesh)
+              </span>
+              <h3 className="mt-0.5 truncate text-xs font-bold text-white">
+                {selectedObject.meshName}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={handleClearObjectSelection}
+              className="rounded-full px-2 py-0.5 text-xs text-white/60 hover:bg-white/10 hover:text-white"
+              title="Desselecionar objeto"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Metadados da Peça */}
+          <div className="mt-2.5 space-y-1.5 rounded-2xl border border-white/10 bg-black/35 p-2.5 text-[11px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white/60">Material Atual:</span>
+              <span className="truncate font-semibold text-[#EDE5D8]">
+                {selectedObject.materialName}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white/60">Dimensões (L×A×P):</span>
+              <span className="font-mono font-semibold text-white">
+                {selectedObject.dimensionsMeters}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white/60">Coordenada 3D:</span>
+              <span className="font-mono text-[10px] text-white/75">
+                ({selectedObject.hitPoint[0]}m, {selectedObject.hitPoint[1]}m, {selectedObject.hitPoint[2]}m)
+              </span>
+            </div>
+          </div>
+
+          {/* Controles Rápidos: Ocultar / Isolar */}
+          <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={handleToggleHideSelectedObject}
+              className={`rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                selectedObject.isHidden
+                  ? "border-amber-400/50 bg-amber-500/20 text-amber-200"
+                  : "border-white/15 bg-white/5 text-white/90 hover:bg-white/15"
+              }`}
+            >
+              {selectedObject.isHidden ? "👁️ Mostrar Peça" : "🙈 Ocultar (Hide)"}
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleIsolateSelectedObject}
+              className={`rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                selectedObject.isIsolated
+                  ? "border-sky-400/50 bg-sky-500/20 text-sky-200"
+                  : "border-white/15 bg-white/5 text-white/90 hover:bg-white/15"
+              }`}
+            >
+              {selectedObject.isIsolated ? "🔓 Restaurar Cena" : "🎯 Isolar (Isolate)"}
+            </button>
+          </div>
+
+          {/* Troca Rápida de Cor / Material PBR */}
+          {canProceduralEdit && (
+            <div className="mt-2.5 space-y-2 border-t border-white/10 pt-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                  Cor & Shader PBR
+                </span>
+                <div className="flex items-center gap-1">
+                  {["#EDE5D8", "#18181B", "#8C5A32", "#F4F1EA", "#D8EEF8", "#3E6B3C"].map(
+                    (hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => handleChangeSelectedObjectColor(hex)}
+                        style={{ backgroundColor: hex }}
+                        className={`h-4 w-4 rounded-full border transition ${
+                          selectedObject.colorHex.toLowerCase() === hex.toLowerCase()
+                            ? "scale-125 border-white ring-2 ring-sky-400/60"
+                            : "border-white/30 hover:scale-110"
+                        }`}
+                        title={`Aplicar cor ${hex}`}
+                      />
+                    )
+                  )}
+                </div>
+              </div>
+              <select
+                value={selectedObject.presetId}
+                onChange={(e) =>
+                  handleChangeSelectedObjectPreset(e.target.value as SmartPbrPresetId)
+                }
+                aria-label="Trocar Shader PBR da Peça"
+                className="w-full rounded-xl border border-white/15 bg-black/50 px-2.5 py-1.5 text-[11px] font-medium text-white outline-none"
+              >
+                {Object.values(SMART_PBR_SHADER_PRESETS).map((preset) => (
+                  <option key={preset.id} value={preset.id} className="bg-[#18181B] text-white">
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Botão "Criar Pino de Revisão / RFI" */}
+          {canManageRfi && (
+            <div className="mt-2.5 border-t border-white/10 pt-2.5">
+              {!rfiDraftOpen ? (
+                <button
+                  type="button"
+                  data-testid="create-rfi-pin-button"
+                  onClick={() => {
+                    setRfiDraftOpen(true);
+                    setRfiDraftTitle(`RFI · ${selectedObject.meshName}`);
+                  }}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#EDE5D8] px-3 py-2 text-xs font-bold text-[#18181B] shadow-md transition hover:opacity-95"
+                >
+                  <span>📌</span>
+                  <span>Criar Pino de Revisão / RFI</span>
+                </button>
+              ) : (
+                <div className="space-y-2 rounded-2xl border border-white/15 bg-black/45 p-2.5">
+                  <input
+                    type="text"
+                    value={rfiDraftTitle}
+                    onChange={(e) => setRfiDraftTitle(e.target.value)}
+                    placeholder="Título da RFI / Revisão..."
+                    className="w-full rounded-lg border border-white/15 bg-black/60 px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#EDE5D8]"
+                  />
+                  <textarea
+                    rows={2}
+                    value={rfiDraftDescription}
+                    onChange={(e) => setRfiDraftDescription(e.target.value)}
+                    placeholder="Descreva o ajuste solicitado nesta peça..."
+                    className="w-full rounded-lg border border-white/15 bg-black/60 px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#EDE5D8]"
+                  />
+                  <div className="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setRfiDraftOpen(false)}
+                      className="rounded-lg px-2.5 py-1 text-[11px] text-white/70 hover:bg-white/10"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="confirm-rfi-pin-button"
+                      onClick={() => void handleCreateObjectRfiPin()}
+                      className="rounded-lg bg-[#EDE5D8] px-3 py-1 text-[11px] font-bold text-[#18181B] hover:opacity-90"
+                    >
+                      Ancorar RFI 3D
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 6. JOYSTICK TOUCH MOBILE (QUANDO EM 1ª PESSOA) */}
       {cameraMode === "first-person" && (
         <div
@@ -1747,16 +2280,16 @@ export default function Studio3DFullscreenEngine({
 
       {/* 7. POPOVERS FLUTUANTES ESTILO SKETCHFAB (AMBIENTE & CHÃO / MODEL INSPECTOR / MODELOS / ATALHOS) */}
       {activeDrawer !== "none" && (
-        <div className="absolute bottom-20 left-1/2 z-30 w-[94vw] max-w-2xl -translate-x-1/2 rounded-3xl border border-white/15 bg-[#18181B]/90 p-5 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-150">
+        <div className="absolute bottom-20 left-1/2 z-30 w-[94vw] max-w-3xl -translate-x-1/2 rounded-3xl border border-white/15 bg-[#18181B]/90 p-5 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-150 max-h-[78vh] overflow-y-auto">
           {activeDrawer === "lighting" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#EDE5D8]">
-                    Ambiente, Céu Real HDRI (360°) & Chão PBR
+                    Céu Procedural + GI (Preetham Sky), HDRI 360° & Edição de Chão Procedural
                   </h3>
                   <p className="text-[11px] text-white/65">
-                    Domo esférico Ground-Projected + Plano de solo físico com fade radial infinito no horizonte.
+                    Cúpula atmosférica conectada ao PMREMGenerator + Sol Direcional 2048px + Piso PBR tileable com normais e rugosidades.
                   </p>
                 </div>
                 <button
@@ -1768,9 +2301,20 @@ export default function Studio3DFullscreenEngine({
                 </button>
               </div>
 
-              {/* Modo de Fundo: Céu Real HDRI 360° vs Estúdio Infinito Sketchfab */}
+              {/* Modo de Fundo: Céu Procedural + Sol (GI) vs Céu Real HDRI 360° vs Estúdio Infinito */}
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/30 p-2.5">
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setBackgroundMode("procedural-sky")}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                      backgroundMode === "procedural-sky"
+                        ? "bg-[#EDE5D8] text-[#18181B]"
+                        : "text-white/75 hover:bg-white/10"
+                    }`}
+                  >
+                    ☀️ Céu Procedural + Sol (GI)
+                  </button>
                   <button
                     type="button"
                     onClick={() => setBackgroundMode("hdri-sky")}
@@ -1815,43 +2359,115 @@ export default function Studio3DFullscreenEngine({
                 )}
               </div>
 
-              {/* Seletor dos 4 HDRIs compilados */}
-              <div>
-                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">
-                  1. Mapa de Iluminação & Céu HDRI (\Arquivos\HDRI)
+              {/* Controles de Atmosfera Procedural (Turbidez, Dispersão Rayleigh, Posição do Sol) */}
+              <div className="rounded-2xl border border-white/10 bg-black/25 p-3 space-y-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#EDE5D8]">
+                  1. Atmosfera Procedural & Sol Direcional (GI em Tempo Real)
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {hdriCatalog.map((hdri) => {
-                    const selected = activeHdriId === hdri.id;
-                    return (
-                      <button
-                        key={hdri.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveHdriId(hdri.id);
-                          loadHdriEnvironment(hdri.id);
-                        }}
-                        className={`rounded-2xl border p-2.5 text-left transition ${
-                          selected
-                            ? "border-[#EDE5D8] bg-white/15 text-white"
-                            : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
-                        }`}
-                      >
-                        <p className="text-xs font-bold truncate">{hdri.title}</p>
-                        <p className="mt-0.5 text-[10px] text-white/55 truncate">
-                          {hdri.sourceFileName}
-                        </p>
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <label className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-white/75">Turbidez Atmosférica</span>
+                      <span className="font-mono text-[#EDE5D8]">{skyTurbidity.toFixed(1)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={20}
+                      step={0.2}
+                      value={skyTurbidity}
+                      onChange={(e) => setSkyTurbidity(Number(e.target.value))}
+                      className="w-full accent-[#EDE5D8]"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-white/75">Dispersão Rayleigh</span>
+                      <span className="font-mono text-[#EDE5D8]">{skyRayleigh.toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={4}
+                      step={0.1}
+                      value={skyRayleigh}
+                      onChange={(e) => setSkyRayleigh(Number(e.target.value))}
+                      className="w-full accent-[#EDE5D8]"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-white/75">Azimute do Sol</span>
+                      <span className="font-mono text-[#EDE5D8]">{sunAzimuthDeg}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={360}
+                      value={sunAzimuthDeg}
+                      onChange={(e) => setSunAzimuthDeg(Number(e.target.value))}
+                      className="w-full accent-[#EDE5D8]"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-white/75">Elevação Solar</span>
+                      <span className="font-mono text-[#EDE5D8]">{sunElevationDeg}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={88}
+                      value={sunElevationDeg}
+                      onChange={(e) => setSunElevationDeg(Number(e.target.value))}
+                      className="w-full accent-[#EDE5D8]"
+                    />
+                  </label>
                 </div>
               </div>
 
-              {/* Seletor de Material do Chão PBR */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                    2. Plano de Solo PBR (Y = 0 · Fade Infinito)
+              {/* Seletor dos 4 HDRIs compilados (quando em modo HDRI) */}
+              {backgroundMode === "hdri-sky" && (
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">
+                    Mapa de Iluminação & Céu HDRI (\Arquivos\HDRI)
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {hdriCatalog.map((hdri) => {
+                      const selected = activeHdriId === hdri.id;
+                      return (
+                        <button
+                          key={hdri.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveHdriId(hdri.id);
+                            loadHdriEnvironment(hdri.id);
+                          }}
+                          className={`rounded-2xl border p-2.5 text-left transition ${
+                            selected
+                              ? "border-[#EDE5D8] bg-white/15 text-white"
+                              : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
+                          }`}
+                        >
+                          <p className="text-xs font-bold truncate">{hdri.title}</p>
+                          <p className="mt-0.5 text-[10px] text-white/55 truncate">
+                            {hdri.sourceFileName}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Painel de Edição de Chão Procedural (Concreto, Deck, Asfalto, Relva Sintética, Pedra, Shadow Catcher) */}
+              <div className="rounded-2xl border border-white/10 bg-black/25 p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#EDE5D8]">
+                    2. Edição de Chão Procedural (Tileable + Normals/Roughness + Shadow Catcher)
                   </p>
                   <button
                     type="button"
@@ -1865,60 +2481,122 @@ export default function Studio3DFullscreenEngine({
                     ⊞ Grid 1m×1m (G): {showGrid ? "ON" : "OFF"}
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                   {Object.values(STUDIO_GROUND_PRESETS).map((gp) => {
                     const selected = groundPresetId === gp.id;
                     return (
                       <button
                         key={gp.id}
                         type="button"
-                        onClick={() => setGroundPresetId(gp.id)}
-                        className={`rounded-2xl border p-2.5 text-left transition ${
+                        onClick={() => {
+                          setGroundPresetId(gp.id);
+                          setGroundScale(gp.repeatTiling);
+                          setGroundColorHex(gp.baseColorHex);
+                          loadAndApplyGroundPreset(gp.id, {
+                            scale: gp.repeatTiling,
+                            rotationDeg: groundRotationDeg,
+                            colorHex: gp.baseColorHex,
+                          });
+                        }}
+                        className={`rounded-xl border p-2 text-left transition ${
                           selected
                             ? "border-[#EDE5D8] bg-white/15 text-white"
                             : "border-white/10 bg-black/30 text-white/75 hover:bg-white/10"
                         }`}
                       >
                         <p className="text-xs font-bold truncate">{gp.shortLabel}</p>
-                        <p className="mt-0.5 text-[10px] text-white/55 truncate">{gp.label}</p>
+                        <p className="mt-0.5 text-[9px] text-white/55 truncate">{gp.label}</p>
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Controles de Escala, Rotação e Cor Base do Chão Procedural */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
+                  <label className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-white/75">Escala da Textura (Tiling)</span>
+                      <span className="font-mono text-[#EDE5D8]">{groundScale}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={28}
+                      step={1}
+                      value={groundScale}
+                      onChange={(e) => {
+                        const nextScale = Number(e.target.value);
+                        setGroundScale(nextScale);
+                        loadAndApplyGroundPreset(groundPresetId, {
+                          scale: nextScale,
+                          rotationDeg: groundRotationDeg,
+                          colorHex: groundColorHex,
+                        });
+                      }}
+                      className="w-full accent-[#EDE5D8]"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-white/75">Rotação da Paginação</span>
+                      <span className="font-mono text-[#EDE5D8]">{groundRotationDeg}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={360}
+                      step={5}
+                      value={groundRotationDeg}
+                      onChange={(e) => {
+                        const nextRot = Number(e.target.value);
+                        setGroundRotationDeg(nextRot);
+                        loadAndApplyGroundPreset(groundPresetId, {
+                          scale: groundScale,
+                          rotationDeg: nextRot,
+                          colorHex: groundColorHex,
+                        });
+                      }}
+                      className="w-full accent-[#EDE5D8]"
+                    />
+                  </label>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-white/75">Cor Base do Solo</span>
+                      <span className="font-mono text-[#EDE5D8]">{groundColorHex}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      {["#E2DCD2", "#8C5A32", "#2E3035", "#3E6B3C", "#EFECE6", "#18181B"].map(
+                        (hex) => (
+                          <button
+                            key={hex}
+                            type="button"
+                            onClick={() => {
+                              setGroundColorHex(hex);
+                              loadAndApplyGroundPreset(groundPresetId, {
+                                scale: groundScale,
+                                rotationDeg: groundRotationDeg,
+                                colorHex: hex,
+                              });
+                            }}
+                            style={{ backgroundColor: hex }}
+                            className={`h-5 w-5 rounded-full border transition ${
+                              groundColorHex.toLowerCase() === hex.toLowerCase()
+                                ? "scale-115 border-white ring-2 ring-[#EDE5D8]"
+                                : "border-white/25 hover:scale-110"
+                            }`}
+                            title={`Cor do solo ${hex}`}
+                          />
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Sliders de Rotação do Sol/Céu, Sky Blur, Exposição e GI/AO */}
+              {/* Sliders de Exposição ACES Filmic e GI/AO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
-                <label className="space-y-1">
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-white/75">Rotação do Sol & Céu HDRI</span>
-                    <span className="font-mono text-[#EDE5D8]">{sunAzimuthDeg}°</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={360}
-                    value={sunAzimuthDeg}
-                    onChange={(e) => setSunAzimuthDeg(Number(e.target.value))}
-                    className="w-full accent-[#EDE5D8]"
-                  />
-                </label>
-
-                <label className="space-y-1">
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-white/75">Suavização / Desfoque do Céu</span>
-                    <span className="font-mono text-[#EDE5D8]">{skyBlurPercent}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={skyBlurPercent}
-                    onChange={(e) => setSkyBlurPercent(Number(e.target.value))}
-                    className="w-full accent-[#EDE5D8]"
-                  />
-                </label>
-
                 <label className="space-y-1">
                   <div className="flex justify-between text-[11px]">
                     <span className="text-white/75">Exposição ACES Filmic</span>

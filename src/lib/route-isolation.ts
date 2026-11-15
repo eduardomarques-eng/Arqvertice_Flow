@@ -71,6 +71,18 @@ export function resolveRedirectForPath(
     return "/login";
   }
 
+  // Rotas estruturais unificadas (/equipe/acervo e /equipe/3d-viewer):
+  // Todos os usuários autenticados (Arquitetos, Engenheiros, Equipe, Clientes e Admin)
+  // podem acessar, sendo o conteúdo visível 100% filtrado por ProjectAccess e FeatureVisibility.
+  if (
+    pathname === "/equipe/acervo" ||
+    pathname.startsWith("/equipe/acervo/") ||
+    pathname === "/equipe/3d-viewer" ||
+    pathname.startsWith("/equipe/3d-viewer/")
+  ) {
+    return null;
+  }
+
   if (isAdminPath && !isAdminRole(role)) {
     return isTeamRole(role) ? "/equipe" : "/portal";
   }

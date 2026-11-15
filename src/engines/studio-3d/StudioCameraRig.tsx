@@ -76,7 +76,8 @@ export function applyZoomExtentsToRig(
   if (!modelRoot) {
     st.desiredTarget.set(0, 1.1, 0);
     st.desiredRadius = 6.2;
-    st.desiredPhi = THREE.MathUtils.clamp(st.desiredPhi, 0.35, Math.PI / 2 - 0.08);
+    // Câmera 100% livre (maxPolarAngle = Math.PI): permite olhar do Zênite ao Nadir sem bloqueio polar
+    st.desiredPhi = THREE.MathUtils.clamp(st.desiredPhi, 0.001, Math.PI - 0.001);
     return;
   }
 
@@ -98,7 +99,7 @@ export function applyZoomExtentsToRig(
   } else {
     st.desiredTarget.set(center.x, Math.max(0.45, center.y), center.z);
     st.desiredRadius = optimalRadius;
-    st.desiredPhi = THREE.MathUtils.clamp(1.12, 0.25, Math.PI / 2 - 0.05);
+    st.desiredPhi = THREE.MathUtils.clamp(1.12, 0.001, Math.PI - 0.001);
   }
 }
 

@@ -133,13 +133,13 @@ export function middleware(request: NextRequest) {
     }
 
     const moduleMatch = pathname.match(
-      /^\/equipe\/(projetos|acervo|cronograma|financeiro|clientes|equipe|briefing|propostas|configuracoes)/
+      /^\/equipe\/(projetos|acervo|3d-viewer|cronograma|financeiro|clientes|equipe|briefing|propostas|configuracoes)/
     );
     if (moduleMatch) {
       const seg = moduleMatch[1];
-      // Acervo Manager (/equipe/acervo e /equipe/acervo/plugins) é liberado para todos os membros ativos da equipe;
-      // o filtro de governança ocorre estritamente por empreendimento atribuído (ProjectAccess) no servidor.
-      if (seg !== "acervo") {
+      // Acervo Manager (/equipe/acervo) e 3D Viewer (/equipe/3d-viewer) são rotas estruturais unificadas;
+      // o filtro de governança ocorre estritamente por ProjectAccess e FeatureVisibility no servidor.
+      if (seg !== "acervo" && seg !== "3d-viewer") {
         const mod =
           seg === "briefing" || seg === "propostas"
             ? "projetos"

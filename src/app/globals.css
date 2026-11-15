@@ -18,7 +18,7 @@
   color-scheme: light;
   --layer-0: #f5f5f7;
   --layer-1: #ffffff;
-  --layer-2: #f8fafc;
+  --layer-2: #ede5d8;
   --layer-3: #ffffff;
   --layer-4: #ffffff;
   --layer-5: #ffffff;
@@ -45,6 +45,76 @@
   --shadow-layer-3: 0 4px 20px -4px rgb(0 0 0 / 5%);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dark {
+  color-scheme: dark;
+  --layer-0: #09090b;
+  --layer-1: #18181b;
+  --layer-2: #18181b;
+  --layer-3: #18181b;
+  --layer-4: #27272a;
+  --layer-5: #27272a;
+  --text-primary: #cbd5e1;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --overlay: #09090b;
+  --accent: #ede5d8;
+  --accent-soft: rgba(237, 229, 216, 0.15);
+  --shadow-layer-1: 0 8px 28px -6px rgb(0 0 0 / 45%);
+  --shadow-layer-3: 0 12px 32px -6px rgb(0 0 0 / 55%);
+}
+
+html.dark body {
+  background-color: #09090b;
+  color: #cbd5e1;
+}
+
+/* Harmonização automática Studio Dark (#09090B / #18181B / border-white/10 / text-slate-300) */
+html.dark .bg-\[\#f5f5f7\],
+html.dark .bg-\[\#F5F5F7\] {
+  background-color: #09090b !important;
+}
+
+html.dark .bg-white,
+html.dark .bg-white\/85,
+html.dark .bg-white\/90,
+html.dark .bg-white\/95 {
+  background-color: #18181b !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/50,
+html.dark .bg-slate-100,
+html.dark .bg-slate-100\/80 {
+  background-color: #121215 !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-200\/60,
+html.dark .border-slate-200\/70,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-100,
+html.dark .border-slate-300 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-\[\#18181B\] {
+  color: #f1f5f9 !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500,
+html.dark .text-slate-400 {
+  color: #94a3b8 !important;
 }
 
 * {

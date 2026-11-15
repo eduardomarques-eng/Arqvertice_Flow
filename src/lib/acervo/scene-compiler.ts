@@ -1228,6 +1228,8 @@ export function findTemplate3DAvatar(idOrSlug: string): Template3DAvatarEntry | 
 export type StudioGroundMaterialId =
   | "concreto"
   | "cumaru"
+  | "asfalto"
+  | "relva"
   | "pedra"
   | "shadow-catcher";
 
@@ -1248,7 +1250,7 @@ export const STUDIO_GROUND_PRESETS: Record<StudioGroundMaterialId, StudioGroundP
   concreto: {
     id: "concreto",
     label: "Concreto Arquitetônico Polido",
-    shortLabel: "Concreto Polido",
+    shortLabel: "Concreto",
     textureUrl: "/assets/3d-templates/hdri/ground-concreto.webp",
     baseColorHex: "#E2DCD2",
     roughness: 0.62,
@@ -1267,6 +1269,30 @@ export const STUDIO_GROUND_PRESETS: Record<StudioGroundMaterialId, StudioGroundP
     metalness: 0.03,
     clearcoat: 0.18,
     repeatTiling: 12,
+    isShadowCatcherOnly: false,
+  },
+  asfalto: {
+    id: "asfalto",
+    label: "Asfalto Urbano & Pavimento Externo",
+    shortLabel: "Asfalto",
+    textureUrl: null,
+    baseColorHex: "#2E3035",
+    roughness: 0.86,
+    metalness: 0.04,
+    clearcoat: 0.06,
+    repeatTiling: 14,
+    isShadowCatcherOnly: false,
+  },
+  relva: {
+    id: "relva",
+    label: "Relva Sintética / Paisagismo Externo",
+    shortLabel: "Relva Sintética",
+    textureUrl: null,
+    baseColorHex: "#3E6B3C",
+    roughness: 0.92,
+    metalness: 0.0,
+    clearcoat: 0.02,
+    repeatTiling: 16,
     isShadowCatcherOnly: false,
   },
   pedra: {

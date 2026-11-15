@@ -8,6 +8,7 @@ import { currentUser, signOut, type AuthRole } from "@/server/auth";
 import { SessionGuard } from "@/components/auth/session-guard";
 import { InternalMessengerWidget } from "@/components/messenger/internal-messenger-widget";
 import { getEffectivePermissions, type AppModule } from "@/lib/rbac";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // Links completos do sistema para o Administrador (Painel Executivo)
 const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
@@ -15,6 +16,7 @@ const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module
   { label: "Projetos", href: "/admin/projetos", icon: "📋", module: "projetos" },
   { label: "Cronograma & Operação", href: "/admin/cronograma", icon: "📅", module: "cronograma" },
   { label: "Acervo Manager", href: "/admin/acervo", icon: "📁", module: "acervo" },
+  { label: "3D Viewer", href: "/admin/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
   { label: "Equipe & Governança", href: "/admin/equipe", icon: "🛡️", module: "equipe" },
@@ -29,7 +31,7 @@ const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }>
   { label: "Configurações", href: "/admin/configuracoes", module: "equipe" },
 ];
 
-/** Links modulares da Equipe Técnica (ENGENHEIRO | ARQUITETO | EQUIPE | OPERADOR).
+/** Links modulares da Equipe Técnica e Governança Unificada.
  * Nunca apontam para /admin: os ambientes /admin e /equipe são 100% isolados.
  */
 const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
@@ -37,6 +39,7 @@ const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; modu
   { label: "Projetos", href: "/equipe/projetos", icon: "📋", module: "projetos" },
   { label: "Cronograma & Operação", href: "/equipe/cronograma", icon: "📅", module: "cronograma" },
   { label: "Acervo Manager", href: "/equipe/acervo", icon: "📁", module: "acervo" },
+  { label: "3D Viewer", href: "/equipe/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
   { label: "Equipe & Governança", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },
@@ -75,8 +78,16 @@ export async function AppShell({
   let bottomNavLinks: Array<{ label: string; href: string; icon: string }>;
 
   if (isClient) {
-    allowedLinks = [["Meu projeto", "/portal"]] as const;
-    bottomNavLinks = [{ label: "Meu Projeto", href: "/portal", icon: "🏛️" }];
+    allowedLinks = [
+      ["Meu projeto", "/portal"],
+      ["Acervo Manager", "/equipe/acervo"],
+      ["3D Viewer", "/equipe/3d-viewer"],
+    ] as const;
+    bottomNavLinks = [
+      { label: "Meu Projeto", href: "/portal", icon: "🏛️" },
+      { label: "Acervo", href: "/equipe/acervo", icon: "📁" },
+      { label: "3D Viewer", href: "/equipe/3d-viewer", icon: "🧊" },
+    ];
   } else if (effectiveRole === "ADMIN") {
     allowedLinks = ALL_ADMIN_LINKS.map((item) => [item.label, item.href] as const).concat(
       SECONDARY_LINKS.map((item) => [item.label, item.href] as const)
@@ -88,12 +99,13 @@ export async function AppShell({
     }));
   } else {
     // Equipe técnica: links dinâmicos apontando exclusivamente para /equipe/*
-    // Painel Técnico (/equipe) e Acervo Manager (/equipe/acervo + plugins) são sempre visíveis para membros ativos;
-    // a restrição do Acervo Manager ocorre estritamente por empreendimento atribuído (ProjectAccess).
+    // Painel Técnico (/equipe), Acervo Manager (/equipe/acervo) e 3D Viewer (/equipe/3d-viewer) são sempre visíveis;
+    // a restrição ocorre estritamente por empreendimento atribuído (ProjectAccess) e FeatureVisibility.
     const primary = TEAM_MODULE_LINKS.filter(
       (item) =>
         item.module === "dashboard" ||
         item.module === "acervo" ||
+        item.module === "3d-viewer" ||
         effectivePermissions.includes(item.module)
     );
     const secondary = TEAM_SECONDARY_LINKS.filter(
@@ -127,12 +139,12 @@ export async function AppShell({
   const groupLabel = isClient ? "Meu projeto" : effectiveRole === "ADMIN" ? "Administração" : "Painel Técnico";
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] pb-20 lg:pb-0">
+    <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#09090B] dark:text-slate-300 pb-20 lg:pb-0 transition-colors duration-200">
       {/* Tab Guard de Sessão Efêmera no Cliente */}
       <SessionGuard />
 
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-slate-200/60 lg:bg-white/85 lg:backdrop-blur-xl">
-        <div className="flex h-16 items-center px-6 border-b border-slate-200/60">
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-slate-200/60 dark:lg:border-white/10 lg:bg-white/85 dark:lg:bg-[#18181B]/95 lg:backdrop-blur-xl">
+        <div className="flex h-16 items-center px-6 border-b border-slate-200/60 dark:border-white/10">
           <Brand compact />
         </div>
 
@@ -153,10 +165,10 @@ export async function AppShell({
         </nav>
 
         {user ? (
-          <div className="p-4 border-t border-slate-200/60 bg-slate-50/50">
+          <div className="p-4 border-t border-slate-200/60 dark:border-white/10 bg-slate-50/50 dark:bg-[#09090B]/60">
             <div className="flex items-center justify-between">
               <div className="min-w-0 pr-2">
-                <p className="truncate text-xs font-semibold text-slate-900">{user.name}</p>
+                <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.name}</p>
                 <p className="truncate text-[10px] text-slate-400 uppercase tracking-wider">{user.role}</p>
               </div>
 
@@ -169,7 +181,7 @@ export async function AppShell({
               >
                 <button
                   type="submit"
-                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition"
+                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                 >
                   Sair
                 </button>
@@ -180,7 +192,7 @@ export async function AppShell({
       </div>
 
       <div className="lg:pl-72 min-w-0 max-w-full">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200/60 bg-white/85 px-4 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200/60 dark:border-white/10 bg-white/85 dark:bg-[#18181B]/90 px-4 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
             <MobileNav links={allowedLinks} areaLabel={areaLabel} groupLabel={groupLabel} />
             <span className="truncate text-xs font-semibold text-slate-400 uppercase tracking-widest">
@@ -189,9 +201,11 @@ export async function AppShell({
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
+
             {user ? (
               <div className="flex items-center gap-3">
-                <span className="hidden sm:inline text-xs font-medium text-slate-600">
+                <span className="hidden sm:inline text-xs font-medium text-slate-600 dark:text-slate-300">
                   {user.name} <span className="text-slate-400">({user.role})</span>
                 </span>
 
@@ -204,7 +218,7 @@ export async function AppShell({
                 >
                   <button
                     type="submit"
-                    className="inline-flex min-h-[36px] items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 active:scale-95 transition shadow-2xs"
+                    className="inline-flex min-h-[36px] items-center rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#09090B] px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 active:scale-95 transition shadow-2xs"
                   >
                     Sair
                   </button>
@@ -227,14 +241,14 @@ export async function AppShell({
       {/* BOTTOM NAV MOBILE (Fixo em baixo em telas < 1024px) */}
       {!isClient && bottomNavLinks.length > 0 && (
         <nav
-          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/60 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)]"
+          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#18181B]/95 backdrop-blur-md border-t border-slate-200/60 dark:border-white/10 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)]"
           aria-label="Navegação rápida móvel"
         >
           {bottomNavLinks.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 px-2 text-[10px] font-bold text-slate-600 hover:text-slate-900 active:scale-95 transition"
+              className="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 px-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white active:scale-95 transition"
             >
               <span className="text-lg leading-none mb-1">{item.icon}</span>
               <span className="truncate max-w-[64px]">{item.label}</span>

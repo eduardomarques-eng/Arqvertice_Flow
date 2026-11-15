@@ -176,6 +176,7 @@ model User {
   receivedInternalMessages InternalMessage[]    @relation("ReceivedInternalMessages")
   proposalVersions         ProposalVersion[]
   projectAccess            ProjectAccess[]
+  featureVisibility        FeatureVisibility?
   passwordResetTokens      PasswordResetToken[]
 
   // Acervo Manager CDE
@@ -1593,4 +1594,20 @@ model Pipeline3DAssetState {
   updatedById    String?  @db.Uuid
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+model FeatureVisibility {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @db.Uuid
+  viewerMode        String   @default("READ_ONLY") // "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT"
+  canNavigate       Boolean  @default(true)
+  canProceduralEdit Boolean  @default(false)
+  canExportRenders  Boolean  @default(false)
+  canManageRfi      Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
 }

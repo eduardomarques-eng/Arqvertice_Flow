@@ -16,11 +16,16 @@ export default async function EquipeAcervoPage({
   const user = await requirePageTeamRole();
   const { projectId } = await searchParams;
 
-  // Governança por Empreendimento: membros da equipe visualizam estritamente as obras atribuídas em /admin/equipe
+  // Governança por Empreendimento: usuários (Arquitetos, Engenheiros, Clientes) visualizam estritamente as obras atribuídas em ProjectAccess / clientId
   const projectAccessFilter =
     user.role === "ADMIN"
       ? undefined
-      : { access: { some: { userId: user.id } } };
+      : {
+          OR: [
+            ...(user.clientId ? [{ clientId: user.clientId }] : []),
+            { access: { some: { userId: user.id } } },
+          ],
+        };
 
   const [rawProjects, rawDocuments, kpis] = await Promise.all([
     prisma.project.findMany({
@@ -36,7 +41,14 @@ export default async function EquipeAcervoPage({
       where:
         user.role === "ADMIN"
           ? undefined
-          : { project: { access: { some: { userId: user.id } } } },
+          : {
+              project: {
+                OR: [
+                  ...(user.clientId ? [{ clientId: user.clientId }] : []),
+                  { access: { some: { userId: user.id } } },
+                ],
+              },
+            },
       include: {
         project: {
           select: {

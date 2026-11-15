@@ -8,10 +8,16 @@ export type AppModule =
   | "cronograma"
   | "projetos"
   | "acervo"
+  | "3d-viewer"
   | "financeiro"
   | "clientes"
   | "equipe"
   | "portal";
+
+export type Viewer3DFeatureMode =
+  | "READ_ONLY"
+  | "PROCEDURAL_EDIT"
+  | "FULL_RENDER_EXPORT";
 
 export interface AppModuleDefinition {
   id: AppModule;
@@ -51,6 +57,13 @@ export const APP_MODULES: AppModuleDefinition[] = [
     defaultRoute: "/admin/acervo",
   },
   {
+    id: "3d-viewer",
+    label: "3D Viewer (Estúdio & Pipeline)",
+    description: "Importação, tratamento Meshopt/PBR, visualização procedural e exportação de renders.",
+    icon: "🧊",
+    defaultRoute: "/admin/3d-viewer",
+  },
+  {
     id: "financeiro",
     label: "Gestão Financeira & Parcelas",
     description: "Controle de parcelas, valores, vencimentos e relatórios comerciais.",
@@ -84,13 +97,13 @@ export const APP_MODULES: AppModuleDefinition[] = [
  * Presets de permissão atribuídos automaticamente conforme o Cargo (Role)
  */
 export const ROLE_PERMISSION_PRESETS: Record<string, AppModule[]> = {
-  ADMIN: ["dashboard", "cronograma", "projetos", "acervo", "financeiro", "clientes", "equipe"],
-  ARQUITETO: ["dashboard", "cronograma", "projetos", "acervo", "clientes"],
-  ENGENHEIRO: ["dashboard", "cronograma", "projetos", "acervo"],
-  EQUIPE: ["dashboard", "cronograma", "projetos", "acervo"],
-  OPERADOR: ["dashboard", "cronograma", "projetos", "acervo"],
-  CLIENTE: ["portal"],
-  CLIENT: ["portal"],
+  ADMIN: ["dashboard", "cronograma", "projetos", "acervo", "3d-viewer", "financeiro", "clientes", "equipe"],
+  ARQUITETO: ["dashboard", "cronograma", "projetos", "acervo", "3d-viewer", "clientes"],
+  ENGENHEIRO: ["dashboard", "cronograma", "projetos", "acervo", "3d-viewer"],
+  EQUIPE: ["dashboard", "cronograma", "projetos", "acervo", "3d-viewer"],
+  OPERADOR: ["dashboard", "cronograma", "projetos", "acervo", "3d-viewer"],
+  CLIENTE: ["portal", "acervo", "3d-viewer"],
+  CLIENT: ["portal", "acervo", "3d-viewer"],
 };
 
 /**
@@ -104,15 +117,17 @@ export function getEffectivePermissions(user: {
 }): AppModule[] {
   const isClient = user.role === "CLIENTE" || user.role === "CLIENT";
   if (user.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
-    const base = user.permissions as AppModule[];
-    if (!isClient && !base.includes("acervo")) {
-      return [...base, "acervo"];
+    const base = [...(user.permissions as AppModule[])];
+    if (!isClient) {
+      if (!base.includes("acervo")) base.push("acervo");
+      if (!base.includes("3d-viewer")) base.push("3d-viewer");
     }
     return base;
   }
-  const preset = ROLE_PERMISSION_PRESETS[user.role] || ["dashboard"];
-  if (!isClient && !preset.includes("acervo")) {
-    return [...preset, "acervo"];
+  const preset = [...(ROLE_PERMISSION_PRESETS[user.role] || ["dashboard"])];
+  if (!isClient) {
+    if (!preset.includes("acervo")) preset.push("acervo");
+    if (!preset.includes("3d-viewer")) preset.push("3d-viewer");
   }
   return preset;
 }
@@ -125,7 +140,7 @@ export function hasModulePermission(
   module: AppModule
 ): boolean {
   if (user.role === "ADMIN") return true;
-  if (module === "acervo" && user.role !== "CLIENTE" && user.role !== "CLIENT") {
+  if ((module === "acervo" || module === "3d-viewer") && user.role !== "CLIENTE" && user.role !== "CLIENT") {
     return true;
   }
   const effective = getEffectivePermissions(user);
