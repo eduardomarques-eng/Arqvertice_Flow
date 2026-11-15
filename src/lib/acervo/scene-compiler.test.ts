@@ -61,9 +61,9 @@ describe("scene-compiler — Universal Scene Normalization & Smart PBR Shader Co
 
     const facade = findTemplate3DModel("fachada-deck-lazer");
     expect(facade).not.toBeNull();
-    expect(facade?.status).toBe("NEEDS_EXPORT");
+    expect(facade?.status).toBe("READY");
     expect(facade?.usedProceduralFallback).toBe(false);
-    expect(facade?.glbUrl).toBeNull();
+    expect(facade?.glbUrl).toBe("/assets/3d-templates/models/fachada-deck-lazer.glb");
   });
 
   it("classifies 3D pipeline assets into READY, WARNING and ERROR and resolves avatars", () => {

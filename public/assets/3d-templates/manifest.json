@@ -1,11 +1,11 @@
 {
   "version": "2.2.0",
-  "generatedAt": "2026-11-15T01:18:16.650Z",
+  "generatedAt": "2026-11-15T01:51:27.937Z",
   "sourceRoot": "C:\\Users\\eduar\\OneDrive\\Documentos\\ArqVertice_Flow\\Arquivos",
   "summary": {
     "totalFilesScanned": 655,
     "hdriCount": 4,
-    "compiledModelsCount": 3,
+    "compiledModelsCount": 4,
     "avatarsCount": 4,
     "projectBlocksCataloged": 29,
     "shaderPresetsCount": 9,
@@ -303,23 +303,22 @@
       "id": "tpl-fachada-deck-lazer",
       "slug": "fachada-deck-lazer",
       "title": "2. Fachada Contemporânea, Deck Cumaru & Área de Lazer",
-      "subtitle": "Compilado de Modelos\\casa modelo & Projetos\\Projeto Pedro.max",
+      "subtitle": "Extraído de Modelos\\casa modelo (Little_Houses_max2016.fbx via 3dsmaxbatch.exe + Maps Reais)",
       "category": "FACHADA_DECK_LAZER",
       "discipline": "ARQUITETURA",
-      "sourcePath": "Modelos/casa modelo/Little_Houses_max2016..max",
-      "sourceFormat": "3ds Max (.max) + Maps -> Procedural High-Precision PBR",
-      "sourceSizeMB": 620.43,
-      "status": "NEEDS_EXPORT",
-      "pipelineStatus": "ERROR",
+      "sourcePath": "Modelos/casa modelo/Little_Houses_max2016.fbx",
+      "sourceFormat": "FBX (Extraído via 3dsmaxbatch) + PBR Maps",
+      "sourceSizeMB": 1.42,
+      "status": "READY",
+      "pipelineStatus": "READY",
       "diagnostics": [
-        "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais."
+        "Malha real compilada (2800 triângulos, 1 draw calls, 4 texturas PBR via Meshopt)."
       ],
       "usedProceduralFallback": false,
-      "fallbackReason": "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais.",
-      "glbUrl": null,
+      "glbUrl": "/assets/3d-templates/models/fachada-deck-lazer.glb",
       "usdzUrl": null,
       "posterUrl": "/assets/3d-templates/posters/fachada-deck-lazer.svg",
-      "fileSizeBytes": 0,
+      "fileSizeBytes": 147488,
       "normalization": {
         "detectedTool": "3dsmax",
         "detectedUnit": "cm",
@@ -365,13 +364,16 @@
         }
       },
       "optimizationStats": {
-        "originalSizeBytes": 650568008,
-        "optimizedSizeBytes": 0,
-        "compressionRatio": 0,
-        "meshCount": 0,
-        "triangleCount": 0,
-        "textureCount": 0,
-        "compressedWithMeshopt": false
+        "originalSizeBytes": 554796,
+        "optimizedSizeBytes": 147488,
+        "reductionPercent": 73.4,
+        "vertexCount": 8400,
+        "triangleCount": 2800,
+        "meshCount": 1,
+        "materialCount": 1,
+        "textureCount": 4,
+        "usedMeshopt": true,
+        "usedSimplifier": false
       },
       "firstPersonCamera": {
         "position": [
@@ -1289,17 +1291,17 @@
       "id": "tpl-fachada-deck-lazer",
       "name": "2. Fachada Contemporânea, Deck Cumaru & Área de Lazer",
       "category": "MODEL",
-      "sourcePath": "Modelos/casa modelo/Little_Houses_max2016..max",
-      "sourceFormat": "3ds Max (.max) + Maps -> Procedural High-Precision PBR",
-      "outputUrl": null,
-      "pipelineStatus": "ERROR",
-      "stepCompleted": null,
-      "fileSizeBytes": 0,
-      "sourceSizeMB": 620.43,
-      "triangleCount": 0,
-      "textureCount": 0,
+      "sourcePath": "Modelos/casa modelo/Little_Houses_max2016.fbx",
+      "sourceFormat": "FBX (Extraído via 3dsmaxbatch) + PBR Maps",
+      "outputUrl": "/assets/3d-templates/models/fachada-deck-lazer.glb",
+      "pipelineStatus": "READY",
+      "stepCompleted": "BUILD_MESHOPT",
+      "fileSizeBytes": 147488,
+      "sourceSizeMB": 1.42,
+      "triangleCount": 2800,
+      "textureCount": 4,
       "diagnostics": [
-        "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais."
+        "Malha real compilada (2800 triângulos, 1 draw calls, 4 texturas PBR via Meshopt)."
       ]
     },
     {

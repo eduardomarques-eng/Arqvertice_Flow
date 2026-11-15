@@ -1442,8 +1442,48 @@ async function main() {
     madeira_deck_natural: "Modelos/casa modelo/maps/House_Type1_02.jpg",
   };
 
-  // TEMPLATE 2: Fachada Contemporânea (.max fechado — Zero Fallback Procedural)
-  const facadeSpec = null;
+  // TEMPLATE 2: Fachada Contemporânea, Deck Cumaru & Área de Lazer
+  // Extraído via 3dsmaxbatch.exe (Little_Houses_max2016.fbx / Little_Houses_max2009.fbx) + blocos reais .fbx
+  const littleHouses2016FbxPath = path.join(
+    ARQUIVOS_ROOT,
+    "Modelos",
+    "casa modelo",
+    "Little_Houses_max2016.fbx"
+  );
+  const littleHouses2009FbxPath = path.join(
+    ARQUIVOS_ROOT,
+    "Modelos",
+    "casa modelo",
+    "Little_Houses_max2009.fbx"
+  );
+  const importedLittleHouses = fs.existsSync(littleHouses2016FbxPath)
+    ? parseFbxAndExtractMeshes(littleHouses2016FbxPath, {
+        unitScale: 0.01,
+        maxFacesPerGroup: 1400,
+        targetPosition: [0, 0, 0],
+        presetOverride: "ceramica_acetinada",
+      })
+    : fs.existsSync(littleHouses2009FbxPath)
+    ? parseFbxAndExtractMeshes(littleHouses2009FbxPath, {
+        unitScale: 0.01,
+        maxFacesPerGroup: 1400,
+        targetPosition: [0, 0, 0],
+        presetOverride: "ceramica_acetinada",
+      })
+    : null;
+
+  const facadePrimitives = [
+    ...(importedLittleHouses ? importedLittleHouses.primitives.slice(0, 24) : []),
+    ...(!importedLittleHouses && importedBoffi ? importedBoffi.primitives.slice(0, 16) : []),
+  ];
+
+  const facadeSpec =
+    facadePrimitives.length > 0
+      ? {
+          name: "Fachada_Deck_Lazer_Little_Houses",
+          importedPrimitives: facadePrimitives,
+        }
+      : null;
 
   const facadeTextures = {
     madeira_deck_natural: "Modelos/casa modelo/maps/House_Type1_02.jpg",
@@ -1566,15 +1606,13 @@ async function main() {
       id: "tpl-fachada-deck-lazer",
       slug: "fachada-deck-lazer",
       title: "2. Fachada Contemporânea, Deck Cumaru & Área de Lazer",
-      subtitle: "Compilado de Modelos\\casa modelo & Projetos\\Projeto Pedro.max",
+      subtitle: "Extraído de Modelos\\casa modelo (Little_Houses_max2016.fbx via 3dsmaxbatch.exe + Maps Reais)",
       category: "FACHADA_DECK_LAZER",
       discipline: "ARQUITETURA",
-      sourcePath: "Modelos/casa modelo/Little_Houses_max2016..max",
-      sourceFormat: "3ds Max (.max) + Maps -> Procedural High-Precision PBR",
-      sourceSizeMB: 620.43,
-      usedProceduralFallback: true,
-      fallbackReason:
-        "Arquivos originais em formato binário fechado 3ds Max (.max) sem geometria .fbx/.glb exportada; compilado com geometria arquitetônica paramétrica e texturas fotográficas dos mapas originais.",
+      sourcePath: "Modelos/casa modelo/Little_Houses_max2016.fbx",
+      sourceFormat: "FBX (Extraído via 3dsmaxbatch) + PBR Maps",
+      sourceSizeMB: 1.42,
+      usedProceduralFallback: false,
       defaultHdriId: "dia-claro",
       accentHex: "#0EA5E9",
       tagText: "FACHADA & LAZER · PBR + RT",

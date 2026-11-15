@@ -244,6 +244,37 @@ export function Pipeline3DView({ basePath }: { basePath: "/admin" | "/equipe" })
     reader.readAsDataURL(file);
   };
 
+  const handleModelDirectUpload = async (item: ExtendedPipelineItem, file: File) => {
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!["glb", "gltf", "usdz", "fbx", "obj"].includes(ext)) {
+      setUploadFeedback(
+        `Formato .${ext} não suportado. Envie .glb, .fbx, .usdz ou .obj exportado do 3ds Max / Revit / Blender.`
+      );
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setUploadFeedback(
+        `Arquivo excede o limite serverless de 4 MB (${(file.size / (1024 * 1024)).toFixed(2)} MB). Comprima via Meshopt antes do envio.`
+      );
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64File = typeof reader.result === "string" ? reader.result : undefined;
+      await runPipelineStep(item, "CONVERT_MESH", {
+        fileName: file.name,
+        base64File,
+      });
+      await runPipelineStep(item, "OPTIMIZE_IMAGES_PBR");
+      await runPipelineStep(item, "BUILD_MESHOPT");
+      setUploadFeedback(
+        `Modelo ${item.name} (${file.name}) compilado e destravado (READY) para o Studio 3D.`
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho Apple-minimalista + Warm Minimalist */}
@@ -480,13 +511,32 @@ export function Pipeline3DView({ basePath }: { basePath: "/admin" | "/equipe" })
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${badge.pill}`}
                         >
                           <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
                           {badge.label}
                         </span>
+                        {(item.pipelineStatus === "ERROR" ||
+                          item.category === "MODEL" ||
+                          item.category === "PROPRIETARY_SCENE") && (
+                          <label
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex h-7 cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-[#18181B] shadow-2xs hover:bg-[#EDE5D8]/60 transition"
+                          >
+                            <span>Enviar .GLB / .FBX / .USDZ</span>
+                            <input
+                              type="file"
+                              accept=".glb,.gltf,.fbx,.usdz,.obj"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) void handleModelDirectUpload(item, file);
+                              }}
+                            />
+                          </label>
+                        )}
                         {item.pipelineStatus === "READY" &&
                           item.category === "MODEL" &&
                           item.outputUrl && (

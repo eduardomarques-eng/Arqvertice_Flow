@@ -25,11 +25,12 @@ Para preservar performance WebGL 2.0 e fidelidade visual arquitetônica, toda co
 - **Regra Estrita Zero Modelagem 3D:** Nenhum modelo, parede ou personagem humano é gerado proceduralmente por código. Arquivos proprietários fechados (`.max`, `.rvt`) ou imagens 2D sem malha aberta são marcados como `NEEDS_EXPORT` (`ERROR`) até exportação prévia em `.glb`, `.usdz` ou `.fbx`.
 - **Ativos Reais Compilados (`npm run compile:3d` -> `public/assets/3d-templates/`):**
   - `cozinha-interna.glb` (124.6 KB, 2.816 triângulos, 5 texturas PBR, Meshopt) — `READY`
+  - `fachada-deck-lazer.glb` (144.0 KB, 2.800 triângulos, 4 texturas PBR, Meshopt — extraído de `Little_Houses_max2016..max` via `3dsmaxbatch.exe` + `scripts/Export-MaxToFbx.ms`) — `READY`
   - `movel-design-autoral.glb` (271.7 KB, 5.660 triângulos, 4 texturas PBR, Meshopt) — `READY`
   - `living-suite-master.glb` (325.9 KB, 21.600 triângulos, 4 texturas PBR, Meshopt) — `READY`
-  - `fachada-deck-lazer` (`Little_Houses_max2016..max`) — `NEEDS_EXPORT` (sem fallback procedural)
   - Avatares (`Blocos Perrsonagens`): `feminino.glb`, `masculino.glb` + previews `.webp`
-  - 4 mapas HDRI (`dia-claro.hdr`, `interno.hdr`, `nublado-24k.hdr`, `noite-24k.hdr`)
+  - 4 mapas HDRI (`dia-claro.hdr`, `interno.hdr`, `nublado-24k.hdr`, `noite-24k.hdr`) + 4 skyboxes 2K WebP (`*-sky.webp`) + 3 texturas de solo PBR (`ground-*.webp`)
+  - **Extrator Batch 3ds Max (`scripts/Export-MaxToFbx.ms` & `scripts/Convert-MaxFiles.ps1`):** Converte arquivos `.max` silenciosamente via `3dsmaxbatch.exe` e disponibiliza upload direto (`Enviar .GLB / .FBX / .USDZ`) nos cards do Pipeline Pré-Build 3D.
 - **Resiliência Cloud & Serverless (`<= 4 MB`):**
   - `GET /api/acervo/pipeline-3d` lê `manifest.json` + estado persistido no PostgreSQL (`Pipeline3DAssetState`), protegido por `fs.existsSync(...)` contra erros `ENOENT` em servidores Linux/Vercel.
   - `POST /api/acervo/pipeline-3d/step` executa os 3 passos sequenciais (`CONVERT_MESH`, `OPTIMIZE_IMAGES_PBR`, `BUILD_MESHOPT`), comprime `.glb` via Meshopt (`optimizeGlbBuffer`), valida teto serverless de `4 MB` e persiste `binaryBase64` servido por `GET /api/acervo/pipeline-3d/asset/[id]`.
