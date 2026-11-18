@@ -8,6 +8,11 @@ import { SearchForm } from "@/components/search-form";
 import { ClientForm } from "@/components/clients/client-form";
 import { requirePageRole } from "@/server/auth";
 import { listClients } from "@/server/services/client-service";
+import {
+  BentoCollapsiblePanel,
+  BentoDonutDistribution,
+  BentoKpiStrip,
+} from "@/components/analytics";
 
 export const metadata = { title: "Clientes" };
 export const dynamic = "force-dynamic";
@@ -16,6 +21,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   await requirePageRole("ADMIN");
   const { q = "" } = await searchParams;
   const clients = await listClients(q);
+  const activeCount = clients.filter((c) => c.status === "ACTIVE").length;
+  const inactiveCount = Math.max(0, clients.length - activeCount);
 
   return (
     <AppShell eyebrow="Relacionamento">
@@ -24,6 +31,29 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         description="Centralize contatos, projetos e histórico de relacionamento."
         action={<ClientForm />}
       />
+
+      <div className="mb-6">
+        <BentoCollapsiblePanel title="Inteligência de Carteira" badge={`${clients.length} clientes`}>
+          <BentoKpiStrip
+            columns={4}
+            items={[
+              { id: "act", label: "Clientes Ativos", value: String(activeCount), featured: true },
+              { id: "rec", label: "Recorrência", value: clients.length ? `${Math.round((activeCount / clients.length) * 100)}%` : "0%" },
+              { id: "ltv", label: "Carteira Total", value: `${clients.length} contas` },
+              { id: "new", label: "Inativos / Arquivo", value: String(inactiveCount) },
+            ]}
+          />
+          <BentoDonutDistribution
+            title="Perfil de Status da Carteira"
+            centerLabel="Contas"
+            centerValue={String(clients.length)}
+            slices={[
+              { id: "active", label: "Ativos", value: activeCount, formattedValue: String(activeCount) },
+              { id: "other", label: "Inativos / Leads", value: inactiveCount, formattedValue: String(inactiveCount) },
+            ]}
+          />
+        </BentoCollapsiblePanel>
+      </div>
 
       <SearchForm action="/admin/clientes" query={q} placeholder="Buscar por nome ou e-mail" />
 

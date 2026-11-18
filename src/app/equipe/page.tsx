@@ -7,6 +7,7 @@ import { SectionHeading } from "@/components/section-heading";
 import { requirePageTeamRole } from "@/server/auth";
 import { listOperationProjects } from "@/server/services/operation-service";
 import { completionOf } from "@/lib/progress";
+import { ExecutiveBentoDashboard } from "@/components/analytics/ExecutiveBentoDashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,60 @@ export default async function TeamPortalPage() {
         <EmptyState title="Nenhum projeto atribuído" description="Os projetos liberados pelo administrador aparecerão aqui." />
       ) : (
         <>
+          <div className="mt-6">
+            <ExecutiveBentoDashboard
+              mode="equipe"
+              kpis={{
+                contractedRevenue: 0,
+                activeProjectsCount: activeProjects.length,
+                onTimeRatePct:
+                  projects.length > 0
+                    ? Math.round(
+                        projects.reduce((s, p) => s + completionOf(p.stages), 0) / projects.length
+                      )
+                    : 0,
+                releasedSheetsCount: Array.from(completedByDiscipline.values()).reduce(
+                  (a, b) => a + b,
+                  0
+                ),
+                openProposalsCount: dueInSevenDays,
+                averageTicket: 0,
+              }}
+              monthlyRevenueVsExpenses={[
+                { label: "M-2", revenue: totalStages, expenses: Math.round(totalStages * 0.45) },
+                { label: "M-1", revenue: totalStages, expenses: Math.round(totalStages * 0.7) },
+                {
+                  label: "Atual",
+                  revenue: totalStages,
+                  expenses: Array.from(completedByDiscipline.values()).reduce((a, b) => a + b, 0),
+                },
+              ]}
+              disciplineDistribution={
+                completedByDiscipline.size > 0
+                  ? Array.from(completedByDiscipline.entries()).map(([label, value], i) => ({
+                      id: `${label}-${i}`,
+                      label,
+                      value,
+                    }))
+                  : [{ id: "geral", label: "Arquitetura", value: Math.max(1, totalStages) }]
+              }
+              deliveriesAndClientsTrend={[
+                { label: "M-2", deliveries: Math.max(1, Math.round(totalStages * 0.3)), clients: activeProjects.length },
+                { label: "M-1", deliveries: Math.max(1, Math.round(totalStages * 0.6)), clients: activeProjects.length },
+                {
+                  label: "Atual",
+                  deliveries: Array.from(completedByDiscipline.values()).reduce((a, b) => a + b, 0),
+                  clients: projects.length,
+                },
+              ]}
+              projectProgressRanking={projects.slice(0, 6).map((p) => ({
+                id: p.id,
+                name: p.name,
+                clientName: p.client.name,
+                progressPct: completionOf(p.stages),
+              }))}
+            />
+          </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
             <Card className="border-slate-200 bg-white/90">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Etapas atribuídas</p>

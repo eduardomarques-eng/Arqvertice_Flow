@@ -5,6 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RealtimeSyncBadge, useRealtimeMutation } from "@/hooks/use-realtime-mutation";
 import {
+  BentoCollapsiblePanel,
+  BentoHorizontalRanking,
+  BentoKpiStrip,
+} from "@/components/analytics";
+import {
   updateTeamMemberProfileAction,
   updateTeamMemberGovernanceAction,
   createTeamMemberAction,
@@ -464,7 +469,7 @@ export function TeamGovernanceHub({
           <span className="rounded bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
             Workspace por Pessoa
           </span>
-          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             👥 Central de Equipe & Governança
           </h1>
           <p className="mt-0.5 text-xs text-slate-500">
@@ -509,6 +514,43 @@ export function TeamGovernanceHub({
           </button>
         </div>
       </div>
+
+      {/* Bento Analytics Discreto (Nível 2 · Equipe & Governança) */}
+      <BentoCollapsiblePanel
+        title="Capacidade & Alocação da Equipe"
+        badge={`${members.filter((m) => m.isActive).length} ativos`}
+        defaultOpen={false}
+      >
+        <BentoKpiStrip
+          columns={4}
+          items={[
+            { id: "prof", label: "Profissionais Ativos", value: String(members.filter((m) => m.isActive).length), featured: true },
+            { id: "proj-v", label: "Projetos Mapeados", value: String(projects.length) },
+            {
+              id: "deliv",
+              label: "Etapas Atribuídas",
+              value: String(members.reduce((s, m) => s + m.stages.length, 0)),
+            },
+            {
+              id: "disc",
+              label: "Perfis Técnicos",
+              value: String(new Set(members.map((m) => m.role)).size),
+            },
+          ]}
+        />
+        <BentoHorizontalRanking
+          title="Carga de Projetos por Profissional"
+          maxScale={Math.max(1, projects.length)}
+          items={members.slice(0, 6).map((m, idx) => ({
+            id: m.id,
+            label: m.name,
+            secondaryText: m.specialty || m.role,
+            value: m.assignedProjectIds.length,
+            formattedValue: `${m.assignedProjectIds.length} obra(s)`,
+            highlight: idx === 0,
+          }))}
+        />
+      </BentoCollapsiblePanel>
 
       {/* ============================================================== */}
       {/* VISTA 1: CARDS DOS PROFISSIONAIS DA EQUIPE                     */}

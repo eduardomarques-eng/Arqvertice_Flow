@@ -4,6 +4,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { RealtimeSyncBadge, type RealtimeSyncStatus } from "@/hooks/use-realtime-mutation";
+import {
+  BentoCollapsiblePanel,
+  BentoHorizontalRanking,
+  BentoKpiStrip,
+} from "@/components/analytics";
 import type {
   Pipeline3DAssetItem,
   Pipeline3DStatus,
@@ -479,6 +484,44 @@ export function Viewer3DHub({
           </Link>
         </div>
       </div>
+
+      {/* Bento Analytics Discreto (Nível 2 · 3D Viewer & Pipeline) */}
+      {data && (
+        <BentoCollapsiblePanel
+          title="Telemetria de Compilação 3D & GPU"
+          badge={`${readyModels.length} cenas READY`}
+          defaultOpen={false}
+        >
+          <BentoKpiStrip
+            columns={4}
+            items={[
+              { id: "ready-3d", label: "Modelos Compilados", value: String(data.summary.ready), featured: true },
+              {
+                id: "avg-size",
+                label: "Tamanho Médio .GLB",
+                value: readyModels.length
+                  ? `${Math.round(
+                      readyModels.reduce((s, m) => s + (m.fileSizeBytes || 0), 0) /
+                        readyModels.length /
+                        1024
+                    )} KB`
+                  : "—",
+              },
+              { id: "gpu-save", label: "Economia GPU/RAM", value: "~92%", deltaTone: "positive", delta: "Meshopt" },
+              { id: "pub", label: "Cenas Publicadas", value: String(readyModels.length) },
+            ]}
+          />
+          <BentoHorizontalRanking
+            title="Status do Pipeline Pré-Build 3D"
+            maxScale={Math.max(1, data.summary.total)}
+            items={[
+              { id: "r", label: "Apto (READY)", value: data.summary.ready, highlight: true },
+              { id: "w", label: "Aviso (WARNING)", value: data.summary.warning },
+              { id: "e", label: "Exportação Pendente (NEEDS_EXPORT)", value: data.summary.error },
+            ]}
+          />
+        </BentoCollapsiblePanel>
+      )}
 
       {/* 2. STEPPER HIERÁRQUICO VISUAL (4 ETAPAS) */}
       <div

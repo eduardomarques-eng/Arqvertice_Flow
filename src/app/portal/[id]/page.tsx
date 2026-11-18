@@ -15,6 +15,7 @@ import {
 } from "@/components/reports/client-simplified-report";
 import { ensureProject3DShowcase } from "@/server/services/acervo-cde-service";
 import { AcervoShowcaseClientCard } from "@/components/acervo/acervo-showcase-client-card";
+import { BentoHorizontalRanking, BentoKpiStrip } from "@/components/analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,53 @@ export default async function ClientPortalPage({
   return (
     <AppShell eyebrow="Portal do Cliente" environment="client" role={user.role}>
       <div className="space-y-6">
+        {/* Card Executivo Discreto do Cliente */}
+        <section className="space-y-4">
+          <BentoKpiStrip
+            columns={3}
+            items={[
+              {
+                id: "prog",
+                label: "Progresso Geral do Projeto",
+                value:
+                  report?.stages && report.stages.length > 0
+                    ? `${Math.round(
+                        report.stages.reduce((s, st) => s + (st.completion ?? 0), 0) /
+                          report.stages.length
+                      )}%`
+                    : "0%",
+                featured: true,
+              },
+              {
+                id: "sheets",
+                label: "Pranchas Liberadas",
+                value: String(deliverablesList.length),
+                subtitle: "Acervo técnico disponível",
+              },
+              {
+                id: "next",
+                label: "Previsão de Entrega",
+                value: projectDb.expectedEndDate
+                  ? new Date(projectDb.expectedEndDate).toLocaleDateString("pt-BR")
+                  : "Em atualização",
+              },
+            ]}
+          />
+          {report?.stages && report.stages.length > 0 && (
+            <BentoHorizontalRanking
+              title="Avanço por Etapa do Seu Projeto"
+              maxScale={100}
+              items={report.stages.slice(0, 5).map((st, idx) => ({
+                id: `stage-${st.order}-${idx}`,
+                label: st.name,
+                value: st.completion ?? 0,
+                formattedValue: `${st.completion ?? 0}%`,
+                highlight: idx === 0,
+              }))}
+            />
+          )}
+        </section>
+
         {featured3D && (
           <AcervoShowcaseClientCard
             assetId={featured3D.id}

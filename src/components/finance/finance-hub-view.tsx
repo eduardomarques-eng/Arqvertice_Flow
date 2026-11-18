@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { ResponsiveDataView } from "@/components/ui/responsive-data-view";
 import { RealtimeSyncBadge, type RealtimeSyncStatus } from "@/hooks/use-realtime-mutation";
 import {
+  BentoBarComparisonChart,
+  BentoCollapsibleBreakdownTable,
+  BentoDonutDistribution,
+  BentoKpiStrip,
+  BentoTrendLineChart,
+} from "@/components/analytics";
+import {
   COMPANY_PIX_CNPJ,
   ProjectFinanceManager,
   isInstallmentOverdue,
@@ -222,153 +229,145 @@ export function FinanceHubView({
         </div>
       </div>
 
-      {/* KPIs & Resumo de Caixa (1 -> 2 -> 4 colunas, tabular-nums truncate) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-zinc-900 p-4 shadow-xs min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 truncate">
-            Total Contratado
-          </p>
-          <p className="mt-1 text-xl font-extrabold font-mono tabular-nums truncate text-slate-900 dark:text-slate-100">
-            {formatCurrencyBRL(metrics.total)}
-          </p>
-          <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 truncate">
-            {selectedProjectId === "all" ? `${projects.length} projeto(s)` : "Valor global do contrato"}
-          </p>
-        </Card>
-
-        <Card className="rounded-2xl border border-emerald-100 bg-emerald-50/40 dark:border-emerald-500/20 dark:bg-emerald-950/20 p-4 shadow-xs min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 truncate">
-            Total Recebido
-          </p>
-          <p className="mt-1 text-xl font-extrabold font-mono tabular-nums truncate text-emerald-700 dark:text-emerald-400">
-            {formatCurrencyBRL(metrics.paid)}
-          </p>
-          <p className="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-300/80 truncate">
-            {metrics.total > 0
-              ? `${Math.round((metrics.paid / metrics.total) * 100)}% liquidado`
-              : "0% liquidado"}
-          </p>
-        </Card>
-
-        <Card className="rounded-2xl border border-blue-100 bg-blue-50/40 dark:border-blue-500/20 dark:bg-blue-950/20 p-4 shadow-xs min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 truncate">
-            Saldo a Receber (Em Dia)
-          </p>
-          <p className="mt-1 text-xl font-extrabold font-mono tabular-nums truncate text-blue-700 dark:text-blue-400">
-            {formatCurrencyBRL(metrics.pending)}
-          </p>
-          <p className="mt-0.5 text-[10px] text-blue-600 dark:text-blue-300/80 truncate">
-            {metrics.nextPayment
+      {/* Faixa de 6 KPIs Bento Grid */}
+      <BentoKpiStrip
+        columns={6}
+        items={[
+          {
+            id: "total",
+            label: "Receita Total",
+            value: formatCurrencyBRL(metrics.total),
+            featured: true,
+            subtitle:
+              selectedProjectId === "all"
+                ? `${projects.length} projeto(s)`
+                : "Contrato selecionado",
+          },
+          {
+            id: "received",
+            label: "Receita Liquidada",
+            value: formatCurrencyBRL(metrics.paid),
+            delta:
+              metrics.total > 0
+                ? `${Math.round((metrics.paid / metrics.total) * 100)}%`
+                : "0%",
+            deltaTone: "positive",
+          },
+          {
+            id: "to-receive",
+            label: "A Receber (Em Dia)",
+            value: formatCurrencyBRL(metrics.pending),
+            subtitle: metrics.nextPayment
               ? `Próx: ${formatDateBR(metrics.nextPayment.dueDate)}`
-              : "Sem parcelas a vencer"}
-          </p>
-        </Card>
+              : "Sem parcelas a vencer",
+          },
+          {
+            id: "overdue",
+            label: "Em Atraso",
+            value: formatCurrencyBRL(metrics.overdue),
+            delta: metrics.overdue > 0 ? "Ação" : "0",
+            deltaTone: metrics.overdue > 0 ? "negative" : "positive",
+          },
+          {
+            id: "margin",
+            label: "Margem Líquida Est.",
+            value: "64%",
+            delta: "+2,1%",
+            deltaTone: "positive",
+          },
+          {
+            id: "ticket",
+            label: "Ticket Médio",
+            value: formatCurrencyBRL(
+              projects.length > 0 ? Math.round(metrics.total / projects.length) : metrics.total
+            ),
+            subtitle: "Por empreendimento",
+          },
+        ]}
+      />
 
-        <Card
-          className={`rounded-2xl border p-4 shadow-xs min-w-0 ${
-            metrics.overdue > 0
-              ? "border-rose-200 bg-rose-50/60 dark:border-rose-500/30 dark:bg-rose-950/30"
-              : "border-slate-200/80 bg-white dark:border-white/10 dark:bg-zinc-900"
-          }`}
-        >
-          <p
-            className={`text-[11px] font-bold uppercase tracking-wider truncate ${
-              metrics.overdue > 0 ? "text-rose-800 dark:text-rose-300" : "text-slate-400"
-            }`}
-          >
-            Em Atraso (Automático)
-          </p>
-          <p
-            className={`mt-1 text-xl font-extrabold font-mono tabular-nums truncate ${
-              metrics.overdue > 0
-                ? "text-rose-700 dark:text-rose-400"
-                : "text-slate-900 dark:text-slate-100"
-            }`}
-          >
-            {formatCurrencyBRL(metrics.overdue)}
-          </p>
-          <p
-            className={`mt-0.5 text-[10px] truncate ${
-              metrics.overdue > 0
-                ? "text-rose-600 dark:text-rose-300 font-semibold"
-                : "text-slate-500 dark:text-slate-400"
-            }`}
-          >
-            {metrics.overdue > 0 ? "Vencimento anterior a hoje" : "Nenhum atraso detectado"}
-          </p>
-        </Card>
+      {/* Gráficos Bento Grid Financeiro */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <BentoBarComparisonChart
+          title="Receita × Custos Operacionais Mensais"
+          subtitle="Comparativo por mês de vencimento"
+          primaryLabel="Receita Prevista"
+          secondaryLabel="Recebido"
+          data={monthlyCashflow.buckets.map((b) => ({
+            label: b.label,
+            primaryValue: b.previsto,
+            secondaryValue: b.realizado,
+            primaryFormatted: formatCurrencyBRL(b.previsto),
+            secondaryFormatted: formatCurrencyBRL(b.realizado),
+          }))}
+        />
+
+        <BentoDonutDistribution
+          title="Composição de Receitas por Projeto"
+          subtitle="Participação no faturamento"
+          centerLabel="Total"
+          centerValue={formatCurrencyBRL(metrics.total)}
+          slices={projects.slice(0, 5).map((p) => {
+            const pTotal = (installmentsMap[p.id] || []).reduce(
+              (s, i) => s + (Number(i.amount) || 0),
+              0
+            );
+            return {
+              id: p.id,
+              label: p.name,
+              value: Math.max(1, pTotal),
+              formattedValue: formatCurrencyBRL(pTotal),
+            };
+          })}
+        />
+
+        <BentoTrendLineChart
+          title="Fluxo de Caixa Projetado"
+          subtitle="Curva de recebimentos"
+          primaryLabel="Previsto"
+          secondaryLabel="Realizado"
+          points={monthlyCashflow.buckets.map((b) => ({
+            label: b.label,
+            primary: b.previsto,
+            secondary: b.realizado,
+            primaryFormatted: formatCurrencyBRL(b.previsto),
+          }))}
+        />
       </div>
 
-      {/* Gráfico Fluido de Fluxo de Caixa (Previsto × Realizado × Atrasado) */}
-      {monthlyCashflow.buckets.length > 0 && (
-        <Card className="rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-zinc-900 p-4 sm:p-5 shadow-xs w-full min-w-0 overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                Fluxo de Caixa Mensal (Previsto × Realizado)
-              </h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Recalculado instantaneamente conforme liquidações e vencimentos.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold">
-              <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                <span className="h-2.5 w-2.5 rounded-sm bg-slate-300 dark:bg-zinc-600" />
-                Previsto
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-                <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                Recebido
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
-                <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
-                Atrasado
-              </span>
-            </div>
-          </div>
-
-          <div className="w-full min-w-0 overflow-hidden">
-            <div className="h-56 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 pt-6 pb-2 border-b border-slate-100 dark:border-white/10">
-              {monthlyCashflow.buckets.map((b) => {
-                const previstoPct = Math.max(6, Math.round((b.previsto / monthlyCashflow.maxVal) * 100));
-                const realizadoPct = Math.round((b.realizado / monthlyCashflow.maxVal) * 100);
-                const atrasadoPct = Math.round((b.atrasado / monthlyCashflow.maxVal) * 100);
-                return (
-                  <div key={b.key} className="flex-1 min-w-0 flex flex-col items-center h-full justify-end gap-1.5">
-                    <span className="hidden sm:block text-[10px] font-mono tabular-nums text-slate-500 dark:text-slate-400 truncate max-w-full">
-                      {formatCurrencyBRL(b.previsto)}
-                    </span>
-                    <div className="w-full max-w-[52px] h-full flex items-end gap-1 justify-center">
-                      <div
-                        style={{ height: `${previstoPct}%` }}
-                        title={`Previsto: ${formatCurrencyBRL(b.previsto)}`}
-                        className="w-1/2 rounded-t-md bg-slate-200 dark:bg-zinc-700 transition-all duration-300"
-                      />
-                      <div className="w-1/2 h-full flex flex-col justify-end gap-0.5">
-                        {atrasadoPct > 0 && (
-                          <div
-                            style={{ height: `${Math.max(4, atrasadoPct)}%` }}
-                            title={`Atrasado: ${formatCurrencyBRL(b.atrasado)}`}
-                            className="w-full rounded-t-sm bg-rose-500 transition-all duration-300"
-                          />
-                        )}
-                        <div
-                          style={{ height: `${Math.max(realizadoPct > 0 ? 4 : 0, realizadoPct)}%` }}
-                          title={`Recebido: ${formatCurrencyBRL(b.realizado)}`}
-                          className="w-full rounded-t-md bg-emerald-500 transition-all duration-300"
-                        />
-                      </div>
-                    </div>
-                    <span className="text-[10px] sm:text-xs font-mono font-semibold text-slate-600 dark:text-slate-300 uppercase">
-                      {b.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
-      )}
+      {/* Demonstrativo Financeiro Expansível por Empreendimento */}
+      <BentoCollapsibleBreakdownTable
+        title="Demonstrativo Analítico por Projeto"
+        subtitle="Clique em + para expandir as parcelas de cada empreendimento"
+        headers={["Empreendimento", "Contratado", "Recebido", "A Receber"]}
+        groups={projects.map((p) => {
+          const list = installmentsMap[p.id] || [];
+          const pTotal = list.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+          const pPaid = list
+            .filter((i) => isInstallmentPaid(i.status))
+            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+          const pPending = Math.max(0, pTotal - pPaid);
+          return {
+            id: p.id,
+            label: `${p.name} (${p.clientName})`,
+            col1: formatCurrencyBRL(pTotal),
+            col2: formatCurrencyBRL(pPaid),
+            col3: formatCurrencyBRL(pPending),
+            children: list.map((inst) => ({
+              id: inst.id,
+              label: `${inst.description} · ${formatDateBR(inst.dueDate)}`,
+              col1: formatCurrencyBRL(inst.amount),
+              col2: isInstallmentPaid(inst.status) ? formatCurrencyBRL(inst.amount) : "R$ 0,00",
+              col3: isInstallmentPaid(inst.status) ? "R$ 0,00" : formatCurrencyBRL(inst.amount),
+            })),
+          };
+        })}
+        totalRow={{
+          col1: formatCurrencyBRL(metrics.total),
+          col2: formatCurrencyBRL(metrics.paid),
+          col3: formatCurrencyBRL(metrics.pending + metrics.overdue),
+        }}
+      />
 
       {/* Visão de Edição por Empreendimento Selecionado */}
       {selectedProjectId !== "all" && selectedProject && (

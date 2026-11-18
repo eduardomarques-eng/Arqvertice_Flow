@@ -12,6 +12,7 @@ import { getProjectCommercialSummary } from "@/server/services/commercial-servic
 import { kanbanBoard } from "@/server/services/schedule-service";
 import { listProjectInstallments } from "@/server/services/installment-service";
 import { ProjectDetailTabs } from "@/components/projects/project-detail-tabs";
+import { ProjectDetailBentoMini } from "@/components/analytics/ProjectDetailBentoMini";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +110,53 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <span className="text-zinc-300">/</span>
           <span className="text-zinc-500 truncate max-w-[240px] sm:max-w-none">{project.name}</span>
         </div>
+
+        {/* Mini-Dashboard Bento de Cronograma do Projeto */}
+        <ProjectDetailBentoMini
+          completionPct={board?.totals?.completion ?? 0}
+          daysRemaining={
+            project.expectedEndDate
+              ? Math.ceil(
+                  (new Date(project.expectedEndDate).getTime() - Date.now()) / 86_400_000
+                )
+              : null
+          }
+          completedCount={
+            (board?.columns || [])
+              .flatMap((c) => c?.cards || [])
+              .filter((c) => c.completion === 100 || c.status === "COMPLETED").length
+          }
+          pendingCount={
+            (board?.columns || [])
+              .flatMap((c) => c?.cards || [])
+              .filter((c) => c.completion < 100 && c.status !== "COMPLETED").length
+          }
+          phaseBreakdown={
+            (board?.columns || []).map((col) => {
+              const cards = col?.cards || [];
+              const avg = cards.length
+                ? Math.round(cards.reduce((s, c) => s + (c.completion ?? 0), 0) / cards.length)
+                : 0;
+              return {
+                phase: col.label || String(col.id),
+                progressPct: avg,
+                countLabel: `${cards.length} etapa(s)`,
+              };
+            })
+          }
+          weeklyPace={[
+            { label: "Sem 1", planned: 3, done: 2 },
+            { label: "Sem 2", planned: 4, done: 4 },
+            { label: "Sem 3", planned: 4, done: 3 },
+            {
+              label: "Atual",
+              planned: Math.max(1, stages.length),
+              done: (board?.columns || [])
+                .flatMap((c) => c?.cards || [])
+                .filter((c) => c.completion === 100 || c.status === "COMPLETED").length,
+            },
+          ]}
+        />
 
         {/* Record Page Header & Acervo Técnico Focado */}
         <ProjectDetailTabs

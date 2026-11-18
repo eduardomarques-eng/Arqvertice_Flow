@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDataView } from "@/components/ui/responsive-data-view";
+import {
+  BentoBarComparisonChart,
+  BentoDonutDistribution,
+  BentoHorizontalRanking,
+  BentoKpiStrip,
+} from "@/components/analytics";
 import { formatDateBR } from "@/lib/formatters";
 import type { DisciplineChartPoint } from "@/components/acervo/acervo-discipline-chart";
 
@@ -244,78 +250,110 @@ export function AcervoManagerView({
         </div>
       </div>
 
-      {/* 4 Cartões Executivos (KPIs do CDE) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">
-            Taxa &quot;Bom para Obra&quot;
-          </p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-            {metrics.taxaBomParaObra}%
-          </p>
-          <p className="mt-1 text-[11px] text-slate-500">
-            {metrics.bomParaObra} de {metrics.total} pranchas liberadas
-          </p>
-        </Card>
+      {/* 5 KPIs Executivos CDE em Bento Grid */}
+      <BentoKpiStrip
+        columns={5}
+        items={[
+          {
+            id: "total-sheets",
+            label: "Pranchas Vigentes",
+            value: String(metrics.total),
+            featured: true,
+            subtitle: `${filteredDocs.reduce((s, d) => s + d.revisionsCount, 0)} revisões`,
+          },
+          {
+            id: "bom-obra",
+            label: 'Taxa "Bom para Obra"',
+            value: `${metrics.taxaBomParaObra}%`,
+            delta: `${metrics.bomParaObra}/${metrics.total}`,
+            deltaTone: metrics.taxaBomParaObra >= 60 ? "positive" : "neutral",
+          },
+          {
+            id: "rfis",
+            label: "RFIs Abertas",
+            value: String(metrics.openRfis),
+            delta: `${metrics.overdueRfis} atraso`,
+            deltaTone: metrics.overdueRfis > 0 ? "negative" : "positive",
+          },
+          {
+            id: "revisions",
+            label: "Pranchas em Análise",
+            value: String(metrics.emRevisao),
+            subtitle: "Aguardando parecer técnico",
+          },
+          {
+            id: "sla",
+            label: "SLA Médio Aprovação",
+            value: metrics.slaFormatted,
+            subtitle: "Tempo médio até liberação",
+          },
+        ]}
+      />
 
-        <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">
-            RFIs Abertas / Atrasadas
-          </p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-            {metrics.openRfis}{" "}
-            <span className="text-base font-medium text-rose-600">
-              / {metrics.overdueRfis}
-            </span>
-          </p>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Apontamentos pendentes de resposta
-          </p>
-        </Card>
+      {/* Bento Grid CDE: Volume por Disciplina + Status de Aprovação + Ritmo de Revisões */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <BentoHorizontalRanking
+          title="Volume de Pranchas por Disciplina"
+          subtitle="Distribuição técnica do acervo"
+          items={chartData.map((d, i) => ({
+            id: `${d.discipline}-${i}`,
+            label: d.discipline,
+            secondaryText: `${d.bomParaObra} liberada(s)`,
+            value: d.bomParaObra + d.emAndamento,
+            formattedValue: String(d.bomParaObra + d.emAndamento),
+            highlight: i === 0,
+          }))}
+        />
 
-        <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
-            Pranchas Em Análise
-          </p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-            {metrics.emRevisao}
-          </p>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Aguardando parecer de engenharia
-          </p>
-        </Card>
+        <BentoDonutDistribution
+          title="Status de Aprovação CDE"
+          subtitle="Ciclo de vida das pranchas"
+          centerLabel="Pranchas"
+          centerValue={String(metrics.total)}
+          slices={[
+            { id: "bom", label: "Bom para Obra", value: metrics.bomParaObra, formattedValue: String(metrics.bomParaObra) },
+            { id: "rev", label: "Em Revisão", value: metrics.emRevisao, formattedValue: String(metrics.emRevisao) },
+            {
+              id: "elab",
+              label: "Em Elaboração",
+              value: Math.max(0, metrics.total - metrics.bomParaObra - metrics.emRevisao),
+              formattedValue: String(Math.max(0, metrics.total - metrics.bomParaObra - metrics.emRevisao)),
+            },
+          ]}
+        />
 
-        <Card className="p-4 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            SLA Médio de Aprovação
-          </p>
-          <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-            {metrics.slaFormatted}
-          </p>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Tempo médio até liberação
-          </p>
-        </Card>
+        <BentoBarComparisonChart
+          title="Ritmo de Emissão & Liberações"
+          subtitle="Pranchas liberadas × em análise por disciplina"
+          primaryLabel="Bom para Obra"
+          secondaryLabel="Em Análise"
+          heightClass="h-48 sm:h-56"
+          data={chartData.slice(0, 5).map((d) => ({
+            label: d.discipline.slice(0, 6),
+            primaryValue: d.bomParaObra,
+            secondaryValue: d.emAndamento,
+          }))}
+        />
       </div>
 
-      {/* Gráfico de Volume por Disciplina (Recharts) */}
-      <Card className="p-5 border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+      {/* Gráfico Detalhado por Disciplina (Recharts) */}
+      <Card className="p-5 border-slate-200/60 dark:border-white/10 dark:bg-[#18181B] bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
-              Volume de Entregas por Disciplina
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Comparativo Executivo por Disciplina
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Comparativo entre pranchas liberadas (Bom para Obra) e em revisão/elaboração.
             </p>
           </div>
-          <div className="flex items-center gap-4 text-[11px] font-medium text-slate-600">
+          <div className="flex items-center gap-4 text-[11px] font-medium text-slate-600 dark:text-slate-300">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-[#18181B]" />
+              <span className="h-2.5 w-2.5 rounded-sm bg-[#18181B] dark:bg-[#EDE5D8]" />
               Bom para Obra
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-[#EDE5D8]" />
+              <span className="h-2.5 w-2.5 rounded-sm bg-[#EDE5D8] dark:bg-amber-500" />
               Em Análise / Elaboração
             </span>
           </div>

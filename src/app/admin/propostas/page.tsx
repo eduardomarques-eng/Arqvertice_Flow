@@ -4,15 +4,77 @@ import { SectionHeading } from "@/components/section-heading";
 import Link from "next/link";
 import { requirePageAdminRole } from "@/server/auth";
 import { listProposals } from "@/server/services/proposal-service";
+import {
+  BentoCollapsiblePanel,
+  BentoHorizontalRanking,
+  BentoKpiStrip,
+} from "@/components/analytics";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProposalsPage() {
   await requirePageAdminRole();
   const proposals = await listProposals();
+  const totalProposed = proposals.reduce(
+    (s, p) => s + Number(p.versions[0]?.total ?? 0),
+    0
+  );
+  const approvedCount = proposals.filter((p) => p.status === "APPROVED").length;
+  const negotiatingCount = proposals.filter(
+    (p) => p.status === "SENT" || p.status === "VIEWED" || p.status === "DRAFT"
+  ).length;
+  const conversionRate =
+    proposals.length > 0 ? Math.round((approvedCount / proposals.length) * 100) : 0;
+
   return (
     <AppShell eyebrow="Comercial">
       <SectionHeading title="Propostas" description="Apresentações, propostas formais, versões e decisões do cliente." />
+
+      <div className="mb-6">
+        <BentoCollapsiblePanel title="Panorama Comercial & Funil" badge={`${proposals.length} propostas`}>
+          <BentoKpiStrip
+            columns={4}
+            items={[
+              {
+                id: "total-prop",
+                label: "Total Proposto",
+                value: totalProposed.toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                  maximumFractionDigits: 0,
+                }),
+                featured: true,
+              },
+              {
+                id: "conv",
+                label: "Taxa de Conversão",
+                value: `${conversionRate}%`,
+                deltaTone: conversionRate >= 30 ? "positive" : "neutral",
+              },
+              {
+                id: "neg",
+                label: "Em Negociação",
+                value: String(negotiatingCount),
+              },
+              {
+                id: "app",
+                label: "Aprovadas",
+                value: String(approvedCount),
+              },
+            ]}
+          />
+          <BentoHorizontalRanking
+            title="Funil de Status de Propostas"
+            maxScale={Math.max(1, proposals.length)}
+            items={[
+              { id: "draft", label: "Rascunho / Em Elaboração", value: proposals.filter((p) => p.status === "DRAFT").length },
+              { id: "sent", label: "Enviadas / Em Negociação", value: proposals.filter((p) => p.status === "SENT" || p.status === "VIEWED").length },
+              { id: "approved", label: "Aprovadas", value: approvedCount, highlight: true },
+            ]}
+          />
+        </BentoCollapsiblePanel>
+      </div>
+
       <div className="grid gap-4">
         {proposals.length ? proposals.map((proposal) => {
           const version = proposal.versions[0];
