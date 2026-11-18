@@ -1797,3 +1797,19 @@ model WhatsAppMessage {
 
   @@index([conversationId, createdAt])
 }
+
+
+model AgentActionLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  source        String // OPENBOT | OLLAMA_LOCAL | WHATSAPP_GATEWAY
+  actorEmail    String?
+  module        String // PROJECTS | ACERVO | FINANCE | PROPOSALS | EMAIL | BOOKING | WHATSAPP | TEAM | SETTINGS
+  actionName    String
+  inputSummary  String   @db.Text
+  resultSummary String   @db.Text
+  status        String   @default("SUCCESS") // SUCCESS | PENDING_CONFIRMATION | ERROR
+  createdAt     DateTime @default(now())
+
+  @@index([module, createdAt])
+  @@index([source, createdAt])
+}

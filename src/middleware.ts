@@ -89,7 +89,8 @@ export function middleware(request: NextRequest) {
         !isAllowedOrigin &&
         !pathname.startsWith("/api/briefings") &&
         !pathname.startsWith("/api/email/inbound") &&
-        !pathname.startsWith("/api/whatsapp/webhook")
+        !pathname.startsWith("/api/whatsapp/webhook") &&
+        !pathname.startsWith("/api/agent/")
       ) {
         return new NextResponse(JSON.stringify({ error: "Forbidden: Origem não autorizada." }), {
           status: 403,
@@ -118,7 +119,13 @@ export function middleware(request: NextRequest) {
     request.method === "POST" &&
     Boolean(request.headers.get("x-api-key") || request.headers.get("x-webhook-secret"));
 
-  if (!isPublicPath(pathname) && isProtectedPath(pathname) && !hasGatewayApiKey) {
+  const hasAgentBridgeKey =
+    (pathname === "/api/agent/manifest" ||
+      pathname === "/api/agent/execute" ||
+      pathname === "/api/agent/ollama-assist") &&
+    Boolean(request.headers.get("x-agent-key"));
+
+  if (!isPublicPath(pathname) && isProtectedPath(pathname) && !hasGatewayApiKey && !hasAgentBridgeKey) {
     const sessionCookie = request.cookies.get(SESSION_COOKIE);
     const currentBuildId = process.env.APP_BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID;
     const cookieBuildId = request.cookies.get("arqvertice_build_id")?.value;
