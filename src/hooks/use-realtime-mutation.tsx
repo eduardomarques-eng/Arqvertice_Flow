@@ -35,6 +35,7 @@ export function useRealtimeMutation<TState, TPayload>({
 
   const confirmedStateRef = useRef<TState>(initialState);
   const latestStateRef = useRef<TState>(initialState);
+  const latestPayloadRef = useRef<TPayload | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightCountRef = useRef<number>(0);
@@ -101,6 +102,7 @@ export function useRealtimeMutation<TState, TPayload>({
 
       const nextState = applyOptimistic(latestStateRef.current, payload);
       latestStateRef.current = nextState;
+      latestPayloadRef.current = payload;
 
       // Atualização visual instantânea (0ms)
       setState(nextState);
@@ -117,26 +119,43 @@ export function useRealtimeMutation<TState, TPayload>({
       }
 
       if (options?.immediate || debounceMs <= 0) {
+        latestPayloadRef.current = null;
         void executeCommit(payload, nextState);
       } else {
         debounceTimerRef.current = setTimeout(() => {
           debounceTimerRef.current = null;
-          void executeCommit(payload, latestStateRef.current);
+          const pendingPayload = latestPayloadRef.current ?? payload;
+          latestPayloadRef.current = null;
+          void executeCommit(pendingPayload, latestStateRef.current);
         }, debounceMs);
       }
     },
     [applyOptimistic, debounceMs, executeCommit, isLocked, preventDoubleSubmit]
   );
 
+  const flush = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (latestPayloadRef.current !== null) {
+      const pendingPayload = latestPayloadRef.current;
+      latestPayloadRef.current = null;
+      void executeCommit(pendingPayload, latestStateRef.current);
+    }
+  }, [executeCommit]);
+
   const replaceConfirmedState = useCallback((next: TState) => {
     confirmedStateRef.current = next;
     latestStateRef.current = next;
+    latestPayloadRef.current = null;
     setState(next);
   }, []);
 
   return {
     state,
     mutate,
+    flush,
     syncStatus,
     errorMessage,
     isLocked,

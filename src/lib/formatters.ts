@@ -13,6 +13,41 @@ export function formatCurrencyBRL(value: number | string | null | undefined): st
   }).format(num);
 }
 
+/**
+ * Converte entradas monetárias BRL ("R$ 2.440,50", "2.440,50", "2440.5", 2440.5)
+ * de forma determinística para number arredondado em 2 casas decimais.
+ * Retorna null se inválido, negativo ou vazio.
+ */
+export function parseCurrencyBRL(value: unknown): number | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return null;
+    return Math.round(value * 100) / 100;
+  }
+  if (typeof value !== "string") return null;
+
+  let cleaned = value
+    .replace(/R\$/gi, "")
+    .replace(/\u00A0/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+
+  if (!cleaned) return null;
+
+  if (cleaned.includes(",")) {
+    // Formato pt-BR: pontos são separadores de milhar, vírgula é decimal
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+    // Formato "2.440" ou "1.250.000" sem vírgula decimal
+    cleaned = cleaned.replace(/\./g, "");
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
+
+  const num = Number(cleaned);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num * 100) / 100;
+}
+
 export function formatDateBR(date: string | Date | null | undefined): string {
   if (!date || date === "—") return "—";
 

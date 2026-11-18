@@ -10,11 +10,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     await requireRole("ADMIN");
     const updated = await updateProjectInstallment(id, installmentId, await request.json());
+    revalidatePath("/admin");
     revalidatePath("/admin/financeiro");
     revalidatePath("/equipe/financeiro");
     revalidatePath(`/admin/projetos/${id}`);
     revalidatePath(`/portal/${id}`);
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, ok: true, data: updated });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: "Dados da parcela inválidos." }, { status: 422 });
     if (error instanceof DomainError) return NextResponse.json({ error: error.message }, { status: 404 });

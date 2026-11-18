@@ -21,7 +21,12 @@ import {
   type Installment,
   type Stage,
 } from "@/components/projects/project-finance-manager";
-import { formatCurrencyBRL, formatDateBR, parseDateSafe } from "@/lib/formatters";
+import {
+  formatCurrencyBRL,
+  formatDateBR,
+  parseCurrencyBRL,
+  parseDateSafe,
+} from "@/lib/formatters";
 
 export interface ProjectOption {
   id: string;
@@ -57,6 +62,9 @@ export function FinanceHubView({
     useState<Record<string, Installment[]>>(installmentsByProject);
   const [syncStatus, setSyncStatus] = useState<RealtimeSyncStatus>("idle");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
+  const [editingAmountText, setEditingAmountText] = useState<string>("");
+  const [inlineError, setInlineError] = useState<string | null>(null);
 
   const handleProjectInstallmentsChange = useCallback(
     (projectId: string, nextItems: Installment[]) => {
@@ -171,6 +179,54 @@ export function FinanceHubView({
     }
   };
 
+  const handleInlineAmountCommit = async (inst: EnrichedInstallment, rawText: string) => {
+    setEditingAmountId(null);
+    const parsed = parseCurrencyBRL(rawText);
+    if (parsed === null) {
+      setInlineError("Valor inválido. Use formato BRL (ex.: 2.440,50).");
+      return;
+    }
+    if (Math.abs(parsed - (Number(inst.amount) || 0)) < 0.001) {
+      return;
+    }
+
+    setInlineError(null);
+    const prevMap = installmentsMap;
+    setInstallmentsMap((curr) => ({
+      ...curr,
+      [inst.projectId]: (curr[inst.projectId] || []).map((item) =>
+        item.id === inst.id ? { ...item, amount: parsed } : item
+      ),
+    }));
+    setSyncStatus("syncing");
+
+    try {
+      const res = await fetch(`/api/projects/${inst.projectId}/installments/${inst.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount: parsed }),
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Erro ao atualizar valor da parcela.");
+      }
+      const resJson = await res.json();
+      const saved = (resJson?.data ?? resJson) as Installment;
+      setInstallmentsMap((curr) => ({
+        ...curr,
+        [inst.projectId]: (curr[inst.projectId] || []).map((item) =>
+          item.id === inst.id ? { ...item, amount: Number(saved.amount) } : item
+        ),
+      }));
+      setSyncStatus("saved");
+      setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2200);
+    } catch (err) {
+      setInstallmentsMap(prevMap);
+      setSyncStatus("error");
+      setInlineError(err instanceof Error ? err.message : "Erro ao salvar valor (revertido).");
+    }
+  };
+
   const handleCopyPixConsolidated = async (inst: EnrichedInstallment) => {
     const text = `Cobrança ArqVértice · ${inst.projectName} · ${inst.description} · Valor: ${formatCurrencyBRL(
       inst.amount
@@ -195,7 +251,7 @@ export function FinanceHubView({
             <span className="rounded bg-slate-900 dark:bg-[#EDE5D8] dark:text-[#18181B] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
               Módulo Financeiro Central
             </span>
-            <RealtimeSyncBadge status={syncStatus} />
+            <RealtimeSyncBadge status={syncStatus} errorMessage={inlineError} />
           </div>
           <h1 className="mt-1.5 text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             💰 Gestão Financeira & Cronograma de Pagamentos
@@ -461,7 +517,37 @@ export function FinanceHubView({
                           {formatDateBR(inst.dueDate)}
                         </td>
                         <td className="py-3 px-2 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                          {formatCurrencyBRL(inst.amount)}
+                          {editingAmountId === inst.id ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              autoFocus
+                              value={editingAmountText}
+                              onChange={(e) => setEditingAmountText(e.target.value)}
+                              onBlur={() => void handleInlineAmountCommit(inst, editingAmountText)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  void handleInlineAmountCommit(inst, editingAmountText);
+                                } else if (e.key === "Escape") {
+                                  setEditingAmountId(null);
+                                }
+                              }}
+                              className="w-28 rounded-lg border border-[#B45309] bg-white dark:bg-zinc-800 px-2 py-1 text-right text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAmountId(inst.id);
+                                setEditingAmountText(String(inst.amount).replace(".", ","));
+                              }}
+                              title="Clique para editar valor"
+                              className="rounded px-1.5 py-0.5 hover:bg-[#EDE5D8]/70 dark:hover:bg-white/10 transition"
+                            >
+                              {formatCurrencyBRL(inst.amount)}
+                            </button>
+                          )}
                         </td>
                         <td className="py-3 px-2 text-center">
                           <Badge tone={isPaid ? "green" : isOverdue ? "red" : isReadyToBill ? "amber" : "blue"}>

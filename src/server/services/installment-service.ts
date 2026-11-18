@@ -21,10 +21,17 @@ function effectiveStatus(status: string, dueDate: Date) {
  * esperada não corresponder.
  */
 async function updateWithOptimisticLock(
-  projectId: string,
+  _projectId: string,
   id: string,
-  newStatus: string,
-  dueDate: Date | null,
+  patch: {
+    description?: string;
+    amount?: number;
+    dueDate: Date;
+    paidDate?: Date | null;
+    status: string;
+    linkedStageId?: string | null;
+    order?: number;
+  },
   expectedVersion: number,
 ) {
   const current = await prisma.projectInstallment.findUnique({
@@ -40,8 +47,13 @@ async function updateWithOptimisticLock(
     return await prisma.projectInstallment.update({
       where: { id },
       data: {
-        status: newStatus,
-        dueDate: dueDate ?? current.dueDate,
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        ...(patch.amount !== undefined ? { amount: Math.round(patch.amount * 100) / 100 } : {}),
+        ...(patch.paidDate !== undefined ? { paidDate: patch.paidDate } : {}),
+        ...(patch.linkedStageId !== undefined ? { linkedStageId: patch.linkedStageId } : {}),
+        ...(patch.order !== undefined ? { order: patch.order } : {}),
+        status: patch.status,
+        dueDate: patch.dueDate ?? current.dueDate,
         version: { increment: 1 },
       },
     });
@@ -80,7 +92,20 @@ export async function updateProjectInstallment(projectId: string, id: string, in
   const dueDate = data.dueDate ?? installment.dueDate;
   const status = effectiveStatus(data.status ?? installment.status, dueDate);
   return withDistributedLock("installment-update:" + id, async () => {
-    return updateWithOptimisticLock(projectId, id, status, dueDate, installment.version ?? 1);
+    return updateWithOptimisticLock(
+      projectId,
+      id,
+      {
+        description: data.description,
+        amount: data.amount,
+        dueDate,
+        paidDate: data.paidDate,
+        status,
+        linkedStageId: data.linkedStageId,
+        order: data.order,
+      },
+      installment.version ?? 1
+    );
   });
 }
 

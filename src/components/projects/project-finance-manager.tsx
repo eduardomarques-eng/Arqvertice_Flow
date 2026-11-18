@@ -7,6 +7,7 @@ import {
   toInputDateFormat,
   parseDateSafe,
   formatCurrencyBRL,
+  parseCurrencyBRL,
 } from "@/lib/formatters";
 import {
   STANDARDIZED_DISCIPLINES,
@@ -138,10 +139,16 @@ export function ProjectFinanceManager({
   }
 
   async function save(form: FormData) {
+    const parsedAmount = parseCurrencyBRL(form.get("amount"));
+    if (parsedAmount === null) {
+      setError("Informe um valor monetário válido (ex.: 2.440,50).");
+      return;
+    }
+
     const status = String(form.get("status") ?? "PENDING");
     const payload = {
       description: (descriptionInput || String(form.get("description") ?? "")).trim(),
-      amount: Number(form.get("amount")),
+      amount: parsedAmount,
       dueDate: String(form.get("dueDate")),
       status,
       linkedStageId: String(form.get("linkedStageId") ?? "") || null,
@@ -191,7 +198,8 @@ export function ProjectFinanceManager({
         throw new Error(errJson.error ?? "Não foi possível salvar a parcela.");
       }
 
-      const saved = await response.json();
+      const resJson = await response.json();
+      const saved = (resJson?.data ?? resJson) as Installment;
       updateItems((current) =>
         current
           .map((item) => (item.id === tempId ? saved : item))
@@ -272,7 +280,8 @@ export function ProjectFinanceManager({
 
   // Gerador Automático de Parcelas com rateio exato de centavos
   const generatedPreview = useMemo(() => {
-    const totalCents = Math.max(0, Math.round((Number(genTotalAmount) || 0) * 100));
+    const parsedGen = parseCurrencyBRL(genTotalAmount) ?? 0;
+    const totalCents = Math.max(0, Math.round(parsedGen * 100));
     const count = Math.max(1, Math.min(36, Math.floor(genCount) || 1));
     const entryPct = count > 1 ? Math.max(0, Math.min(90, genEntryPercent)) : 100;
     const baseDate = parseDateSafe(genFirstDueDate) || new Date();
@@ -760,12 +769,15 @@ export function ProjectFinanceManager({
                 </label>
                 <input
                   name="amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  defaultValue={editing.amount !== undefined ? editing.amount : ""}
+                  type="text"
+                  inputMode="decimal"
+                  defaultValue={
+                    editing.amount !== undefined
+                      ? String(editing.amount).replace(".", ",")
+                      : ""
+                  }
                   required
-                  placeholder="0.00"
+                  placeholder="2.440,50"
                   className="w-full min-h-[44px] rounded-xl border border-slate-200 dark:border-white/10 dark:bg-zinc-800 dark:text-slate-100 p-2.5 text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none"
                 />
               </div>
