@@ -30,7 +30,7 @@ export type Installment = {
 export type Stage = { id: string; name: string };
 
 export const PREDEFINED_DISCIPLINES = STANDARDIZED_DISCIPLINES;
-export const COMPANY_PIX_CNPJ = "66.773.164/0001-60";
+export const COMPANY_PIX_CNPJ = "021.502.003-09";
 
 export function isInstallmentPaid(status: string): boolean {
   return status === "PAID" || status === "Liquidado";

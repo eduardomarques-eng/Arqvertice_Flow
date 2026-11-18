@@ -91,9 +91,9 @@ const TEMPLATES = [
   },
   {
     id: "pix",
-    label: "Cobrança Pix CNPJ",
-    subject: "Lembrete de Parcela — Dados Pix CNPJ 66.773.164/0001-60",
-    body: "Olá,\n\nSegue o lembrete referente à parcela do seu projeto.\n\nPagamento via Pix:\n• Chave CNPJ: 66.773.164/0001-60\n• Favorecido: ArqVértice Studio\n\nApós o pagamento, envie o comprovante respondendo a este e-mail.\n\nFinanceiro ArqVértice",
+    label: "Cobrança Pix CPF",
+    subject: "Lembrete de Parcela — Chave Pix CPF 021.502.003-09",
+    body: "Olá,\n\nSegue o lembrete referente à parcela do seu projeto.\n\nPagamento via Pix:\n• Chave CPF: 021.502.003-09\n• Favorecido: Eduardo César Costa Marques / ArqVértice Studio\n\nApós o pagamento, envie o comprovante respondendo a este e-mail.\n\nFinanceiro ArqVértice",
   },
   {
     id: "reuniao",

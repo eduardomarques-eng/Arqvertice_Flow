@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { currentUser } from "@/server/auth";
 import { DomainError } from "@/server/errors";
 import {
@@ -96,6 +97,12 @@ async function handleSave(request: Request) {
     }
 
     const settings = await updateStudioSettings(auth.user.id, body as Parameters<typeof updateStudioSettings>[1]);
+    revalidatePath("/admin");
+    revalidatePath("/admin/configuracoes");
+    revalidatePath("/admin/financeiro");
+    revalidatePath("/equipe/financeiro");
+    revalidatePath("/admin/propostas");
+    revalidatePath("/equipe/propostas");
     return NextResponse.json({ ok: true, settings, message: "Parâmetros salvos no Neon Postgres." });
   } catch (error) {
     if (error instanceof DomainError) {

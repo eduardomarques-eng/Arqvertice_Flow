@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { requirePageTeamRole } from "@/server/auth";
 import { requireModuleAccess } from "@/lib/rbac-helpers";
 import { prisma } from "@/server/db";
+import { getStudioSettings } from "@/server/services/settings-service";
 import { FinanceHubView, type ProjectOption } from "@/components/finance/finance-hub-view";
 import type { Installment } from "@/components/projects/project-finance-manager";
 
@@ -63,6 +64,8 @@ export default async function EquipeFinanceiroPage({
     }));
   }
 
+  const studioSettings = await getStudioSettings();
+
   return (
     <AppShell eyebrow="Gestão Financeira" role={user.role}>
       <FinanceHubView
@@ -70,6 +73,8 @@ export default async function EquipeFinanceiroPage({
         installmentsByProject={installmentsByProject}
         initialProjectId={projectId}
         basePath="/equipe"
+        studioPixKey={studioSettings.pixKey}
+        studioPixKeyType={studioSettings.pixKeyType}
       />
     </AppShell>
   );

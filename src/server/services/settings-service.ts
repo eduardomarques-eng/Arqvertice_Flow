@@ -12,6 +12,8 @@ export interface StudioSettingDTO {
   id: string;
   studioName: string;
   technicalLeadName: string;
+  technicalLeadCpf: string;
+  omitCpfInContracts: boolean;
   technicalLeadReg: string;
   studioCnpj: string;
   pixKey: string;
@@ -48,6 +50,9 @@ const DEFAULT_CRON_JOBS = [
   { path: "/api/cron/process-events", schedule: "0 4 * * *", description: "Processamento da fila de eventos de domínio e DLQ" },
 ];
 
+const DEFAULT_BANK_INSTRUCTIONS =
+  "Pagamento via Pix (Chave CPF: 021.502.003-09 — Eduardo César Costa Marques / ArqVértice Studio). Enviar comprovante pelo Portal do Cliente ou e-mail financeiro@arqvertice.com.br.";
+
 export async function getStudioSettings(): Promise<StudioSettingDTO> {
   const record = await prisma.studioSetting.upsert({
     where: { id: "default" },
@@ -57,17 +62,21 @@ export async function getStudioSettings(): Promise<StudioSettingDTO> {
 
   return {
     id: record.id,
-    studioName: record.studioName,
-    technicalLeadName: record.technicalLeadName,
+    studioName: record.studioName || "ArqVértice Studio",
+    technicalLeadName: record.technicalLeadName || "Eduardo César Costa Marques",
+    technicalLeadCpf: record.technicalLeadCpf || "021.502.003-09",
+    omitCpfInContracts: record.omitCpfInContracts ?? true,
     technicalLeadReg: record.technicalLeadReg,
-    studioCnpj: record.studioCnpj,
-    pixKey: record.pixKey,
-    pixKeyType: record.pixKeyType,
-    bankInstructions: record.bankInstructions,
-    structuralPartner: record.structuralPartner,
+    studioCnpj: record.studioCnpj || "66.773.164/0001-60",
+    pixKey: record.pixKey || "021.502.003-09",
+    pixKeyType: record.pixKeyType || "CPF",
+    bankInstructions: record.bankInstructions || DEFAULT_BANK_INSTRUCTIONS,
+    structuralPartner:
+      record.structuralPartner ||
+      "Emanoel Luan Almeida da Rocha — CNPJ 51.510.575/0001-95",
     commercialAddress: record.commercialAddress,
-    cityState: record.cityState,
-    institutionalEmail: record.institutionalEmail,
+    cityState: record.cityState || "Fortaleza / CE",
+    institutionalEmail: record.institutionalEmail || "eduardo@arqvertice.com.br",
     documentSignature: record.documentSignature,
     proposalValidityDays: record.proposalValidityDays,
     lateFeePercent: record.lateFeePercent,
@@ -87,6 +96,8 @@ export async function updateStudioSettings(
   input: Partial<{
     studioName: string;
     technicalLeadName: string;
+    technicalLeadCpf: string;
+    omitCpfInContracts: boolean;
     technicalLeadReg: string;
     studioCnpj: string;
     pixKey: string;
@@ -112,6 +123,7 @@ export async function updateStudioSettings(
   const stringFields = [
     "studioName",
     "technicalLeadName",
+    "technicalLeadCpf",
     "technicalLeadReg",
     "studioCnpj",
     "pixKey",
@@ -131,6 +143,10 @@ export async function updateStudioSettings(
     if (typeof input[field] === "string") {
       data[field] = input[field].trim();
     }
+  }
+
+  if (typeof input.omitCpfInContracts === "boolean") {
+    data.omitCpfInContracts = input.omitCpfInContracts;
   }
 
   if (input.proposalValidityDays !== undefined) {
@@ -194,6 +210,8 @@ export async function updateStudioSettings(
     id: updated.id,
     studioName: updated.studioName,
     technicalLeadName: updated.technicalLeadName,
+    technicalLeadCpf: updated.technicalLeadCpf,
+    omitCpfInContracts: updated.omitCpfInContracts,
     technicalLeadReg: updated.technicalLeadReg,
     studioCnpj: updated.studioCnpj,
     pixKey: updated.pixKey,

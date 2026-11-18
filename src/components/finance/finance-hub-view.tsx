@@ -47,6 +47,8 @@ interface FinanceHubViewProps {
   installmentsByProject: Record<string, Installment[]>;
   initialProjectId?: string;
   basePath?: string;
+  studioPixKey?: string;
+  studioPixKeyType?: string;
 }
 
 export function FinanceHubView({
@@ -54,6 +56,8 @@ export function FinanceHubView({
   installmentsByProject,
   initialProjectId,
   basePath = "/admin",
+  studioPixKey = COMPANY_PIX_CNPJ,
+  studioPixKeyType = "CPF",
 }: FinanceHubViewProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     initialProjectId || (projects.length > 0 ? projects[0].id : "all")
@@ -230,7 +234,7 @@ export function FinanceHubView({
   const handleCopyPixConsolidated = async (inst: EnrichedInstallment) => {
     const text = `Cobrança ArqVértice · ${inst.projectName} · ${inst.description} · Valor: ${formatCurrencyBRL(
       inst.amount
-    )} · Vencimento: ${formatDateBR(inst.dueDate)} · Pix CNPJ: ${COMPANY_PIX_CNPJ}`;
+    )} · Vencimento: ${formatDateBR(inst.dueDate)} · Chave Pix (${studioPixKeyType}): ${studioPixKey}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(inst.id);
@@ -257,7 +261,7 @@ export function FinanceHubView({
             💰 Gestão Financeira & Cronograma de Pagamentos
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Controle de fluxo contratual, parcelas, liquidações em 1 clique e cobrança Pix CNPJ ({COMPANY_PIX_CNPJ}).
+            Controle de fluxo contratual, parcelas, liquidações em 1 clique e cobrança Pix {studioPixKeyType} ({studioPixKey}).
           </p>
         </div>
 

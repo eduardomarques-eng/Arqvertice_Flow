@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { requirePageRole } from "@/server/auth";
 import { prisma } from "@/server/db";
+import { getStudioSettings } from "@/server/services/settings-service";
 import { FinanceHubView, type ProjectOption } from "@/components/finance/finance-hub-view";
 import type { Installment } from "@/components/projects/project-finance-manager";
 
@@ -62,12 +63,16 @@ export default async function AdminFinanceiroPage({
     }));
   }
 
+  const studioSettings = await getStudioSettings();
+
   return (
     <AppShell eyebrow="Financeiro">
       <FinanceHubView
         projects={projects}
         installmentsByProject={installmentsByProject}
         initialProjectId={projectId}
+        studioPixKey={studioSettings.pixKey}
+        studioPixKeyType={studioSettings.pixKeyType}
       />
     </AppShell>
   );

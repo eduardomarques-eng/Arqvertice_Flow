@@ -30,6 +30,20 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: "governance", label: "Governança, LGPD & Infra", icon: "🛡️" },
 ];
 
+function formatCpfMask(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+}
+
+const INPUT_CLASS =
+  "w-full h-10 rounded-xl border border-slate-300/95 bg-[#F4F4F8] hover:bg-[#ECECF2] focus:bg-white px-3 text-sm text-zinc-900 placeholder:text-slate-500 shadow-[inset_0_1px_2px_rgba(15,23,42,0.07),0_1px_2px_rgba(15,23,42,0.04)] focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/12 focus:outline-none transition-colors dark:bg-[#1E1E27] dark:hover:bg-[#24242F] dark:focus:bg-[#282834] dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-400 dark:focus:border-amber-400/80 dark:focus:ring-amber-400/15";
+
+const CHIP_CLASS =
+  "rounded-lg border border-slate-300/80 bg-[#F4F4F8] px-2 py-0.5 text-[11px] font-semibold text-zinc-800 hover:bg-[#EDE5D8] transition dark:border-zinc-700 dark:bg-[#1E1E27] dark:text-zinc-200 dark:hover:bg-zinc-800";
+
 export function AdminSettingsHub({
   initialSettings,
   initialProfile,
@@ -118,6 +132,8 @@ export function AdminSettingsHub({
       action: "update_settings",
       studioName: settings.studioName,
       technicalLeadName: settings.technicalLeadName,
+      technicalLeadCpf: settings.technicalLeadCpf,
+      omitCpfInContracts: settings.omitCpfInContracts,
       technicalLeadReg: settings.technicalLeadReg,
       studioCnpj: settings.studioCnpj,
       pixKey: settings.pixKey,
@@ -342,136 +358,265 @@ export function AdminSettingsHub({
 
       {/* SEÇÃO 2: DADOS INSTITUCIONAIS & FATURAMENTO */}
       {activeTab === "institutional" && (
-        <Card className="rounded-3xl border border-slate-200/90 bg-white p-6">
-          <h3 className="text-base font-bold text-slate-950">Dados Institucionais do Estúdio & Faturamento</h3>
-          <p className="mt-1 text-xs text-slate-500">
+        <Card className="rounded-3xl p-6">
+          <h3 className="text-base font-bold text-slate-950 dark:text-zinc-50">
+            Dados Institucionais do Estúdio & Faturamento
+          </h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-zinc-400">
             Fonte única para propostas comerciais, contratos, recibos e relatórios PDF oficiais.
           </p>
           <form onSubmit={handleSaveSettings} className="mt-5 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Razão Social / Nome Fantasia</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  Razão Social / Nome Fantasia
+                </label>
                 <input
                   type="text"
                   required
                   value={settings.studioName}
                   onChange={(e) => setSettings({ ...settings, studioName: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={INPUT_CLASS}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">CNPJ do Estúdio</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  CNPJ do Estúdio
+                </label>
                 <input
                   type="text"
                   required
                   value={settings.studioCnpj}
                   onChange={(e) => setSettings({ ...settings, studioCnpj: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm font-mono text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={`${INPUT_CLASS} font-mono`}
                 />
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {["66.773.164/0001-60", "53.489.002/0001-52"].map((cnpj) => (
+                    <button
+                      key={cnpj}
+                      type="button"
+                      onClick={() => setSettings({ ...settings, studioCnpj: cnpj })}
+                      className={CHIP_CLASS}
+                    >
+                      {cnpj}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Responsável Técnico Principal</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  Responsável Técnico Principal
+                </label>
                 <input
                   type="text"
                   required
                   value={settings.technicalLeadName}
                   onChange={(e) => setSettings({ ...settings, technicalLeadName: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={INPUT_CLASS}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">CAU/CREA do Responsável Técnico</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  CPF do Responsável / Titular
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  value={settings.technicalLeadCpf}
+                  onChange={(e) =>
+                    setSettings({ ...settings, technicalLeadCpf: formatCpfMask(e.target.value) })
+                  }
+                  placeholder="021.502.003-09"
+                  className={`${INPUT_CLASS} font-mono`}
+                />
+                <label className="mt-2 flex items-start gap-2 text-[11px] text-slate-600 dark:text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.omitCpfInContracts}
+                    onChange={(e) =>
+                      setSettings({ ...settings, omitCpfInContracts: e.target.checked })
+                    }
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-zinc-900"
+                  />
+                  <span>
+                    Omitir CPF dos contratados em contratos e propostas comerciais (exibir apenas CNPJ no cabeçalho jurídico)
+                  </span>
+                </label>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  CAU/CREA do Responsável Técnico
+                </label>
                 <input
                   type="text"
                   value={settings.technicalLeadReg}
                   onChange={(e) => setSettings({ ...settings, technicalLeadReg: e.target.value })}
                   placeholder="Ex.: CAU A12345-6"
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={INPUT_CLASS}
                 />
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {["CAU A12345-6", "CREA-CE"].map((reg) => (
+                    <button
+                      key={reg}
+                      type="button"
+                      onClick={() => setSettings({ ...settings, technicalLeadReg: reg })}
+                      className={CHIP_CLASS}
+                    >
+                      {reg}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Chave Pix Oficial</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  Tipo da Chave Pix
+                </label>
+                <select
+                  value={settings.pixKeyType}
+                  onChange={(e) => setSettings({ ...settings, pixKeyType: e.target.value })}
+                  className={INPUT_CLASS}
+                >
+                  <option value="CPF">CPF</option>
+                  <option value="CNPJ">CNPJ</option>
+                  <option value="EMAIL">E-mail</option>
+                  <option value="TELEFONE">Telefone</option>
+                  <option value="EVP">Chave Aleatória</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  Chave Pix Oficial
+                </label>
                 <input
                   type="text"
                   required
                   value={settings.pixKey}
                   onChange={(e) => setSettings({ ...settings, pixKey: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm font-mono text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={`${INPUT_CLASS} font-mono`}
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo da Chave Pix</label>
-                <select
-                  value={settings.pixKeyType}
-                  onChange={(e) => setSettings({ ...settings, pixKeyType: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none bg-white"
-                >
-                  <option value="CNPJ">CNPJ</option>
-                  <option value="EMAIL">E-mail</option>
-                  <option value="EVP">Chave Aleatória</option>
-                  <option value="TELEFONE">Telefone</option>
-                </select>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {[
+                    { label: "CPF: 021.502.003-09", key: "021.502.003-09", type: "CPF" },
+                    { label: "CNPJ Principal: 66.773.164/0001-60", key: "66.773.164/0001-60", type: "CNPJ" },
+                    { label: "CNPJ Secundário: 53.489.002/0001-52", key: "53.489.002/0001-52", type: "CNPJ" },
+                    { label: "E-mail: eduardo@arqvertice.com.br", key: "eduardo@arqvertice.com.br", type: "EMAIL" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() =>
+                        setSettings({ ...settings, pixKey: preset.key, pixKeyType: preset.type })
+                      }
+                      className={CHIP_CLASS}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Parceiro Técnico Estrutural Padrão (PJ)</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                Parceiro Técnico Estrutural Padrão (PJ)
+              </label>
               <input
                 type="text"
                 value={settings.structuralPartner}
                 onChange={(e) => setSettings({ ...settings, structuralPartner: e.target.value })}
-                className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                className={INPUT_CLASS}
               />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Endereço Comercial</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  Endereço Comercial
+                </label>
                 <input
                   type="text"
                   value={settings.commercialAddress}
                   onChange={(e) => setSettings({ ...settings, commercialAddress: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={INPUT_CLASS}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Cidade / UF</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  Cidade / UF
+                </label>
                 <input
                   type="text"
                   value={settings.cityState}
                   onChange={(e) => setSettings({ ...settings, cityState: e.target.value })}
-                  placeholder="Ex.: Maceió / AL"
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  placeholder="Ex.: Fortaleza / CE"
+                  className={INPUT_CLASS}
                 />
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {["Fortaleza / CE", "Lagoinha / CE", "São Paulo / SP", "Maceió / AL"].map(
+                    (city) => (
+                      <button
+                        key={city}
+                        type="button"
+                        onClick={() => setSettings({ ...settings, cityState: city })}
+                        className={CHIP_CLASS}
+                      >
+                        {city}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail Institucional</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  E-mail Institucional
+                </label>
                 <input
                   type="email"
                   value={settings.institutionalEmail}
                   onChange={(e) => setSettings({ ...settings, institutionalEmail: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={INPUT_CLASS}
                 />
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {[
+                    "eduardo@arqvertice.com.br",
+                    "contato@arqvertice.com.br",
+                    "eduardo.marques.arq@gmail.com",
+                  ].map((mail) => (
+                    <button
+                      key={mail}
+                      type="button"
+                      onClick={() => setSettings({ ...settings, institutionalEmail: mail })}
+                      className={CHIP_CLASS}
+                    >
+                      {mail}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Assinatura Padrão de Documentos</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                  Assinatura Padrão de Documentos
+                </label>
                 <input
                   type="text"
                   value={settings.documentSignature}
                   onChange={(e) => setSettings({ ...settings, documentSignature: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className={INPUT_CLASS}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Dados Bancários & Instruções de Pagamento</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-200 mb-1">
+                Dados Bancários & Instruções de Pagamento
+              </label>
               <textarea
                 rows={3}
                 value={settings.bankInstructions}
                 onChange={(e) => setSettings({ ...settings, bankInstructions: e.target.value })}
                 placeholder="Banco, Agência, Conta Corrente e instruções para envio de comprovante..."
-                className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-xl border border-slate-300/95 bg-[#F4F4F8] hover:bg-[#ECECF2] focus:bg-white p-3 text-sm text-zinc-900 placeholder:text-slate-500 shadow-[inset_0_1px_2px_rgba(15,23,42,0.07),0_1px_2px_rgba(15,23,42,0.04)] focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/12 focus:outline-none transition-colors dark:bg-[#1E1E27] dark:hover:bg-[#24242F] dark:focus:bg-[#282834] dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-400 dark:focus:border-amber-400/80 dark:focus:ring-amber-400/15"
               />
             </div>
 
