@@ -53,13 +53,13 @@ export async function POST(request: Request) {
       canUserAccessProject(user, projectId),
       user.role !== "ADMIN"
         ? prisma.acervoDisciplinePermission.findFirst({
-            where: {
-              userId: user.id,
-              discipline: discipline as ProjectDiscipline,
-              OR: [{ projectId }, { projectId: null }],
-            },
-            select: { canUploadRevision: true },
-          })
+          where: {
+            userId: user.id,
+            discipline: discipline as ProjectDiscipline,
+            OR: [{ projectId }, { projectId: null }],
+          },
+          select: { canUploadRevision: true },
+        })
         : Promise.resolve(null),
       prisma.acervoNamingRule.findFirst({
         where: { projectId },
