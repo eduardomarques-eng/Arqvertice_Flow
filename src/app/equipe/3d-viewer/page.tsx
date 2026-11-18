@@ -1,19 +1,26 @@
 import { AppShell } from "@/components/app-shell";
-import { SectionHeading } from "@/components/section-heading";
-import { getUserFeatureVisibility, requirePageTeamRole } from "@/server/auth";
+import { SketchfabViewer } from "@/components/3d/sketchfab-viewer";
+import { requirePageTeamRole } from "@/server/auth";
 import { prisma } from "@/server/db";
-import {
-  Viewer3DHub,
-  type Viewer3DProjectOption,
-} from "@/components/viewer-3d/viewer-3d-hub";
 
 export const metadata = {
-  title: "3D Viewer — Equipe & Clientes | ArqVértice Flow",
+  title: "Visualizador 3D — Equipe ArqVértice Flow",
 };
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default async function Equipe3DViewerPage() {
+export default async function Equipe3DViewerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    assetId?: string;
+    projectId?: string;
+    file?: string;
+    title?: string;
+  }>;
+}) {
   const user = await requirePageTeamRole();
+  const { assetId, projectId, file, title } = await searchParams;
 
   const projectAccessFilter =
     user.role === "ADMIN"
@@ -25,39 +32,37 @@ export default async function Equipe3DViewerPage() {
           ],
         };
 
-  const [rawProjects, governance] = await Promise.all([
-    prisma.project.findMany({
-      where: projectAccessFilter,
-      select: {
-        id: true,
-        name: true,
-        client: { select: { name: true } },
-      },
-      orderBy: { name: "asc" },
-    }),
-    getUserFeatureVisibility(user.id, user.role),
-  ]);
-
-  const projects: Viewer3DProjectOption[] = rawProjects.map((p) => ({
-    id: p.id,
-    name: p.name,
-    clientName: p.client?.name || "Cliente",
-  }));
+  const assets = await prisma.project3DAsset.findMany({
+    where: {
+      ...(projectId ? { projectId } : {}),
+      ...(projectAccessFilter ? { project: projectAccessFilter } : {}),
+    },
+    select: {
+      id: true,
+      title: true,
+      projectId: true,
+      glbUrl: true,
+      project: { select: { name: true } },
+    },
+    orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+    take: 40,
+  });
 
   return (
-    <AppShell eyebrow="3D Viewer" role={user.role}>
-      <SectionHeading
-        title="3D Viewer — Visualização & Colaboração Técnica"
-        description="Ambiente unificado de visualização 3D governado por ProjectAccess e FeatureVisibility: navegação livre, inspeção de objetos, RFIs em 3D e ajustes procedurais conforme sua permissão."
+    <AppShell eyebrow="Visualizador 3D" role={user.role}>
+      <SketchfabViewer
+        initialAssets={assets.map((a) => ({
+          id: a.id,
+          title: a.title,
+          projectId: a.projectId,
+          projectName: a.project?.name || "Projeto",
+          glbUrl: a.glbUrl,
+        }))}
+        initialAssetId={assetId}
+        initialProjectId={projectId}
+        initialFileUrl={file}
+        initialTitle={title}
       />
-      <div className="mt-6">
-        <Viewer3DHub
-          basePath="/equipe"
-          projects={projects}
-          governance={governance}
-          userRole={user.role}
-        />
-      </div>
     </AppShell>
   );
 }

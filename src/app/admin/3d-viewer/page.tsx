@@ -1,54 +1,55 @@
 import { AppShell } from "@/components/app-shell";
-import { SectionHeading } from "@/components/section-heading";
-import { getUserFeatureVisibility, requirePageRole } from "@/server/auth";
+import { SketchfabViewer } from "@/components/3d/sketchfab-viewer";
+import { requirePageRole } from "@/server/auth";
 import { prisma } from "@/server/db";
-import { seedAcervoManagerDemo } from "@/server/services/acervo-seed";
-import {
-  Viewer3DHub,
-  type Viewer3DProjectOption,
-} from "@/components/viewer-3d/viewer-3d-hub";
 
 export const metadata = {
-  title: "3D Viewer — Workflow Hierárquico (Importação, Tratamento, Workspace & Exportação)",
+  title: "Visualizador 3D — ArqVértice Flow",
 };
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default async function Admin3DViewerPage() {
-  const user = await requirePageRole("ADMIN");
-  await seedAcervoManagerDemo();
+export default async function Admin3DViewerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    assetId?: string;
+    projectId?: string;
+    file?: string;
+    title?: string;
+  }>;
+}) {
+  await requirePageRole("ADMIN");
+  const { assetId, projectId, file, title } = await searchParams;
 
-  const [rawProjects, governance] = await Promise.all([
-    prisma.project.findMany({
-      select: {
-        id: true,
-        name: true,
-        client: { select: { name: true } },
-      },
-      orderBy: { name: "asc" },
-    }),
-    getUserFeatureVisibility(user.id, user.role),
-  ]);
-
-  const projects: Viewer3DProjectOption[] = rawProjects.map((p) => ({
-    id: p.id,
-    name: p.name,
-    clientName: p.client?.name || "Cliente",
-  }));
+  const assets = await prisma.project3DAsset.findMany({
+    where: projectId ? { projectId } : undefined,
+    select: {
+      id: true,
+      title: true,
+      projectId: true,
+      glbUrl: true,
+      project: { select: { name: true } },
+    },
+    orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+    take: 40,
+  });
 
   return (
-    <AppShell eyebrow="3D Viewer">
-      <SectionHeading
-        title="3D Viewer — Hub de Ingestão, Tratamento, Visualização & Exportação"
-        description="Ambiente dedicado e desacoplado do Acervo Manager para importação de modelos (.glb, .usdz, .fbx), otimização PBR/Meshopt com Mini-Preview (dpr=0.5), montagem de cena procedural e geração de renders."
+    <AppShell eyebrow="Visualizador 3D">
+      <SketchfabViewer
+        initialAssets={assets.map((a) => ({
+          id: a.id,
+          title: a.title,
+          projectId: a.projectId,
+          projectName: a.project?.name || "Projeto",
+          glbUrl: a.glbUrl,
+        }))}
+        initialAssetId={assetId}
+        initialProjectId={projectId}
+        initialFileUrl={file}
+        initialTitle={title}
       />
-      <div className="mt-6">
-        <Viewer3DHub
-          basePath="/admin"
-          projects={projects}
-          governance={governance}
-          userRole={user.role}
-        />
-      </div>
     </AppShell>
   );
 }
