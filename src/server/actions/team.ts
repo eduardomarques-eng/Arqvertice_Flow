@@ -336,3 +336,49 @@ export async function recordReminderLogAction(data: {
   revalidatePath("/admin/equipe");
   return { success: true, id: created.id };
 }
+
+export async function deleteTeamMemberAction(userId: string) {
+  const adminUser = await requireRole("ADMIN");
+
+  if (!userId || userId === adminUser.id) {
+    throw new Error("Você não pode excluir o próprio perfil autenticado.");
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, role: true, isActive: true },
+  });
+
+  if (!targetUser) {
+    throw new Error("Colaborador não encontrado.");
+  }
+
+  if (targetUser.role === "ADMIN" && targetUser.isActive) {
+    const remainingAdmins = await prisma.user.count({
+      where: {
+        role: "ADMIN",
+        isActive: true,
+        id: { not: userId },
+      },
+    });
+    if (remainingAdmins === 0) {
+      throw new Error("Não é possível excluir o único administrador ativo do sistema.");
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.session.deleteMany({ where: { userId } });
+    await tx.projectAccess.deleteMany({ where: { userId } });
+    await tx.featureVisibility.deleteMany({ where: { userId } });
+    await tx.acervoDisciplinePermission.deleteMany({ where: { userId } });
+    await tx.internalMessage.deleteMany({
+      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+    });
+    await tx.user.delete({ where: { id: userId } });
+  });
+
+  revalidatePath("/admin/equipe");
+  revalidatePath("/equipe/equipe");
+
+  return { success: true, deletedId: userId, deletedName: targetUser.name };
+}

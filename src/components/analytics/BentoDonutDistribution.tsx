@@ -9,14 +9,14 @@ export interface BentoDonutSlice {
   formattedValue?: string;
 }
 
-// Paleta monocromática + âmbar arquitetônico (Linear/Claude)
+// Paleta oficial ArqVértice Flow (Grafite Ônix + Âmbar Arquitetônico + Linho/Zinco)
 const MONO_AMBER_HEX = [
-  "#D97706", // Âmbar arquitetônico protagonista
-  "#18181B", // Studio Obsidian
-  "#71717A", // Zinc 500
+  "#18181B", // Grafite Ônix
+  "#B45309", // Âmbar Arquitetônico
+  "#52525B", // Zinc 600
+  "#D97706", // Âmbar Solar
   "#A1A1AA", // Zinc 400
-  "#D4D4D8", // Zinc 300
-  "#F59E0B", // Âmbar suave
+  "#D6CFC2", // Linho / Areia
 ];
 
 export function BentoDonutDistribution({
@@ -46,7 +46,7 @@ export function BentoDonutDistribution({
 
   return (
     <div
-      className={`min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 sm:p-5 shadow-2xs dark:border-white/10 dark:bg-[#18181B] ${className}`}
+      className={`min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 sm:p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:border-white/10 dark:bg-[#18181B] ${className}`}
     >
       <div className="mb-4">
         <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100 truncate">

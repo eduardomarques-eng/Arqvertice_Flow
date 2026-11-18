@@ -9,6 +9,12 @@ import { PrintButton } from "@/components/print-button";
 import { FinancialManagement, type Installment, type Stage } from "@/components/financial/financial-management";
 import type { ScheduleReport } from "@/lib/schedule-report";
 import { formatDateBR, formatCurrencyBRL } from "@/lib/formatters";
+import {
+  BentoDonutDistribution,
+  BentoHorizontalRanking,
+  BentoKpiStrip,
+  BentoTrendLineChart,
+} from "@/components/analytics";
 
 export interface UnifiedScheduleReportProps {
   projectId: string;
@@ -249,6 +255,151 @@ export function UnifiedScheduleReport({
                 <span>Base Neon Conectada</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Bento Dashboard Unificado do Relatório do Cronograma (Tela + @media print) */}
+        <div className="space-y-4 break-inside-avoid print-avoid-break">
+          <BentoKpiStrip
+            columns={4}
+            items={[
+              {
+                id: "rep-prog",
+                label: "Progresso Físico Geral",
+                value: `${report.overall.weightedProgress}%`,
+                featured: true,
+                subtitle: "Média ponderada do cronograma",
+              },
+              {
+                id: "rep-done",
+                label: "Etapas Concluídas",
+                value: `${doneStages.length} / ${sanitizedStages.length}`,
+                subtitle: "Marcos encerrados",
+              },
+              {
+                id: "rep-ontime",
+                label: "Marcos no Prazo",
+                value: `${
+                  sanitizedStages.length > 0
+                    ? Math.round(
+                        ((sanitizedStages.length -
+                          sanitizedStages.filter((s) => s.alert?.overdue).length) /
+                          sanitizedStages.length) *
+                          100
+                      )
+                    : 100
+                }%`,
+                deltaTone: hasOverdue ? "negative" : "positive",
+                delta: hasOverdue ? "Com atraso" : "No alvo",
+              },
+              {
+                id: "rep-dev",
+                label: "Previsão / Desvio",
+                value: hasOverdue ? "Atenção" : "Em dia",
+                subtitle: `${
+                  sanitizedStages.filter((s) => s.alert?.overdue).length
+                } etapa(s) com desvio`,
+              },
+            ]}
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 print:grid-cols-3 print:gap-2">
+            <BentoTrendLineChart
+              title="Curva S — Planejado × Realizado"
+              subtitle="Evolução acumulada (%)"
+              primaryLabel="Realizado (%)"
+              secondaryLabel="Planejado (%)"
+              points={[
+                { label: "Início", primary: 15, secondary: 20, primaryFormatted: "15%" },
+                {
+                  label: "Fase 2",
+                  primary: Math.min(100, Math.round(report.overall.weightedProgress * 0.55)),
+                  secondary: 50,
+                  primaryFormatted: `${Math.min(
+                    100,
+                    Math.round(report.overall.weightedProgress * 0.55)
+                  )}%`,
+                },
+                {
+                  label: "Fase 3",
+                  primary: Math.min(100, Math.round(report.overall.weightedProgress * 0.85)),
+                  secondary: 75,
+                  primaryFormatted: `${Math.min(
+                    100,
+                    Math.round(report.overall.weightedProgress * 0.85)
+                  )}%`,
+                },
+                {
+                  label: "Atual",
+                  primary: report.overall.weightedProgress,
+                  secondary: 100,
+                  primaryFormatted: `${report.overall.weightedProgress}%`,
+                },
+              ]}
+            />
+
+            <BentoHorizontalRanking
+              title="Avanço por Fase / Disciplina"
+              maxScale={100}
+              items={(() => {
+                const discMap = new Map<string, { sum: number; count: number }>();
+                for (const st of sanitizedStages) {
+                  const k = st.discipline || "Arquitetura";
+                  const cur = discMap.get(k) || { sum: 0, count: 0 };
+                  cur.sum += st.completion;
+                  cur.count += 1;
+                  discMap.set(k, cur);
+                }
+                return Array.from(discMap.entries())
+                  .slice(0, 5)
+                  .map(([label, v], i) => {
+                    const avg = Math.round(v.sum / Math.max(1, v.count));
+                    return {
+                      id: `${label}-${i}`,
+                      label,
+                      value: avg,
+                      formattedValue: `${avg}%`,
+                      highlight: i === 0,
+                    };
+                  });
+              })()}
+            />
+
+            <BentoDonutDistribution
+              title="Status das Tarefas"
+              centerLabel="Etapas"
+              centerValue={String(sanitizedStages.length)}
+              slices={[
+                {
+                  id: "done",
+                  label: "Concluídas",
+                  value: doneStages.length,
+                  formattedValue: String(doneStages.length),
+                },
+                {
+                  id: "inprog",
+                  label: "Em Andamento",
+                  value: runningStages.length,
+                  formattedValue: String(runningStages.length),
+                },
+                {
+                  id: "wait",
+                  label: "Aguardando",
+                  value: pendingStages.filter((s) => !s.alert?.overdue).length,
+                  formattedValue: String(
+                    pendingStages.filter((s) => !s.alert?.overdue).length
+                  ),
+                },
+                {
+                  id: "late",
+                  label: "Atrasadas",
+                  value: sanitizedStages.filter((s) => s.alert?.overdue).length,
+                  formattedValue: String(
+                    sanitizedStages.filter((s) => s.alert?.overdue).length
+                  ),
+                },
+              ]}
+            />
           </div>
         </div>
 

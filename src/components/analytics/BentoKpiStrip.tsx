@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { HorizontalScrollTrack } from "@/components/ui/horizontal-scroll-track";
 
 export interface BentoKpiItem {
   id: string;
@@ -21,42 +22,53 @@ export function BentoKpiStrip({
   columns?: 3 | 4 | 5 | 6;
   className?: string;
 }) {
-  const gridColsClass =
+  const desktopGridClass =
     columns === 3
-      ? "grid-cols-1 sm:grid-cols-3"
+      ? "md:grid md:grid-cols-3 md:gap-4"
       : columns === 4
-      ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+      ? "md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4"
       : columns === 5
-      ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
-      : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6";
+      ? "md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 md:gap-3"
+      : "md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 md:gap-3";
 
   return (
-    <div className={`grid ${gridColsClass} gap-3 ${className}`}>
+    <HorizontalScrollTrack
+      desktopGridClass={desktopGridClass}
+      itemCount={items.length}
+      label="Deslize os indicadores"
+      className={className}
+    >
       {items.map((item) => {
         const isFeatured = Boolean(item.featured);
         const deltaColor =
           item.deltaTone === "positive"
-            ? "text-emerald-700 bg-emerald-50 border-emerald-200/80 dark:text-emerald-300 dark:bg-emerald-500/15 dark:border-emerald-500/30"
+            ? "text-emerald-800 bg-emerald-50 border-emerald-200/80 dark:text-emerald-300 dark:bg-emerald-500/15 dark:border-emerald-500/30"
             : item.deltaTone === "negative"
-            ? "text-rose-700 bg-rose-50 border-rose-200/80 dark:text-rose-300 dark:bg-rose-500/15 dark:border-rose-500/30"
-            : "text-slate-600 bg-slate-100 border-slate-200/80 dark:text-slate-300 dark:bg-white/10 dark:border-white/10";
+            ? "text-rose-800 bg-rose-50 border-rose-200/80 dark:text-rose-300 dark:bg-rose-500/15 dark:border-rose-500/30"
+            : "text-zinc-700 bg-zinc-100 border-zinc-200/80 dark:text-zinc-300 dark:bg-white/10 dark:border-white/10";
 
         return (
           <div
             key={item.id}
-            className={`min-w-0 rounded-2xl border p-4 transition-colors ${
+            className={`min-w-[240px] sm:min-w-[250px] md:min-w-0 snap-start rounded-2xl p-4 sm:p-5 transition-colors ${
               isFeatured
-                ? "border-amber-500/40 bg-gradient-to-br from-[#EDE5D8]/60 via-white to-amber-50/40 dark:border-amber-500/40 dark:from-[#18181B] dark:via-[#18181B] dark:to-amber-950/20 shadow-sm"
-                : "border-slate-200/70 bg-white dark:border-white/10 dark:bg-[#18181B] shadow-2xs"
+                ? "border border-[#D6CFC2] bg-[#EDE5D8] text-[#18181B] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] dark:border-amber-500/40 dark:bg-[#18181B] dark:text-[#EDE5D8]"
+                : "border border-slate-200/70 bg-white text-slate-900 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:border-white/10 dark:bg-[#18181B] dark:text-slate-100"
             }`}
           >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+            <div className="flex items-start justify-between gap-2">
+              <p
+                className={`text-[11px] font-medium uppercase tracking-wider break-words whitespace-normal ${
+                  isFeatured
+                    ? "text-[#18181B]/75 dark:text-[#EDE5D8]/75"
+                    : "text-slate-500 dark:text-slate-400"
+                }`}
+              >
                 {item.label}
               </p>
               {item.delta && (
                 <span
-                  className={`shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums ${deltaColor}`}
+                  className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums ${deltaColor}`}
                 >
                   {item.delta}
                 </span>
@@ -64,7 +76,7 @@ export function BentoKpiStrip({
             </div>
 
             <p
-              className={`mt-2 font-mono text-lg sm:text-xl font-semibold tracking-tight tabular-nums truncate ${
+              className={`mt-2 font-mono text-xl sm:text-2xl font-semibold tracking-tight tabular-nums break-words ${
                 isFeatured
                   ? "text-[#18181B] dark:text-[#EDE5D8]"
                   : "text-slate-900 dark:text-slate-100"
@@ -75,13 +87,19 @@ export function BentoKpiStrip({
             </p>
 
             {item.subtitle && (
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <p
+                className={`mt-1 text-[11px] break-words whitespace-normal ${
+                  isFeatured
+                    ? "text-[#18181B]/70 dark:text-slate-400"
+                    : "text-slate-500 dark:text-slate-400"
+                }`}
+              >
                 {item.subtitle}
               </p>
             )}
           </div>
         );
       })}
-    </div>
+    </HorizontalScrollTrack>
   );
 }

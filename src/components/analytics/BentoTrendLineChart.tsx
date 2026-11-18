@@ -64,7 +64,7 @@ export function BentoTrendLineChart({
 
   return (
     <div
-      className={`min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 sm:p-5 shadow-2xs dark:border-white/10 dark:bg-[#18181B] ${className}`}
+      className={`min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 sm:p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:border-white/10 dark:bg-[#18181B] ${className}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
         <div className="min-w-0">

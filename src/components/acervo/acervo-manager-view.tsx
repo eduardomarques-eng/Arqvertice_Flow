@@ -299,8 +299,8 @@ export function AcervoManagerView({
             id: `${d.discipline}-${i}`,
             label: d.discipline,
             secondaryText: `${d.bomParaObra} liberada(s)`,
-            value: d.bomParaObra + d.emAnalise,
-            formattedValue: String(d.bomParaObra + d.emAnalise),
+            value: d.bomParaObra + d.emAndamento,
+            formattedValue: String(d.bomParaObra + d.emAndamento),
             highlight: i === 0,
           }))}
         />
@@ -331,7 +331,7 @@ export function AcervoManagerView({
           data={chartData.slice(0, 5).map((d) => ({
             label: d.discipline.slice(0, 6),
             primaryValue: d.bomParaObra,
-            secondaryValue: d.emAnalise,
+            secondaryValue: d.emAndamento,
           }))}
         />
       </div>

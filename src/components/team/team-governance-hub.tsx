@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo, useCallback } from "react";
+import { useState, useTransition, useMemo, useCallback, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RealtimeSyncBadge, useRealtimeMutation } from "@/hooks/use-realtime-mutation";
@@ -13,6 +13,7 @@ import {
   updateTeamMemberProfileAction,
   updateTeamMemberGovernanceAction,
   createTeamMemberAction,
+  deleteTeamMemberAction,
   recordReminderLogAction,
   dispatchCommunicationAction,
   type CreateProfileInput,
@@ -157,12 +158,26 @@ export function TeamGovernanceHub({
   commLogs,
 }: TeamGovernanceHubProps) {
   const [mainView, setMainView] = useState<"members" | "dispatcher" | "traffic">("members");
+  const [membersList, setMembersList] = useState<TeamMemberData[]>(members);
   const [selectedMember, setSelectedMember] = useState<TeamMemberData | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<TeamMemberData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
   const [activeTab, setActiveTab] = useState<"profile" | "rbac" | "reminders">("profile");
   const [search, setSearch] = useState("");
   const [isNewProfileModalOpen, setIsNewProfileModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    setMembersList(members);
+  }, [members]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   // Form states do Drawer de Edição
   const [editName, setEditName] = useState("");
@@ -281,15 +296,41 @@ export function TeamGovernanceHub({
 
   const filteredMembers = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return members;
-    return members.filter(
+    if (!q) return membersList;
+    return membersList.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
         (m.specialty && m.specialty.toLowerCase().includes(q)) ||
         m.email.toLowerCase().includes(q) ||
         m.role.toLowerCase().includes(q)
     );
-  }, [members, search]);
+  }, [membersList, search]);
+
+  const confirmDeleteMember = async () => {
+    if (!memberToDelete || isDeleting) return;
+    const target = memberToDelete;
+    const previousMembers = membersList;
+
+    setMemberToDelete(null);
+    setIsDeleting(true);
+    setMembersList((prev) => prev.filter((m) => m.id !== target.id));
+    if (selectedMember?.id === target.id) {
+      setSelectedMember(null);
+    }
+    setToast({ text: `Perfil de ${target.name} excluído com sucesso.`, ok: true });
+
+    try {
+      await deleteTeamMemberAction(target.id);
+    } catch (err) {
+      setMembersList(previousMembers);
+      setToast({
+        text: err instanceof Error ? err.message : "Erro ao excluir perfil do colaborador.",
+        ok: false,
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleSaveProfile = () => {
     if (!selectedMember) return;
@@ -660,13 +701,42 @@ export function TeamGovernanceHub({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                     <span className={`text-[10px] font-bold ${member.isActive ? "text-emerald-700" : "text-slate-400"}`}>
                       {member.isActive ? "● Conta Ativa" : "○ Inativa"}
                     </span>
-                    <span className="text-xs font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
-                      Gerenciar Perfil & Obras →
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMemberToDelete(member);
+                        }}
+                        title={`Excluir perfil de ${member.name}`}
+                        aria-label={`Excluir perfil de ${member.name}`}
+                        className="inline-flex min-h-[36px] items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                        <span>Excluir Perfil</span>
+                      </button>
+                      <span className="text-xs font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
+                        Gerenciar →
+                      </span>
+                    </div>
                   </div>
                 </Card>
               );
@@ -1728,6 +1798,76 @@ export function TeamGovernanceHub({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão de Perfil */}
+      {memberToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 border border-rose-200">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-slate-900">Excluir Perfil de Colaborador</h3>
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                  Tem certeza que deseja excluir permanentemente o perfil de{" "}
+                  <strong className="text-slate-900">{memberToDelete.name}</strong> (
+                  <span className="font-mono text-slate-700 break-all">{memberToDelete.email}</span>)?
+                </p>
+                <p className="mt-2 text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                  Sessões, permissões de módulos e vínculos de acesso a projetos deste usuário serão removidos imediatamente.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setMemberToDelete(null)}
+                className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDeleteMember}
+                className="inline-flex min-h-[44px] items-center rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 active:scale-[0.98] transition disabled:opacity-50"
+              >
+                {isDeleting ? "Excluindo..." : "Confirmar Exclusão"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Otimista de Feedback */}
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-5 right-5 z-[60] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-lg transition-all ${
+            toast.ok
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-rose-200 bg-rose-50 text-rose-900"
+          }`}
+        >
+          {toast.text}
         </div>
       )}
     </div>
