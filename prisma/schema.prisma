@@ -1781,16 +1781,19 @@ model WhatsAppConversation {
 }
 
 model WhatsAppMessage {
-  id             String               @id @default(uuid()) @db.Uuid
-  conversationId String               @db.Uuid
-  direction      String // INBOUND | OUTBOUND
-  bodyText       String               @db.Text
-  mediaUrl       String?
-  status         String               @default("SENT") // QUEUED | SENT | DELIVERED | RECEIVED | FAILED
-  providerMsgId  String?
-  rfiId          String?              @db.Uuid
-  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime             @default(now())
+  id               String               @id @default(uuid()) @db.Uuid
+  conversationId   String               @db.Uuid
+  direction        String // INBOUND | OUTBOUND
+  bodyText         String               @db.Text
+  mediaUrl         String?
+  status           String               @default("SENT") // QUEUED | SENT | DELIVERED | RECEIVED | FAILED
+  providerMsgId    String?
+  rfiId            String?              @db.Uuid
+  aiIntent         String?
+  aiSuggestedReply String?              @db.Text
+  aiModel          String?
+  conversation     WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime             @default(now())
 
   @@index([conversationId, createdAt])
 }

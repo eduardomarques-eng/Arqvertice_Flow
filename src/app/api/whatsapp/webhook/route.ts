@@ -139,6 +139,10 @@ export async function POST(req: Request) {
           status: "RECEIVED",
           providerMsgId:
             typeof data.messageId === "string" ? data.messageId : null,
+          aiIntent: typeof data.aiIntent === "string" ? data.aiIntent : null,
+          aiSuggestedReply:
+            typeof data.aiSuggestedReply === "string" ? data.aiSuggestedReply : null,
+          aiModel: typeof data.aiModel === "string" ? data.aiModel : null,
         },
       });
     }

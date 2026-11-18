@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/server/auth";
@@ -13,6 +14,51 @@ export const revalidate = 0;
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
 };
+
+function isValidGatewayKey(req: Request): boolean {
+  const provided =
+    req.headers.get("x-api-key") || req.headers.get("x-webhook-secret") || "";
+  const expected =
+    process.env.WA_AKG_API_KEY?.trim() ||
+    process.env.WA_AKG_WEBHOOK_SECRET?.trim() ||
+    "";
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided.trim());
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+async function probeLocalGatewayHealth(gatewayUrl: string | null | undefined) {
+  if (!gatewayUrl) {
+    return { online: false, mode: "local-windows", ollamaOnline: false, ollamaModel: null as string | null };
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/health`, {
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      return { online: false, mode: "local-windows", ollamaOnline: false, ollamaModel: null as string | null };
+    }
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      mode?: string;
+      ollamaOnline?: boolean;
+      ollamaModel?: string | null;
+    };
+    return {
+      online: Boolean(data.ok),
+      mode: data.mode || "local-windows",
+      ollamaOnline: Boolean(data.ollamaOnline),
+      ollamaModel: data.ollamaModel || null,
+    };
+  } catch {
+    return { online: false, mode: "local-windows", ollamaOnline: false, ollamaModel: null as string | null };
+  }
+}
 
 export async function GET() {
   const user = await currentUser();
@@ -52,11 +98,14 @@ export async function GET() {
     }),
   ]);
 
+  const gatewayHealth = await probeLocalGatewayHealth(gatewayConfig?.gatewayUrl);
+
   return NextResponse.json(
     {
       mySession,
       teamSessions,
       gatewayConfig,
+      gatewayHealth,
       conversations,
     },
     { headers: NO_STORE_HEADERS }
@@ -64,11 +113,6 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const user = await currentUser();
-  if (!user || user.role === "CLIENTE" || user.role === "CLIENT") {
-    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  }
-
   const body = (await req.json().catch(() => ({}))) as {
     action?: "start" | "logout" | "toggle_privacy" | "update_gateway";
     targetUserId?: string;
@@ -80,6 +124,29 @@ export async function POST(req: Request) {
     autoNotifyFinance?: boolean;
     autoNotifyBooking?: boolean;
   };
+
+  if (body.action === "update_gateway" && isValidGatewayKey(req)) {
+    const updatedGateway = await prisma.whatsAppGatewayConfig.upsert({
+      where: { id: "default" },
+      update: {
+        ...(body.gatewayUrl !== undefined ? { gatewayUrl: body.gatewayUrl?.trim() || null } : {}),
+        apiKeyConfigured: true,
+      },
+      create: {
+        id: "default",
+        gatewayUrl: body.gatewayUrl?.trim() || null,
+        apiKeyConfigured: true,
+      },
+    });
+    revalidatePath("/admin/whatsapp");
+    revalidatePath("/equipe/whatsapp");
+    return NextResponse.json({ ok: true, gatewayConfig: updatedGateway });
+  }
+
+  const user = await currentUser();
+  if (!user || user.role === "CLIENTE" || user.role === "CLIENT") {
+    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  }
 
   const mySession = await ensureWhatsAppBootstrapForUser(user);
   const targetSession =

@@ -113,7 +113,12 @@ export function middleware(request: NextRequest) {
   //    porque o middleware não consulta o banco. O cookie de papel impede que um
   //    técnico pouse em /admin, um admin em /equipe ou um cliente em qualquer um
   //    dos dois, já no primeiro byte da resposta.
-  if (!isPublicPath(pathname) && isProtectedPath(pathname)) {
+  const hasGatewayApiKey =
+    pathname === "/api/whatsapp/session" &&
+    request.method === "POST" &&
+    Boolean(request.headers.get("x-api-key") || request.headers.get("x-webhook-secret"));
+
+  if (!isPublicPath(pathname) && isProtectedPath(pathname) && !hasGatewayApiKey) {
     const sessionCookie = request.cookies.get(SESSION_COOKIE);
     const currentBuildId = process.env.APP_BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID;
     const cookieBuildId = request.cookies.get("arqvertice_build_id")?.value;

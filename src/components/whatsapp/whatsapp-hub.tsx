@@ -27,6 +27,9 @@ export interface WaMessageDTO {
   direction: string;
   bodyText: string;
   status: string;
+  aiIntent?: string | null;
+  aiSuggestedReply?: string | null;
+  aiModel?: string | null;
   createdAt: string;
 }
 
@@ -93,6 +96,19 @@ export function WhatsAppMultiSessionHub({
   const [selectedAcervoCode, setSelectedAcervoCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [gatewayHealth, setGatewayHealth] = useState<{
+    online: boolean;
+    ollamaOnline: boolean;
+    ollamaModel: string | null;
+  }>({
+    online: Boolean(initialGatewayUrl),
+    ollamaOnline: false,
+    ollamaModel: null,
+  });
+  const [copiedCmd, setCopiedCmd] = useState(false);
+
+  const LOCAL_START_CMD =
+    'powershell -ExecutionPolicy Bypass -File "C:\\Users\\eduar\\OneDrive\\Documentos\\ArqVertice_Flow\\wa-akg-service\\start-local-gateway.ps1"';
 
   const templates = useMemo(
     () => buildWhatsAppTemplates(studioPixKey, studioPixKeyType),
@@ -121,10 +137,12 @@ export function WhatsAppMultiSessionHub({
         mySession?: WaSessionDTO;
         teamSessions?: WaSessionDTO[];
         conversations?: WaConversationDTO[];
+        gatewayHealth?: { online: boolean; ollamaOnline: boolean; ollamaModel: string | null };
       };
       if (data.mySession) setMySession(data.mySession);
       if (data.teamSessions) setTeamSessions(data.teamSessions);
       if (data.conversations) setConversations(data.conversations);
+      if (data.gatewayHealth) setGatewayHealth(data.gatewayHealth);
     }
     router.refresh();
   };
@@ -176,8 +194,8 @@ export function WhatsAppMultiSessionHub({
         }),
       });
       if (res.ok) {
-        setFeedback("URL do Gateway Railway salva com sucesso.");
-        router.refresh();
+        setFeedback("URL do Túnel Cloudflare (Gateway Local) salva com sucesso.");
+        await refreshState();
       }
     } finally {
       setBusy(false);
@@ -237,17 +255,28 @@ export function WhatsAppMultiSessionHub({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <span className="inline-flex items-center rounded-md bg-emerald-700 dark:bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:text-zinc-950">
-            WA-AKG Multi-Sessão • Railway
+            Gateway Local Windows + Ollama (Túnel HTTPS)
           </span>
           <h1 className="mt-1.5 text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-50">
             Central WhatsApp Multi-Usuário
           </h1>
           <p className="text-xs text-slate-500 dark:text-zinc-400">
-            Pareamento QR Code individual por Arquiteto e Engenheiro, filtro de privacidade e templates Pix ({studioPixKeyType}: {studioPixKey}).
+            Pareamento QR Code individual por Arquiteto e Engenheiro, triagem IA via Ollama Local e templates Pix ({studioPixKeyType}: {studioPixKey}).
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard?.writeText(LOCAL_START_CMD);
+              setCopiedCmd(true);
+              setTimeout(() => setCopiedCmd(false), 2500);
+            }}
+            className="min-h-[40px] rounded-xl border border-slate-300 dark:border-zinc-700 bg-[#F4F4F8] dark:bg-[#1E1E27] px-3.5 py-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-[#EDE5D8] dark:hover:bg-zinc-800 transition"
+          >
+            {copiedCmd ? "Comando Copiado!" : "Copiar Comando de Inicialização Local"}
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab("chats")}
@@ -291,9 +320,11 @@ export function WhatsAppMultiSessionHub({
           },
           {
             id: "wa-team-online",
-            label: "Sessões Online",
-            value: `${onlineTeamCount} / ${teamSessions.length}`,
-            subtitle: "Arquitetos & Engenheiros",
+            label: "Gateway Local + Ollama",
+            value: gatewayHealth.online ? "Online" : "Aguardando script",
+            subtitle: gatewayHealth.ollamaOnline
+              ? `Ollama: ${gatewayHealth.ollamaModel || "Ativo"}`
+              : `${onlineTeamCount}/${teamSessions.length} sessões • Ollama standby`,
           },
           {
             id: "wa-convs",
@@ -508,6 +539,22 @@ export function WhatsAppMultiSessionHub({
                       <p className="whitespace-pre-wrap text-slate-900 dark:text-zinc-100">
                         {m.bodyText}
                       </p>
+                      {m.aiIntent && m.direction === "INBOUND" && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="rounded bg-[#EDE5D8] dark:bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold text-[#18181B] dark:text-amber-200">
+                            Ollama: {m.aiIntent}
+                          </span>
+                          {m.aiSuggestedReply && (
+                            <button
+                              type="button"
+                              onClick={() => setComposeText(m.aiSuggestedReply || "")}
+                              className="rounded border border-amber-400/60 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:text-amber-200 hover:opacity-90"
+                            >
+                              Usar Resposta Sugerida pelo Ollama
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-500 dark:text-zinc-400">
                         <span>{m.status}</span>
                         <button
@@ -638,14 +685,14 @@ export function WhatsAppMultiSessionHub({
           {isAdmin && (
             <Card className="p-5 rounded-2xl space-y-3">
               <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-50">
-                Gateway Multi-Sessão WA-AKG (Railway)
+                Gateway Local Windows + Túnel Cloudflare (`start-local-gateway.ps1`)
               </h3>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="url"
                   value={gatewayUrlInput}
                   onChange={(e) => setGatewayUrlInput(e.target.value)}
-                  placeholder="https://wa-akg-service-production.up.railway.app"
+                  placeholder="https://xxxx.trycloudflare.com"
                   className="h-10 flex-1 rounded-xl px-3 text-xs"
                 />
                 <button
@@ -654,7 +701,7 @@ export function WhatsAppMultiSessionHub({
                   onClick={handleSaveGateway}
                   className="min-h-[40px] rounded-xl bg-[#18181B] dark:bg-[#EDE5D8] px-4 py-2 text-xs font-bold text-white dark:text-[#18181B]"
                 >
-                  Salvar URL Railway
+                  Salvar URL Túnel
                 </button>
               </div>
             </Card>
