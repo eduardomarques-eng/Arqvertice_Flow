@@ -81,7 +81,24 @@ export async function GET() {
           })),
         ];
 
-    const dbStates = await prisma.pipeline3DAssetState.findMany().catch(() => []);
+    const dbStates = await prisma.pipeline3DAssetState
+      .findMany({
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          sourcePath: true,
+          sourceFormat: true,
+          pipelineStatus: true,
+          stepCompleted: true,
+          outputUrl: true,
+          fileSizeBytes: true,
+          diagnostics: true,
+          logs: true,
+          updatedAt: true,
+        },
+      })
+      .catch(() => []);
     const stateMap = new Map(dbStates.map((s) => [s.id, s]));
 
     const items: (Pipeline3DAssetItem & { logs?: string[]; updatedAt?: string })[] = baseItems.map(

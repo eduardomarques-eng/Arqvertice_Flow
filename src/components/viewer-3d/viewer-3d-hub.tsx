@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { RealtimeSyncBadge, type RealtimeSyncStatus } from "@/hooks/use-realtime-mutation";
 import type {
   Pipeline3DAssetItem,
   Pipeline3DStatus,
@@ -150,6 +151,7 @@ export function Viewer3DHub({
   const [loading, setLoading] = useState(true);
   const [selectedAssetId, setSelectedAssetId] = useState<string>("tpl-cozinha-interna");
   const [runningStep, setRunningStep] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<RealtimeSyncStatus>("idle");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("MODEL");
@@ -255,8 +257,31 @@ export function Viewer3DHub({
       step: Pipeline3DStepId,
       extra?: { fileName?: string; base64File?: string }
     ) => {
+      if (runningStep) return;
       setRunningStep(`${item.id}:${step}`);
+      setSyncStatus("syncing");
       setFeedback(null);
+
+      // Atualização otimista imediata (0ms) na UI
+      const prevSnapshot = data;
+      setData((curr) =>
+        curr
+          ? {
+              ...curr,
+              items: curr.items.map((it) =>
+                it.id === item.id
+                  ? {
+                      ...it,
+                      stepCompleted: step,
+                      pipelineStatus: step === "BUILD_MESHOPT" ? "READY" : it.pipelineStatus,
+                    }
+                  : it
+              ),
+            }
+          : curr
+      );
+      setSelectedAssetId(item.id);
+
       try {
         const res = await fetch("/api/acervo/pipeline-3d/step", {
           method: "POST",
@@ -267,6 +292,7 @@ export function Viewer3DHub({
             assetName: item.name,
             category: item.category,
             sourceFormat: item.sourceFormat,
+            projectId: selectedProjectId !== "ALL" ? selectedProjectId : undefined,
             fileName: extra?.fileName,
             base64File: extra?.base64File,
           }),
@@ -276,14 +302,17 @@ export function Viewer3DHub({
           throw new Error(json.error || "Falha ao processar etapa do Pipeline 3D.");
         }
         await loadInventory();
-        setSelectedAssetId(item.id);
+        setSyncStatus("saved");
+        setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2400);
       } catch (err) {
+        if (prevSnapshot) setData(prevSnapshot);
+        setSyncStatus("error");
         setFeedback(err instanceof Error ? err.message : "Erro ao processar arquivo 3D.");
       } finally {
         setRunningStep(null);
       }
     },
-    [loadInventory]
+    [data, loadInventory, runningStep, selectedProjectId]
   );
 
   const handleDirectUpload = async (item: ExtendedPipelineItem, file: File) => {
@@ -404,6 +433,7 @@ export function Viewer3DHub({
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#18181B] px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#EDE5D8] dark:bg-[#EDE5D8] dark:text-[#18181B]">
               <span>🧊</span> Módulo Isolado · 3D Viewer
             </span>
+            <RealtimeSyncBadge status={syncStatus} errorMessage={feedback} />
             <span className="rounded-full border border-slate-200 bg-[#F5F5F7] px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-white/10 dark:bg-[#09090B] dark:text-slate-300">
               Permissão RBAC:{" "}
               <strong>

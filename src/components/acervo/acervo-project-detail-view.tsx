@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { RealtimeSyncBadge, useRealtimeMutation } from "@/hooks/use-realtime-mutation";
 import { formatDateBR } from "@/lib/formatters";
 import type { WorkspaceRfiItem } from "@/components/acervo/cde-workspace-viewer";
 import type { ExtractedIfcTakeoff } from "@/engines/bim-3d/types";
@@ -129,10 +130,48 @@ export function AcervoProjectDetailView({
     optimizationStats: DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
   };
 
-  const [selectedDocId, setSelectedDocId] = useState<string>(project.documents[0]?.id || "");
+  const {
+    state: docsState,
+    mutate: mutateDocStatus,
+    syncStatus: docSyncStatus,
+    errorMessage: docSyncError,
+  } = useRealtimeMutation<
+    ProjectDetailData["documents"],
+    { revisionId: string; toStatus: string }
+  >({
+    initialState: project.documents,
+    debounceMs: 0,
+    applyOptimistic: (curr, { revisionId, toStatus }) =>
+      curr.map((doc) => ({
+        ...doc,
+        revisions: doc.revisions.map((rev) =>
+          rev.id === revisionId ? { ...rev, status: toStatus } : rev
+        ),
+      })),
+    commitMutation: useCallback(
+      async ({ revisionId, toStatus }) => {
+        const res = await fetch(`/api/acervo/revisions/${revisionId}/transition`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            toStatus,
+            action: `PARECER_${toStatus}`,
+            notes: `Parecer técnico registrado por ${userRole} no Workspace CDE`,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Erro ao registrar parecer técnico.");
+        }
+      },
+      [userRole]
+    ),
+  });
+
+  const [selectedDocId, setSelectedDocId] = useState<string>(docsState[0]?.id || "");
   const currentDoc = useMemo(
-    () => project.documents.find((d) => d.id === selectedDocId) || project.documents[0],
-    [project.documents, selectedDocId]
+    () => docsState.find((d) => d.id === selectedDocId) || docsState[0],
+    [docsState, selectedDocId]
   );
 
   const [selectedRevId, setSelectedRevId] = useState<string>(
@@ -259,29 +298,10 @@ export function AcervoProjectDetailView({
     }
   }
 
-  async function handleStatusTransition(revisionId: string, toStatus: string) {
+  function handleStatusTransition(revisionId: string, toStatus: string) {
     setIsUpdatingStatus(true);
-    try {
-      const res = await fetch(`/api/acervo/revisions/${revisionId}/transition`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          toStatus,
-          action: `PARECER_${toStatus}`,
-          notes: `Parecer técnico registrado por ${userRole} no Workspace CDE`,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        alert(data.error || "Erro ao registrar parecer técnico.");
-      }
-    } catch {
-      alert("Falha de conexão com o servidor.");
-    } finally {
-      setIsUpdatingStatus(false);
-    }
+    mutateDocStatus({ revisionId, toStatus }, { immediate: true });
+    setIsUpdatingStatus(false);
   }
 
   function handleDownloadClick(revId: string, status: string, fileUrl: string) {
@@ -465,21 +485,22 @@ export function AcervoProjectDetailView({
     <div className="space-y-5">
       {/* Navegação Superior & Seletor Rápido de Pranchas do Empreendimento */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <Link href={`${basePath}/acervo`} className="font-medium text-slate-500 hover:text-slate-900">
             ← Acervo Manager
           </Link>
           <span className="text-slate-300">/</span>
           <span className="font-semibold text-slate-900">{project.name}</span>
+          <RealtimeSyncBadge status={docSyncStatus} errorMessage={docSyncError} />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={currentDoc?.id || ""}
             onChange={(e) => setSelectedDocId(e.target.value)}
-            className="h-9 max-w-xs rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-medium text-slate-800 shadow-sm focus:border-[#18181B] focus:outline-none"
+            className="min-h-[44px] max-w-xs rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-medium text-slate-800 shadow-sm focus:border-[#18181B] focus:outline-none"
           >
-            {project.documents.map((d) => (
+            {docsState.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.code} — {d.title}
               </option>

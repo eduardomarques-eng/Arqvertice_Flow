@@ -139,7 +139,7 @@ export async function AppShell({
   const groupLabel = isClient ? "Meu projeto" : effectiveRole === "ADMIN" ? "Administração" : "Painel Técnico";
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#09090B] dark:text-slate-300 pb-20 lg:pb-0 transition-colors duration-200">
+    <div className="min-h-dvh overflow-x-hidden bg-[#f5f5f7] dark:bg-[#09090B] dark:text-slate-300 pb-20 lg:pb-0 transition-colors duration-200">
       {/* Tab Guard de Sessão Efêmera no Cliente */}
       <SessionGuard />
 

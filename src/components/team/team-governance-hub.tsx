@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { RealtimeSyncBadge, useRealtimeMutation } from "@/hooks/use-realtime-mutation";
 import {
   updateTeamMemberProfileAction,
   updateTeamMemberGovernanceAction,
@@ -197,6 +198,57 @@ export function TeamGovernanceHub({
 
   const [trafficUserFilter, setTrafficUserFilter] = useState<string>("ALL");
   const [trafficEventFilter, setTrafficEventFilter] = useState<string>("ALL");
+
+  // Mutação otimista com auto-save em lote (400ms) para Governança & ProjectAccess
+  const {
+    syncStatus: govSyncStatus,
+    errorMessage: govSyncError,
+    mutate: triggerRealtimeGovernanceSave,
+  } = useRealtimeMutation<
+    {
+      userId: string;
+      role: TeamMemberData["role"];
+      isActive: boolean;
+      canEdit: boolean;
+      projectIds: string[];
+      permissions: string[];
+      viewerMode: "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT";
+      canProceduralEdit: boolean;
+      canExportRenders: boolean;
+    },
+    {
+      userId: string;
+      role: TeamMemberData["role"];
+      isActive: boolean;
+      canEdit: boolean;
+      projectIds: string[];
+      permissions: string[];
+      viewerMode: "READ_ONLY" | "PROCEDURAL_EDIT" | "FULL_RENDER_EXPORT";
+      canProceduralEdit: boolean;
+      canExportRenders: boolean;
+    }
+  >({
+    initialState: {
+      userId: "",
+      role: "ARQUITETO",
+      isActive: true,
+      canEdit: false,
+      projectIds: [],
+      permissions: [],
+      viewerMode: "READ_ONLY",
+      canProceduralEdit: false,
+      canExportRenders: false,
+    },
+    debounceMs: 400,
+    applyOptimistic: (_curr, payload) => payload,
+    commitMutation: useCallback(async (payload) => {
+      if (!payload.userId) return;
+      await updateTeamMemberGovernanceAction(payload);
+    }, []),
+    onError: useCallback((msg: string) => {
+      setFeedback({ text: msg, ok: false });
+    }, []),
+  });
 
   const openDrawer = (member: TeamMemberData, defaultTab: "profile" | "rbac" | "reminders" = "profile") => {
     setSelectedMember(member);
@@ -1142,6 +1194,12 @@ export function TeamGovernanceHub({
               {/* ABA 2: GOVERNANÇA (RBAC) & PERMISSÕES GRANULARES */}
               {activeTab === "rbac" && (
                 <div className="space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/70 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                    <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      Auto-save em segundo plano ativo (0ms na UI · sincronização em lote 400ms)
+                    </span>
+                    <RealtimeSyncBadge status={govSyncStatus} errorMessage={govSyncError} />
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1288,6 +1346,19 @@ export function TeamGovernanceHub({
                               setEditViewerMode(opt.mode);
                               setEditCanProcedural(opt.procedural);
                               setEditCanExportRenders(opt.exportRenders);
+                              if (selectedMember) {
+                                triggerRealtimeGovernanceSave({
+                                  userId: selectedMember.id,
+                                  role: editRole,
+                                  isActive: editIsActive,
+                                  canEdit: editCanEdit,
+                                  projectIds: editProjects,
+                                  permissions: editPermissions,
+                                  viewerMode: opt.mode,
+                                  canProceduralEdit: opt.procedural,
+                                  canExportRenders: opt.exportRenders,
+                                });
+                              }
                             }}
                             className={`flex flex-col items-start rounded-2xl border p-3 text-left transition ${
                               selected
@@ -1356,10 +1427,22 @@ export function TeamGovernanceHub({
                               type="checkbox"
                               checked={checked}
                               onChange={(e) => {
-                                if (e.target.checked) {
-                                  setEditProjects([...editProjects, proj.id]);
-                                } else {
-                                  setEditProjects(editProjects.filter((id) => id !== proj.id));
+                                const nextProjects = e.target.checked
+                                  ? [...editProjects, proj.id]
+                                  : editProjects.filter((id) => id !== proj.id);
+                                setEditProjects(nextProjects);
+                                if (selectedMember) {
+                                  triggerRealtimeGovernanceSave({
+                                    userId: selectedMember.id,
+                                    role: editRole,
+                                    isActive: editIsActive,
+                                    canEdit: editCanEdit,
+                                    projectIds: nextProjects,
+                                    permissions: editPermissions,
+                                    viewerMode: editViewerMode,
+                                    canProceduralEdit: editCanProcedural,
+                                    canExportRenders: editCanExportRenders,
+                                  });
                                 }
                               }}
                               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"

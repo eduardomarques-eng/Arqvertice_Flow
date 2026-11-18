@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as THREE from "three";
+import { RealtimeSyncBadge, type RealtimeSyncStatus } from "@/hooks/use-realtime-mutation";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -144,6 +145,41 @@ interface StoredOriginalMaterial {
   preset: SmartPbrShaderPreset;
 }
 
+/**
+ * Isolamento da sub-árvore WebGL (<Canvas>) via React.memo:
+ * Abrir painéis de objeto selecionado, digitar RFIs ou alternar abas nunca re-renderiza o viewport 3D.
+ */
+const StudioWebGLCanvasViewport = React.memo(function StudioWebGLCanvasViewport({
+  mountRef,
+  rtOverlayCanvasRef,
+  isConverged,
+}: {
+  mountRef: React.RefObject<HTMLDivElement | null>;
+  rtOverlayCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  isConverged: boolean;
+}) {
+  return (
+    <>
+      <div
+        ref={mountRef}
+        className="absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing touch-none"
+      />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 58%, rgba(12,12,16,0.34) 100%)",
+        }}
+      />
+      <canvas
+        ref={rtOverlayCanvasRef}
+        className="pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-300"
+        style={{ opacity: isConverged ? 1 : 0 }}
+      />
+    </>
+  );
+});
+
 export default function Studio3DFullscreenEngine({
   initialAsset,
   availableAssets,
@@ -246,6 +282,7 @@ export default function Studio3DFullscreenEngine({
   >("none");
 
   const [pipelineStage, setPipelineStage] = useState<RenderPipelineStage>("NAVIGATING_60FPS");
+  const [syncStatus, setSyncStatus] = useState<RealtimeSyncStatus>("idle");
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -279,6 +316,28 @@ export default function Studio3DFullscreenEngine({
   const currentSkyTextureRef = useRef<THREE.Texture | null>(null);
   const groundTexturesCacheRef = useRef<Map<string, THREE.Texture>>(new Map());
   const storedMaterialsRef = useRef<StoredOriginalMaterial[]>([]);
+
+  // Refs diretos para mutação GPU 60 FPS sem re-render React durante arrasto de sliders
+  const gpuSettingsRef = useRef({
+    skyTurbidity: 3.2,
+    skyRayleigh: 1.8,
+    sunAzimuthDeg: 135,
+    sunElevationDeg: 52,
+    exposure: 1.08,
+    giAoIntensity: 1.15,
+    groundScale: 10,
+    groundRotationDeg: 0,
+    groundColorHex: "#E2DCD2",
+  });
+  const turbidityLabelRef = useRef<HTMLSpanElement | null>(null);
+  const rayleighLabelRef = useRef<HTMLSpanElement | null>(null);
+  const azimuthLabelRef = useRef<HTMLSpanElement | null>(null);
+  const elevationLabelRef = useRef<HTMLSpanElement | null>(null);
+  const groundScaleLabelRef = useRef<HTMLSpanElement | null>(null);
+  const groundRotLabelRef = useRef<HTMLSpanElement | null>(null);
+  const exposureLabelRef = useRef<HTMLSpanElement | null>(null);
+  const giAoLabelRef = useRef<HTMLSpanElement | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Live state refs for keyboard shortcuts inside event listeners
   const visualModeRef = useRef<StudioVisualMode>(visualMode);
@@ -339,7 +398,7 @@ export default function Studio3DFullscreenEngine({
     }, 3000);
   }, []);
 
-  // Wake up the demand render loop (Stage 1: 60 FPS Navigation)
+  // Wake up the demand render loop (Stage 1: 60 FPS Navigation) with adaptive DPR
   const wakeRenderLoop = useCallback(() => {
     lastInteractionTimeRef.current = performance.now();
     needsRenderRef.current = true;
@@ -348,7 +407,8 @@ export default function Studio3DFullscreenEngine({
       stageRef.current = "NAVIGATING_60FPS";
       setPipelineStage("NAVIGATING_60FPS");
       if (rendererRef.current && typeof window !== "undefined") {
-        const agileDpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        const isMobile = window.innerWidth < 768;
+        const agileDpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.5);
         if (rendererRef.current.getPixelRatio() !== agileDpr) {
           rendererRef.current.setPixelRatio(agileDpr);
         }
@@ -361,6 +421,92 @@ export default function Studio3DFullscreenEngine({
       }
     }
   }, []);
+
+  // Mutação Direta na GPU (0 re-renders React durante arrasto de sliders contínuos)
+  const applyGpuEnvironmentDirect = useCallback(() => {
+    const g = gpuSettingsRef.current;
+    const sun = sunLightRef.current;
+    const procSky = proceduralSkyRef.current;
+    const renderer = rendererRef.current;
+
+    const azRad = THREE.MathUtils.degToRad(g.sunAzimuthDeg);
+    const elRad = THREE.MathUtils.degToRad(g.sunElevationDeg);
+    const sunDir = new THREE.Vector3(
+      Math.cos(elRad) * Math.sin(azRad),
+      Math.sin(elRad),
+      Math.cos(elRad) * Math.cos(azRad)
+    );
+
+    if (sun) {
+      const dist = 18;
+      sun.position.set(
+        dist * sunDir.x,
+        Math.max(2.5, dist * sunDir.y),
+        dist * sunDir.z
+      );
+    }
+
+    if (procSky?.material?.uniforms) {
+      const u = procSky.material.uniforms;
+      if (u["turbidity"]) u["turbidity"].value = g.skyTurbidity;
+      if (u["rayleigh"]) u["rayleigh"].value = g.skyRayleigh;
+      if (u["sunPosition"]) u["sunPosition"].value.copy(sunDir);
+    }
+
+    if (renderer) {
+      renderer.toneMappingExposure = g.exposure;
+    }
+
+    for (const entry of storedMaterialsRef.current) {
+      entry.pbrMaterial.envMapIntensity = entry.preset.reflectivity * 1.35 * g.giAoIntensity;
+    }
+
+    wakeRenderLoop();
+  }, [wakeRenderLoop]);
+
+  // Auto-Save debounced (400ms) para persistência silenciosa em segundo plano (câmera/anotações/ambiente)
+  const scheduleAssetAutoSave = useCallback(() => {
+    if (!/^[0-9a-f-]{36}$/i.test(activeAsset.id)) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setSyncStatus("syncing");
+    autoSaveTimerRef.current = setTimeout(async () => {
+      autoSaveTimerRef.current = null;
+      try {
+        const cam = cameraRef.current;
+        const tgt = camStateRef.current.target;
+        const payload = cam
+          ? {
+              cameraPreset: {
+                position: [
+                  Number(cam.position.x.toFixed(2)),
+                  Number(cam.position.y.toFixed(2)),
+                  Number(cam.position.z.toFixed(2)),
+                ],
+                target: [
+                  Number(tgt.x.toFixed(2)),
+                  Number(tgt.y.toFixed(2)),
+                  Number(tgt.z.toFixed(2)),
+                ],
+                fov: cam.fov,
+              },
+            }
+          : {};
+        const res = await fetch(`/api/acervo/3d-assets/${activeAsset.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          setSyncStatus("saved");
+          setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2200);
+        } else {
+          setSyncStatus("error");
+        }
+      } catch {
+        setSyncStatus("error");
+      }
+    }, 400);
+  }, [activeAsset.id]);
 
   // Dispose helper for strict WebGL memory cleanup
   const disposeObject3D = useCallback((obj: THREE.Object3D | null) => {
@@ -1191,7 +1337,23 @@ export default function Studio3DFullscreenEngine({
         raycaster.setFromCamera(pointerNdc, camera);
 
         if (modelRootRef.current) {
-          const meshHits = raycaster.intersectObject(modelRootRef.current, true);
+          // Otimização de Raycaster: pré-checagem rápida por Bounding Box antes de testar triângulos
+          const candidateMeshes: THREE.Mesh[] = [];
+          const tmpBox = new THREE.Box3();
+          modelRootRef.current.traverse((obj) => {
+            const m = obj as THREE.Mesh;
+            if (!m.isMesh || !m.visible) return;
+            if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+            if (m.geometry.boundingBox) {
+              tmpBox.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld);
+              if (raycaster.ray.intersectsBox(tmpBox)) {
+                candidateMeshes.push(m);
+              }
+            } else {
+              candidateMeshes.push(m);
+            }
+          });
+          const meshHits = raycaster.intersectObjects(candidateMeshes, false);
           const validHit = meshHits.find(
             (h) => (h.object as THREE.Mesh).isMesh && h.object.visible
           );
@@ -1884,30 +2046,13 @@ export default function Studio3DFullscreenEngine({
     <div
       onPointerMove={registerUserActivity}
       onKeyDown={registerUserActivity}
-      className="relative h-screen w-screen overflow-hidden bg-[#18181B] select-none font-sans"
+      className="relative h-dvh w-screen overflow-hidden bg-[#18181B] select-none font-sans"
     >
-      {/* 1. CANVAS WEBGL PRINCIPAL (ESTÁGIO 1 & 2) */}
-      <div
-        ref={mountRef}
-        className="absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing"
-      />
-
-      {/* 1B. VINHETA ÓPTICA SUTIL ESTILO SKETCHFAB VIEWPORT */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 58%, rgba(12,12,16,0.34) 100%)",
-        }}
-      />
-
-      {/* 2. OVERLAY DE RAY TRACING / CONTACT AO / GI CONVERGIDO (ESTÁGIO 2) */}
-      <canvas
-        ref={rtOverlayCanvasRef}
-        className="pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-300"
-        style={{
-          opacity: pipelineStage === "CONVERGED_IDLE_0GPU" ? 1 : 0,
-        }}
+      {/* 1. CANVAS WEBGL PRINCIPAL ISOLADO VIA REACT.MEMO (ESTÁGIO 1 & 2) */}
+      <StudioWebGLCanvasViewport
+        mountRef={mountRef}
+        rtOverlayCanvasRef={rtOverlayCanvasRef}
+        isConverged={pipelineStage === "CONVERGED_IDLE_0GPU"}
       />
 
       {/* 3. PINS DE ANOTAÇÃO 3D PROJETADOS (COM ATENUAÇÃO DE OCLUSÃO SKETCHFAB) */}
@@ -1959,8 +2104,9 @@ export default function Studio3DFullscreenEngine({
           </div>
         </div>
 
-        {/* Telemetria do Motor Híbrido (Estágio 1 vs Estágio 2 On-Demand RT) */}
+        {/* Telemetria do Motor Híbrido + Pílula Auto-Save em Segundo Plano */}
         <div className="pointer-events-auto flex items-center gap-2">
+          <RealtimeSyncBadge status={syncStatus} />
           <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3.5 py-1.5 text-[11px] font-medium text-white/90 backdrop-blur-xl">
             <span
               className={`h-2 w-2 rounded-full ${
@@ -2053,7 +2199,7 @@ export default function Studio3DFullscreenEngine({
         </div>
       )}
 
-      {/* 5B. JANELA FLUTUANTE DE PROPRIEDADES & RFI (GLASSMORPHISM APPLE VISIONOS — FASE 4) */}
+      {/* 5B. JANELA FLUTUANTE DE PROPRIEDADES & RFI (GLASSMORPHISM DESKTOP / BOTTOM SHEET MOBILE) */}
       {selectedObject && (
         <div
           data-testid="object-inspector-card"
@@ -2061,7 +2207,7 @@ export default function Studio3DFullscreenEngine({
             left: `${selectedObject.screenX}px`,
             top: `${selectedObject.screenY}px`,
           }}
-          className="pointer-events-auto absolute z-30 w-80 rounded-3xl border border-white/10 bg-black/30 p-4 text-white shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+          className="pointer-events-auto absolute z-30 w-80 rounded-3xl border border-white/10 bg-black/30 p-4 text-white shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 max-md:!left-0 max-md:!right-0 max-md:!top-auto max-md:!bottom-0 max-md:w-full max-md:rounded-b-none max-md:rounded-t-3xl max-md:bg-[#18181B]/95 max-md:max-h-[75dvh] max-md:overflow-y-auto"
         >
           <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-2.5">
             <div className="min-w-0">
@@ -2278,9 +2424,9 @@ export default function Studio3DFullscreenEngine({
         </div>
       )}
 
-      {/* 7. POPOVERS FLUTUANTES ESTILO SKETCHFAB (AMBIENTE & CHÃO / MODEL INSPECTOR / MODELOS / ATALHOS) */}
+      {/* 7. POPOVERS FLUTUANTES ESTILO SKETCHFAB (BOTTOM SHEET NO MOBILE) */}
       {activeDrawer !== "none" && (
-        <div className="absolute bottom-20 left-1/2 z-30 w-[94vw] max-w-3xl -translate-x-1/2 rounded-3xl border border-white/15 bg-[#18181B]/90 p-5 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-150 max-h-[78vh] overflow-y-auto">
+        <div className="absolute bottom-20 left-1/2 z-30 w-[94vw] max-w-3xl -translate-x-1/2 rounded-3xl border border-white/15 bg-[#18181B]/90 p-5 text-white/90 shadow-2xl backdrop-blur-2xl animate-in fade-in duration-150 max-h-[78dvh] overflow-y-auto max-md:bottom-0 max-md:left-0 max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:rounded-b-none max-md:rounded-t-3xl">
           {activeDrawer === "lighting" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
@@ -2368,62 +2514,122 @@ export default function Studio3DFullscreenEngine({
                   <label className="space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-white/75">Turbidez Atmosférica</span>
-                      <span className="font-mono text-[#EDE5D8]">{skyTurbidity.toFixed(1)}</span>
+                      <span ref={turbidityLabelRef} className="font-mono text-[#EDE5D8]">
+                        {skyTurbidity.toFixed(1)}
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={1}
                       max={20}
                       step={0.2}
-                      value={skyTurbidity}
-                      onChange={(e) => setSkyTurbidity(Number(e.target.value))}
-                      className="w-full accent-[#EDE5D8]"
+                      defaultValue={skyTurbidity}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        gpuSettingsRef.current.skyTurbidity = v;
+                        if (turbidityLabelRef.current) turbidityLabelRef.current.textContent = v.toFixed(1);
+                        applyGpuEnvironmentDirect();
+                      }}
+                      onPointerUp={(e) => {
+                        setSkyTurbidity(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      onTouchEnd={(e) => {
+                        setSkyTurbidity(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      className="w-full min-h-[36px] accent-[#EDE5D8]"
                     />
                   </label>
 
                   <label className="space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-white/75">Dispersão Rayleigh</span>
-                      <span className="font-mono text-[#EDE5D8]">{skyRayleigh.toFixed(2)}</span>
+                      <span ref={rayleighLabelRef} className="font-mono text-[#EDE5D8]">
+                        {skyRayleigh.toFixed(2)}
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={0.2}
                       max={4}
                       step={0.1}
-                      value={skyRayleigh}
-                      onChange={(e) => setSkyRayleigh(Number(e.target.value))}
-                      className="w-full accent-[#EDE5D8]"
+                      defaultValue={skyRayleigh}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        gpuSettingsRef.current.skyRayleigh = v;
+                        if (rayleighLabelRef.current) rayleighLabelRef.current.textContent = v.toFixed(2);
+                        applyGpuEnvironmentDirect();
+                      }}
+                      onPointerUp={(e) => {
+                        setSkyRayleigh(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      onTouchEnd={(e) => {
+                        setSkyRayleigh(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      className="w-full min-h-[36px] accent-[#EDE5D8]"
                     />
                   </label>
 
                   <label className="space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-white/75">Azimute do Sol</span>
-                      <span className="font-mono text-[#EDE5D8]">{sunAzimuthDeg}°</span>
+                      <span ref={azimuthLabelRef} className="font-mono text-[#EDE5D8]">
+                        {sunAzimuthDeg}°
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={0}
                       max={360}
-                      value={sunAzimuthDeg}
-                      onChange={(e) => setSunAzimuthDeg(Number(e.target.value))}
-                      className="w-full accent-[#EDE5D8]"
+                      defaultValue={sunAzimuthDeg}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        gpuSettingsRef.current.sunAzimuthDeg = v;
+                        if (azimuthLabelRef.current) azimuthLabelRef.current.textContent = `${v}°`;
+                        applyGpuEnvironmentDirect();
+                      }}
+                      onPointerUp={(e) => {
+                        setSunAzimuthDeg(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      onTouchEnd={(e) => {
+                        setSunAzimuthDeg(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      className="w-full min-h-[36px] accent-[#EDE5D8]"
                     />
                   </label>
 
                   <label className="space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-white/75">Elevação Solar</span>
-                      <span className="font-mono text-[#EDE5D8]">{sunElevationDeg}°</span>
+                      <span ref={elevationLabelRef} className="font-mono text-[#EDE5D8]">
+                        {sunElevationDeg}°
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={2}
                       max={88}
-                      value={sunElevationDeg}
-                      onChange={(e) => setSunElevationDeg(Number(e.target.value))}
-                      className="w-full accent-[#EDE5D8]"
+                      defaultValue={sunElevationDeg}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        gpuSettingsRef.current.sunElevationDeg = v;
+                        if (elevationLabelRef.current) elevationLabelRef.current.textContent = `${v}°`;
+                        applyGpuEnvironmentDirect();
+                      }}
+                      onPointerUp={(e) => {
+                        setSunElevationDeg(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      onTouchEnd={(e) => {
+                        setSunElevationDeg(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      className="w-full min-h-[36px] accent-[#EDE5D8]"
                     />
                   </label>
                 </div>
@@ -2516,48 +2722,70 @@ export default function Studio3DFullscreenEngine({
                   <label className="space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-white/75">Escala da Textura (Tiling)</span>
-                      <span className="font-mono text-[#EDE5D8]">{groundScale}x</span>
+                      <span ref={groundScaleLabelRef} className="font-mono text-[#EDE5D8]">
+                        {groundScale}x
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={2}
                       max={28}
                       step={1}
-                      value={groundScale}
+                      defaultValue={groundScale}
                       onChange={(e) => {
                         const nextScale = Number(e.target.value);
-                        setGroundScale(nextScale);
+                        gpuSettingsRef.current.groundScale = nextScale;
+                        if (groundScaleLabelRef.current) groundScaleLabelRef.current.textContent = `${nextScale}x`;
                         loadAndApplyGroundPreset(groundPresetId, {
                           scale: nextScale,
-                          rotationDeg: groundRotationDeg,
-                          colorHex: groundColorHex,
+                          rotationDeg: gpuSettingsRef.current.groundRotationDeg,
+                          colorHex: gpuSettingsRef.current.groundColorHex,
                         });
                       }}
-                      className="w-full accent-[#EDE5D8]"
+                      onPointerUp={(e) => {
+                        setGroundScale(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      onTouchEnd={(e) => {
+                        setGroundScale(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      className="w-full min-h-[36px] accent-[#EDE5D8]"
                     />
                   </label>
 
                   <label className="space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-white/75">Rotação da Paginação</span>
-                      <span className="font-mono text-[#EDE5D8]">{groundRotationDeg}°</span>
+                      <span ref={groundRotLabelRef} className="font-mono text-[#EDE5D8]">
+                        {groundRotationDeg}°
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={0}
                       max={360}
                       step={5}
-                      value={groundRotationDeg}
+                      defaultValue={groundRotationDeg}
                       onChange={(e) => {
                         const nextRot = Number(e.target.value);
-                        setGroundRotationDeg(nextRot);
+                        gpuSettingsRef.current.groundRotationDeg = nextRot;
+                        if (groundRotLabelRef.current) groundRotLabelRef.current.textContent = `${nextRot}°`;
                         loadAndApplyGroundPreset(groundPresetId, {
-                          scale: groundScale,
+                          scale: gpuSettingsRef.current.groundScale,
                           rotationDeg: nextRot,
-                          colorHex: groundColorHex,
+                          colorHex: gpuSettingsRef.current.groundColorHex,
                         });
                       }}
-                      className="w-full accent-[#EDE5D8]"
+                      onPointerUp={(e) => {
+                        setGroundRotationDeg(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      onTouchEnd={(e) => {
+                        setGroundRotationDeg(Number((e.target as HTMLInputElement).value));
+                        scheduleAssetAutoSave();
+                      }}
+                      className="w-full min-h-[36px] accent-[#EDE5D8]"
                     />
                   </label>
 
@@ -2600,32 +2828,62 @@ export default function Studio3DFullscreenEngine({
                 <label className="space-y-1">
                   <div className="flex justify-between text-[11px]">
                     <span className="text-white/75">Exposição ACES Filmic</span>
-                    <span className="font-mono text-[#EDE5D8]">{exposure.toFixed(2)}</span>
+                    <span ref={exposureLabelRef} className="font-mono text-[#EDE5D8]">
+                      {exposure.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
                     min={0.4}
                     max={2.4}
                     step={0.05}
-                    value={exposure}
-                    onChange={(e) => setExposure(Number(e.target.value))}
-                    className="w-full accent-[#EDE5D8]"
+                    defaultValue={exposure}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      gpuSettingsRef.current.exposure = v;
+                      if (exposureLabelRef.current) exposureLabelRef.current.textContent = v.toFixed(2);
+                      applyGpuEnvironmentDirect();
+                    }}
+                    onPointerUp={(e) => {
+                      setExposure(Number((e.target as HTMLInputElement).value));
+                      scheduleAssetAutoSave();
+                    }}
+                    onTouchEnd={(e) => {
+                      setExposure(Number((e.target as HTMLInputElement).value));
+                      scheduleAssetAutoSave();
+                    }}
+                    className="w-full min-h-[36px] accent-[#EDE5D8]"
                   />
                 </label>
 
                 <label className="space-y-1">
                   <div className="flex justify-between text-[11px]">
                     <span className="text-white/75">Intensidade GI / Contact AO</span>
-                    <span className="font-mono text-[#EDE5D8]">{giAoIntensity.toFixed(2)}</span>
+                    <span ref={giAoLabelRef} className="font-mono text-[#EDE5D8]">
+                      {giAoIntensity.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
                     min={0}
                     max={2}
                     step={0.05}
-                    value={giAoIntensity}
-                    onChange={(e) => setGiAoIntensity(Number(e.target.value))}
-                    className="w-full accent-[#EDE5D8]"
+                    defaultValue={giAoIntensity}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      gpuSettingsRef.current.giAoIntensity = v;
+                      if (giAoLabelRef.current) giAoLabelRef.current.textContent = v.toFixed(2);
+                      applyGpuEnvironmentDirect();
+                    }}
+                    onPointerUp={(e) => {
+                      setGiAoIntensity(Number((e.target as HTMLInputElement).value));
+                      scheduleAssetAutoSave();
+                    }}
+                    onTouchEnd={(e) => {
+                      setGiAoIntensity(Number((e.target as HTMLInputElement).value));
+                      scheduleAssetAutoSave();
+                    }}
+                    className="w-full min-h-[36px] accent-[#EDE5D8]"
                   />
                 </label>
               </div>

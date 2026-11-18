@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { canUserAccessProject, currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { uploadAcervoRevision, createAcervoGrd } from "@/server/services/acervo-cde-service";
@@ -46,7 +47,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const hasAccess = await canUserAccessProject(user, projectId);
+    const namingParsed = parseAndValidateSheetName(fileName);
+
+    const [hasAccess, perm, namingRule] = await Promise.all([
+      canUserAccessProject(user, projectId),
+      user.role !== "ADMIN"
+        ? prisma.acervoDisciplinePermission.findFirst({
+            where: {
+              userId: user.id,
+              discipline: discipline as ProjectDiscipline,
+              OR: [{ projectId }, { projectId: null }],
+            },
+            select: { canUploadRevision: true },
+          })
+        : Promise.resolve(null),
+      prisma.acervoNamingRule.findFirst({
+        where: { projectId },
+        select: { policy: true, example: true },
+      }),
+    ]);
+
     if (!hasAccess) {
       return NextResponse.json(
         { error: "Você não possui acesso habilitado a este empreendimento no Acervo Manager." },
@@ -54,29 +74,14 @@ export async function POST(request: Request) {
       );
     }
 
-    if (user.role !== "ADMIN") {
-      const perm = await prisma.acervoDisciplinePermission.findFirst({
-        where: {
-          userId: user.id,
-          discipline: discipline as ProjectDiscipline,
-          OR: [{ projectId }, { projectId: null }],
+    if (perm && !perm.canUploadRevision) {
+      return NextResponse.json(
+        {
+          error: `Permissão restrita: seu usuário não possui autorização de envio (upload) para a disciplina ${discipline}.`,
         },
-      });
-      if (perm && !perm.canUploadRevision) {
-        return NextResponse.json(
-          {
-            error: `Permissão restrita: seu usuário não possui autorização de envio (upload) para a disciplina ${discipline}.`,
-          },
-          { status: 403 }
-        );
-      }
+        { status: 403 }
+      );
     }
-
-    // Valida regra de nomenclatura CDE do projeto
-    const namingParsed = parseAndValidateSheetName(fileName);
-    const namingRule = await prisma.acervoNamingRule.findFirst({
-      where: { projectId },
-    });
 
     if (namingRule?.policy === "STRICT_BLOCK" && !namingParsed.isValid) {
       return NextResponse.json(
@@ -139,6 +144,11 @@ export async function POST(request: Request) {
       });
       grdCode = grd.code;
     }
+
+    revalidatePath("/admin/acervo");
+    revalidatePath("/equipe/acervo");
+    revalidatePath(`/admin/acervo/${projectId}`);
+    revalidatePath(`/equipe/acervo/${projectId}`);
 
     return NextResponse.json({
       success: true,

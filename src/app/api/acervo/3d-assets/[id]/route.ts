@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
@@ -99,6 +100,9 @@ export async function PATCH(
         ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {}),
       },
     });
+
+    revalidatePath("/admin/3d-viewer");
+    revalidatePath("/equipe/3d-viewer");
 
     return NextResponse.json({
       success: true,

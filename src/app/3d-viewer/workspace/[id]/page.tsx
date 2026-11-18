@@ -173,7 +173,7 @@ export default async function Viewer3DWorkspacePage({
   }
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-[#09090B]">
+    <main className="h-dvh w-screen overflow-hidden bg-[#09090B]">
       <Studio3DFullscreenLoader
         initialAsset={resolvedAsset}
         availableAssets={projectAssets}

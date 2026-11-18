@@ -1,10 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { optimizeGlbBuffer } from "@/lib/acervo/glb-optimizer";
+import {
+  DEFAULT_SHOWCASE_ANNOTATIONS,
+  DEFAULT_SHOWCASE_CAMERA_PRESET,
+  DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
+} from "@/lib/acervo/showcase-3d-defaults";
 import {
   classifyMaterialToPbrPreset,
   classifyPipeline3DAsset,
@@ -23,6 +30,7 @@ const StepRequestSchema = z.object({
   assetName: z.string().optional(),
   category: z.enum(["MODEL", "AVATAR", "HDRI", "PROJECT_BLOCK", "PROPRIETARY_SCENE", "INCOMPLETE"]).optional(),
   sourceFormat: z.string().optional(),
+  projectId: z.string().uuid().optional(),
   fileName: z.string().optional(),
   base64File: z.string().optional(),
 });
@@ -108,7 +116,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { assetId, step, assetName, category, sourceFormat, fileName, base64File } = parsed.data;
+    const { assetId, step, assetName, category, sourceFormat, projectId, fileName, base64File } = parsed.data;
     const manifest = loadManifest();
     const manifestItem = findItemInManifest(manifest, assetId);
     const existingState = await prisma.pipeline3DAssetState
@@ -316,6 +324,38 @@ export async function POST(request: Request) {
         },
       })
       .catch(() => null);
+
+    // Automação: ao concluir BUILD_MESHOPT com projectId informado, vincula automaticamente ao Project3DAsset
+    if (step === "BUILD_MESHOPT" && pipelineStatus === "READY" && projectId && outputUrl) {
+      const existingLinked = await prisma.project3DAsset
+        .findFirst({
+          where: { projectId, glbUrl: outputUrl },
+          select: { id: true },
+        })
+        .catch(() => null);
+
+      if (!existingLinked) {
+        await prisma.project3DAsset
+          .create({
+            data: {
+              projectId,
+              title: resolvedName,
+              description: `Ativo 3D vinculado automaticamente pelo Pipeline (${resolvedFormat}).`,
+              glbUrl: outputUrl,
+              posterUrl: `/assets/3d-templates/posters/${assetId.replace(/^tpl-/, "")}.svg`,
+              fileSizeBytes: fileSizeBytes || 120000,
+              optimizationStats: DEFAULT_SHOWCASE_OPTIMIZATION_STATS as unknown as Prisma.InputJsonValue,
+              cameraPreset: DEFAULT_SHOWCASE_CAMERA_PRESET as unknown as Prisma.InputJsonValue,
+              annotations: DEFAULT_SHOWCASE_ANNOTATIONS as unknown as Prisma.InputJsonValue,
+              isFeatured: true,
+            },
+          })
+          .catch(() => null);
+      }
+    }
+
+    revalidatePath("/admin/3d-viewer");
+    revalidatePath("/equipe/3d-viewer");
 
     return NextResponse.json({
       success: true,

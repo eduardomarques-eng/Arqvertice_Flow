@@ -174,7 +174,7 @@ export default async function AcervoStudio3DFullscreenPage({
   }
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-[#111215]">
+    <main className="h-dvh w-screen overflow-hidden bg-[#111215]">
       <Studio3DFullscreenLoader
         initialAsset={resolvedAsset}
         availableAssets={projectAssets}
