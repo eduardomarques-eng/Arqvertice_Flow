@@ -382,3 +382,41 @@ export async function deleteTeamMemberAction(userId: string) {
 
   return { success: true, deletedId: userId, deletedName: targetUser.name };
 }
+
+export async function updateMemberMailboxAccessAction(
+  userId: string,
+  mailboxIds: string[]
+) {
+  await requireRole("ADMIN");
+
+  const mailboxes = await prisma.emailMailbox.findMany({
+    select: { id: true, allowedUserIds: true },
+  });
+
+  await prisma.$transaction(
+    mailboxes.map((mb) => {
+      const shouldAllow = mailboxIds.includes(mb.id);
+      const hasUser = mb.allowedUserIds.includes(userId);
+      if (shouldAllow === hasUser) {
+        return prisma.emailMailbox.update({
+          where: { id: mb.id },
+          data: {},
+        });
+      }
+      const nextUsers = shouldAllow
+        ? [...mb.allowedUserIds, userId]
+        : mb.allowedUserIds.filter((id) => id !== userId);
+      return prisma.emailMailbox.update({
+        where: { id: mb.id },
+        data: { allowedUserIds: nextUsers },
+      });
+    })
+  );
+
+  revalidatePath("/admin/equipe");
+  revalidatePath("/equipe/equipe");
+  revalidatePath("/admin/email");
+  revalidatePath("/equipe/email");
+
+  return { success: true };
+}

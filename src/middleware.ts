@@ -10,7 +10,14 @@ import { resolveRedirectForPath } from "@/lib/route-isolation";
 
 const SESSION_COOKIE = "arqvertice_session";
 const ROLE_COOKIE = "arqvertice_role";
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/health"] as const;
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/agendar",
+  "/api/auth",
+  "/api/health",
+  "/api/booking",
+  "/api/email/inbound",
+] as const;
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"))) {
@@ -77,7 +84,11 @@ export function middleware(request: NextRequest) {
           origin.startsWith("http://localhost:") ||
           origin.startsWith("http://127.0.0.1:"));
 
-      if (!isAllowedOrigin && !pathname.startsWith("/api/briefings")) {
+      if (
+        !isAllowedOrigin &&
+        !pathname.startsWith("/api/briefings") &&
+        !pathname.startsWith("/api/email/inbound")
+      ) {
         return new NextResponse(JSON.stringify({ error: "Forbidden: Origem não autorizada." }), {
           status: 403,
           headers: {

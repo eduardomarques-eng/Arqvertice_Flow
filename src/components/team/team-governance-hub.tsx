@@ -14,6 +14,7 @@ import {
   updateTeamMemberGovernanceAction,
   createTeamMemberAction,
   deleteTeamMemberAction,
+  updateMemberMailboxAccessAction,
   recordReminderLogAction,
   dispatchCommunicationAction,
   type CreateProfileInput,
@@ -105,6 +106,12 @@ interface TeamGovernanceHubProps {
   clients: ClientContact[];
   trafficLogs: TrafficLogItem[];
   commLogs: CommLogItem[];
+  mailboxes?: Array<{
+    id: string;
+    address: string;
+    displayName: string;
+    allowedUserIds: string[];
+  }>;
 }
 
 const AVAILABLE_PERMISSIONS = [
@@ -156,7 +163,10 @@ export function TeamGovernanceHub({
   clients,
   trafficLogs,
   commLogs,
+  mailboxes = [],
 }: TeamGovernanceHubProps) {
+  const [mailboxList, setMailboxList] = useState(mailboxes);
+  const [editMailboxIds, setEditMailboxIds] = useState<string[]>([]);
   const [mainView, setMainView] = useState<"members" | "dispatcher" | "traffic">("members");
   const [membersList, setMembersList] = useState<TeamMemberData[]>(members);
   const [selectedMember, setSelectedMember] = useState<TeamMemberData | null>(null);
@@ -286,6 +296,11 @@ export function TeamGovernanceHub({
     setEditViewerMode(member.viewerMode || "READ_ONLY");
     setEditCanProcedural(Boolean(member.canProceduralEdit));
     setEditCanExportRenders(Boolean(member.canExportRenders));
+    setEditMailboxIds(
+      mailboxList
+        .filter((mb) => mb.allowedUserIds.includes(member.id))
+        .map((mb) => mb.id)
+    );
     setFeedback(null);
   };
 
@@ -1568,6 +1583,59 @@ export function TeamGovernanceHub({
                       })}
                     </div>
                   </div>
+
+                  {mailboxList.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="block text-xs font-bold text-slate-700 mb-2">
+                        Caixas de E-mail Profissional Autorizadas
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {mailboxList.map((mb) => {
+                          const checked = editMailboxIds.includes(mb.id);
+                          return (
+                            <label
+                              key={mb.id}
+                              className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-xs cursor-pointer transition ${
+                                checked
+                                  ? "border-[#B45309] bg-[#EDE5D8]/50 text-slate-900"
+                                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={async (e) => {
+                                  if (!selectedMember) return;
+                                  const next = e.target.checked
+                                    ? [...editMailboxIds, mb.id]
+                                    : editMailboxIds.filter((id) => id !== mb.id);
+                                  setEditMailboxIds(next);
+                                  setMailboxList((prev) =>
+                                    prev.map((item) =>
+                                      item.id === mb.id
+                                        ? {
+                                            ...item,
+                                            allowedUserIds: e.target.checked
+                                              ? [...item.allowedUserIds, selectedMember.id]
+                                              : item.allowedUserIds.filter((uid) => uid !== selectedMember.id),
+                                          }
+                                        : item
+                                    )
+                                  );
+                                  await updateMemberMailboxAccessAction(selectedMember.id, next).catch(() => {});
+                                }}
+                                className="h-4 w-4 rounded border-slate-300 text-[#B45309] focus:ring-[#B45309]"
+                              />
+                              <div className="min-w-0">
+                                <p className="font-bold truncate">{mb.address}</p>
+                                <p className="text-[10px] text-slate-500 truncate">{mb.displayName}</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="pt-4">
                     <button

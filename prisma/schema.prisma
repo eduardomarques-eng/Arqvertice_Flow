@@ -1611,3 +1611,114 @@ model FeatureVisibility {
 
   @@index([userId])
 }
+
+
+model EmailDomainConfig {
+  id                 String    @id @default("default")
+  domain             String    @default("arqvertice.com.br")
+  cloudflareZoneId   String?
+  resendDomainId     String?
+  mailflareWorkerUrl String?
+  mailflareMcpUrl    String?
+  gmailMirrorAddress String    @default("eduardo.marques.arq@gmail.com")
+  gmailMirrorEnabled Boolean   @default(true)
+  mxVerified         Boolean   @default(false)
+  spfVerified        Boolean   @default(false)
+  dkimVerified       Boolean   @default(false)
+  dmarcVerified      Boolean   @default(false)
+  lastSyncAt         DateTime?
+  lastSyncSummary    Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model EmailMailbox {
+  id             String        @id @default(uuid()) @db.Uuid
+  address        String        @unique
+  displayName    String
+  department     String        @default("Geral")
+  isShared       Boolean       @default(true)
+  isActive       Boolean       @default(true)
+  allowedUserIds String[]      @default([])
+  threads        EmailThread[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([address])
+}
+
+model EmailThread {
+  id               String         @id @default(uuid()) @db.Uuid
+  mailboxId        String         @db.Uuid
+  subject          String
+  folder           String         @default("INBOX") // INBOX | SNOOZED | SCHEDULED | SENT | ARCHIVED
+  isRead           Boolean        @default(false)
+  isStarred        Boolean        @default(false)
+  snoozedUntil     DateTime?
+  clientId         String?        @db.Uuid
+  projectId        String?        @db.Uuid
+  participantEmail String
+  participantName  String?
+  snippet          String?
+  externalThreadId String?
+  lastMessageAt    DateTime       @default(now())
+  mailbox          EmailMailbox   @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  messages         EmailMessage[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([mailboxId, folder, lastMessageAt])
+  @@index([clientId])
+  @@index([projectId])
+}
+
+model EmailMessage {
+  id               String      @id @default(uuid()) @db.Uuid
+  threadId         String      @db.Uuid
+  direction        String // INBOUND | OUTBOUND
+  fromAddress      String
+  toAddresses      String[]
+  ccAddresses      String[]    @default([])
+  subject          String
+  bodyText         String      @db.Text
+  bodyHtml         String?     @db.Text
+  status           String      @default("SENT") // PENDING_UNDO | SCHEDULED | SENT | CANCELLED | FAILED | RECEIVED
+  cancelDeadlineAt DateTime?
+  scheduledFor     DateTime?
+  sentAt           DateTime?
+  providerId       String?
+  attachmentsMeta  Json?
+  createdById      String?     @db.Uuid
+  thread           EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([threadId, createdAt])
+  @@index([status, cancelDeadlineAt])
+}
+
+model BookingSlotConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  dayOfWeek   Int      @unique // 0=Dom .. 6=Sab
+  isEnabled   Boolean  @default(true)
+  startTime   String   @default("09:00")
+  endTime     String   @default("18:00")
+  slotMinutes Int      @default(45)
+  updatedAt   DateTime @updatedAt
+}
+
+model ClientBooking {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientName  String
+  clientEmail String
+  clientPhone String?
+  topic       String
+  meetingType String   @default("ONLINE") // ONLINE | PRESENCIAL
+  scheduledAt DateTime
+  durationMin Int      @default(45)
+  status      String   @default("CONFIRMED") // CONFIRMED | CANCELLED
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([scheduledAt, status])
+}

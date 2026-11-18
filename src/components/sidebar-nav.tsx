@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type NavLink = readonly [string, string];
+type NavLink = readonly [string, string] | readonly [string, string, number];
 
 const ROOT_PATHS = new Set(["/admin", "/equipe", "/portal"]);
 
@@ -12,10 +12,11 @@ export function SidebarNav({ links }: { links: readonly NavLink[] }) {
 
   return (
     <div className="space-y-1">
-      {links.map(([label, href]) => {
+      {links.map(([label, href, badge]) => {
         const isActive =
           pathname === href || (!ROOT_PATHS.has(href) && pathname.startsWith(href));
         const is3D = label === "3D Viewer";
+        const isEmail = label === "E-mail Profissional";
         return (
           <Link
             key={href}
@@ -28,16 +29,24 @@ export function SidebarNav({ links }: { links: readonly NavLink[] }) {
           >
             <span className="inline-flex items-center gap-2">
               {is3D && <span aria-hidden="true">🧊</span>}
+              {isEmail && <span aria-hidden="true">✉️</span>}
               <span>{label}</span>
             </span>
-            <span
-              className={`text-xs transition-transform duration-150 ${
-                isActive
-                  ? "text-[#18181B] dark:text-[#EDE5D8]"
-                  : "text-slate-400 group-hover:translate-x-0.5"
-              }`}
-            >
-              →
+            <span className="inline-flex items-center gap-1.5">
+              {typeof badge === "number" && badge > 0 && (
+                <span className="rounded-full bg-[#B45309] dark:bg-[#F59E0B] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:text-[#18181B] tabular-nums">
+                  {badge}
+                </span>
+              )}
+              <span
+                className={`text-xs transition-transform duration-150 ${
+                  isActive
+                    ? "text-[#18181B] dark:text-[#EDE5D8]"
+                    : "text-slate-400 group-hover:translate-x-0.5"
+                }`}
+              >
+                →
+              </span>
             </span>
           </Link>
         );

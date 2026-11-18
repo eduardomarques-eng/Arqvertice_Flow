@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Brand } from "@/components/brand";
 
-type NavLink = readonly [string, string];
+type NavLink = readonly [string, string] | readonly [string, string, number];
 
 interface MobileNavProps {
   links: readonly NavLink[];

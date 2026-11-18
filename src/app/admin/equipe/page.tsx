@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { requirePageAdminRole } from "@/server/auth";
 import { prisma } from "@/server/db";
+import { ensureEmailBootstrap } from "@/lib/email/email-infra";
 import {
   TeamGovernanceHub,
   type TeamMemberData,
@@ -17,10 +18,11 @@ export const dynamic = "force-dynamic";
 
 export default async function EquipePage() {
   await requirePageAdminRole();
+  await ensureEmailBootstrap();
   const now = new Date();
 
-  // 1. Busca usuários, projetos, etapas, clientes, logs de acesso e de comunicação
-  const [users, rawProjects, rawStages, rawLogs, rawClients, rawTrafficLogs, rawCommLogs] =
+  // 1. Busca usuários, projetos, etapas, clientes, logs de acesso, comunicação e caixas de e-mail
+  const [users, rawProjects, rawStages, rawLogs, rawClients, rawTrafficLogs, rawCommLogs, rawMailboxes] =
     await Promise.all([
       prisma.user.findMany({
         select: {
@@ -80,6 +82,11 @@ export default async function EquipePage() {
       prisma.communicationLog.findMany({
         take: 100,
         orderBy: { createdAt: "desc" },
+      }),
+      prisma.emailMailbox.findMany({
+        where: { isActive: true },
+        select: { id: true, address: true, displayName: true, allowedUserIds: true },
+        orderBy: { address: "asc" },
       }),
     ]);
 
@@ -237,6 +244,7 @@ export default async function EquipePage() {
         clients={clients}
         trafficLogs={trafficLogs}
         commLogs={commLogs}
+        mailboxes={rawMailboxes}
       />
     </AppShell>
   );

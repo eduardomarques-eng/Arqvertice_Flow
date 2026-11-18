@@ -9,6 +9,7 @@ import { SessionGuard } from "@/components/auth/session-guard";
 import { InternalMessengerWidget } from "@/components/messenger/internal-messenger-widget";
 import { getEffectivePermissions, type AppModule } from "@/lib/rbac";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { prisma } from "@/server/db";
 
 // Links completos do sistema para o Administrador (Painel Executivo)
 const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
@@ -19,6 +20,7 @@ const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module
   { label: "3D Viewer", href: "/admin/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
+  { label: "E-mail Profissional", href: "/admin/email", icon: "✉️", module: "dashboard" },
   { label: "Equipe & Governança", href: "/admin/equipe", icon: "🛡️", module: "equipe" },
 ];
 
@@ -42,6 +44,7 @@ const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; modu
   { label: "3D Viewer", href: "/equipe/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
+  { label: "E-mail Profissional", href: "/equipe/email", icon: "✉️", module: "dashboard" },
   { label: "Equipe & Governança", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },
 ];
 
@@ -74,7 +77,23 @@ export async function AppShell({
     ? getEffectivePermissions({ role: user.role, permissions: user.permissions })
     : ["dashboard"];
 
-  let allowedLinks: Array<readonly [string, string]>;
+  let unreadEmailCount = 0;
+  if (user && !isClient) {
+    unreadEmailCount = await prisma.emailThread
+      .count({
+        where: {
+          isRead: false,
+          folder: "INBOX",
+          mailbox:
+            effectiveRole === "ADMIN"
+              ? { isActive: true }
+              : { isActive: true, allowedUserIds: { has: user.id } },
+        },
+      })
+      .catch(() => 0);
+  }
+
+  let allowedLinks: Array<readonly [string, string] | readonly [string, string, number]>;
   let bottomNavLinks: Array<{ label: string; href: string; icon: string }>;
 
   if (isClient) {
@@ -89,9 +108,11 @@ export async function AppShell({
       { label: "3D Viewer", href: "/equipe/3d-viewer", icon: "🧊" },
     ];
   } else if (effectiveRole === "ADMIN") {
-    allowedLinks = ALL_ADMIN_LINKS.map((item) => [item.label, item.href] as const).concat(
-      SECONDARY_LINKS.map((item) => [item.label, item.href] as const)
-    );
+    allowedLinks = ALL_ADMIN_LINKS.map((item) =>
+      item.href === "/admin/email"
+        ? ([item.label, item.href, unreadEmailCount] as const)
+        : ([item.label, item.href] as const)
+    ).concat(SECONDARY_LINKS.map((item) => [item.label, item.href] as const));
     bottomNavLinks = ALL_ADMIN_LINKS.slice(0, 6).map((item) => ({
       label: item.label.split(" ")[0],
       href: item.href,
@@ -116,7 +137,11 @@ export async function AppShell({
     );
 
     allowedLinks = primary
-      .map((item) => [item.label, item.href] as const)
+      .map((item) =>
+        item.href === "/equipe/email"
+          ? ([item.label, item.href, unreadEmailCount] as const)
+          : ([item.label, item.href] as const)
+      )
       .concat(secondary.map((item) => [item.label, item.href] as const));
 
     if (allowedLinks.length === 0) {
