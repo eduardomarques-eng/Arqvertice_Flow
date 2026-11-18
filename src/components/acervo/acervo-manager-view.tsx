@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ResponsiveDataView } from "@/components/ui/responsive-data-view";
 import { formatDateBR } from "@/lib/formatters";
 import type { DisciplineChartPoint } from "@/components/acervo/acervo-discipline-chart";
 
@@ -319,7 +320,9 @@ export function AcervoManagerView({
             </span>
           </div>
         </div>
-        <AcervoDisciplineChart data={chartData} />
+        <div className="w-full min-w-0 overflow-hidden">
+          <AcervoDisciplineChart data={chartData} />
+        </div>
       </Card>
 
       {/* Painel de Filtros e Ações */}
@@ -415,11 +418,17 @@ export function AcervoManagerView({
         </div>
       </Card>
 
-      {/* Tabela CDE com Rolagem Touch */}
-      <div className="max-w-full overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-        <div className="overflow-x-auto overflow-y-hidden">
+      {/* Dual-View CDE: Tabela Desktop (>= 1024px) + Cards Empilhados Mobile (< 1024px) */}
+      <ResponsiveDataView
+        items={filteredDocs}
+        emptyState={
+          <div className="rounded-2xl border border-slate-200/60 bg-white dark:border-white/10 dark:bg-zinc-900 py-12 text-center text-xs text-slate-400">
+            Nenhum documento encontrado no Acervo Manager.
+          </div>
+        }
+        renderDesktopTable={() => (
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200/60 bg-slate-50/80 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <thead className="border-b border-slate-200/60 dark:border-white/10 bg-slate-50/80 dark:bg-zinc-950/40 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="py-3 pl-4 pr-2">
                   <input
@@ -438,76 +447,117 @@ export function AcervoManagerView({
                 <th className="py-3 pr-4 text-right">Ação</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredDocs.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-xs text-slate-400">
-                    Nenhum documento encontrado no Acervo Manager.
-                  </td>
-                </tr>
-              ) : (
-                filteredDocs.map((doc) => {
-                  const isSelected = selectedDocIds.includes(doc.id);
-                  return (
-                    <tr
-                      key={doc.id}
-                      className={`hover:bg-slate-50/70 transition-colors ${
-                        isSelected ? "bg-slate-50/90" : ""
-                      }`}
-                    >
-                      <td className="py-3 pl-4 pr-2">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectDoc(doc.id)}
-                          className="rounded border-slate-300 text-slate-900 focus:ring-0"
-                        />
-                      </td>
-                      <td className="py-3 px-2 font-mono font-semibold text-slate-900">
-                        {doc.code}
-                      </td>
-                      <td className="py-3 px-2 font-medium text-slate-700">
-                        {doc.projectName}
-                      </td>
-                      <td className="py-3 px-2 text-slate-900">
-                        <div className="font-medium">{doc.title}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{doc.fileName}</div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <span className="inline-block rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                          {doc.discipline}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 text-center font-mono font-semibold text-slate-900">
-                        {doc.currentRevisionNumber}
-                      </td>
-                      <td className="py-3 px-2 text-center">
-                        {getStatusBadge(doc.status)}
-                      </td>
-                      <td className="py-3 pr-4 text-right space-x-2">
-                        <a
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-8 items-center rounded-lg border border-slate-200/60 bg-white px-2.5 text-[11px] font-medium text-slate-800 shadow-sm hover:bg-slate-50 transition"
-                        >
-                          Baixar
-                        </a>
-                        <Link
-                          href={`${basePath}/acervo/${doc.projectId}`}
-                          className="inline-flex h-8 items-center rounded-lg bg-[#18181B] px-2.5 text-[11px] font-medium text-white shadow-sm hover:bg-[#27272A] transition"
-                        >
-                          Ver Histórico
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filteredDocs.map((doc) => {
+                const isSelected = selectedDocIds.includes(doc.id);
+                return (
+                  <tr
+                    key={doc.id}
+                    className={`hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors ${
+                      isSelected ? "bg-slate-50/90 dark:bg-white/10" : ""
+                    }`}
+                  >
+                    <td className="py-3 pl-4 pr-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectDoc(doc.id)}
+                        className="rounded border-slate-300 text-slate-900 focus:ring-0"
+                      />
+                    </td>
+                    <td className="py-3 px-2 font-mono font-semibold text-slate-900 dark:text-slate-100">
+                      {doc.code}
+                    </td>
+                    <td className="py-3 px-2 font-medium text-slate-700 dark:text-slate-300">
+                      {doc.projectName}
+                    </td>
+                    <td className="py-3 px-2 text-slate-900 dark:text-slate-100">
+                      <div className="font-medium">{doc.title}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{doc.fileName}</div>
+                    </td>
+                    <td className="py-3 px-2">
+                      <span className="inline-block rounded-lg bg-slate-100 dark:bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-200">
+                        {doc.discipline}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-center font-mono font-semibold text-slate-900 dark:text-slate-100">
+                      {doc.currentRevisionNumber}
+                    </td>
+                    <td className="py-3 px-2 text-center">{getStatusBadge(doc.status)}</td>
+                    <td className="py-3 pr-4 text-right space-x-2 whitespace-nowrap">
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-[36px] items-center rounded-lg border border-slate-200/60 dark:border-white/10 bg-white dark:bg-zinc-800 px-2.5 text-[11px] font-medium text-slate-800 dark:text-slate-200 shadow-sm hover:bg-slate-50 transition"
+                      >
+                        Baixar
+                      </a>
+                      <Link
+                        href={`${basePath}/acervo/${doc.projectId}`}
+                        className="inline-flex min-h-[36px] items-center rounded-lg bg-[#18181B] dark:bg-[#EDE5D8] dark:text-[#18181B] px-2.5 text-[11px] font-medium text-white shadow-sm hover:opacity-90 transition"
+                      >
+                        Ver Histórico
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        </div>
-      </div>
+        )}
+        renderMobileCard={(doc) => {
+          const isSelected = selectedDocIds.includes(doc.id);
+          return (
+            <div
+              key={doc.id}
+              className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-zinc-900 p-4 shadow-2xs space-y-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectDoc(doc.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                    />
+                    <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
+                      {doc.code}
+                    </span>
+                    <span className="rounded bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold">
+                      {doc.currentRevisionNumber}
+                    </span>
+                    {getStatusBadge(doc.status)}
+                  </div>
+                  <p className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {doc.title}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {doc.projectName} · {doc.discipline}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 dark:border-white/10 pt-3">
+                <a
+                  href={doc.fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-800 px-3 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                >
+                  Baixar Arquivo
+                </a>
+                <Link
+                  href={`${basePath}/acervo/${doc.projectId}`}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-[#18181B] dark:bg-[#EDE5D8] dark:text-[#18181B] px-3 text-xs font-semibold text-white"
+                >
+                  Ver Histórico
+                </Link>
+              </div>
+            </div>
+          );
+        }}
+      />
 
       {/* Modal Emissão de GRD */}
       {isGrdModalOpen && (

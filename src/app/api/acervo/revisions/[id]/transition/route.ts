@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { transitionAcervoWorkflow } from "@/server/services/acervo-cde-service";
@@ -64,6 +65,10 @@ export async function POST(
       performedByName: user.name,
       performedByRole: user.role,
     });
+
+    revalidatePath("/admin/acervo");
+    revalidatePath("/equipe/acervo");
+    revalidatePath("/portal");
 
     return NextResponse.json({ success: true, revision: updated });
   } catch (err: unknown) {

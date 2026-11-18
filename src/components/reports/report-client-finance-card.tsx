@@ -150,7 +150,7 @@ export function ReportClientFinanceCard({
             </span>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden lg:block print:block overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
               <thead className="border-b border-zinc-200 bg-zinc-50/60 text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
                 <tr>
@@ -205,7 +205,7 @@ export function ReportClientFinanceCard({
                         {formatDateBR(p.dueDate)}
                       </td>
 
-                      <td className="w-[14%] py-3 p-2 text-right font-mono font-semibold text-zinc-900 whitespace-nowrap">
+                      <td className="w-[14%] py-3 p-2 text-right font-mono font-semibold tabular-nums text-zinc-900 whitespace-nowrap">
                         {p.amount}
                       </td>
 
@@ -225,6 +225,66 @@ export function ReportClientFinanceCard({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile & Tablet Stacked Cards (< 1024px) */}
+          <div className="grid grid-cols-1 gap-3 p-3 lg:hidden print:hidden">
+            {payments.map((p, index) => {
+              const isPaid = p.status === "Liquidado" || p.status === "PAID";
+              const isLoading = loadingId === p.id;
+              const totalInstallments = String(payments.length).padStart(2, "0");
+              const currentInstallment = String(index + 1).padStart(2, "0");
+              const installmentCode = `${currentInstallment}/${totalInstallments}`;
+              return (
+                <div
+                  key={p.id || p.name || index}
+                  className="rounded-xl border border-zinc-200/80 bg-zinc-50/40 p-3.5 space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[11px] font-bold text-zinc-600">
+                          {installmentCode}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isPaid
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {isPaid ? "Pago" : "Pendente"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm font-bold text-zinc-900">{p.name}</p>
+                      {p.stage && (
+                        <p className="text-[11px] text-zinc-500 truncate">Etapa: {p.stage}</p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-mono text-sm font-bold tabular-nums text-zinc-900">
+                        {p.amount}
+                      </p>
+                      <p className="font-mono text-[11px] text-zinc-500">
+                        {formatDateBR(p.dueDate)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => togglePayment(p)}
+                    className={`w-full min-h-[44px] rounded-xl text-xs font-bold transition ${
+                      isPaid
+                        ? "border border-zinc-200 bg-white text-zinc-700"
+                        : "bg-emerald-600 text-white"
+                    }`}
+                  >
+                    {isPaid ? "Marcar como Pendente" : "✓ Confirmar Pagamento"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

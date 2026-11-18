@@ -139,7 +139,7 @@ export async function AppShell({
   const groupLabel = isClient ? "Meu projeto" : effectiveRole === "ADMIN" ? "Administração" : "Painel Técnico";
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[#f5f5f7] dark:bg-[#09090B] dark:text-slate-300 pb-20 lg:pb-0 transition-colors duration-200">
+    <div className="min-h-dvh max-w-full overflow-x-clip bg-[#f5f5f7] dark:bg-[#09090B] dark:text-slate-300 pb-20 lg:pb-0 transition-colors duration-200">
       {/* Tab Guard de Sessão Efêmera no Cliente */}
       <SessionGuard />
 
@@ -218,7 +218,7 @@ export async function AppShell({
                 >
                   <button
                     type="submit"
-                    className="inline-flex min-h-[36px] items-center rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#09090B] px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 active:scale-95 transition shadow-2xs"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#09090B] px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 active:scale-95 transition shadow-2xs"
                   >
                     Sair
                   </button>

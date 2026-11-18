@@ -33,7 +33,7 @@ export default async function VerificarQrPage({
 
   if (!revision) {
     return (
-      <main className="min-h-screen bg-[#F5F5F7] flex items-center justify-center p-4">
+      <main className="min-h-dvh overflow-x-clip bg-[#F5F5F7] dark:bg-[#09090B] flex items-center justify-center p-4">
         <div className="w-full max-w-md rounded-2xl border border-slate-200/60 bg-white p-8 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-4">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-2xl">
             🔍

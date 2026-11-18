@@ -43,7 +43,7 @@ export function MobileNav({ links, areaLabel, groupLabel }: MobileNavProps) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200/60 bg-white text-slate-900 shadow-sm active:scale-[0.98] transition-transform duration-75 select-none hover:bg-[#EDE5D8]/40 focus:outline-none focus:ring-2 focus:ring-[#18181B]/30"
+        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#18181B] text-slate-900 dark:text-slate-100 shadow-sm active:scale-[0.98] transition-transform duration-75 select-none hover:bg-[#EDE5D8]/40 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#18181B]/30"
         aria-label={isOpen ? "Fechar menu" : "Abrir menu"}
         aria-expanded={isOpen}
       >
@@ -75,9 +75,9 @@ export function MobileNav({ links, areaLabel, groupLabel }: MobileNavProps) {
       <div
         className={`fixed inset-y-0 left-0 z-50 w-4/5 max-w-xs transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        } bg-white text-slate-900 border-r border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col`}
+        } bg-white dark:bg-[#18181B] text-slate-900 dark:text-slate-100 border-r border-slate-200/60 dark:border-white/10 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col`}
       >
-        <div className="flex items-center justify-between border-b border-slate-200/60 px-5 py-5">
+        <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/10 px-5 py-5">
           <Link href="/" onClick={() => setIsOpen(false)} className="block">
             <Brand compact showTagline={false} />
           </Link>

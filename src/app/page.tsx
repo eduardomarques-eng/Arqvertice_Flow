@@ -11,10 +11,10 @@ export const dynamic = "force-dynamic";
  */
 export default async function HomePage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f5f5f7] p-6">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-x-clip bg-[#f5f5f7] dark:bg-[#09090B] p-4 sm:p-6">
       <Brand decorative className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 scale-[5] opacity-[0.06] select-none mix-blend-multiply sm:scale-[7]" />
 
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200/60 bg-white p-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#18181B] p-6 sm:p-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
         <Brand />
 
         <h1 className="mt-8 text-3xl font-semibold tracking-tight text-slate-900">Arquitetura e Engenharia</h1>
