@@ -91,6 +91,8 @@ export async function updateProjectInstallment(projectId: string, id: string, in
   if (!installment) return notFound("Parcela");
   const dueDate = data.dueDate ?? installment.dueDate;
   const status = effectiveStatus(data.status ?? installment.status, dueDate);
+  const expectedVersion =
+    typeof data.version === "number" ? data.version : installment.version ?? 1;
   return withDistributedLock("installment-update:" + id, async () => {
     return updateWithOptimisticLock(
       projectId,
@@ -104,7 +106,7 @@ export async function updateProjectInstallment(projectId: string, id: string, in
         linkedStageId: data.linkedStageId,
         order: data.order,
       },
-      installment.version ?? 1
+      expectedVersion
     );
   });
 }

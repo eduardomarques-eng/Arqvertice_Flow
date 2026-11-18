@@ -7,6 +7,7 @@ import type { Installment } from "@/components/projects/project-finance-manager"
 
 export const metadata = { title: "Gestão Financeira & Parcelas — ArqVértice Flow" };
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AdminFinanceiroPage({
   searchParams,
@@ -34,6 +35,7 @@ export default async function AdminFinanceiroPage({
           status: true,
           linkedStageId: true,
           order: true,
+          version: true,
         },
         orderBy: [{ order: "asc" }, { dueDate: "asc" }],
       },
@@ -60,6 +62,7 @@ export default async function AdminFinanceiroPage({
       status: inst.status,
       linkedStageId: inst.linkedStageId,
       order: inst.order,
+      version: inst.version,
     }));
   }
 

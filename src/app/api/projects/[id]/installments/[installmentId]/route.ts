@@ -5,6 +5,9 @@ import { requireRole } from "@/server/auth";
 import { DomainError } from "@/server/errors";
 import { deleteProjectInstallment, updateProjectInstallment } from "@/server/services/installment-service";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; installmentId: string }> }) {
   const { id, installmentId } = await params;
   try {
@@ -19,6 +22,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: "Dados da parcela inválidos." }, { status: 422 });
     if (error instanceof DomainError) return NextResponse.json({ error: error.message }, { status: 404 });
+    if (error instanceof Error && error.message.startsWith("409 Conflict")) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Não foi possível atualizar a parcela." }, { status: 500 });
   }
 }
@@ -28,6 +34,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   try {
     await requireRole("ADMIN");
     await deleteProjectInstallment(id, installmentId);
+    revalidatePath("/admin");
     revalidatePath("/admin/financeiro");
     revalidatePath("/equipe/financeiro");
     revalidatePath(`/admin/projetos/${id}`);

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveDataView } from "@/components/ui/responsive-data-view";
@@ -59,11 +60,16 @@ export function FinanceHubView({
   studioPixKey = COMPANY_PIX_CNPJ,
   studioPixKeyType = "CPF",
 }: FinanceHubViewProps) {
+  const router = useRouter();
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     initialProjectId || (projects.length > 0 ? projects[0].id : "all")
   );
   const [installmentsMap, setInstallmentsMap] =
     useState<Record<string, Installment[]>>(installmentsByProject);
+
+  useEffect(() => {
+    setInstallmentsMap(installmentsByProject);
+  }, [installmentsByProject]);
   const [syncStatus, setSyncStatus] = useState<RealtimeSyncStatus>("idle");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
@@ -172,11 +178,24 @@ export function FinanceHubView({
       const res = await fetch(`/api/projects/${inst.projectId}/installments/${inst.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status: nextStatus, paidDate: nextPaidDate }),
+        body: JSON.stringify({
+          status: nextStatus,
+          paidDate: nextPaidDate,
+          ...(inst.version ? { version: inst.version } : {}),
+        }),
       });
       if (!res.ok) throw new Error("Erro ao atualizar parcela.");
+      const resJson = await res.json();
+      const saved = (resJson?.data ?? resJson) as Installment;
+      setInstallmentsMap((curr) => ({
+        ...curr,
+        [inst.projectId]: (curr[inst.projectId] || []).map((item) =>
+          item.id === inst.id ? { ...item, ...saved, amount: Number(saved.amount) } : item
+        ),
+      }));
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2200);
+      router.refresh();
     } catch {
       setInstallmentsMap(prevMap);
       setSyncStatus("error");
@@ -205,11 +224,30 @@ export function FinanceHubView({
     setSyncStatus("syncing");
 
     try {
-      const res = await fetch(`/api/projects/${inst.projectId}/installments/${inst.id}`, {
+      let res = await fetch(`/api/projects/${inst.projectId}/installments/${inst.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ amount: parsed }),
+        body: JSON.stringify({
+          amount: parsed,
+          ...(inst.version ? { version: inst.version } : {}),
+        }),
       });
+      if (res.status === 409) {
+        const latestRes = await fetch(`/api/projects/${inst.projectId}/installments`, {
+          cache: "no-store",
+        });
+        if (latestRes.ok) {
+          const latestList = (await latestRes.json()) as Installment[];
+          const fresh = latestList.find((x) => x.id === inst.id);
+          if (fresh?.version) {
+            res = await fetch(`/api/projects/${inst.projectId}/installments/${inst.id}`, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ amount: parsed, version: fresh.version }),
+            });
+          }
+        }
+      }
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error || "Erro ao atualizar valor da parcela.");
@@ -219,11 +257,12 @@ export function FinanceHubView({
       setInstallmentsMap((curr) => ({
         ...curr,
         [inst.projectId]: (curr[inst.projectId] || []).map((item) =>
-          item.id === inst.id ? { ...item, amount: Number(saved.amount) } : item
+          item.id === inst.id ? { ...item, ...saved, amount: Number(saved.amount) } : item
         ),
       }));
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2200);
+      router.refresh();
     } catch (err) {
       setInstallmentsMap(prevMap);
       setSyncStatus("error");

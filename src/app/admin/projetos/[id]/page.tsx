@@ -15,6 +15,7 @@ import { ProjectDetailTabs } from "@/components/projects/project-detail-tabs";
 import { ProjectDetailBentoMini } from "@/components/analytics/ProjectDetailBentoMini";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

@@ -87,7 +87,12 @@ export const projectInstallmentSchema = z.object({
   linkedStageId: uuid.optional().nullable(),
   order: z.number().int().positive(),
 });
-export const projectInstallmentUpdateSchema = projectInstallmentSchema.omit({ projectId: true }).partial();
+export const projectInstallmentUpdateSchema = projectInstallmentSchema
+  .omit({ projectId: true })
+  .partial()
+  .extend({
+    version: z.number().int().positive().optional(),
+  });
 
 export const briefingSchema = z.object({
   projectId: z.string().uuid(),

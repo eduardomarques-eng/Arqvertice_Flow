@@ -5,11 +5,17 @@ import { requireRole } from "@/server/auth";
 import { DomainError } from "@/server/errors";
 import { createProjectInstallment, listProjectInstallments } from "@/server/services/installment-service";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     await requireRole("ADMIN");
-    return NextResponse.json(await listProjectInstallments(id));
+    const items = await listProjectInstallments(id);
+    return NextResponse.json(items, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (error) {
     if (error instanceof DomainError) return NextResponse.json({ error: error.message }, { status: 404 });
     return NextResponse.json({ error: "Não foi possível carregar as parcelas." }, { status: 500 });
@@ -22,6 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await requireRole("ADMIN");
     const body = await request.json();
     const created = await createProjectInstallment({ ...body, projectId: id });
+    revalidatePath("/admin");
     revalidatePath("/admin/financeiro");
     revalidatePath("/equipe/financeiro");
     revalidatePath(`/admin/projetos/${id}`);

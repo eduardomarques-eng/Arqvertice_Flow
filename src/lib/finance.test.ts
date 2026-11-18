@@ -148,4 +148,107 @@ describe("updateProjectInstallment persistence", () => {
     );
     expect(saved.amount).toBe(2440.5);
   });
+
+  it("simula ciclo completo POST -> PATCH x2 (version++) -> GET mantendo consistência", async () => {
+    const dbStore: Array<{
+      id: string;
+      projectId: string;
+      description: string;
+      amount: number;
+      dueDate: Date;
+      paidDate: Date | null;
+      status: string;
+      linkedStageId: string | null;
+      order: number;
+      version: number;
+    }> = [];
+
+    vi.resetModules();
+    vi.doMock("@/server/db", () => ({
+      prisma: {
+        project: {
+          findUnique: vi.fn().mockResolvedValue({ id: "22222222-2222-4222-8222-222222222222" }),
+        },
+        projectInstallment: {
+          create: vi.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+            const rec = {
+              id: "11111111-1111-4111-8111-111111111111",
+              projectId: String(data.projectId),
+              description: String(data.description),
+              amount: Number(data.amount),
+              dueDate: new Date(String(data.dueDate)),
+              paidDate: null,
+              status: String(data.status || "PENDING"),
+              linkedStageId: null,
+              order: Number(data.order || 1),
+              version: 1,
+            };
+            dbStore.push(rec);
+            return rec;
+          }),
+          findFirst: vi.fn().mockImplementation(async ({ where }: { where: { id: string } }) => {
+            return dbStore.find((r) => r.id === where.id) ?? null;
+          }),
+          findUnique: vi.fn().mockImplementation(async ({ where }: { where: { id: string } }) => {
+            return dbStore.find((r) => r.id === where.id) ?? null;
+          }),
+          findMany: vi.fn().mockImplementation(async ({ where }: { where: { projectId: string } }) => {
+            return dbStore.filter((r) => r.projectId === where.projectId);
+          }),
+          update: vi.fn().mockImplementation(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+            const idx = dbStore.findIndex((r) => r.id === where.id);
+            const curr = dbStore[idx];
+            const next = {
+              ...curr,
+              ...(data.amount !== undefined ? { amount: Number(data.amount) } : {}),
+              ...(data.description !== undefined ? { description: String(data.description) } : {}),
+              ...(data.status !== undefined ? { status: String(data.status) } : {}),
+              version: curr.version + 1,
+            };
+            dbStore[idx] = next;
+            return next;
+          }),
+        },
+      },
+    }));
+    vi.doMock("@/lib/distributed-lock", () => ({
+      withDistributedLock: async (_k: string, fn: () => Promise<unknown>) => fn(),
+    }));
+
+    const {
+      createProjectInstallment,
+      updateProjectInstallment,
+      listProjectInstallments,
+    } = await import("@/server/services/installment-service");
+
+    const projectId = "22222222-2222-4222-8222-222222222222";
+    const created = await createProjectInstallment({
+      projectId,
+      description: "1ª Parcela — Projeto",
+      amount: 1500,
+      dueDate: "2026-12-10",
+      status: "PENDING",
+      order: 1,
+    });
+    expect(created.version).toBe(1);
+
+    const edit1 = await updateProjectInstallment(projectId, created.id, {
+      amount: 2440.5,
+      version: created.version,
+    });
+    expect(edit1.amount).toBe(2440.5);
+    expect(edit1.version).toBe(2);
+
+    const edit2 = await updateProjectInstallment(projectId, created.id, {
+      amount: 3120.75,
+      version: edit1.version,
+    });
+    expect(edit2.amount).toBe(3120.75);
+    expect(edit2.version).toBe(3);
+
+    const listed = await listProjectInstallments(projectId);
+    expect(listed).toHaveLength(1);
+    expect(listed[0].amount).toBe(3120.75);
+    expect(listed[0].version).toBe(3);
+  });
 });

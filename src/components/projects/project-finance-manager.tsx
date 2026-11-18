@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   formatDateBR,
   toInputDateFormat,
@@ -25,6 +26,7 @@ export type Installment = {
   status: string;
   linkedStageId: string | null;
   order: number;
+  version?: number;
 };
 
 export type Stage = { id: string; name: string };
@@ -61,7 +63,12 @@ export function ProjectFinanceManager({
   projectBudget?: number | null;
   onInstallmentsChange?: (next: Installment[]) => void;
 }) {
+  const router = useRouter();
   const [items, setItems] = useState<Installment[]>(initialInstallments);
+
+  useEffect(() => {
+    setItems(initialInstallments);
+  }, [initialInstallments]);
   const [editing, setEditing] = useState<Installment | null>(null);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [descriptionInput, setDescriptionInput] = useState("");
@@ -156,6 +163,7 @@ export function ProjectFinanceManager({
       paidDate: isInstallmentPaid(status)
         ? editing?.paidDate ?? new Date().toISOString()
         : null,
+      ...(editing?.id && editing.version ? { version: editing.version } : {}),
     };
 
     const isUpdate = Boolean(editing?.id);
@@ -187,11 +195,28 @@ export function ProjectFinanceManager({
       : `/api/projects/${projectId}/installments`;
 
     try {
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: isUpdate ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      if (isUpdate && response.status === 409) {
+        const latestRes = await fetch(`/api/projects/${projectId}/installments`, {
+          cache: "no-store",
+        });
+        if (latestRes.ok) {
+          const latestList = (await latestRes.json()) as Installment[];
+          const fresh = latestList.find((x) => x.id === editing!.id);
+          if (fresh?.version) {
+            response = await fetch(url, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ ...payload, version: fresh.version }),
+            });
+          }
+        }
+      }
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
@@ -207,6 +232,7 @@ export function ProjectFinanceManager({
       );
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2200);
+      router.refresh();
     } catch (err) {
       updateItems(() => prevSnapshot);
       setSyncStatus("error");
@@ -231,6 +257,7 @@ export function ProjectFinanceManager({
       }
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2200);
+      router.refresh();
     } catch (err) {
       updateItems(() => prevSnapshot);
       setSyncStatus("error");
@@ -258,16 +285,22 @@ export function ProjectFinanceManager({
       const response = await fetch(`/api/projects/${projectId}/installments/${item.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status, paidDate: nextPaidDate }),
+        body: JSON.stringify({
+          status,
+          paidDate: nextPaidDate,
+          ...(item.version ? { version: item.version } : {}),
+        }),
       });
       if (!response.ok) {
         throw new Error("Não foi possível atualizar o status.");
       }
-      const saved = await response.json();
+      const resJson = await response.json();
+      const saved = (resJson?.data ?? resJson) as Installment;
       updateItems((current) =>
         current.map((entry) => (entry.id === saved.id ? saved : entry))
       );
       setSyncStatus("saved");
+      router.refresh();
       setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2200);
     } catch (err) {
       updateItems(() => prevSnapshot);
@@ -379,6 +412,7 @@ export function ProjectFinanceManager({
       });
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus((s) => (s === "saved" ? "idle" : s)), 2400);
+      router.refresh();
     } catch (err) {
       updateItems(() => prevSnapshot);
       setSyncStatus("error");

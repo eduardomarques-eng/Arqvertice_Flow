@@ -13,6 +13,7 @@ import { ExecutiveBentoDashboard } from "@/components/analytics/ExecutiveBentoDa
 
 export const metadata = { title: "Command Center" };
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const money = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
