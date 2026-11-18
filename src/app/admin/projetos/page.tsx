@@ -69,7 +69,7 @@ export default async function AdminProjectsPage({
           <ProjectsBentoDashboard
             projectsOnTime={projects.filter((p) => p.status !== "PAUSED" && p.status !== "CANCELLED").length}
             completedStages={projects.reduce(
-              (acc, p) => acc + (p.stages || []).filter((s) => s.completion === 100 || s.status === "COMPLETED").length,
+              (acc, p) => acc + p.stages.filter((s) => s.completion === 100 || s.status === "COMPLETED").length,
               0
             )}
             criticalMilestones7d={projects.reduce((acc, p) => {
@@ -77,7 +77,7 @@ export default async function AdminProjectsPage({
               const in7 = now + 7 * 86_400_000;
               return (
                 acc +
-                (p.stages || []).filter((s) => {
+                p.stages.filter((s) => {
                   if (s.completion === 100 || !s.dueDate) return false;
                   const t = new Date(s.dueDate).getTime();
                   return t >= now && t <= in7;
@@ -95,34 +95,30 @@ export default async function AdminProjectsPage({
                 executed:
                   projects.length > 0
                     ? Math.round(
-                        projects.reduce((acc, p) => {
-                          const list = p.stages || [];
-                          const avg = list.length
-                            ? list.reduce((s, st) => s + st.completion, 0) / list.length
-                            : 0;
-                          return acc + avg;
-                        }, 0) / projects.length
-                      )
+                      projects.reduce((acc, p) => {
+                        const avg = p.stages.length
+                          ? p.stages.reduce((s, st) => s + st.completion, 0) / p.stages.length
+                          : 0;
+                        return acc + avg;
+                      }, 0) / projects.length
+                    )
                     : 0,
               },
             ]}
-            progressRanking={projects.map((p) => {
-              const list = p.stages || [];
-              return {
-                id: p.id,
-                name: p.name,
-                clientName: p.client.name,
-                progressPct: list.length
-                  ? Math.round(list.reduce((s, st) => s + st.completion, 0) / list.length)
-                  : 0,
-              };
-            })}
+            progressRanking={projects.map((p) => ({
+              id: p.id,
+              name: p.name,
+              clientName: p.client.name,
+              progressPct: p.stages.length
+                ? Math.round(p.stages.reduce((s, st) => s + st.completion, 0) / p.stages.length)
+                : 0,
+            }))}
             stageStatusSlices={[
               {
                 id: "done",
                 label: "Concluídas",
                 value: projects.reduce(
-                  (a, p) => a + (p.stages || []).filter((s) => s.completion === 100 || s.status === "COMPLETED").length,
+                  (a, p) => a + p.stages.filter((s) => s.completion === 100 || s.status === "COMPLETED").length,
                   0
                 ),
               },
@@ -130,7 +126,7 @@ export default async function AdminProjectsPage({
                 id: "inprog",
                 label: "Em Andamento",
                 value: projects.reduce(
-                  (a, p) => a + (p.stages || []).filter((s) => s.completion > 0 && s.completion < 100).length,
+                  (a, p) => a + p.stages.filter((s) => s.completion > 0 && s.completion < 100).length,
                   0
                 ),
               },
@@ -138,7 +134,7 @@ export default async function AdminProjectsPage({
                 id: "todo",
                 label: "A Iniciar",
                 value: projects.reduce(
-                  (a, p) => a + (p.stages || []).filter((s) => s.completion === 0).length,
+                  (a, p) => a + p.stages.filter((s) => s.completion === 0).length,
                   0
                 ),
               },

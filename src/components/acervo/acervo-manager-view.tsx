@@ -299,8 +299,8 @@ export function AcervoManagerView({
             id: `${d.discipline}-${i}`,
             label: d.discipline,
             secondaryText: `${d.bomParaObra} liberada(s)`,
-            value: d.bomParaObra + d.emAndamento,
-            formattedValue: String(d.bomParaObra + d.emAndamento),
+            value: d.bomParaObra + d.emAnalise,
+            formattedValue: String(d.bomParaObra + d.emAnalise),
             highlight: i === 0,
           }))}
         />
@@ -331,7 +331,7 @@ export function AcervoManagerView({
           data={chartData.slice(0, 5).map((d) => ({
             label: d.discipline.slice(0, 6),
             primaryValue: d.bomParaObra,
-            secondaryValue: d.emAndamento,
+            secondaryValue: d.emAnalise,
           }))}
         />
       </div>
@@ -491,9 +491,8 @@ export function AcervoManagerView({
                 return (
                   <tr
                     key={doc.id}
-                    className={`hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors ${
-                      isSelected ? "bg-slate-50/90 dark:bg-white/10" : ""
-                    }`}
+                    className={`hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors ${isSelected ? "bg-slate-50/90 dark:bg-white/10" : ""
+                      }`}
                   >
                     <td className="py-3 pl-4 pr-2">
                       <input
