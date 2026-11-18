@@ -1724,3 +1724,73 @@ model ClientBooking {
 
   @@index([scheduledAt, status])
 }
+
+
+model WhatsAppUserSession {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  userId                  String                 @unique @db.Uuid
+  userName                String
+  userRole                String                 @default("ARCHITECT") // ADMIN | ARCHITECT | ENGINEER | PARTNER
+  sessionName             String                 @unique
+  isStudioOfficial        Boolean                @default(false)
+  connectionStatus        String                 @default("DISCONNECTED") // DISCONNECTED | QR_READY | CONNECTED
+  qrCodeDataUrl           String?                @db.Text
+  pairingCode             String?
+  connectedPhone          String?
+  onlyKnownContacts       Boolean                @default(true)
+  autoSyncProjectTimeline Boolean                @default(true)
+  lastConnectedAt         DateTime?
+  conversations           WhatsAppConversation[]
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  @@index([sessionName])
+}
+
+model WhatsAppGatewayConfig {
+  id                     String   @id @default("default")
+  gatewayUrl             String?
+  apiKeyConfigured       Boolean  @default(false)
+  autoNotifyAcervo       Boolean  @default(true)
+  autoNotifyFinance      Boolean  @default(true)
+  autoNotifyBooking      Boolean  @default(true)
+  defaultSenderSessionId String?  @db.Uuid
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model WhatsAppConversation {
+  id            String              @id @default(uuid()) @db.Uuid
+  sessionId     String              @db.Uuid
+  ownerUserId   String              @db.Uuid
+  remoteJid     String
+  contactPhone  String
+  contactName   String?
+  clientId      String?             @db.Uuid
+  projectId     String?             @db.Uuid
+  unreadCount   Int                 @default(0)
+  lastMessageAt DateTime            @default(now())
+  session       WhatsAppUserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  messages      WhatsAppMessage[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([sessionId, remoteJid])
+  @@index([ownerUserId, lastMessageAt])
+  @@index([projectId])
+}
+
+model WhatsAppMessage {
+  id             String               @id @default(uuid()) @db.Uuid
+  conversationId String               @db.Uuid
+  direction      String // INBOUND | OUTBOUND
+  bodyText       String               @db.Text
+  mediaUrl       String?
+  status         String               @default("SENT") // QUEUED | SENT | DELIVERED | RECEIVED | FAILED
+  providerMsgId  String?
+  rfiId          String?              @db.Uuid
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime             @default(now())
+
+  @@index([conversationId, createdAt])
+}

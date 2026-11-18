@@ -17,6 +17,7 @@ const PUBLIC_PREFIXES = [
   "/api/health",
   "/api/booking",
   "/api/email/inbound",
+  "/api/whatsapp/webhook",
 ] as const;
 
 function isPublicPath(pathname: string): boolean {
@@ -87,7 +88,8 @@ export function middleware(request: NextRequest) {
       if (
         !isAllowedOrigin &&
         !pathname.startsWith("/api/briefings") &&
-        !pathname.startsWith("/api/email/inbound")
+        !pathname.startsWith("/api/email/inbound") &&
+        !pathname.startsWith("/api/whatsapp/webhook")
       ) {
         return new NextResponse(JSON.stringify({ error: "Forbidden: Origem não autorizada." }), {
           status: 403,

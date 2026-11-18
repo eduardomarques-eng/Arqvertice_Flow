@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildWhatsAppLink, buildWhatsAppMessage, generateWhatsAppLink, normalizeWhatsAppPhone, sanitizePhoneNumber, WhatsAppTemplates } from "./whatsapp";
+import {
+  buildSessionName,
+  buildWhatsAppTemplates,
+  shouldIndexInboundMessage,
+} from "./whatsapp/multi-session";
 
 describe("whatsapp da proposta comercial", () => {
   it("substitui placeholders e preserva chaves desconhecidas", () => {
@@ -53,5 +58,36 @@ describe("whatsapp da proposta comercial", () => {
     });
     expect(rendered.missingRequired).toEqual([]);
     expect(rendered.text).not.toContain("{{");
+  });
+
+  it("gera sessionName isolado e aplica filtro de privacidade onlyKnownContacts", () => {
+    expect(buildSessionName("12345678-aaaa-bbbb-cccc-123456789012")).toBe("wa_user_12345678aaaa");
+    expect(
+      shouldIndexInboundMessage({
+        onlyKnownContacts: true,
+        remoteJid: "120363000000000000@g.us",
+        matchedClientId: "client-1",
+      })
+    ).toBe(false);
+    expect(
+      shouldIndexInboundMessage({
+        onlyKnownContacts: true,
+        remoteJid: "5585999999999@s.whatsapp.net",
+        matchedClientId: null,
+      })
+    ).toBe(false);
+    expect(
+      shouldIndexInboundMessage({
+        onlyKnownContacts: true,
+        remoteJid: "5585999999999@s.whatsapp.net",
+        matchedClientId: "client-1",
+      })
+    ).toBe(true);
+  });
+
+  it("gera template Pix com Chave Pix Oficial CPF 021.502.003-09", () => {
+    const tpls = buildWhatsAppTemplates();
+    const pix = tpls.find((t) => t.id === "pix");
+    expect(pix?.text).toContain("021.502.003-09");
   });
 });

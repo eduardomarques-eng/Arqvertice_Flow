@@ -17,6 +17,7 @@ export function SidebarNav({ links }: { links: readonly NavLink[] }) {
           pathname === href || (!ROOT_PATHS.has(href) && pathname.startsWith(href));
         const is3D = label === "3D Viewer";
         const isEmail = label === "E-mail Profissional";
+        const isWhatsApp = label === "Central WhatsApp";
         return (
           <Link
             key={href}
@@ -30,6 +31,7 @@ export function SidebarNav({ links }: { links: readonly NavLink[] }) {
             <span className="inline-flex items-center gap-2">
               {is3D && <span aria-hidden="true">🧊</span>}
               {isEmail && <span aria-hidden="true">✉️</span>}
+              {isWhatsApp && <span aria-hidden="true">💬</span>}
               <span>{label}</span>
             </span>
             <span className="inline-flex items-center gap-1.5">

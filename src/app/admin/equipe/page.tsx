@@ -21,8 +21,8 @@ export default async function EquipePage() {
   await ensureEmailBootstrap();
   const now = new Date();
 
-  // 1. Busca usuários, projetos, etapas, clientes, logs de acesso, comunicação e caixas de e-mail
-  const [users, rawProjects, rawStages, rawLogs, rawClients, rawTrafficLogs, rawCommLogs, rawMailboxes] =
+  // 1. Busca usuários, projetos, etapas, clientes, logs de acesso, comunicação, caixas de e-mail e sessões WhatsApp
+  const [users, rawProjects, rawStages, rawLogs, rawClients, rawTrafficLogs, rawCommLogs, rawMailboxes, rawWaSessions] =
     await Promise.all([
       prisma.user.findMany({
         select: {
@@ -87,6 +87,14 @@ export default async function EquipePage() {
         where: { isActive: true },
         select: { id: true, address: true, displayName: true, allowedUserIds: true },
         orderBy: { address: "asc" },
+      }),
+      prisma.whatsAppUserSession.findMany({
+        select: {
+          userId: true,
+          sessionName: true,
+          connectionStatus: true,
+          connectedPhone: true,
+        },
       }),
     ]);
 
@@ -245,6 +253,7 @@ export default async function EquipePage() {
         trafficLogs={trafficLogs}
         commLogs={commLogs}
         mailboxes={rawMailboxes}
+        waSessions={rawWaSessions}
       />
     </AppShell>
   );

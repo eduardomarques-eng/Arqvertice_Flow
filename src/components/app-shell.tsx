@@ -20,6 +20,7 @@ const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module
   { label: "3D Viewer", href: "/admin/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
+  { label: "Central WhatsApp", href: "/admin/whatsapp", icon: "💬", module: "dashboard" },
   { label: "E-mail Profissional", href: "/admin/email", icon: "✉️", module: "dashboard" },
   { label: "Equipe & Governança", href: "/admin/equipe", icon: "🛡️", module: "equipe" },
 ];
@@ -44,6 +45,7 @@ const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; modu
   { label: "3D Viewer", href: "/equipe/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
+  { label: "Central WhatsApp", href: "/equipe/whatsapp", icon: "💬", module: "dashboard" },
   { label: "E-mail Profissional", href: "/equipe/email", icon: "✉️", module: "dashboard" },
   { label: "Equipe & Governança", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },
 ];

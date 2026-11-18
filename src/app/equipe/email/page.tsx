@@ -11,6 +11,7 @@ import { currentUser } from "@/server/auth";
 
 export const metadata = { title: "E-mail Profissional — Equipe ArqVértice" };
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function EquipeEmailPage() {
   const user = await currentUser();

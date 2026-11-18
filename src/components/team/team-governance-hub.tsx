@@ -112,6 +112,12 @@ interface TeamGovernanceHubProps {
     displayName: string;
     allowedUserIds: string[];
   }>;
+  waSessions?: Array<{
+    userId: string;
+    sessionName: string;
+    connectionStatus: string;
+    connectedPhone: string | null;
+  }>;
 }
 
 const AVAILABLE_PERMISSIONS = [
@@ -164,6 +170,7 @@ export function TeamGovernanceHub({
   trafficLogs,
   commLogs,
   mailboxes = [],
+  waSessions = [],
 }: TeamGovernanceHubProps) {
   const [mailboxList, setMailboxList] = useState(mailboxes);
   const [editMailboxIds, setEditMailboxIds] = useState<string[]>([]);
@@ -711,6 +718,28 @@ export function TeamGovernanceHub({
                             : member.viewerMode === "PROCEDURAL_EDIT"
                             ? "Edição Procedural"
                             : "Navegação Leitura"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200/60 dark:border-white/10 pt-1">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">💬 WhatsApp QR:</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100">
+                          {(() => {
+                            const ws = waSessions.find((s) => s.userId === member.id);
+                            if (!ws || ws.connectionStatus === "DISCONNECTED") return "Aguardando QR";
+                            if (ws.connectionStatus === "QR_READY") return "QR Pronto";
+                            return `Conectado (${ws.connectedPhone || "Ativo"})`;
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200/60 dark:border-white/10 pt-1">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">✉️ Caixas E-mail:</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100 truncate max-w-[140px]">
+                          {member.role === "ADMIN"
+                            ? `Todas (${mailboxList.length})`
+                            : mailboxList
+                                .filter((mb) => mb.allowedUserIds.includes(member.id))
+                                .map((mb) => mb.address.split("@")[0])
+                                .join(", ") || "Nenhuma"}
                         </span>
                       </div>
                     </div>
