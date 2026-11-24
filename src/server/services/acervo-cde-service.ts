@@ -10,16 +10,6 @@ import {
   Prisma,
 } from "@prisma/client";
 import { getNextRevisionNumber, parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
-import {
-  DEFAULT_SHOWCASE_ANNOTATIONS,
-  DEFAULT_SHOWCASE_CAMERA_PRESET,
-  DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
-  type Project3DAnnotation,
-  type Project3DCameraPreset,
-  type Project3DOptimizationStats,
-  type Project3DAssetDTO,
-} from "@/lib/acervo/showcase-3d-defaults";
-import { DEFAULT_3D_TEMPLATES_MANIFEST } from "@/lib/acervo/scene-compiler";
 
 /**
  * Cria ou registra nova versão de prancha/documento no CDE
@@ -393,103 +383,6 @@ export async function getAcervoExecutiveKpis() {
   };
 }
 
-export function mapProject3DAssetToDTO(row: {
-  id: string;
-  projectId: string;
-  documentId: string | null;
-  revisionId: string | null;
-  title: string;
-  description: string | null;
-  glbUrl: string;
-  posterUrl: string | null;
-  fileSizeBytes: number | null;
-  optimizationStats: Prisma.JsonValue | null;
-  cameraPreset: Prisma.JsonValue;
-  annotations: Prisma.JsonValue;
-  isFeatured: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}): Project3DAssetDTO {
-  const cp = (row.cameraPreset as unknown as Project3DCameraPreset) || DEFAULT_SHOWCASE_CAMERA_PRESET;
-  const anns = Array.isArray(row.annotations)
-    ? (row.annotations as unknown as Project3DAnnotation[])
-    : DEFAULT_SHOWCASE_ANNOTATIONS;
-  const stats = (row.optimizationStats as unknown as Project3DOptimizationStats | null) ?? null;
-
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    documentId: row.documentId,
-    revisionId: row.revisionId,
-    title: row.title,
-    description: row.description,
-    glbUrl: row.glbUrl || "/models/arqvertice-showcase.glb",
-    posterUrl: row.posterUrl || "/models/arqvertice-showcase-poster.svg",
-    fileSizeBytes: row.fileSizeBytes ?? 23352,
-    optimizationStats: stats || DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
-    cameraPreset: {
-      position: Array.isArray(cp.position) ? cp.position : DEFAULT_SHOWCASE_CAMERA_PRESET.position,
-      target: Array.isArray(cp.target) ? cp.target : DEFAULT_SHOWCASE_CAMERA_PRESET.target,
-      fov: typeof cp.fov === "number" ? cp.fov : 42,
-    },
-    annotations: anns,
-    isFeatured: row.isFeatured,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-export async function ensureProject3DShowcase(
-  projectId: string,
-  projectName?: string
-): Promise<Project3DAssetDTO[]> {
-  const existing = await prisma.project3DAsset.findMany({
-    where: { projectId },
-    orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
-  });
-
-  const existingGlbUrls = new Set(existing.map((e) => e.glbUrl));
-  const missingTemplates = DEFAULT_3D_TEMPLATES_MANIFEST.models.filter(
-    (tpl): tpl is typeof tpl & { glbUrl: string } =>
-      Boolean(tpl.glbUrl) &&
-      tpl.status !== "NEEDS_EXPORT" &&
-      !existingGlbUrls.has(tpl.glbUrl as string)
-  );
-
-  if (existing.length > 0 && missingTemplates.length === 0) {
-    return existing.map(mapProject3DAssetToDTO);
-  }
-
-  const project = projectName
-    ? { name: projectName }
-    : await prisma.project.findUnique({ where: { id: projectId }, select: { name: true } });
-
-  if (!project) return existing.map(mapProject3DAssetToDTO);
-
-  const createdRows = [];
-  for (let idx = 0; idx < missingTemplates.length; idx++) {
-    const tpl = missingTemplates[idx];
-    const row = await prisma.project3DAsset.create({
-      data: {
-        projectId,
-        title: `${tpl.title} — ${project.name}`,
-        description: `${tpl.subtitle}. Normalizado (1 un = 1m, Y=0) com Smart PBR Shaders e iluminação HDRI em tempo real.`,
-        glbUrl: tpl.glbUrl,
-        posterUrl: tpl.posterUrl,
-        fileSizeBytes: tpl.fileSizeBytes,
-        optimizationStats: tpl.optimizationStats as unknown as Prisma.InputJsonValue,
-        cameraPreset: tpl.thirdPersonCamera as unknown as Prisma.InputJsonValue,
-        annotations: tpl.annotations as unknown as Prisma.InputJsonValue,
-        isFeatured: existing.length === 0 && idx === 0,
-      },
-    });
-    createdRows.push(row);
-  }
-
-  const allAssets = [...existing, ...createdRows];
-  return allAssets.map(mapProject3DAssetToDTO);
-}
-
 /**
  * Carrega dados completos do Workspace 3 Zonas para /admin/acervo/[projectId] e /equipe/acervo/[projectId]
  */
@@ -530,14 +423,11 @@ export async function getAcervoProjectWorkspaceData(projectId: string) {
 
   if (!rawProject) return null;
 
-  const showcase3DAssets = await ensureProject3DShowcase(rawProject.id, rawProject.name);
-
   return {
     id: rawProject.id,
     name: rawProject.name,
     clientName: rawProject.client?.name || "Geral",
     activeTokensCount,
-    showcase3DAssets,
     namingRules: rawProject.acervoNamingRules.map((r) => ({
       id: r.id,
       mask: r.mask,

@@ -17,7 +17,6 @@ const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module
   { label: "Projetos", href: "/admin/projetos", icon: "📋", module: "projetos" },
   { label: "Cronograma & Operação", href: "/admin/cronograma", icon: "📅", module: "cronograma" },
   { label: "Acervo Manager", href: "/admin/acervo", icon: "📁", module: "acervo" },
-  { label: "3D Viewer", href: "/admin/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
   { label: "Central WhatsApp", href: "/admin/whatsapp", icon: "💬", module: "dashboard" },
@@ -42,7 +41,6 @@ const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; modu
   { label: "Projetos", href: "/equipe/projetos", icon: "📋", module: "projetos" },
   { label: "Cronograma & Operação", href: "/equipe/cronograma", icon: "📅", module: "cronograma" },
   { label: "Acervo Manager", href: "/equipe/acervo", icon: "📁", module: "acervo" },
-  { label: "3D Viewer", href: "/equipe/3d-viewer", icon: "🧊", module: "3d-viewer" },
   { label: "Gestão Financeira", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
   { label: "Central WhatsApp", href: "/equipe/whatsapp", icon: "💬", module: "dashboard" },
@@ -102,12 +100,10 @@ export async function AppShell({
     allowedLinks = [
       ["Meu projeto", "/portal"],
       ["Acervo Manager", "/equipe/acervo"],
-      ["3D Viewer", "/equipe/3d-viewer"],
     ] as const;
     bottomNavLinks = [
       { label: "Meu Projeto", href: "/portal", icon: "🏛️" },
       { label: "Acervo", href: "/equipe/acervo", icon: "📁" },
-      { label: "3D Viewer", href: "/equipe/3d-viewer", icon: "🧊" },
     ];
   } else if (effectiveRole === "ADMIN") {
     allowedLinks = ALL_ADMIN_LINKS.map((item) =>
@@ -122,13 +118,12 @@ export async function AppShell({
     }));
   } else {
     // Equipe técnica: links dinâmicos apontando exclusivamente para /equipe/*
-    // Painel Técnico (/equipe), Acervo Manager (/equipe/acervo) e 3D Viewer (/equipe/3d-viewer) são sempre visíveis;
+    // Painel Técnico (/equipe) e Acervo Manager (/equipe/acervo) são sempre visíveis;
     // a restrição ocorre estritamente por empreendimento atribuído (ProjectAccess) e FeatureVisibility.
     const primary = TEAM_MODULE_LINKS.filter(
       (item) =>
         item.module === "dashboard" ||
         item.module === "acervo" ||
-        item.module === "3d-viewer" ||
         effectivePermissions.includes(item.module)
     );
     const secondary = TEAM_SECONDARY_LINKS.filter(

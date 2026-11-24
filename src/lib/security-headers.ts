@@ -130,7 +130,6 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/portal",
   "/relatorio",
   "/acervo",
-  "/3d-viewer",
 ] as const;
 
 export function isProtectedPath(pathname: string): boolean {

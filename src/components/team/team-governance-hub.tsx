@@ -125,7 +125,6 @@ const AVAILABLE_PERMISSIONS = [
   { key: "cronograma", label: "Cronograma & Operação", desc: "Quadro Kanban e avanço físico" },
   { key: "projetos", label: "Empreendimentos & Fichas", desc: "Gestão executiva e Ficha Técnica 360" },
   { key: "acervo", label: "Acervo Manager (CDE)", desc: "Pranchas, revisões R00/R01 e GRD (filtrado por projeto)" },
-  { key: "3d-viewer", label: "3D Viewer (Estúdio Isolado)", desc: "Acesso ao módulo 3D (governado por FeatureVisibility)" },
   { key: "financeiro", label: "Gestão Financeira", desc: "Controle de parcelas e contratos" },
   { key: "clientes", label: "Gestão de Clientes", desc: "Base de contratantes e briefing" },
   { key: "equipe", label: "Equipe & Governança", desc: "Administração de perfis e RBAC" },

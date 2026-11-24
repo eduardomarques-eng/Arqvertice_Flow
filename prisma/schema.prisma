@@ -405,7 +405,6 @@ model Project {
   acervoApiTokens             AcervoApiToken[]
   acervoFolders               AcervoFolder[]
   acervoWorkflowConfigs       AcervoWorkflowConfig[]
-  project3DAssets             Project3DAsset[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 
@@ -1376,7 +1375,6 @@ model AcervoDocument {
   folder          AcervoFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
   revisions       AcervoRevision[]
   rfis            AcervoRfiMarkup[]
-  project3DAssets Project3DAsset[]
 
   @@unique([projectId, code])
   @@index([projectId, discipline])
@@ -1422,7 +1420,6 @@ model AcervoRevision {
   workflowLogs    AcervoWorkflowLog[]
   grdItems        AcervoGrdItem[]
   rfis            AcervoRfiMarkup[]
-  project3DAssets Project3DAsset[]
 
   @@index([documentId, revisionNumber])
   @@index([documentId, isCurrent])
@@ -1552,50 +1549,6 @@ model AcervoApiToken {
   createdBy User?    @relation("AcervoApiTokensCreated", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([tokenHash])
-}
-
-model Project3DAsset {
-  id                String   @id @default(cuid())
-  projectId         String   @db.Uuid
-  documentId        String?  @db.Uuid
-  revisionId        String?  @db.Uuid
-  title             String
-  description       String?
-  glbUrl            String
-  posterUrl         String?
-  fileSizeBytes     Int?
-  optimizationStats Json?
-  cameraPreset      Json
-  annotations       Json
-  isFeatured        Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  document AcervoDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  revision AcervoRevision? @relation(fields: [revisionId], references: [id], onDelete: SetNull)
-
-  @@index([projectId])
-  @@index([documentId])
-  @@index([revisionId])
-}
-
-model Pipeline3DAssetState {
-  id             String   @id
-  name           String
-  category       String
-  sourcePath     String
-  sourceFormat   String
-  pipelineStatus String   @default("WARNING")
-  stepCompleted  String?
-  outputUrl      String?
-  binaryBase64   String?
-  fileSizeBytes  Int      @default(0)
-  diagnostics    Json?
-  logs           Json?
-  updatedById    String?  @db.Uuid
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 }
 
 model FeatureVisibility {
@@ -1796,20 +1749,4 @@ model WhatsAppMessage {
   createdAt        DateTime             @default(now())
 
   @@index([conversationId, createdAt])
-}
-
-
-model AgentActionLog {
-  id            String   @id @default(uuid()) @db.Uuid
-  source        String // OPENBOT | OLLAMA_LOCAL | WHATSAPP_GATEWAY
-  actorEmail    String?
-  module        String // PROJECTS | ACERVO | FINANCE | PROPOSALS | EMAIL | BOOKING | WHATSAPP | TEAM | SETTINGS
-  actionName    String
-  inputSummary  String   @db.Text
-  resultSummary String   @db.Text
-  status        String   @default("SUCCESS") // SUCCESS | PENDING_CONFIRMATION | ERROR
-  createdAt     DateTime @default(now())
-
-  @@index([module, createdAt])
-  @@index([source, createdAt])
 }

@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { RealtimeSyncBadge, useRealtimeMutation } from "@/hooks/use-realtime-mutation";
 import { formatDateBR } from "@/lib/formatters";
 import type { WorkspaceRfiItem } from "@/components/acervo/cde-workspace-viewer";
-import type { ExtractedIfcTakeoff } from "@/engines/bim-3d/types";
 import { AcervoQrCodeModal } from "@/components/acervo/acervo-qrcode-modal";
 import { AcervoUploadRevisionModal } from "@/components/acervo/acervo-upload-revision-modal";
 import {
@@ -18,25 +17,6 @@ import {
   generateMaxScript,
   downloadTextFile,
 } from "@/components/acervo/acervo-script-generators";
-import {
-  DEFAULT_SHOWCASE_ANNOTATIONS,
-  DEFAULT_SHOWCASE_CAMERA_PRESET,
-  DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
-  type Project3DAssetDTO,
-} from "@/lib/acervo/showcase-3d-defaults";
-
-const SketchfabShowcaseViewer = dynamic(
-  () =>
-    import("@/engines/sketchfab-viewer/SketchfabShowcaseViewer").then(
-      (mod) => mod.SketchfabShowcaseViewer
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[480px] w-full animate-pulse rounded-2xl border border-slate-200/60 bg-[#EDE5D8]/60" />
-    ),
-  }
-);
 
 const CdeWorkspaceViewer = dynamic(
   () =>
@@ -56,7 +36,6 @@ export interface ProjectDetailData {
   name: string;
   clientName?: string;
   activeTokensCount?: number;
-  showcase3DAssets?: Project3DAssetDTO[];
   namingRules: Array<{
     id: string;
     mask: string;
@@ -116,20 +95,6 @@ export function AcervoProjectDetailView({
   basePath: "/admin" | "/equipe";
   userRole: string;
 }) {
-  const [isShowcaseVisible, setIsShowcaseVisible] = useState<boolean>(true);
-  const featured3DAsset = project.showcase3DAssets?.[0] || {
-    id: undefined,
-    projectId: project.id,
-    title: `Maquete Eletrônica Executiva — ${project.name}`,
-    description:
-      "Modelo 3D BIM/PBR otimizado com compressão Meshopt para inspeção executiva de fachadas, caixilharias, revestimentos ACM e luminotécnica.",
-    glbUrl: "/models/arqvertice-showcase.glb",
-    posterUrl: "/models/arqvertice-showcase-poster.svg",
-    cameraPreset: DEFAULT_SHOWCASE_CAMERA_PRESET,
-    annotations: DEFAULT_SHOWCASE_ANNOTATIONS,
-    optimizationStats: DEFAULT_SHOWCASE_OPTIMIZATION_STATS,
-  };
-
   const {
     state: docsState,
     mutate: mutateDocStatus,
@@ -714,17 +679,6 @@ export function AcervoProjectDetailView({
                 activeTool={activeTool}
                 onChangeTool={setActiveTool}
                 onCreate2dMarkup={(payload) => setPendingMarkup(payload)}
-                onCreate3dRfi={(cam) =>
-                  setPendingMarkup({
-                    markupType: "PIN",
-                    cameraState: cam,
-                  })
-                }
-                onExtractedIfcQuantities={(items) => {
-                  setTakeoffs(items);
-                  setExtractSource("WEB_IFC_NATIVE");
-                  setZonaCTab("BIM_IA");
-                }}
               />
             </div>
 
@@ -916,37 +870,6 @@ export function AcervoProjectDetailView({
                       >
                         {isExtracting ? "Extraindo..." : "Ler Carimbo e Quadros da Prancha (IA/PDF)"}
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={isExtracting}
-                        onClick={async () => {
-                          setIsExtracting(true);
-                          try {
-                            const res = await fetch("/api/acervo/extract", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                sourceType: "MODEL_3D",
-                                model3dSlug: "cozinha-interna",
-                              }),
-                            });
-                            const data = await res.json();
-                            if (res.ok && data.success) {
-                              setTakeoffs(data.takeoffs || []);
-                              setExtractSource(data.source || "SCENE_3D_INSPECTOR");
-                            }
-                          } finally {
-                            setIsExtracting(false);
-                          }
-                        }}
-                        className="w-full h-8 rounded-xl border-slate-200 bg-[#F5F5F7] text-[11px] font-semibold text-slate-800 hover:bg-[#EDE5D8]/60"
-                      >
-                        Inspecionar Quantitativos 3D (.GLB / Materiais PBR)
-                      </Button>
-                      <p className="text-[10px] text-slate-500 text-center">
-                        Para modelos 3D, use também &quot;Extrair Quantitativos IFC&quot; na barra do visualizador 3D.
-                      </p>
                     </div>
 
                     {extractSource && (

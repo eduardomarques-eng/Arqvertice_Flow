@@ -180,8 +180,6 @@ export async function updateTeamMemberGovernanceAction(input: UpdateGovernanceIn
   revalidatePath("/admin/equipe");
   revalidatePath("/admin/acervo");
   revalidatePath("/equipe/acervo");
-  revalidatePath("/admin/3d-viewer");
-  revalidatePath("/equipe/3d-viewer");
   return { success: true };
 }
 

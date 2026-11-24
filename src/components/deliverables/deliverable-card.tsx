@@ -161,12 +161,6 @@ export function DeliverableCard({
     tone: "neutral" as const,
   };
 
-  const pathname = usePathname();
-  const viewerBasePath = pathname?.startsWith("/equipe") ? "/equipe/3d-viewer" : "/admin/3d-viewer";
-  const isGlbModel = Boolean(
-    deliverable.fileUrl?.toLowerCase().match(/\.(glb|gltf)(\?|$)/)
-  );
-
   const isPdf =
     deliverable.type === "PLANTA_BAIXA" ||
     deliverable.type === "CORTE_FACHADA" ||
@@ -175,7 +169,6 @@ export function DeliverableCard({
 
   const isImage =
     !isPdf &&
-    !isGlbModel &&
     (deliverable.category === "IMAGEM_RENDER" ||
       deliverable.type === "RENDER_3D" ||
       Boolean(deliverable.fileUrl?.match(/\.(png|jpg|jpeg|webp)$/i)));
@@ -346,17 +339,6 @@ export function DeliverableCard({
           </svg>
           Visualizar
         </button>
-
-        {isGlbModel && (
-          <Link
-            href={`${viewerBasePath}?${deliverable.projectId ? `projectId=${encodeURIComponent(deliverable.projectId)}&` : ""}file=${encodeURIComponent(deliverable.fileUrl)}&title=${encodeURIComponent(deliverable.title)}`}
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-[#18181B] px-3.5 py-2 text-xs font-bold text-white hover:opacity-90 active:scale-[0.98] transition select-none dark:bg-[#EDE5D8] dark:text-[#18181B]"
-            title="Abrir modelo .GLB no Visualizador 3D"
-          >
-            <span>🧊</span>
-            <span>Abrir no Visualizador 3D</span>
-          </Link>
-        )}
 
         {/* Download Direto */}
         <a

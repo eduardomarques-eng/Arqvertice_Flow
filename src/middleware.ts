@@ -89,8 +89,7 @@ export function middleware(request: NextRequest) {
         !isAllowedOrigin &&
         !pathname.startsWith("/api/briefings") &&
         !pathname.startsWith("/api/email/inbound") &&
-        !pathname.startsWith("/api/whatsapp/webhook") &&
-        !pathname.startsWith("/api/agent/")
+        !pathname.startsWith("/api/whatsapp/webhook")
       ) {
         return new NextResponse(JSON.stringify({ error: "Forbidden: Origem não autorizada." }), {
           status: 403,
@@ -119,13 +118,7 @@ export function middleware(request: NextRequest) {
     request.method === "POST" &&
     Boolean(request.headers.get("x-api-key") || request.headers.get("x-webhook-secret"));
 
-  const hasAgentBridgeKey =
-    (pathname === "/api/agent/manifest" ||
-      pathname === "/api/agent/execute" ||
-      pathname === "/api/agent/ollama-assist") &&
-    Boolean(request.headers.get("x-agent-key"));
-
-  if (!isPublicPath(pathname) && isProtectedPath(pathname) && !hasGatewayApiKey && !hasAgentBridgeKey) {
+  if (!isPublicPath(pathname) && isProtectedPath(pathname) && !hasGatewayApiKey) {
     const sessionCookie = request.cookies.get(SESSION_COOKIE);
     const currentBuildId = process.env.APP_BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID;
     const cookieBuildId = request.cookies.get("arqvertice_build_id")?.value;
@@ -158,13 +151,13 @@ export function middleware(request: NextRequest) {
     }
 
     const moduleMatch = pathname.match(
-      /^\/equipe\/(projetos|acervo|3d-viewer|cronograma|financeiro|clientes|equipe|briefing|propostas|configuracoes)/
+      /^\/equipe\/(projetos|acervo|cronograma|financeiro|clientes|equipe|briefing|propostas|configuracoes)/
     );
     if (moduleMatch) {
       const seg = moduleMatch[1];
-      // Acervo Manager (/equipe/acervo) e 3D Viewer (/equipe/3d-viewer) são rotas estruturais unificadas;
+      // Acervo Manager (/equipe/acervo) é rota estrutural unificada;
       // o filtro de governança ocorre estritamente por ProjectAccess e FeatureVisibility no servidor.
-      if (seg !== "acervo" && seg !== "3d-viewer") {
+      if (seg !== "acervo") {
         const mod =
           seg === "briefing" || seg === "propostas"
             ? "projetos"

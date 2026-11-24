@@ -13,8 +13,6 @@ import {
   ClientSimplifiedReport,
   type ClientDeliverable,
 } from "@/components/reports/client-simplified-report";
-import { ensureProject3DShowcase } from "@/server/services/acervo-cde-service";
-import { AcervoShowcaseClientCard } from "@/components/acervo/acervo-showcase-client-card";
 import { BentoHorizontalRanking, BentoKpiStrip } from "@/components/analytics";
 
 export const dynamic = "force-dynamic";
@@ -92,9 +90,6 @@ export default async function ClientPortalPage({
     updatedAt: d.updatedAt,
   }));
 
-  const showcaseAssets = await ensureProject3DShowcase(id, projectDb.name);
-  const featured3D = showcaseAssets[0];
-
   return (
     <AppShell eyebrow="Portal do Cliente" environment="client" role={user.role}>
       <div className="space-y-6">
@@ -145,20 +140,6 @@ export default async function ClientPortalPage({
           )}
         </section>
 
-        {featured3D && (
-          <AcervoShowcaseClientCard
-            assetId={featured3D.id}
-            projectId={id}
-            title={featured3D.title}
-            description={featured3D.description}
-            glbUrl={featured3D.glbUrl}
-            posterUrl={featured3D.posterUrl}
-            cameraPreset={featured3D.cameraPreset}
-            annotations={featured3D.annotations}
-            optimizationStats={featured3D.optimizationStats}
-            canManageAnnotations={!isClient}
-          />
-        )}
         <ClientSimplifiedReport
           projectId={id}
           projectName={projectDb.name}

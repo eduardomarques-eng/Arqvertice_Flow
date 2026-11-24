@@ -1,20 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import dynamic from "next/dynamic";
-import type { ExtractedIfcTakeoff, Ifc3dRfiPin, RenderMode } from "@/engines/bim-3d/types";
-import { is3dAcervoFormat } from "@/lib/acervo/file-types";
 
 const Cad2dViewport = dynamic(
   () => import("@/engines/cad-2d/cad-2d-viewport").then((m) => m.Cad2dViewport),
-  {
-    ssr: false,
-    loading: () => <div className="h-[540px] w-full animate-pulse rounded-xl bg-slate-200/50" />,
-  }
-);
-
-const Viewer3dEngine = dynamic(
-  () => import("@/engines/bim-3d/viewer-3d-engine").then((m) => m.Viewer3dEngine),
   {
     ssr: false,
     loading: () => <div className="h-[540px] w-full animate-pulse rounded-xl bg-slate-200/50" />,
@@ -36,7 +26,7 @@ export interface WorkspaceRfiItem {
     position: [number, number, number];
     target: [number, number, number];
     pinPosition?: [number, number, number];
-    renderMode?: RenderMode;
+    renderMode?: string;
     sectionPlanes?: { open: boolean; x: number; y: number; z: number };
   } | null;
   answer?: string | null;
@@ -65,8 +55,6 @@ export function CdeWorkspaceViewer({
   activeTool,
   onChangeTool,
   onCreate2dMarkup,
-  onCreate3dRfi,
-  onExtractedIfcQuantities,
 }: {
   revision: WorkspaceRevisionItem;
   previousRevision?: WorkspaceRevisionItem | null;
@@ -82,42 +70,13 @@ export function CdeWorkspaceViewer({
     pageNumber: number;
     geometryJson?: string;
   }) => void;
-  onCreate3dRfi: (cameraState: {
-    position: [number, number, number];
-    target: [number, number, number];
-    pinPosition: [number, number, number];
-    renderMode?: RenderMode;
-    sectionPlanes?: { open: boolean; x: number; y: number; z: number };
-  }) => void;
-  onExtractedIfcQuantities?: (items: ExtractedIfcTakeoff[]) => void;
 }) {
-  const isPrimary3d = is3dAcervoFormat(revision.fileType, revision.fileName);
-  const isView3d = is3dAcervoFormat(revision.viewFileType, revision.viewFileName);
-  const has3d = isPrimary3d || isView3d;
-
-  const active3dUrl = isView3d ? revision.viewUrl : isPrimary3d ? revision.fileUrl : revision.viewUrl || revision.fileUrl;
-  const active3dFileType = isView3d ? revision.viewFileType : isPrimary3d ? revision.fileType : revision.viewFileType || revision.fileType;
-  const active3dFileName = isView3d ? revision.viewFileName : isPrimary3d ? revision.fileName : revision.viewFileName || revision.fileName;
-
   const hasDxf =
     revision.fileType === "DXF" ||
     revision.viewFileType === "DXF" ||
     revision.fileName.toLowerCase().endsWith(".dxf") ||
     Boolean(revision.viewFileName?.toLowerCase().endsWith(".dxf"));
 
-  const [viewMode, setViewMode] = useState<"2D" | "3D">(has3d ? "3D" : "2D");
-
-  // Auto-switch between 2D and 3D when selecting an RFI from the lateral panel
-  useEffect(() => {
-    if (!selectedRfiId) return;
-    const sel = rfis.find((r) => r.id === selectedRfiId);
-    if (!sel) return;
-    if (sel.cameraState && viewMode !== "3D") {
-      setViewMode("3D");
-    } else if (!sel.cameraState && sel.coordX != null && viewMode !== "2D") {
-      setViewMode("2D");
-    }
-  }, [selectedRfiId, rfis, viewMode]);
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
@@ -126,39 +85,13 @@ export function CdeWorkspaceViewer({
   const [isDiffActive, setIsDiffActive] = useState(false);
   const [diffOpacity, setDiffOpacity] = useState(50);
 
-  const rfis3d: Ifc3dRfiPin[] = rfis.map((r) => ({
-    id: r.id,
-    code: r.code,
-    title: r.title,
-    status: r.status,
-    cameraState: r.cameraState,
-  }));
-
   return (
     <div className="flex flex-col rounded-2xl border border-slate-200/60 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
       {/* Barra Flutuante Estilo macOS */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 bg-[#F5F5F7]/90 px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Seletor 2D / 3D BIM */}
-          <div className="flex items-center rounded-xl bg-slate-200/70 p-0.5 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => setViewMode("2D")}
-              className={`rounded-lg px-2.5 py-1 transition ${
-                viewMode === "2D" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Prancha 2D {hasDxf ? "(DXF)" : ""}
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("3D")}
-              className={`rounded-lg px-2.5 py-1 transition ${
-                viewMode === "3D" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Modelo 3D {has3d ? `(${active3dFileType || "BIM"})` : ""}
-            </button>
+          <div className="flex items-center rounded-xl bg-slate-200/70 px-2.5 py-1 text-xs font-medium text-slate-900">
+            Prancha 2D {hasDxf ? "(DXF)" : ""}
           </div>
 
           {/* Ferramentas de Markup */}
@@ -190,7 +123,6 @@ export function CdeWorkspaceViewer({
         </div>
 
         {/* Controles 2D: Zoom, Rotação, Páginas e Visual Diff */}
-        {viewMode === "2D" && (
           <div className="flex flex-wrap items-center gap-2">
             {previousRevision && (
               <button
@@ -265,11 +197,10 @@ export function CdeWorkspaceViewer({
               </button>
             </div>
           </div>
-        )}
       </div>
 
       {/* Controle Deslizante do Visual Diff */}
-      {viewMode === "2D" && isDiffActive && previousRevision && (
+      {isDiffActive && previousRevision && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-200/70 bg-rose-50/60 px-4 py-2 text-xs">
           <div className="flex items-center gap-3">
             <span className="font-semibold text-rose-800">
@@ -293,37 +224,20 @@ export function CdeWorkspaceViewer({
 
       {/* Área Principal do Visualizador */}
       <div className="relative min-h-[520px] w-full overflow-hidden bg-[#F5F5F7]">
-        {viewMode === "3D" ? (
-          <Viewer3dEngine
-            modelUrl={active3dUrl}
-            fileType={active3dFileType}
-            fileName={active3dFileName}
-            rfis3d={rfis3d}
-            focusedRfiId={selectedRfiId}
-            isPlacing3dPin={activeTool === "PIN"}
-            onPlace3dPin={onCreate3dRfi}
-            onSelectRfi={(rfiId) => {
-              const found = rfis.find((r) => r.id === rfiId);
-              if (found) onSelectRfi(found);
-            }}
-            onExtractedQuantities={onExtractedIfcQuantities}
-          />
-        ) : (
-          <Cad2dViewport
-            revision={revision}
-            previousRevision={previousRevision}
-            rfis={rfis}
-            selectedRfiId={selectedRfiId}
-            onSelectRfi={onSelectRfi}
-            activeTool={activeTool}
-            zoom={zoom}
-            rotation={rotation}
-            pageNumber={pageNumber}
-            isDiffActive={isDiffActive}
-            diffOpacity={diffOpacity}
-            onCreate2dMarkup={onCreate2dMarkup}
-          />
-        )}
+        <Cad2dViewport
+          revision={revision}
+          previousRevision={previousRevision}
+          rfis={rfis}
+          selectedRfiId={selectedRfiId}
+          onSelectRfi={onSelectRfi}
+          activeTool={activeTool}
+          zoom={zoom}
+          rotation={rotation}
+          pageNumber={pageNumber}
+          isDiffActive={isDiffActive}
+          diffOpacity={diffOpacity}
+          onCreate2dMarkup={onCreate2dMarkup}
+        />
       </div>
     </div>
   );
