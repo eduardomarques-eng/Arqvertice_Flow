@@ -1577,7 +1577,7 @@ export function EapLobSpreadsheet({
   return (
     <div className="space-y-3">
       {/* Barra Superior: Escalas Temporais, Deslocar Intervalo, Limite de Equipe, Ampliar & Salvar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/90 p-3 dark:border-zinc-800 dark:bg-zinc-900/70">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/50 bg-white/80 p-3 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">Escala:</span>
           {scaleSelector}

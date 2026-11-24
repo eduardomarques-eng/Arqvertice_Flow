@@ -1447,7 +1447,7 @@ export function EapConferenceWorkbench({
     <div className="space-y-5">
       {/* KPIs & Indicadores de Engenharia em Tempo Real */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-slate-200/90 bg-white p-4 dark:border-zinc-800 dark:bg-[#16161D]">
+        <Card className="rounded-2xl border border-white/50 bg-white/80 p-4 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
             Total Geral (Com BDI)
           </p>
@@ -1509,7 +1509,7 @@ export function EapConferenceWorkbench({
       </div>
 
       {/* Barra de Ferramentas, Filtros & Auto-Save */}
-      <Card className="rounded-3xl border border-slate-200/90 bg-white p-4 dark:border-zinc-800 dark:bg-[#16161D] space-y-3">
+      <Card className="rounded-3xl border border-white/50 bg-white/80 p-4 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <input

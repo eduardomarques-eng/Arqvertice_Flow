@@ -120,6 +120,20 @@ const PACKAGE_PALETTE: ReadonlyArray<{ bg: string; text: string }> = [
   { bg: "#0F172A", text: "#FFFFFF" }, // 38 Ônix
 ];
 
+/**
+ * Calcula contraste WCAG AA automático (texto branco ou escuro) a partir da luminância de corHex.
+ */
+export function getContrastTextHex(hex: string): "#FFFFFF" | "#111827" {
+  const clean = hex.replace("#", "").trim();
+  if (clean.length !== 6) return "#FFFFFF";
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  if ([r, g, b].some((v) => Number.isNaN(v))) return "#FFFFFF";
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? "#111827" : "#FFFFFF";
+}
+
 export const LOB_PACKAGE_COLOR_MAP: Record<number, LobPackageRegistryEntry> = Object.fromEntries(
   MASTER_LOB_PACKAGES.map((pkg) => {
     const color = PACKAGE_PALETTE[(pkg.packageNumber - 1) % PACKAGE_PALETTE.length];
@@ -129,7 +143,7 @@ export const LOB_PACKAGE_COLOR_MAP: Record<number, LobPackageRegistryEntry> = Ob
         packageNumber: pkg.packageNumber,
         name: pkg.name,
         corHex: color.bg,
-        textHex: color.text,
+        textHex: getContrastTextHex(color.bg),
         disciplina: pkg.waveName,
         equipeNecessaria: pkg.defaultTeamsCount,
         predecessores: pkg.predecessorNumbers,
@@ -144,12 +158,13 @@ export function getLobPackageMeta(
 ): LobPackageRegistryEntry {
   const base = LOB_PACKAGE_COLOR_MAP[packageNumber];
   const color = PACKAGE_PALETTE[(Math.max(1, packageNumber) - 1) % PACKAGE_PALETTE.length];
+  const corHex = base?.corHex ?? color.bg;
   if (base && !livePkg) return base;
   return {
     packageNumber,
     name: livePkg?.name ?? base?.name ?? `Pacote ${packageNumber}`,
-    corHex: base?.corHex ?? color.bg,
-    textHex: base?.textHex ?? color.text,
+    corHex,
+    textHex: getContrastTextHex(corHex),
     disciplina: livePkg?.waveName ?? base?.disciplina ?? "Obra",
     equipeNecessaria: livePkg?.teamsCount ?? base?.equipeNecessaria ?? 1,
     predecessores: livePkg?.predecessorNumbers ?? base?.predecessores ?? [],

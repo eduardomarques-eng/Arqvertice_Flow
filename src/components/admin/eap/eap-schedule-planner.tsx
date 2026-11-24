@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -98,7 +98,7 @@ function fmtBRL(v: number): string {
 }
 
 function getWaveColorClass(waveName: string): string {
-  const m = waveName.match(/Onda\s+(\d)/i);
+  const m = waveName.match(/Fase\s+(\d)/i);
   const idx = m ? Math.max(0, Number(m[1]) - 1) : 0;
   return WAVE_COLORS[idx % WAVE_COLORS.length];
 }
@@ -590,7 +590,7 @@ export function EapSchedulePlanner({
               onChange={(e) => setWaveFilter(e.target.value)}
               className={INPUT_CLASS}
             >
-              <option value="ALL">Todas as Ondas ({uniqueWaves.length})</option>
+              <option value="ALL">Todas as Fases ({uniqueWaves.length})</option>
               {uniqueWaves.map((w) => (
                 <option key={w} value={w}>
                   {w}

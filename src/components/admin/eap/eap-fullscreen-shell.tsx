@@ -64,8 +64,8 @@ export function EapFullscreenShell({
       aria-label={title}
       className="fixed inset-0 z-[100] flex h-screen w-screen flex-col overflow-hidden bg-[#FAF9F7] text-slate-900 dark:bg-[#111116] dark:text-zinc-100"
     >
-      {/* Cabeçalho compacto no topo do modo tela cheia */}
-      <header className="shrink-0 border-b border-slate-200/90 bg-white px-4 py-2.5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
+      {/* Cabeçalho compacto com efeito vidro no topo do modo tela cheia */}
+      <header className="shrink-0 border-b border-slate-200/80 bg-white/85 px-4 py-2.5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/85">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">

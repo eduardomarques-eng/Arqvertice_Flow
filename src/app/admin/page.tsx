@@ -104,9 +104,10 @@ export default async function AdminDashboardPage() {
   const pendingAlerts = metrics.stagesWithoutOwner + metrics.dueSoon;
 
   // Filtra as etapas atribuídas ao profissional logado
-  const myAssignedDeliveries = deliveries.filter(
-    (d) => d.designer && d.designer.toLowerCase().includes(user.name.toLowerCase().split(" ")[0])
-  );
+  const firstName = (user.name || "").trim().toLowerCase().split(" ")[0] || "";
+  const myAssignedDeliveries = firstName
+    ? deliveries.filter((d) => d.designer && d.designer.toLowerCase().includes(firstName))
+    : [];
 
   return (
     <AppShell eyebrow="Executive Command Center">

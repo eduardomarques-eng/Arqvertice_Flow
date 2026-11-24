@@ -1,4 +1,4 @@
-export type EapZoneCode = "FUND_TERREO" | "PAV_SUPERIOR" | "COBERTURA" | "EXTERNO";
+﻿export type EapZoneCode = "FUND_TERREO" | "PAV_SUPERIOR" | "COBERTURA" | "EXTERNO";
 
 export interface MasterEapZoneTemplate {
   code: EapZoneCode;
@@ -268,7 +268,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 1,
     name: "Canteiro, Muro e Tapume",
-    waveName: "Onda 1 — Implantação & Infraestrutura",
+    waveName: "Fase 1 — Implantação & Infraestrutura",
     linkedStageCodes: ["01"],
     predecessorNumbers: [],
     defaultDurationWorkingDays: 10,
@@ -278,7 +278,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 2,
     name: "Locação da Obra e Gabarito",
-    waveName: "Onda 1 — Implantação & Infraestrutura",
+    waveName: "Fase 1 — Implantação & Infraestrutura",
     linkedStageCodes: ["01"],
     predecessorNumbers: [1],
     defaultDurationWorkingDays: 5,
@@ -288,7 +288,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 3,
     name: "Movimento de Terra e Escavação de Fundações",
-    waveName: "Onda 1 — Implantação & Infraestrutura",
+    waveName: "Fase 1 — Implantação & Infraestrutura",
     linkedStageCodes: ["02"],
     predecessorNumbers: [2],
     defaultDurationWorkingDays: 8,
@@ -298,7 +298,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 4,
     name: "Fundações Profundas / Sapatas e Blocos",
-    waveName: "Onda 1 — Implantação & Infraestrutura",
+    waveName: "Fase 1 — Implantação & Infraestrutura",
     linkedStageCodes: ["03"],
     predecessorNumbers: [3],
     defaultDurationWorkingDays: 15,
@@ -311,7 +311,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 5,
     name: "Vigas Baldrame e Impermeabilização de Base",
-    waveName: "Onda 1 — Implantação & Infraestrutura",
+    waveName: "Fase 1 — Implantação & Infraestrutura",
     linkedStageCodes: ["03", "07"],
     predecessorNumbers: [4],
     defaultDurationWorkingDays: 12,
@@ -321,7 +321,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 6,
     name: "Aterro Compactado, Lastro e Tubulação Enterrada",
-    waveName: "Onda 1 — Implantação & Infraestrutura",
+    waveName: "Fase 1 — Implantação & Infraestrutura",
     linkedStageCodes: ["02", "09"],
     predecessorNumbers: [5],
     defaultDurationWorkingDays: 8,
@@ -331,7 +331,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 7,
     name: "Supraestrutura Térreo (Pilares, Vigas e Laje)",
-    waveName: "Onda 2 — Supraestrutura & Vedação",
+    waveName: "Fase 2 — Supraestrutura & Vedação",
     linkedStageCodes: ["04"],
     predecessorNumbers: [6],
     defaultDurationWorkingDays: 20,
@@ -344,7 +344,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 8,
     name: "Supraestrutura Pavimento Superior",
-    waveName: "Onda 2 — Supraestrutura & Vedação",
+    waveName: "Fase 2 — Supraestrutura & Vedação",
     linkedStageCodes: ["04"],
     predecessorNumbers: [7],
     defaultDurationWorkingDays: 20,
@@ -354,7 +354,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 9,
     name: "Supraestrutura Cobertura e Platibanda",
-    waveName: "Onda 2 — Supraestrutura & Vedação",
+    waveName: "Fase 2 — Supraestrutura & Vedação",
     linkedStageCodes: ["04"],
     predecessorNumbers: [8],
     defaultDurationWorkingDays: 14,
@@ -364,7 +364,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 10,
     name: "Alvenaria de Vedação Térreo",
-    waveName: "Onda 2 — Supraestrutura & Vedação",
+    waveName: "Fase 2 — Supraestrutura & Vedação",
     linkedStageCodes: ["05"],
     predecessorNumbers: [7],
     defaultDurationWorkingDays: 15,
@@ -374,7 +374,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 11,
     name: "Alvenaria de Vedação Pavimento Superior",
-    waveName: "Onda 2 — Supraestrutura & Vedação",
+    waveName: "Fase 2 — Supraestrutura & Vedação",
     linkedStageCodes: ["05"],
     predecessorNumbers: [8, 10],
     defaultDurationWorkingDays: 15,
@@ -384,7 +384,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 12,
     name: "Vergas, Contravergas e Encunhamento",
-    waveName: "Onda 2 — Supraestrutura & Vedação",
+    waveName: "Fase 2 — Supraestrutura & Vedação",
     linkedStageCodes: ["05"],
     predecessorNumbers: [11],
     defaultDurationWorkingDays: 8,
@@ -394,7 +394,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 13,
     name: "Cobertura, Telhamento, Calhas e Rufos",
-    waveName: "Onda 3 — Estanqueidade & Instalações",
+    waveName: "Fase 3 — Estanqueidade & Instalações",
     linkedStageCodes: ["06"],
     predecessorNumbers: [9],
     defaultDurationWorkingDays: 12,
@@ -404,7 +404,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 14,
     name: "Impermeabilização de Lajes, Sacadas e Áreas Molhadas",
-    waveName: "Onda 3 — Estanqueidade & Instalações",
+    waveName: "Fase 3 — Estanqueidade & Instalações",
     linkedStageCodes: ["07"],
     predecessorNumbers: [9, 12],
     defaultDurationWorkingDays: 10,
@@ -414,7 +414,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 15,
     name: "Instalações Elétricas — Infraestrutura Seca (Rasgos/Eletrodutos)",
-    waveName: "Onda 3 — Estanqueidade & Instalações",
+    waveName: "Fase 3 — Estanqueidade & Instalações",
     linkedStageCodes: ["08"],
     predecessorNumbers: [12],
     defaultDurationWorkingDays: 14,
@@ -424,7 +424,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 16,
     name: "Reservatório Superior e Barrilete",
-    waveName: "Onda 3 — Estanqueidade & Instalações",
+    waveName: "Fase 3 — Estanqueidade & Instalações",
     linkedStageCodes: ["09"],
     predecessorNumbers: [9, 14],
     defaultDurationWorkingDays: 8,
@@ -434,7 +434,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 17,
     name: "Instalações Hidrossanitárias — Prumadas e Ramais",
-    waveName: "Onda 3 — Estanqueidade & Instalações",
+    waveName: "Fase 3 — Estanqueidade & Instalações",
     linkedStageCodes: ["09"],
     predecessorNumbers: [12, 16],
     defaultDurationWorkingDays: 14,
@@ -444,7 +444,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 18,
     name: "Infraestrutura de Climatização (Ar-Condicionado) e Gás",
-    waveName: "Onda 3 — Estanqueidade & Instalações",
+    waveName: "Fase 3 — Estanqueidade & Instalações",
     linkedStageCodes: ["10"],
     predecessorNumbers: [12],
     defaultDurationWorkingDays: 10,
@@ -454,7 +454,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 19,
     name: "Chapisco e Emboço Interno",
-    waveName: "Onda 4 — Revestimentos Brutos & Fachada",
+    waveName: "Fase 4 — Revestimentos Brutos & Fachada",
     linkedStageCodes: ["11"],
     predecessorNumbers: [15, 17, 18],
     defaultDurationWorkingDays: 18,
@@ -464,7 +464,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 20,
     name: "Reboco de Gesso Liso em Paredes Internas",
-    waveName: "Onda 4 — Revestimentos Brutos & Fachada",
+    waveName: "Fase 4 — Revestimentos Brutos & Fachada",
     linkedStageCodes: ["11"],
     predecessorNumbers: [19],
     defaultDurationWorkingDays: 12,
@@ -474,7 +474,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 21,
     name: "Chapisco e Emboço Externo / Fachadas",
-    waveName: "Onda 4 — Revestimentos Brutos & Fachada",
+    waveName: "Fase 4 — Revestimentos Brutos & Fachada",
     linkedStageCodes: ["12"],
     predecessorNumbers: [13, 14],
     defaultDurationWorkingDays: 16,
@@ -484,7 +484,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 22,
     name: "Instalação de Contramarcos de Alumínio",
-    waveName: "Onda 4 — Revestimentos Brutos & Fachada",
+    waveName: "Fase 4 — Revestimentos Brutos & Fachada",
     linkedStageCodes: ["16"],
     predecessorNumbers: [19, 21],
     defaultDurationWorkingDays: 6,
@@ -494,7 +494,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 23,
     name: "Contrapiso e Regularização de Pisos",
-    waveName: "Onda 4 — Revestimentos Brutos & Fachada",
+    waveName: "Fase 4 — Revestimentos Brutos & Fachada",
     linkedStageCodes: ["13"],
     predecessorNumbers: [19],
     defaultDurationWorkingDays: 10,
@@ -504,7 +504,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 24,
     name: "Revestimento Cerâmico / Porcelanato em Paredes Molhadas",
-    waveName: "Onda 5 — Acabamentos Nobres",
+    waveName: "Fase 5 — Acabamentos Nobres",
     linkedStageCodes: ["11"],
     predecessorNumbers: [19, 23],
     defaultDurationWorkingDays: 14,
@@ -514,7 +514,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 25,
     name: "Assentamento de Pisos Porcelanato e Rodapés",
-    waveName: "Onda 5 — Acabamentos Nobres",
+    waveName: "Fase 5 — Acabamentos Nobres",
     linkedStageCodes: ["14"],
     predecessorNumbers: [23, 24],
     defaultDurationWorkingDays: 18,
@@ -524,7 +524,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 26,
     name: "Forro de Gesso Acartonado, Cortineiros e Sancas",
-    waveName: "Onda 5 — Acabamentos Nobres",
+    waveName: "Fase 5 — Acabamentos Nobres",
     linkedStageCodes: ["15"],
     predecessorNumbers: [20, 24],
     defaultDurationWorkingDays: 12,
@@ -534,7 +534,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 27,
     name: "Piscina, Deck e Área Gourmet (Estrutura e Acabamento)",
-    waveName: "Onda 5 — Acabamentos Nobres",
+    waveName: "Fase 5 — Acabamentos Nobres",
     linkedStageCodes: ["22"],
     predecessorNumbers: [14, 21],
     defaultDurationWorkingDays: 18,
@@ -544,7 +544,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 28,
     name: "Marmoraria — Bancadas, Soleiras, Peitoris e Escada",
-    waveName: "Onda 5 — Acabamentos Nobres",
+    waveName: "Fase 5 — Acabamentos Nobres",
     linkedStageCodes: ["18"],
     predecessorNumbers: [25],
     defaultDurationWorkingDays: 10,
@@ -554,7 +554,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 29,
     name: "Enfiação Elétrica, Quadros e Automação",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["08"],
     predecessorNumbers: [26],
     defaultDurationWorkingDays: 12,
@@ -564,7 +564,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 30,
     name: "Pintura Interna — 1ª Demão (Selador + Massa Corrida)",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["19"],
     predecessorNumbers: [26, 28],
     defaultDurationWorkingDays: 12,
@@ -574,7 +574,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 31,
     name: "Pintura Externa e Texturas de Fachada",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["12", "19"],
     predecessorNumbers: [21, 22],
     defaultDurationWorkingDays: 12,
@@ -584,7 +584,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 32,
     name: "Instalação de Esquadrias de Alumínio e Vidros",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["16"],
     predecessorNumbers: [22, 30, 31],
     defaultDurationWorkingDays: 10,
@@ -594,7 +594,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 33,
     name: "Instalação de Portas de Madeira e Ferragens",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["17"],
     predecessorNumbers: [30, 32],
     defaultDurationWorkingDays: 8,
@@ -604,7 +604,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 34,
     name: "Instalação de Louças, Metais, Luminárias e Acabamentos Elétricos",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["20", "21"],
     predecessorNumbers: [28, 29, 32],
     defaultDurationWorkingDays: 10,
@@ -617,7 +617,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 35,
     name: "Serralheria, Portões, Calçadas e Paisagismo",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["23", "24"],
     predecessorNumbers: [27, 31],
     defaultDurationWorkingDays: 12,
@@ -627,7 +627,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 36,
     name: "Pintura Interna — Demão Final e Retoques",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["19"],
     predecessorNumbers: [33, 34],
     defaultDurationWorkingDays: 8,
@@ -637,7 +637,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 37,
     name: "Esquadria de Alumínio — Guarda-Corpos e Corrimãos",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["16"],
     predecessorNumbers: [32, 36],
     defaultDurationWorkingDays: 5,
@@ -647,7 +647,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   {
     packageNumber: 38,
     name: "Limpeza Final Pós-Obra, Comissionamento e Entrega",
-    waveName: "Onda 6 — Pintura, Esquadrias & Finalização",
+    waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["26"],
     predecessorNumbers: [35, 36, 37],
     defaultDurationWorkingDays: 5,

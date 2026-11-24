@@ -522,7 +522,7 @@ export function EapProjectHub({
       {activeTab === "sources" && (
         <div className="space-y-6">
           {/* Cabeçalho Resumo & Ação Principal de Mineração */}
-          <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
+          <Card className="rounded-3xl border border-white/50 bg-white/80 p-5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge tone="blue">{initialEap.status}</Badge>
@@ -565,7 +565,7 @@ export function EapProjectHub({
           </Card>
 
           {/* Grade Responsiva com 8 Disciplinas (PDF / HTML TQS & Revit) */}
-          <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
+          <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-md dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
             <div>
               <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
                 Upload de Quantitativos por Disciplina (8 Disciplinas · PDF / HTML TQS & Revit)
@@ -761,8 +761,8 @@ export function EapProjectHub({
 
       {/* Modal de Pré-Visualização Segura (PDF / HTML) */}
       {previewSource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-[#16161D]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/40 bg-white/95 shadow-2xl backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/95">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 dark:border-zinc-800">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">

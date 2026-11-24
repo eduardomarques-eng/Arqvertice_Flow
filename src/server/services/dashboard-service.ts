@@ -157,6 +157,14 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
   const horizon = new Date(now);
   horizon.setDate(horizon.getDate() + 14);
 
+  const safeCount = async (fn: () => Promise<number>): Promise<number> => {
+    try {
+      return await fn();
+    } catch {
+      return 0;
+    }
+  };
+
   const [
     clientsCount,
     projectsCount,
@@ -170,20 +178,20 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
     delayedStagesCount,
     stagesWithoutOwnerCount,
   ] = await Promise.all([
-    prisma.client.count({ where: { status: "ACTIVE" } }),
-    prisma.project.count(),
-    prisma.project.count({ where: { status: { in: ["PLANNING", "IN_PROGRESS", "PAUSED"] } } }),
-    prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED", "IN_REVIEW"] } } }),
-    prisma.proposal.count({ where: { status: { in: ["APPROVED", "CONVERTED"] } } }),
-    prisma.contract.count(),
-    prisma.payment.count({ where: { status: { not: "PAID" } } }),
-    prisma.payment.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
-    prisma.scheduleStage.count({ where: { status: "IN_PROGRESS" } }),
-    prisma.scheduleStage.count({ where: { status: { not: "COMPLETED" }, dueDate: { lt: now } } }),
-    prisma.scheduleStage.count({ where: { status: { not: "COMPLETED" }, designer: null } }),
+    safeCount(() => prisma.client.count({ where: { status: "ACTIVE" } })),
+    safeCount(() => prisma.project.count()),
+    safeCount(() => prisma.project.count({ where: { status: { in: ["PLANNING", "IN_PROGRESS", "PAUSED"] } } })),
+    safeCount(() => prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED", "IN_REVIEW"] } } })),
+    safeCount(() => prisma.proposal.count({ where: { status: { in: ["APPROVED", "CONVERTED"] } } })),
+    safeCount(() => prisma.contract.count()),
+    safeCount(() => prisma.payment.count({ where: { status: { not: "PAID" } } })),
+    prisma.payment.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }).catch(() => ({ _sum: { amount: 0 } })),
+    safeCount(() => prisma.scheduleStage.count({ where: { status: "IN_PROGRESS" } })),
+    safeCount(() => prisma.scheduleStage.count({ where: { status: { not: "COMPLETED" }, dueDate: { lt: now } } })),
+    safeCount(() => prisma.scheduleStage.count({ where: { status: { not: "COMPLETED" }, designer: null } })),
   ]);
 
-  const projects = await projectSnapshots(8);
+  const projects = await projectSnapshots(8).catch(() => []);
 
   const deliveries = await prisma.scheduleStage.findMany({
     where: { dueDate: { not: null, lte: horizon }, status: { not: "COMPLETED" } },
