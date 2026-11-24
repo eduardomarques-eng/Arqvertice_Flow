@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapConferenceWorkbench } from "@/components/admin/eap/eap-conference-workbench";
 import { EapSchedulePlanner } from "@/components/admin/eap/eap-schedule-planner";
+import { EapExecutiveReportView } from "@/components/eap/eap-executive-report-view";
 
 interface CityOption {
   id: string;
@@ -379,15 +380,12 @@ export function EapProjectHub({
       )}
 
       {activeTab === "report" && (
-        <Card className="rounded-3xl border border-slate-200/90 bg-white p-8 text-center space-y-2 dark:border-zinc-800 dark:bg-[#16161D]">
-          <Badge tone="neutral">Fases 5 & 6</Badge>
-          <h3 className="text-base font-bold text-slate-950 dark:text-zinc-100">
-            Relatório Executivo do Cliente & Ciclo II (Previsto × Realizado)
-          </h3>
-          <p className="mx-auto max-w-xl text-xs text-slate-500 dark:text-zinc-400">
-            Dashboards interativos, plantas do Acervo Manager, exportação PDF executiva e boletins de medição física/financeira.
-          </p>
-        </Card>
+        <EapExecutiveReportView
+          projectId={projectId}
+          isAdmin={true}
+          initialAudience="CLIENT"
+          onPublished={() => router.refresh()}
+        />
       )}
 
       {activeTab === "sources" && (

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -26,7 +27,7 @@ export default async function ClientPortalPage({
   await requirePageClientPortal();
   const user = await requirePageProjectAccess(id);
 
-  const [bundle, projectDb, deliverableMatrix, rawDeliverables] = await Promise.all([
+  const [bundle, projectDb, deliverableMatrix, rawDeliverables, publishedEap] = await Promise.all([
     getScheduleReport(id, new Date(), { skipAuth: true }),
     prisma.project.findUnique({
       where: { id },
@@ -52,6 +53,15 @@ export default async function ClientPortalPage({
         { createdAt: "desc" },
       ],
     }),
+    prisma.eapProject
+      .findFirst({
+        where: {
+          projectId: id,
+          status: { in: ["BASELINE_APROVADA", "EM_EXECUCAO", "CONCLUIDA"] },
+        },
+        select: { id: true, status: true, builtAreaM2: true },
+      })
+      .catch(() => null),
   ]);
 
   if (!projectDb) {
@@ -139,6 +149,25 @@ export default async function ClientPortalPage({
             />
           )}
         </section>
+
+        {publishedEap && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-5 py-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+            <div>
+              <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200">
+                Relatório Executivo EAP & Cronograma Disponível
+              </p>
+              <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                Consulte o investimento aprovado, Curva ABC, fluxo de desembolso mensal, plantas e exportação em PDF.
+              </p>
+            </div>
+            <Link
+              href={`/portal/${id}/eap`}
+              className="inline-flex h-9 items-center rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-amber-500 dark:text-zinc-950"
+            >
+              Abrir Relatório EAP →
+            </Link>
+          </div>
+        )}
 
         <ClientSimplifiedReport
           projectId={id}
