@@ -19,6 +19,7 @@
     "db:validate": "prisma validate",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "seed:eap": "tsx prisma/seed-eap.ts",
     "whatsapp:cli": "node scripts/whatsapp-bridge.mjs",
     "wagner:setup": "node scripts/setup-wagner.mjs",
     "wagner:reset": "node scripts/reset-wagner.mjs",

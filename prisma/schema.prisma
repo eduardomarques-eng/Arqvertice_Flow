@@ -405,6 +405,7 @@ model Project {
   acervoApiTokens             AcervoApiToken[]
   acervoFolders               AcervoFolder[]
   acervoWorkflowConfigs       AcervoWorkflowConfig[]
+  eapProject                  EapProject?
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 
@@ -1749,4 +1750,319 @@ model WhatsAppMessage {
   createdAt        DateTime             @default(now())
 
   @@index([conversationId, createdAt])
+}
+
+// ============================================================================
+// MÓDULO EAP & PLANEJAMENTO DE OBRA (CICLOS I E II)
+// ============================================================================
+
+model CityCatalog {
+  id                String              @id @default(uuid()) @db.Uuid
+  name              String
+  state             String              @db.VarChar(2)
+  isDefault         Boolean             @default(false)
+  active            Boolean             @default(true)
+  defaultBdiPercent Float               @default(22.0)
+  holidays          CityHoliday[]
+  materialPrices    CityMaterialPrice[]
+  laborPrices       CityLaborPrice[]
+  eapProjects       EapProject[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([name, state])
+  @@index([active])
+}
+
+model CityHoliday {
+  id        String      @id @default(uuid()) @db.Uuid
+  cityId    String      @db.Uuid
+  date      DateTime
+  name      String
+  type      String      @default("NACIONAL") // NACIONAL | ESTADUAL | MUNICIPAL | RECESSO
+  city      CityCatalog @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@unique([cityId, date])
+  @@index([cityId, date])
+}
+
+model MaterialCatalogItem {
+  id                 String              @id @default(uuid()) @db.Uuid
+  code               String              @unique
+  name               String
+  category           String // ACO | CONCRETO | FORMAS | ALVENARIA | ESQUADRIAS | REVESTIMENTOS | IMPERMEABILIZACAO | INSTALACOES | PINTURA | BANCADAS | LOUCAS_METAIS | IMPLANTACAO
+  unit               String // kg | m³ | m² | m | unid | mês | vb | par
+  defaultLossPercent Float               @default(5.0)
+  eapStageCode       String              @default("04")
+  sourceSoftwareHint String              @default("MANUAL") // TQS | REVIT | MANUAL
+  active             Boolean             @default(true)
+  cityPrices         CityMaterialPrice[]
+  eapItems           EapItem[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([category, active])
+  @@index([eapStageCode])
+}
+
+model CityMaterialPrice {
+  id                 String              @id @default(uuid()) @db.Uuid
+  cityId             String              @db.Uuid
+  materialId         String              @db.Uuid
+  materialUnitCost   Float               @default(0)
+  thirdPartyUnitCost Float               @default(0)
+  validFrom          DateTime            @default(now())
+  note               String?
+  city               CityCatalog         @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  material           MaterialCatalogItem @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([cityId, materialId])
+  @@index([cityId])
+}
+
+model LaborRoleCatalog {
+  id                       String           @id @default(uuid()) @db.Uuid
+  code                     String           @unique
+  name                     String
+  unit                     String // m² | m³ | kg | m | unid | mês
+  productivityUnit         String
+  dailyProductivityPerTeam Float            @default(1.0)
+  active                   Boolean          @default(true)
+  cityPrices               CityLaborPrice[]
+  eapItems                 EapItem[]
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  @@index([active])
+}
+
+model CityLaborPrice {
+  id                   String           @id @default(uuid()) @db.Uuid
+  cityId               String           @db.Uuid
+  laborRoleId          String           @db.Uuid
+  laborUnitCost        Float            @default(0)
+  dailyTeamRate        Float            @default(0)
+  socialChargesPercent Float            @default(85.0)
+  city                 CityCatalog      @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  laborRole            LaborRoleCatalog @relation(fields: [laborRoleId], references: [id], onDelete: Cascade)
+  updatedAt            DateTime         @updatedAt
+
+  @@unique([cityId, laborRoleId])
+  @@index([cityId])
+}
+
+model EapProject {
+  id                String                @id @default(uuid()) @db.Uuid
+  projectId         String                @unique @db.Uuid
+  cityId            String                @db.Uuid
+  title             String
+  builtAreaM2       Float                 @default(0)
+  bdiPercent        Float                 @default(22.0)
+  plannedStartDate  DateTime?
+  status            String                @default("RASCUNHO") // RASCUNHO | EM_CONFERENCIA | BASELINE_APROVADA | EM_EXECUCAO | CONCLUIDA
+  currentRevision   Int                   @default(1)
+  premisesJson      Json                  @default("[]")
+  exclusionsJson    Json                  @default("[]")
+  project           Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  city              CityCatalog           @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  zones             EapZone[]
+  stages            EapStage[]
+  sourceFiles       EapSourceFile[]
+  conflictLogs      EapConflictLog[]
+  baselineSnapshots EapBaselineSnapshot[]
+  schedulePackages  SchedulePackage[]
+  measurements      WorkMeasurement[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([cityId])
+  @@index([status])
+}
+
+model EapZone {
+  id           String     @id @default(uuid()) @db.Uuid
+  eapProjectId String     @db.Uuid
+  code         String // FUND_TERREO | PAV_SUPERIOR | COBERTURA | EXTERNO
+  name         String
+  orderIndex   Int        @default(0)
+  eapProject   EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([eapProjectId, code])
+  @@index([eapProjectId, orderIndex])
+}
+
+model EapStage {
+  id           String     @id @default(uuid()) @db.Uuid
+  eapProjectId String     @db.Uuid
+  code         String // "01" .. "26"
+  name         String
+  orderIndex   Int        @default(0)
+  eapProject   EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  groups       EapGroup[]
+
+  @@unique([eapProjectId, code])
+  @@index([eapProjectId, orderIndex])
+}
+
+model EapGroup {
+  id         String    @id @default(uuid()) @db.Uuid
+  stageId    String    @db.Uuid
+  code       String // Ex.: "04.1"
+  name       String
+  orderIndex Int       @default(0)
+  stage      EapStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  items      EapItem[]
+
+  @@index([stageId, orderIndex])
+}
+
+model EapItem {
+  id                 String               @id @default(uuid()) @db.Uuid
+  groupId            String               @db.Uuid
+  materialCatalogId  String?              @db.Uuid
+  laborRoleId        String?              @db.Uuid
+  code               String?
+  description        String
+  unit               String
+  zoneQuantitiesJson Json                 @default("{\"FUND_TERREO\":0,\"PAV_SUPERIOR\":0,\"COBERTURA\":0,\"EXTERNO\":0}")
+  lossPercent        Float                @default(0)
+  materialUnitCost   Float                @default(0)
+  laborUnitCost      Float                @default(0)
+  thirdPartyUnitCost Float                @default(0)
+  markupMultiplier   Float                @default(1.0)
+  teamsCount         Int                  @default(1)
+  sourceSoftware     String               @default("MANUAL") // TQS | REVIT | MANUAL
+  sourceFileId       String?              @db.Uuid
+  sourcePage         Int?
+  sanityFlag         String?
+  revisionTag        String               @default("ORIGINAL") // ORIGINAL | ADICIONADO | QUANTIDADE_ALTERADA | CUSTO_ALTERADO
+  orderIndex         Int                  @default(0)
+  group              EapGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  materialCatalog    MaterialCatalogItem? @relation(fields: [materialCatalogId], references: [id], onDelete: SetNull)
+  laborRole          LaborRoleCatalog?    @relation(fields: [laborRoleId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, orderIndex])
+  @@index([materialCatalogId])
+  @@index([laborRoleId])
+}
+
+model EapSourceFile {
+  id                   String     @id @default(uuid()) @db.Uuid
+  eapProjectId         String     @db.Uuid
+  acervoDocumentId     String?    @db.Uuid
+  fileName             String
+  storageKey           String
+  url                  String
+  sourceSoftware       String     @default("MANUAL") // TQS | REVIT | MANUAL
+  discipline           String
+  revisionLabel        String     @default("R00")
+  includedInMining     Boolean    @default(true)
+  status               String     @default("PENDENTE") // PENDENTE | PROCESSADO | DESATUALIZADO_NO_ACERVO | ERRO
+  extractedSummaryJson Json?
+  processedAt          DateTime?
+  eapProject           EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt            DateTime   @default(now())
+
+  @@index([eapProjectId, status])
+  @@index([acervoDocumentId])
+}
+
+model EapConflictLog {
+  id              String     @id @default(uuid()) @db.Uuid
+  eapProjectId    String     @db.Uuid
+  category        String
+  itemDescription String
+  winningSource   String // TQS | REVIT | MANUAL
+  discardedSource String
+  winningQty      Float
+  discardedQty    Float
+  unit            String
+  reason          String
+  status          String     @default("BLOQUEADO_AUTO") // BLOQUEADO_AUTO | SOBRESCRITO_HUMANO | RESOLVIDO
+  eapProject      EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+
+  @@index([eapProjectId, status])
+}
+
+model EapBaselineSnapshot {
+  id                   String     @id @default(uuid()) @db.Uuid
+  eapProjectId         String     @db.Uuid
+  versionLabel         String // Ex.: "v1.0"
+  totalDirectCost      Float
+  totalCommercialPrice Float
+  costPerM2            Float
+  snapshotJson         Json
+  approvedById         String?    @db.Uuid
+  approvedAt           DateTime   @default(now())
+  eapProject           EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+
+  @@index([eapProjectId, approvedAt])
+}
+
+model SchedulePackage {
+  id                     String            @id @default(uuid()) @db.Uuid
+  eapProjectId           String            @db.Uuid
+  packageNumber          Int
+  name                   String
+  waveName               String
+  linkedStageCodesJson   Json              @default("[]")
+  predecessorNumbersJson Json              @default("[]")
+  durationWorkingDays    Int               @default(5)
+  teamsCount             Int               @default(1)
+  orderIndex             Int               @default(0)
+  eapProject             EapProject        @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  segments               ScheduleSegment[]
+  procurementGates       ProcurementGate[]
+
+  @@unique([eapProjectId, packageNumber])
+  @@index([eapProjectId, orderIndex])
+}
+
+model ScheduleSegment {
+  id              String          @id @default(uuid()) @db.Uuid
+  packageId       String          @db.Uuid
+  zoneCode        String
+  segmentOrder    Int             @default(1)
+  startDate       DateTime
+  endDate         DateTime
+  workingDays     Int
+  parallelLane    Int             @default(1)
+  progressPercent Float           @default(0)
+  notes           String?
+  package         SchedulePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId, segmentOrder])
+}
+
+model ProcurementGate {
+  id           String          @id @default(uuid()) @db.Uuid
+  packageId    String          @db.Uuid
+  title        String
+  leadTimeDays Int
+  triggerDate  DateTime
+  status       String          @default("PENDENTE") // PENDENTE | EM_COTACAO | COMPRADO | ENTREGUE
+  package      SchedulePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId, status])
+  @@index([triggerDate])
+}
+
+model WorkMeasurement {
+  id                      String     @id @default(uuid()) @db.Uuid
+  eapProjectId            String     @db.Uuid
+  referenceDate           DateTime
+  periodLabel             String
+  physicalProgressPercent Float      @default(0)
+  realizedMaterialCost    Float      @default(0)
+  realizedLaborCost       Float      @default(0)
+  realizedThirdPartyCost  Float      @default(0)
+  notes                   String?
+  detailsJson             Json       @default("{}")
+  eapProject              EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt               DateTime   @default(now())
+
+  @@index([eapProjectId, referenceDate])
 }
