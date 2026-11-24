@@ -27,7 +27,7 @@ export default async function EapProjectPage({
 
   if (!project) notFound();
 
-  const [citiesRaw, eapRaw, acervoDocsRaw] = await Promise.all([
+  const [citiesRaw, eapRaw] = await Promise.all([
     prisma.cityCatalog
       .findMany({
         where: { active: true },
@@ -41,7 +41,6 @@ export default async function EapProjectPage({
         include: {
           city: { select: { id: true, name: true, state: true } },
           sourceFiles: { orderBy: { createdAt: "desc" } },
-          conflictLogs: { orderBy: { createdAt: "desc" } },
           stages: {
             orderBy: { orderIndex: "asc" },
             include: {
@@ -54,40 +53,7 @@ export default async function EapProjectPage({
         },
       })
       .catch(() => null),
-    prisma.acervoDocument
-      .findMany({
-        where: { projectId, isArchived: false },
-        orderBy: [{ discipline: "asc" }, { code: "asc" }],
-        select: {
-          id: true,
-          code: true,
-          title: true,
-          discipline: true,
-          revisions: {
-            where: { isCurrent: true },
-            take: 1,
-            select: { revisionNumber: true, fileName: true, fileType: true },
-          },
-        },
-      })
-      .catch(() => []),
   ]);
-
-  const acervoPdfs = acervoDocsRaw
-    .map((d) => {
-      const rev = d.revisions[0];
-      if (!rev) return null;
-      if (rev.fileType !== "PDF" && !rev.fileName.toLowerCase().endsWith(".pdf")) return null;
-      return {
-        acervoDocumentId: d.id,
-        code: d.code,
-        title: d.title,
-        discipline: String(d.discipline),
-        revisionNumber: rev.revisionNumber,
-        fileName: rev.fileName,
-      };
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null);
 
   const initialEap = eapRaw
     ? {
@@ -100,7 +66,6 @@ export default async function EapProjectPage({
         cityLabel: `${eapRaw.city.name}/${eapRaw.city.state}`,
         sourceFiles: eapRaw.sourceFiles.map((s) => ({
           id: s.id,
-          acervoDocumentId: s.acervoDocumentId,
           fileName: s.fileName,
           sourceSoftware: s.sourceSoftware,
           discipline: s.discipline,
@@ -116,18 +81,6 @@ export default async function EapProjectPage({
                 message: string;
               } | null;
             } | null) ?? null,
-        })),
-        conflicts: eapRaw.conflictLogs.map((c) => ({
-          id: c.id,
-          category: c.category,
-          itemDescription: c.itemDescription,
-          winningSource: c.winningSource,
-          discardedSource: c.discardedSource,
-          winningQty: c.winningQty,
-          discardedQty: c.discardedQty,
-          unit: c.unit,
-          reason: c.reason,
-          status: c.status,
         })),
         stageSummaries: eapRaw.stages.map((st) => {
           const allItems = st.groups.flatMap((g) => g.items);
@@ -153,7 +106,7 @@ export default async function EapProjectPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <SectionHeading
           title={`EAP da Obra — ${project.name}`}
-          description={`Cliente: ${project.client?.name || "—"} · Curadoria de PDFs (Acervo + Upload), mineração TQS/Revit e compatibilização anti-duplicidade.`}
+          description={`Cliente: ${project.client?.name || "—"} · Upload de quantitativos por disciplina (PDF/HTML TQS & Revit), orçamento regional e planejamento executivo.`}
         />
         <div className="flex items-center gap-2">
           <Link
@@ -177,7 +130,6 @@ export default async function EapProjectPage({
           projectName={project.name}
           cities={citiesRaw}
           initialEap={initialEap}
-          acervoPdfs={acervoPdfs}
         />
       </div>
     </AppShell>

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
-import { detectOutdatedAcervoSources } from "@/server/eap/reconciler";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,78 +27,8 @@ export async function GET(
       },
     });
 
-    // Leitura SOMENTE LEITURA dos PDFs do Acervo Manager da obra
-    const acervoDocs = await prisma.acervoDocument.findMany({
-      where: { projectId, isArchived: false },
-      orderBy: [{ discipline: "asc" }, { code: "asc" }],
-      select: {
-        id: true,
-        code: true,
-        title: true,
-        discipline: true,
-        revisions: {
-          where: { isCurrent: true },
-          take: 1,
-          select: {
-            id: true,
-            revisionNumber: true,
-            fileName: true,
-            fileUrl: true,
-            fileKey: true,
-            fileType: true,
-            createdAt: true,
-          },
-        },
-      },
-    });
-
-    const acervoPdfs = acervoDocs
-      .map((doc) => {
-        const rev = doc.revisions[0];
-        if (!rev) return null;
-        const isPdf = rev.fileType === "PDF" || rev.fileName.toLowerCase().endsWith(".pdf");
-        if (!isPdf) return null;
-        return {
-          acervoDocumentId: doc.id,
-          code: doc.code,
-          title: doc.title,
-          discipline: String(doc.discipline),
-          revisionNumber: rev.revisionNumber,
-          fileName: rev.fileName,
-          fileUrl: rev.fileUrl,
-          fileKey: rev.fileKey,
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
-
-    let sources = eap?.sourceFiles ?? [];
-    if (eap && sources.length > 0) {
-      const outdated = detectOutdatedAcervoSources(
-        sources.map((s) => ({
-          id: s.id,
-          acervoDocumentId: s.acervoDocumentId,
-          revisionLabel: s.revisionLabel,
-        })),
-        acervoPdfs.map((d) => ({
-          id: d.acervoDocumentId,
-          latestRevisionNumber: d.revisionNumber,
-        }))
-      );
-
-      if (outdated.length > 0) {
-        const outdatedIds = outdated.map((o) => o.sourceFileId);
-        await prisma.eapSourceFile.updateMany({
-          where: { id: { in: outdatedIds } },
-          data: { status: "DESATUALIZADO_NO_ACERVO" },
-        });
-        sources = sources.map((s) =>
-          outdatedIds.includes(s.id) ? { ...s, status: "DESATUALIZADO_NO_ACERVO" } : s
-        );
-      }
-    }
-
     return NextResponse.json(
-      { ok: true, sources, acervoPdfs },
+      { ok: true, sources: eap?.sourceFiles ?? [] },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {
@@ -151,12 +80,27 @@ export async function DELETE(
 ) {
   try {
     await requireRole("ADMIN");
-    await context.params;
+    const { projectId } = await context.params;
     const sourceFileId = request.nextUrl.searchParams.get("sourceFileId");
     if (!sourceFileId) {
       return NextResponse.json({ ok: false, error: "sourceFileId obrigatório." }, { status: 400 });
     }
-    await prisma.eapSourceFile.delete({ where: { id: sourceFileId } });
+
+    const eap = await prisma.eapProject.findUnique({
+      where: { projectId },
+      select: { id: true },
+    });
+    if (!eap) {
+      return NextResponse.json({ ok: false, error: "EAP não encontrada." }, { status: 404 });
+    }
+
+    const deleted = await prisma.eapSourceFile.deleteMany({
+      where: { id: sourceFileId, eapProjectId: eap.id },
+    });
+    if (deleted.count === 0) {
+      return NextResponse.json({ ok: false, error: "Arquivo não encontrado nesta EAP." }, { status: 404 });
+    }
+
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return NextResponse.json(

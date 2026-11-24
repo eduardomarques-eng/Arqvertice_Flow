@@ -127,6 +127,9 @@ export function normalizeZoneQuantities(raw: unknown): ZoneQuantities {
 
 export function resolveRevisionTag(
   previous: {
+    code?: string | null;
+    description?: string;
+    unit?: string;
     zoneQuantitiesJson: unknown;
     lossPercent: number;
     materialUnitCost: number;
@@ -136,12 +139,16 @@ export function resolveRevisionTag(
     revisionTag: string;
   },
   patch: {
+    code?: string | null;
+    description?: string;
+    unit?: string;
     zoneQuantities?: Partial<ZoneQuantities>;
     lossPercent?: number;
     materialUnitCost?: number;
     laborUnitCost?: number;
     thirdPartyUnitCost?: number;
     markupMultiplier?: number;
+    clearSanityFlag?: boolean;
   }
 ): string {
   const prevZones = normalizeZoneQuantities(previous.zoneQuantitiesJson);
@@ -163,9 +170,21 @@ export function resolveRevisionTag(
     (patch.thirdPartyUnitCost !== undefined && patch.thirdPartyUnitCost !== previous.thirdPartyUnitCost) ||
     (patch.markupMultiplier !== undefined && patch.markupMultiplier !== previous.markupMultiplier);
 
+  const metaChanged =
+    (patch.description !== undefined &&
+      previous.description !== undefined &&
+      patch.description.trim() !== previous.description) ||
+    (patch.unit !== undefined &&
+      previous.unit !== undefined &&
+      patch.unit.trim() !== previous.unit) ||
+    (patch.code !== undefined &&
+      (patch.code?.trim().toUpperCase() || null) !== (previous.code || null)) ||
+    Boolean(patch.clearSanityFlag);
+
   if (previous.revisionTag === "ADICIONADO") return "ADICIONADO";
   if (qtyChanged) return "QUANTIDADE_ALTERADA";
   if (costChanged) return "CUSTO_ALTERADO";
+  if (metaChanged) return "EDITADO_MANUAL";
   return previous.revisionTag || "ORIGINAL";
 }
 

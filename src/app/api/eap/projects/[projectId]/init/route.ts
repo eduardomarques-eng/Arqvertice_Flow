@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
+import { ensureBaseEapItems } from "@/server/eap/base-items";
 import {
   DEFAULT_EAP_ZONES,
   DEFAULT_PROPOSAL_EXCLUSIONS,
@@ -113,17 +114,20 @@ export async function POST(
         })),
       });
 
-      return created;
+      const baseItemsResult = await ensureBaseEapItems(tx, created.id, parsed.cityId);
+
+      return { created, baseItemsInserted: baseItemsResult.inserted };
     });
 
     return NextResponse.json(
       {
         ok: true,
-        eapProject: eap,
+        eapProject: eap.created,
         instantiated: {
           zones: DEFAULT_EAP_ZONES.length,
           stages: MASTER_EAP_STAGES.length,
           packages: MASTER_LOB_PACKAGES.length,
+          baseItems: eap.baseItemsInserted,
         },
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }

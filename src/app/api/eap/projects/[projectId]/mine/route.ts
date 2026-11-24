@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
+import { ensureBaseEapItems, planMiningMerge } from "@/server/eap/base-items";
 import { computeSha256, extractPdfFromBuffer, readRawBufferFromSource } from "@/server/eap/pdf-reader";
 import { parseTqsPages } from "@/server/eap/parsers/tqs-parser";
 import { parseTqsHtml } from "@/server/eap/parsers/tqs-html-parser";
@@ -172,49 +173,126 @@ export async function POST(
     const fallbackGroupId = eap.stages[0]?.groups[0]?.id;
 
     const markupMultiplier = 1 + (eap.bdiPercent || 0) / 100;
+    let preservedManualCount = 0;
 
     await prisma.$transaction(async (tx) => {
-      // Remove itens minerados anteriormente (preservando itens adicionados manualmente)
-      const allGroupIds = eap.stages.flatMap((s) => s.groups.map((g) => g.id));
-      if (allGroupIds.length > 0) {
-        await tx.eapItem.deleteMany({
-          where: {
-            groupId: { in: allGroupIds },
-            sourceSoftware: { in: ["TQS", "REVIT"] },
+      // Garante a estrutura-base pré-carregada por disciplina antes do preenchimento
+      await ensureBaseEapItems(tx, eap.id, eap.cityId);
+
+      const stagesWithItems = await tx.eapStage.findMany({
+        where: { eapProjectId: eap.id },
+        include: {
+          groups: {
+            include: { items: true },
           },
+        },
+      });
+
+      const existingItems = stagesWithItems.flatMap((st) =>
+        st.groups.flatMap((g) =>
+          g.items.map((it) => ({
+            id: it.id,
+            groupId: g.id,
+            stageCode: st.code,
+            code: it.code,
+            description: it.description,
+            unit: it.unit,
+            sourceSoftware: it.sourceSoftware,
+            revisionTag: it.revisionTag,
+            materialUnitCost: it.materialUnitCost,
+            laborUnitCost: it.laborUnitCost,
+            thirdPartyUnitCost: it.thirdPartyUnitCost,
+          }))
+        )
+      );
+
+      if (fallbackGroupId) {
+        const mergePlan = planMiningMerge({
+          existingItems,
+          acceptedItems: reconciled.acceptedItems,
+          groupByStageCode: stageGroupMap,
+          fallbackGroupId,
+          defaultMarkup: markupMultiplier,
         });
+        preservedManualCount = mergePlan.preservedManualCount;
+
+        for (const upd of mergePlan.updates) {
+          await tx.eapItem.update({
+            where: { id: upd.id },
+            data: {
+              materialCatalogId: upd.materialCatalogId,
+              laborRoleId: upd.laborRoleId,
+              code: upd.code,
+              description: upd.description,
+              unit: upd.unit,
+              zoneQuantitiesJson: upd.zoneQuantities,
+              lossPercent: upd.lossPercent,
+              materialUnitCost: upd.materialUnitCost,
+              laborUnitCost: upd.laborUnitCost,
+              thirdPartyUnitCost: upd.thirdPartyUnitCost,
+              sourceSoftware: upd.sourceSoftware,
+              sourceFileId: upd.sourceFileId,
+              sourcePage: upd.sourcePage,
+              sanityFlag: upd.sanityFlag,
+            },
+          });
+        }
+
+        if (mergePlan.resetTemplateIds.length > 0) {
+          await tx.eapItem.updateMany({
+            where: { id: { in: mergePlan.resetTemplateIds } },
+            data: {
+              zoneQuantitiesJson: {
+                FUND_TERREO: 0,
+                PAV_SUPERIOR: 0,
+                COBERTURA: 0,
+                EXTERNO: 0,
+              },
+              sourceSoftware: "TEMPLATE",
+              sourceFileId: null,
+              sourcePage: null,
+              sanityFlag: null,
+            },
+          });
+        }
+
+        if (mergePlan.deleteIds.length > 0) {
+          await tx.eapItem.deleteMany({
+            where: { id: { in: mergePlan.deleteIds } },
+          });
+        }
+
+        if (mergePlan.creates.length > 0) {
+          await tx.eapItem.createMany({
+            data: mergePlan.creates.map((c) => ({
+              groupId: c.groupId,
+              materialCatalogId: c.materialCatalogId,
+              laborRoleId: c.laborRoleId,
+              code: c.code,
+              description: c.description,
+              unit: c.unit,
+              zoneQuantitiesJson: c.zoneQuantities,
+              lossPercent: c.lossPercent,
+              materialUnitCost: c.materialUnitCost,
+              laborUnitCost: c.laborUnitCost,
+              thirdPartyUnitCost: c.thirdPartyUnitCost,
+              markupMultiplier: c.markupMultiplier,
+              teamsCount: 1,
+              sourceSoftware: c.sourceSoftware,
+              sourceFileId: c.sourceFileId,
+              sourcePage: c.sourcePage,
+              sanityFlag: c.sanityFlag,
+              revisionTag: "ORIGINAL",
+              orderIndex: c.orderIndex,
+            })),
+          });
+        }
       }
 
       // Substitui logs de conflito da mineração anterior
       await tx.eapConflictLog.deleteMany({
         where: { eapProjectId: eap.id },
       });
-
-      if (reconciled.acceptedItems.length > 0 && fallbackGroupId) {
-        await tx.eapItem.createMany({
-          data: reconciled.acceptedItems.map((item, idx) => ({
-            groupId: stageGroupMap.get(item.eapStageCode) ?? fallbackGroupId,
-            materialCatalogId: item.materialCatalogId,
-            laborRoleId: item.laborRoleId,
-            code: item.code,
-            description: item.description,
-            unit: item.unit,
-            zoneQuantitiesJson: item.zoneQuantities,
-            lossPercent: item.lossPercent,
-            materialUnitCost: item.materialUnitCost,
-            laborUnitCost: item.laborUnitCost,
-            thirdPartyUnitCost: item.thirdPartyUnitCost,
-            markupMultiplier,
-            teamsCount: 1,
-            sourceSoftware: item.sourceSoftware,
-            sourceFileId: item.sourceFileId,
-            sourcePage: item.sourcePage,
-            sanityFlag: item.sanityFlag,
-            revisionTag: "ORIGINAL",
-            orderIndex: idx + 1,
-          })),
-        });
-      }
 
       if (reconciled.conflicts.length > 0) {
         await tx.eapConflictLog.createMany({
@@ -244,6 +322,7 @@ export async function POST(
         ok: true,
         processedFiles,
         acceptedItemsCount: reconciled.acceptedItems.length,
+        preservedManualCount,
         conflictsCount: reconciled.conflicts.length,
         sanityWarnings: reconciled.sanityWarnings,
         steelRateKgPerM3: reconciled.steelRateKgPerM3,

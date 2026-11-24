@@ -663,6 +663,556 @@ export const DEFAULT_PROPOSAL_PREMISES: string[] = [
   "Alterações de escopo, acabamentos ou revisões de projeto após aprovação da Linha de Base (v1.0) serão formalizadas via Aditivo de Revisão.",
 ];
 
+export interface MasterEapBaseItemTemplate {
+  stageCode: string;
+  groupCode: string;
+  code: string;
+  description: string;
+  unit: string;
+  discipline:
+    | "ARQUITETONICO"
+    | "ESTRUTURAL"
+    | "ELETRICO"
+    | "HIDRO_ABASTECIMENTO"
+    | "HIDRO_ESGOTAMENTO"
+    | "HIDRO_DRENAGEM"
+    | "LUMINOTECNICO"
+    | "PAISAGISMO";
+  category: string;
+  defaultLossPercent?: number;
+}
+
+export const MASTER_EAP_BASE_ITEMS: MasterEapBaseItemTemplate[] = [
+  // 01 — Implantação e Serviços Preliminares (Arquitetônico)
+  {
+    stageCode: "01",
+    groupCode: "01.1",
+    code: "IMPL-CANTEIRO",
+    description: "Implantação de Canteiro, Tapume, Barracão e Ligações Provisórias",
+    unit: "vb",
+    discipline: "ARQUITETONICO",
+    category: "IMPLANTACAO",
+  },
+  {
+    stageCode: "01",
+    groupCode: "01.2",
+    code: "IMPL-LOCACAO",
+    description: "Limpeza do Terreno, Topografia e Locação de Obra com Gabarito",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "IMPLANTACAO",
+  },
+
+  // 02 — Movimento de Terra (Estrutural / Terreno)
+  {
+    stageCode: "02",
+    groupCode: "02.1",
+    code: "MOV-ESCAV",
+    description: "Escavação Mecanizada e Manual de Valas / Fundações",
+    unit: "m³",
+    discipline: "ESTRUTURAL",
+    category: "TERRAP_MOV",
+  },
+  {
+    stageCode: "02",
+    groupCode: "02.1",
+    code: "MOV-ATERRO",
+    description: "Reaterro Compactado e Bota-Fora de Solo Excedente",
+    unit: "m³",
+    discipline: "ESTRUTURAL",
+    category: "TERRAP_MOV",
+  },
+
+  // 03 — Infraestrutura e Fundações (Estrutural - TQS)
+  {
+    stageCode: "03",
+    groupCode: "03.1",
+    code: "CONC-MAGRO",
+    description: "Lastro de Concreto Magro fck 15 MPa em Fundações",
+    unit: "m³",
+    discipline: "ESTRUTURAL",
+    category: "CONCRETO",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "03",
+    groupCode: "03.1",
+    code: "CONC-FCK25",
+    description: "Concreto Estrutural Fundações / Sapatas / Blocos fck 25 MPa",
+    unit: "m³",
+    discipline: "ESTRUTURAL",
+    category: "CONCRETO",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "03",
+    groupCode: "03.2",
+    code: "BALDRAME-IMP",
+    description: "Vigas Baldrame e Impermeabilização de Fundação",
+    unit: "m²",
+    discipline: "ESTRUTURAL",
+    category: "IMPERMEABILIZACAO",
+    defaultLossPercent: 8,
+  },
+
+  // 04 — Supraestrutura de Concreto Armado (Estrutural - TQS)
+  {
+    stageCode: "04",
+    groupCode: "04.1",
+    code: "CONC-FCK30",
+    description: "Concreto Usinado Supraestrutura fck 30 MPa + Bombeamento",
+    unit: "m³",
+    discipline: "ESTRUTURAL",
+    category: "CONCRETO",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "04",
+    groupCode: "04.1",
+    code: "CONC-FCK35",
+    description: "Concreto Usinado Supraestrutura fck 35 MPa + Bombeamento",
+    unit: "m³",
+    discipline: "ESTRUTURAL",
+    category: "CONCRETO",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "04",
+    groupCode: "04.2",
+    code: "ACO-CA50-100",
+    description: "Armação em Aço CA-50 / CA-60 (Corte, Dobra e Montagem)",
+    unit: "kg",
+    discipline: "ESTRUTURAL",
+    category: "ACO",
+    defaultLossPercent: 10,
+  },
+  {
+    stageCode: "04",
+    groupCode: "04.2",
+    code: "ACO-CA50-63",
+    description: "Aço CA-50/CA-60 Complementar e Estribos",
+    unit: "kg",
+    discipline: "ESTRUTURAL",
+    category: "ACO_COMPLEMENTAR",
+    defaultLossPercent: 10,
+  },
+  {
+    stageCode: "04",
+    groupCode: "04.3",
+    code: "FORM-MAD-COMP",
+    description: "Fôrma de Madeira Compensado Plastificado 14mm + Desforma",
+    unit: "m²",
+    discipline: "ESTRUTURAL",
+    category: "FORMAS",
+    defaultLossPercent: 8,
+  },
+  {
+    stageCode: "04",
+    groupCode: "04.3",
+    code: "LAJE-VIGOTA-TR",
+    description: "Vigota Treliçada / Laje Pré-Moldada",
+    unit: "m",
+    discipline: "ESTRUTURAL",
+    category: "VIGOTA_TRELICADA",
+    defaultLossPercent: 3,
+  },
+  {
+    stageCode: "04",
+    groupCode: "04.3",
+    code: "LAJE-EPS-H12",
+    description: "Bloco de Enchimento EPS para Laje Treliçada",
+    unit: "unid",
+    discipline: "ESTRUTURAL",
+    category: "LAJE_EPS",
+    defaultLossPercent: 5,
+  },
+
+  // 05 — Alvenaria de Vedação (Arquitetônico - Revit)
+  {
+    stageCode: "05",
+    groupCode: "05.1",
+    code: "ALV-TJC14",
+    description: "Alvenaria Bloco Cerâmico 14cm (TJC14) + Argamassa",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "ALVENARIA",
+    defaultLossPercent: 8,
+  },
+  {
+    stageCode: "05",
+    groupCode: "05.1",
+    code: "ALV-TJC8",
+    description: "Alvenaria Bloco Cerâmico 9cm (TJC8) + Argamassa",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "ALVENARIA",
+    defaultLossPercent: 8,
+  },
+  {
+    stageCode: "05",
+    groupCode: "05.2",
+    code: "ALV-VERGA",
+    description: "Vergas, Contravergas e Encunhamento de Alvenaria",
+    unit: "m³",
+    discipline: "ARQUITETONICO",
+    category: "ALVENARIA",
+    defaultLossPercent: 5,
+  },
+
+  // 06 — Cobertura (Arquitetônico)
+  {
+    stageCode: "06",
+    groupCode: "06.1",
+    code: "COB-TELHADO",
+    description: "Estrutura de Coberta, Telhamento Termoacústico e Rufos",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "COBERTURA",
+    defaultLossPercent: 5,
+  },
+
+  // 07 — Impermeabilização (Arquitetônico)
+  {
+    stageCode: "07",
+    groupCode: "07.1",
+    code: "IMP-MANTA-4MM",
+    description: "Impermeabilização com Manta Asfáltica 4mm + Primer e Proteção",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "IMPERMEABILIZACAO",
+    defaultLossPercent: 10,
+  },
+  {
+    stageCode: "07",
+    groupCode: "07.1",
+    code: "IMP-POLIMERICA",
+    description: "Impermeabilização com Argamassa Polimérica em Áreas Molhadas",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "IMPERMEABILIZACAO",
+    defaultLossPercent: 8,
+  },
+
+  // 08 — Instalações Elétricas e Automação (Elétrico)
+  {
+    stageCode: "08",
+    groupCode: "08.1",
+    code: "ELET-INFRA-DR",
+    description: "Infraestrutura Seca, Eletrodutos, Caixas e Quadros de Distribuição",
+    unit: "m",
+    discipline: "ELETRICO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "08",
+    groupCode: "08.2",
+    code: "INST-PTO-ELET",
+    description: "Pontos Elétricos, Cabeamento, Disjuntores, Tomadas e Interruptores",
+    unit: "unid",
+    discipline: "ELETRICO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+
+  // 09 — Instalações Hidrossanitárias e Águas Pluviais (Hidro Abastecimento / Esgotamento / Drenagem)
+  {
+    stageCode: "09",
+    groupCode: "09.1",
+    code: "HIDRO-ABAST-AF",
+    description: "Abastecimento Água Fria / Água Quente (Tubulações e Registros)",
+    unit: "m",
+    discipline: "HIDRO_ABASTECIMENTO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "09",
+    groupCode: "09.1",
+    code: "HIDRO-ESGOTO",
+    description: "Esgotamento Sanitário, Ventilação e Caixas de Inspeção/Gordura",
+    unit: "m",
+    discipline: "HIDRO_ESGOTAMENTO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "09",
+    groupCode: "09.1",
+    code: "HIDRO-DRENAGEM",
+    description: "Drenagem de Águas Pluviais, Calhas, Condutores e Caixas",
+    unit: "m",
+    discipline: "HIDRO_DRENAGEM",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "09",
+    groupCode: "09.2",
+    code: "INST-PTO-HIDRO",
+    description: "Pontos Hidrossanitários, Reservatório Superior e Pressurização",
+    unit: "unid",
+    discipline: "HIDRO_ABASTECIMENTO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+
+  // 10 — Gás e Climatização (Arquitetônico / Instalações)
+  {
+    stageCode: "10",
+    groupCode: "10.1",
+    code: "INST-CLIM-GAS",
+    description: "Infraestrutura de Climatização (Cobre/Dreno) e Rede de Gás GLP",
+    unit: "unid",
+    discipline: "HIDRO_ABASTECIMENTO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+
+  // 11 — Revestimento de Paredes Internas (Arquitetônico)
+  {
+    stageCode: "11",
+    groupCode: "11.1",
+    code: "REV-CHAP-EMB",
+    description: "Chapisco, Emboço e Reboco / Massa Única em Paredes Internas",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "REVESTIMENTOS",
+    defaultLossPercent: 10,
+  },
+  {
+    stageCode: "11",
+    groupCode: "11.2",
+    code: "REV-GESSO-LISO",
+    description: "Revestimento Cerâmico / Gesso Liso em Paredes Internas",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "REVESTIMENTOS",
+    defaultLossPercent: 8,
+  },
+
+  // 12 — Fachadas e Muros Externos (Arquitetônico)
+  {
+    stageCode: "12",
+    groupCode: "12.1",
+    code: "REV-FACHADA",
+    description: "Chapisco, Emboço Externo e Revestimento de Fachadas / Muros",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "REVESTIMENTOS",
+    defaultLossPercent: 10,
+  },
+
+  // 13 — Contrapiso (Arquitetônico)
+  {
+    stageCode: "13",
+    groupCode: "13.1",
+    code: "REV-CONTRAPISO",
+    description: "Contrapiso Regularizado e=4cm com Caimento em Áreas Molhadas",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "REVESTIMENTOS",
+    defaultLossPercent: 8,
+  },
+
+  // 14 — Pisos, Porcelanatos e Rodapés (Arquitetônico)
+  {
+    stageCode: "14",
+    groupCode: "14.1",
+    code: "REV-PORC-90",
+    description: "Assentamento de Piso Porcelanato Retificado + Argamassa AC-III",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "REVESTIMENTOS",
+    defaultLossPercent: 12,
+  },
+  {
+    stageCode: "14",
+    groupCode: "14.2",
+    code: "REV-RODAPE-15",
+    description: "Rodapés, Soleiras e Pingadeiras Assentados",
+    unit: "m",
+    discipline: "ARQUITETONICO",
+    category: "REVESTIMENTOS",
+    defaultLossPercent: 10,
+  },
+
+  // 15 — Forros de Gesso (Arquitetônico)
+  {
+    stageCode: "15",
+    groupCode: "15.1",
+    code: "REV-FORRO-GESSO",
+    description: "Forro de Gesso Acartonado (Drywall) com Tabicas e Cortineiros",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "REVESTIMENTOS",
+    defaultLossPercent: 5,
+  },
+
+  // 16 — Esquadrias de Alumínio e Vidros (Arquitetônico)
+  {
+    stageCode: "16",
+    groupCode: "16.1",
+    code: "ESQ-ALUM-VIDRO",
+    description: "Esquadrias de Alumínio com Vidro Temperado / Laminado",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "ESQUADRIAS",
+  },
+  {
+    stageCode: "16",
+    groupCode: "16.2",
+    code: "ESQ-GUARDA-CORPO",
+    description: "Guarda-Corpos em Alumínio/Inox e Vidro Laminado + Corrimãos",
+    unit: "m",
+    discipline: "ARQUITETONICO",
+    category: "ESQUADRIAS",
+  },
+
+  // 17 — Esquadrias de Madeira (Arquitetônico)
+  {
+    stageCode: "17",
+    groupCode: "17.1",
+    code: "ESQ-PORTA-MAD",
+    description: "Kit Porta Pronta de Madeira Laqueada + Alizares e Ferragens",
+    unit: "unid",
+    discipline: "ARQUITETONICO",
+    category: "ESQUADRIAS",
+  },
+
+  // 18 — Marmoraria e Bancadas (Arquitetônico)
+  {
+    stageCode: "18",
+    groupCode: "18.1",
+    code: "BANC-GRANITO",
+    description: "Bancadas de Granito / Quartzo, Nichos e Revestimento de Escada",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "BANCADAS",
+    defaultLossPercent: 5,
+  },
+
+  // 19 — Pintura Interna e Externa (Arquitetônico)
+  {
+    stageCode: "19",
+    groupCode: "19.1",
+    code: "PINT-PVA-INT",
+    description: "Pintura Interna (Selador, Massa Corrida e Tinta Acrílica Fosca)",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "PINTURA",
+    defaultLossPercent: 8,
+  },
+  {
+    stageCode: "19",
+    groupCode: "19.2",
+    code: "PINT-ACRL-EXT",
+    description: "Pintura Externa Acrílica Premium e Textura de Fachada",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "PINTURA",
+    defaultLossPercent: 10,
+  },
+
+  // 20 — Louças e Metais (Arquitetônico / Hidro)
+  {
+    stageCode: "20",
+    groupCode: "20.1",
+    code: "LOUC-CONJ-BWC",
+    description: "Conjunto Louças e Metais Sanitários (Bacias, Cubas, Misturadores)",
+    unit: "unid",
+    discipline: "HIDRO_ABASTECIMENTO",
+    category: "LOUCAS_METAIS",
+  },
+
+  // 21 — Luminotécnica e Acabamento Elétrico (Luminotécnico)
+  {
+    stageCode: "21",
+    groupCode: "21.1",
+    code: "INST-PTO-LUMI",
+    description: "Pontos Luminotécnicos, Spots, Pendentes, Arandelas e Plafons",
+    unit: "unid",
+    discipline: "LUMINOTECNICO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "21",
+    groupCode: "21.1",
+    code: "LUMI-PERFIL-LED",
+    description: "Perfis e Fitas LED Lineares Embutidos com Drivers e Comandos",
+    unit: "m",
+    discipline: "LUMINOTECNICO",
+    category: "INSTALACOES",
+    defaultLossPercent: 5,
+  },
+
+  // 22 — Piscina, Deck e Área Gourmet (Arquitetônico)
+  {
+    stageCode: "22",
+    groupCode: "22.1",
+    code: "PISC-DECK-GOURM",
+    description: "Piscina, Revestimento, Casa de Máquinas e Infra Área Gourmet",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "LAZER",
+  },
+
+  // 23 — Paisagismo, Calçadas e Pavimentação Externa (Paisagismo)
+  {
+    stageCode: "23",
+    groupCode: "23.1",
+    code: "PAIS-GRAMA",
+    description: "Gramados, Canteiros, Forrações e Piso Intertravado Externo",
+    unit: "m²",
+    discipline: "PAISAGISMO",
+    category: "PAISAGISMO",
+    defaultLossPercent: 5,
+  },
+  {
+    stageCode: "23",
+    groupCode: "23.1",
+    code: "PAIS-MUDAS",
+    description: "Espécies Arbóreas/Arbustivas e Pontos de Irrigação Automatizada",
+    unit: "unid",
+    discipline: "PAISAGISMO",
+    category: "PAISAGISMO",
+  },
+
+  // 24 — Serralheria e Portões (Arquitetônico)
+  {
+    stageCode: "24",
+    groupCode: "24.1",
+    code: "SERR-PORTOES",
+    description: "Portões Automatizados, Gradis e Elementos de Serralheria",
+    unit: "unid",
+    discipline: "ARQUITETONICO",
+    category: "SERRALHERIA",
+  },
+
+  // 25 — Administração Local (Geral)
+  {
+    stageCode: "25",
+    groupCode: "25.1",
+    code: "IMPL-ADMIN-MES",
+    description: "Administração Local da Obra (Mestre, Almoxarife e Caçambas)",
+    unit: "mês",
+    discipline: "ARQUITETONICO",
+    category: "IMPLANTACAO",
+  },
+
+  // 26 — Limpeza Final e Entrega (Geral)
+  {
+    stageCode: "26",
+    groupCode: "26.1",
+    code: "LIMP-FINAL-OBRA",
+    description: "Limpeza Final Pós-Obra, Comissionamento e Vistoria de Entrega",
+    unit: "m²",
+    discipline: "ARQUITETONICO",
+    category: "ENTREGA",
+  },
+];
+
 export const DEFAULT_PROPOSAL_EXCLUSIONS: string[] = [
   "Taxas municipais, alvarás, licenças ambientais, averbação e Habite-se junto à Prefeitura e Cartório.",
   "Marcenaria planejada sob medida, eletrodomésticos, cortinas, mobiliário solto e decoração.",

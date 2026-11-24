@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
+import { ensureBaseEapItems } from "@/server/eap/base-items";
 import { buildEapTreePayload } from "@/server/eap/workbench";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,29 @@ export async function GET(
       );
     }
 
+    const totalItems = eap.stages.reduce(
+      (sum, st) => sum + st.groups.reduce((gs, g) => gs + g.items.length, 0),
+      0
+    );
+    let stages = eap.stages;
+    if (totalItems === 0) {
+      const seeded = await ensureBaseEapItems(prisma, eap.id, eap.cityId);
+      if (seeded.inserted > 0) {
+        stages = await prisma.eapStage.findMany({
+          where: { eapProjectId: eap.id },
+          orderBy: { orderIndex: "asc" },
+          include: {
+            groups: {
+              orderBy: { orderIndex: "asc" },
+              include: {
+                items: { orderBy: { orderIndex: "asc" } },
+              },
+            },
+          },
+        });
+      }
+    }
+
     const tree = buildEapTreePayload({
       id: eap.id,
       projectId: eap.projectId,
@@ -55,7 +79,7 @@ export async function GET(
       premisesJson: eap.premisesJson,
       exclusionsJson: eap.exclusionsJson,
       zones: eap.zones,
-      stages: eap.stages,
+      stages,
       conflicts: eap.conflictLogs,
     });
 

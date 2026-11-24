@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const patchItemSchema = z.object({
-  description: z.string().min(2).max(260).optional(),
+  code: z.string().max(40).nullable().optional(),
+  description: z.string().min(1).max(260).optional(),
   unit: z.string().min(1).max(20).optional(),
   zoneQuantities: z
     .object({
@@ -34,12 +35,25 @@ export async function PATCH(
 ) {
   try {
     await requireRole("ADMIN");
-    const { itemId } = await context.params;
+    const { projectId, itemId } = await context.params;
     const body = await request.json();
     const parsed = patchItemSchema.parse(body);
 
-    const existing = await prisma.eapItem.findUnique({ where: { id: itemId } });
-    if (!existing) {
+    const existing = await prisma.eapItem.findUnique({
+      where: { id: itemId },
+      include: {
+        group: {
+          include: {
+            stage: {
+              include: {
+                eapProject: { select: { projectId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!existing || existing.group.stage.eapProject.projectId !== projectId) {
       return NextResponse.json({ ok: false, error: "Item da EAP não encontrado." }, { status: 404 });
     }
 
@@ -58,6 +72,7 @@ export async function PATCH(
     const updated = await prisma.eapItem.update({
       where: { id: itemId },
       data: {
+        ...(parsed.code !== undefined ? { code: parsed.code?.trim().toUpperCase() || null } : {}),
         ...(parsed.description !== undefined ? { description: parsed.description.trim() } : {}),
         ...(parsed.unit !== undefined ? { unit: parsed.unit.trim() } : {}),
         ...(parsed.zoneQuantities !== undefined ? { zoneQuantitiesJson: nextZones } : {}),
@@ -88,7 +103,24 @@ export async function DELETE(
 ) {
   try {
     await requireRole("ADMIN");
-    const { itemId } = await context.params;
+    const { projectId, itemId } = await context.params;
+    const existing = await prisma.eapItem.findUnique({
+      where: { id: itemId },
+      include: {
+        group: {
+          include: {
+            stage: {
+              include: {
+                eapProject: { select: { projectId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!existing || existing.group.stage.eapProject.projectId !== projectId) {
+      return NextResponse.json({ ok: false, error: "Item da EAP não encontrado." }, { status: 404 });
+    }
     await prisma.eapItem.delete({ where: { id: itemId } });
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {

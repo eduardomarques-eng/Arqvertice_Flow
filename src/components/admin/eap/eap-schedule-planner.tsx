@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EapLobSpreadsheet } from "@/components/admin/eap/eap-lob-spreadsheet";
 import type {
   MonthlyCashflowPoint,
   ScheduleAnalyticsResult,
@@ -136,105 +137,31 @@ export function EapSchedulePlanner({
     triggerDate: "2026-03-15",
   });
 
-  const loadSchedule = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/eap/projects/${projectId}/schedule`, { cache: "no-store" });
-      const json = await res.json();
-      if (json.ok) {
-        setData(json as ScheduleApiPayload);
-        if (json.plannedStartDate) {
-          setStartDateInput(json.plannedStartDate);
+  const loadSchedule = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const res = await fetch(`/api/eap/projects/${projectId}/schedule`, { cache: "no-store" });
+        const json = await res.json();
+        if (json.ok) {
+          setData(json as ScheduleApiPayload);
+          if (json.plannedStartDate) {
+            setStartDateInput(json.plannedStartDate);
+          }
+          if (json.packages?.[0]?.id) {
+            setNewGate((prev) => ({ ...prev, packageId: prev.packageId || json.packages[0].id }));
+          }
         }
-        if (json.packages?.[0]?.id) {
-          setNewGate((prev) => ({ ...prev, packageId: prev.packageId || json.packages[0].id }));
-        }
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+    },
+    [projectId]
+  );
 
   useEffect(() => {
     void loadSchedule();
   }, [loadSchedule]);
-
-  const [lobZoom, setLobZoom] = useState<"DIARIO" | "SEMANAL">("DIARIO");
-
-  const dailyCalendar = useMemo(() => {
-    const startStr = data?.analytics.startDate;
-    const endStr = data?.analytics.endDate;
-    if (!startStr || !endStr) {
-      return {
-        columns: [] as Array<{
-          iso: string;
-          weekdayInitial: string;
-          monthKey: string;
-          monthLabel: string;
-          shortDate: string;
-          holidayName: string | null;
-        }>,
-        monthGroups: [] as Array<{ monthKey: string; label: string; count: number }>,
-      };
-    }
-
-    const MONTH_FULL_PT = [
-      "janeiro", "fevereiro", "marco", "abril", "maio", "junho",
-      "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
-    ];
-    const MONTH_SHORT_PT = [
-      "jan", "fev", "mar", "abr", "mai", "jun",
-      "jul", "ago", "set", "out", "nov", "dez",
-    ];
-    const WEEKDAY_INITIAL = ["D", "S", "T", "Q", "Q", "S", "S"];
-
-    const rawHolidays =
-      (data as { holidays?: Array<{ date: string; name: string }> } | null)?.holidays ?? [];
-    const holidayMap = new Map(rawHolidays.map((h) => [h.date.slice(0, 10), h.name]));
-
-    const start = new Date(`${startStr}T00:00:00.000Z`);
-    const end = new Date(`${endStr}T00:00:00.000Z`);
-    const columns: Array<{
-      iso: string;
-      weekdayInitial: string;
-      monthKey: string;
-      monthLabel: string;
-      shortDate: string;
-      holidayName: string | null;
-    }> = [];
-
-    const cursor = new Date(start.getTime());
-    while (cursor.getTime() <= end.getTime() && columns.length < 450) {
-      const dow = cursor.getUTCDay();
-      if (dow !== 0 && dow !== 6) {
-        const iso = cursor.toISOString().slice(0, 10);
-        const m = cursor.getUTCMonth();
-        const yy = String(cursor.getUTCFullYear()).slice(-2);
-        const dd = String(cursor.getUTCDate()).padStart(2, "0");
-        columns.push({
-          iso,
-          weekdayInitial: WEEKDAY_INITIAL[dow],
-          monthKey: iso.slice(0, 7),
-          monthLabel: `${MONTH_FULL_PT[m]}-${yy}`,
-          shortDate: `${dd}/${MONTH_SHORT_PT[m]}/${yy}`,
-          holidayName: holidayMap.get(iso) ?? null,
-        });
-      }
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
-
-    const monthGroups: Array<{ monthKey: string; label: string; count: number }> = [];
-    for (const col of columns) {
-      const last = monthGroups[monthGroups.length - 1];
-      if (last && last.monthKey === col.monthKey) {
-        last.count += 1;
-      } else {
-        monthGroups.push({ monthKey: col.monthKey, label: col.monthLabel, count: 1 });
-      }
-    }
-
-    return { columns, monthGroups };
-  }, [data]);
 
   const allGates = useMemo(() => {
     if (!data) return [];
@@ -610,338 +537,47 @@ export function EapSchedulePlanner({
         ))}
       </div>
 
-      {/* SUB-VISÃO 1: LINHA DE BALANÇO (LOB) */}
+      {/* SUB-VISÃO 1: LINHA DE BALANÇO INTERATIVA (LOB) */}
       {subView === "lob" && (
         <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-                Linha de Balanço (LOB) — 4 Zonas × Linha do Tempo ({lobZoom === "DIARIO" ? "Grade Diária Executiva" : "Visão Semanal/Mensal"})
-              </h3>
-              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                {lobZoom === "DIARIO"
-                  ? "Calendário diário em dias úteis com meses no topo/rodapé, faixas cinzas para feriados e blocos coloridos por onda."
-                  : "Visão consolidada por raias paralelas. Clique em qualquer bloco PCT para ajustar datas ou equipe."}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-900">
-                <button
-                  type="button"
-                  onClick={() => setLobZoom("DIARIO")}
-                  className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold cursor-pointer ${
-                    lobZoom === "DIARIO"
-                      ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                      : "text-slate-600 dark:text-zinc-300"
-                  }`}
-                >
-                  Diário
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLobZoom("SEMANAL")}
-                  className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold cursor-pointer ${
-                    lobZoom === "SEMANAL"
-                      ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                      : "text-slate-600 dark:text-zinc-300"
-                  }`}
-                >
-                  Semanal
-                </button>
-              </div>
-              <div className="hidden xl:flex flex-wrap gap-1 text-[10px]">
-                {an.monthlySeries.slice(0, 6).map((m) => (
-                  <span
-                    key={m.monthKey}
-                    className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-slate-700 dark:bg-zinc-800 dark:text-zinc-300"
-                  >
-                    {m.label}
-                  </span>
-                ))}
-              </div>
-            </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+              Linha de Balanço (LOB) — Planilha Interativa por Pacotes &amp; Equipes
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+              Edição direta por número do pacote com coloração automática, 4 escalas temporais, deslocamento inteligente em cascata e validação de efetivo/precedência.
+            </p>
           </div>
 
-          {lobZoom === "DIARIO" && (
-            dailyCalendar.columns.length > 0 ? (
-              <div className="overflow-x-auto max-h-[700px] rounded-2xl border border-slate-200 dark:border-zinc-800">
-                <table className="border-collapse text-[10px]">
-                  <thead className="sticky top-0 z-20 bg-slate-900 text-white dark:bg-zinc-950">
-                    <tr>
-                      <th
-                        rowSpan={3}
-                        className="sticky left-0 z-30 min-w-[240px] max-w-[240px] border-r border-slate-700 bg-slate-900 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider dark:bg-zinc-950"
-                      >
-                        Zona / Pacote LOB
-                      </th>
-                      {dailyCalendar.monthGroups.map((mg) => (
-                        <th
-                          key={`top-m-${mg.monthKey}`}
-                          colSpan={mg.count}
-                          className="border-b border-r border-slate-700 px-1.5 py-1 text-center font-bold lowercase tracking-wide"
-                        >
-                          {mg.label}
-                        </th>
-                      ))}
-                    </tr>
-                    <tr className="bg-slate-800 text-slate-200 dark:bg-zinc-900">
-                      {dailyCalendar.columns.map((col) => (
-                        <th
-                          key={`top-w-${col.iso}`}
-                          className={`w-6 min-w-[24px] border-b border-r border-slate-700/70 py-0.5 text-center font-mono text-[9px] ${
-                            col.holidayName ? "bg-slate-600 text-white dark:bg-zinc-600" : ""
-                          }`}
-                        >
-                          {col.weekdayInitial}
-                        </th>
-                      ))}
-                    </tr>
-                    <tr className="bg-slate-100 text-slate-700 dark:bg-zinc-900 dark:text-zinc-300">
-                      {dailyCalendar.columns.map((col) => (
-                        <th
-                          key={`top-d-${col.iso}`}
-                          title={col.holidayName ? `Feriado: ${col.holidayName} (${col.shortDate})` : col.shortDate}
-                          className={`h-16 w-6 min-w-[24px] border-b border-r border-slate-200 p-0.5 font-mono text-[9px] font-medium dark:border-zinc-800 ${
-                            col.holidayName ? "bg-slate-500 text-white dark:bg-zinc-600" : ""
-                          }`}
-                        >
-                          <div
-                            style={{ writingMode: "vertical-rl" }}
-                            className="mx-auto rotate-180 whitespace-nowrap leading-none"
-                          >
-                            {col.shortDate}
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {data.zones.flatMap((zone) => {
-                      const zoneSegs = data.packages.flatMap((pkg) =>
-                        pkg.segments
-                          .filter((s) => s.zoneCode === zone.code)
-                          .map((seg) => ({ pkg, seg }))
-                      );
-                      if (zoneSegs.length === 0) return [];
-
-                      const zoneHeaderRow = (
-                        <tr key={`zone-hdr-${zone.id}`} className="bg-slate-200/90 dark:bg-zinc-800">
-                          <td className="sticky left-0 z-10 border-b border-r border-slate-300 bg-slate-200 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
-                            {zone.name} ({zoneSegs.length})
-                          </td>
-                          {dailyCalendar.columns.map((col) => (
-                            <td
-                              key={`z-${zone.id}-${col.iso}`}
-                              className={`border-b border-r border-slate-300/60 dark:border-zinc-700/60 ${
-                                col.holidayName ? "bg-slate-400/70 dark:bg-zinc-600/80" : ""
-                              }`}
-                            />
-                          ))}
-                        </tr>
-                      );
-
-                      const segRows = zoneSegs.map(({ pkg, seg }) => (
-                        <tr
-                          key={`seg-row-${seg.id}`}
-                          className="border-b border-slate-100 hover:bg-slate-50/80 dark:border-zinc-800/80 dark:hover:bg-zinc-900/50"
-                        >
-                          <td className="sticky left-0 z-10 min-w-[240px] max-w-[240px] border-r border-slate-200 bg-white px-3 py-1 dark:border-zinc-800 dark:bg-[#16161D]">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEditingSegment({
-                                  packageId: pkg.id,
-                                  packageLabel: `PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.name}`,
-                                  segment: { ...seg },
-                                })
-                              }
-                              title={`Editar trecho ${pkg.name} (${seg.startDate} → ${seg.endDate})`}
-                              className="flex w-full items-center justify-between gap-2 text-left cursor-pointer"
-                            >
-                              <span className="truncate font-semibold text-slate-900 dark:text-zinc-100">
-                                <span className="font-mono font-bold text-slate-500 dark:text-zinc-400">
-                                  {String(pkg.packageNumber).padStart(2, "0")}
-                                </span>{" "}
-                                {pkg.name}
-                              </span>
-                              <span className="shrink-0 font-mono text-[9px] text-slate-500">
-                                {seg.workingDays}d
-                              </span>
-                            </button>
-                          </td>
-
-                          {dailyCalendar.columns.map((col) => {
-                            if (col.holidayName) {
-                              return (
-                                <td
-                                  key={`${seg.id}-${col.iso}`}
-                                  title={`Feriado: ${col.holidayName} (${col.shortDate})`}
-                                  className="h-6 w-6 min-w-[24px] border-r border-slate-300 bg-slate-400/60 text-center font-mono font-bold text-slate-800 dark:border-zinc-700 dark:bg-zinc-600/80 dark:text-zinc-100"
-                                >
-                                  -
-                                </td>
-                              );
-                            }
-
-                            const isActive = col.iso >= seg.startDate && col.iso <= seg.endDate;
-                            if (!isActive) {
-                              return (
-                                <td
-                                  key={`${seg.id}-${col.iso}`}
-                                  className="h-6 w-6 min-w-[24px] border-r border-slate-100 dark:border-zinc-800/60"
-                                />
-                              );
-                            }
-
-                            return (
-                              <td
-                                key={`${seg.id}-${col.iso}`}
-                                onClick={() =>
-                                  setEditingSegment({
-                                    packageId: pkg.id,
-                                    packageLabel: `PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.name}`,
-                                    segment: { ...seg },
-                                  })
-                                }
-                                title={`PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.name}\nZona: ${zone.name}\nOnda: ${pkg.waveName}\nPeríodo: ${seg.startDate} → ${seg.endDate} (${seg.workingDays} d.u.) · ${pkg.teamsCount} eq.\nDia: ${col.shortDate}`}
-                                className={`h-6 w-6 min-w-[24px] cursor-pointer border-r border-white/40 text-center font-mono text-[9px] font-extrabold hover:opacity-85 ${getWaveColorClass(
-                                  pkg.waveName
-                                )}`}
-                              >
-                                {pkg.packageNumber}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ));
-
-                      return [zoneHeaderRow, ...segRows];
-                    })}
-                  </tbody>
-
-                  <tfoot className="sticky bottom-0 z-20 bg-slate-900 text-white dark:bg-zinc-950">
-                    <tr className="bg-slate-100 text-slate-700 dark:bg-zinc-900 dark:text-zinc-300">
-                      <th
-                        rowSpan={3}
-                        className="sticky left-0 z-30 border-t border-r border-slate-700 bg-slate-900 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-white dark:bg-zinc-950"
-                      >
-                        Rodapé Calendário
-                      </th>
-                      {dailyCalendar.columns.map((col) => (
-                        <th
-                          key={`bot-d-${col.iso}`}
-                          className={`h-16 w-6 min-w-[24px] border-t border-r border-slate-200 p-0.5 font-mono text-[9px] font-medium dark:border-zinc-800 ${
-                            col.holidayName ? "bg-slate-500 text-white dark:bg-zinc-600" : ""
-                          }`}
-                        >
-                          <div
-                            style={{ writingMode: "vertical-rl" }}
-                            className="mx-auto rotate-180 whitespace-nowrap leading-none"
-                          >
-                            {col.shortDate}
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                    <tr className="bg-slate-800 text-slate-200 dark:bg-zinc-900">
-                      {dailyCalendar.columns.map((col) => (
-                        <th
-                          key={`bot-w-${col.iso}`}
-                          className={`w-6 min-w-[24px] border-t border-r border-slate-700/70 py-0.5 text-center font-mono text-[9px] ${
-                            col.holidayName ? "bg-slate-600 text-white dark:bg-zinc-600" : ""
-                          }`}
-                        >
-                          {col.weekdayInitial}
-                        </th>
-                      ))}
-                    </tr>
-                    <tr>
-                      {dailyCalendar.monthGroups.map((mg) => (
-                        <th
-                          key={`bot-m-${mg.monthKey}`}
-                          colSpan={mg.count}
-                          className="border-t border-r border-slate-700 px-1.5 py-1 text-center font-bold lowercase tracking-wide"
-                        >
-                          {mg.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500 dark:border-zinc-700 dark:text-zinc-400">
-                Clique em &quot;⚡ Gerar / Recalcular da EAP&quot; para gerar a grade diária de Linha de Balanço.
-              </p>
-            )
-          )}
-
-          {lobZoom === "SEMANAL" && (
-            <div className="space-y-4">
-              {data.zones.map((zone) => {
-                const zoneSegs = data.packages.flatMap((pkg) =>
-                  pkg.segments
-                    .filter((s) => s.zoneCode === zone.code)
-                    .map((seg) => ({ pkg, seg }))
-                );
-                const maxLane = Math.max(1, ...zoneSegs.map((x) => x.seg.parallelLane));
-
-                return (
-                  <div
-                    key={zone.id}
-                    className="rounded-2xl border border-slate-200 p-3 dark:border-zinc-800"
-                  >
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
-                        {zone.name}
-                      </span>
-                      <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
-                        {zoneSegs.length} bloco(s) · {maxLane} raia(s)
-                      </span>
-                    </div>
-
-                    <div className="relative space-y-1.5 overflow-x-auto pb-1">
-                      {Array.from({ length: maxLane }, (_, laneIdx) => {
-                        const laneNum = laneIdx + 1;
-                        const laneItems = zoneSegs.filter((x) => x.seg.parallelLane === laneNum);
-                        return (
-                          <div
-                            key={laneNum}
-                            className="relative h-8 min-w-[680px] rounded-lg bg-slate-100/80 dark:bg-zinc-900/80"
-                          >
-                            {laneItems.map(({ pkg, seg }) => {
-                              const { left, width } = computeBarPercent(seg.startDate, seg.endDate);
-                              return (
-                                <button
-                                  key={seg.id}
-                                  type="button"
-                                  onClick={() =>
-                                    setEditingSegment({
-                                      packageId: pkg.id,
-                                      packageLabel: `PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.name}`,
-                                      segment: { ...seg },
-                                    })
-                                  }
-                                  title={`PCT ${pkg.packageNumber} ${pkg.name} (${seg.startDate} → ${seg.endDate})`}
-                                  style={{ left: `${left}%`, width: `${width}%` }}
-                                  className={`absolute top-1 h-6 truncate rounded-md px-1.5 text-[10px] font-bold shadow-sm cursor-pointer hover:opacity-90 ${getWaveColorClass(
-                                    pkg.waveName
-                                  )}`}
-                                >
-                                  PCT {String(pkg.packageNumber).padStart(2, "0")}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <EapLobSpreadsheet
+            projectId={projectId}
+            plannedStartDate={data.plannedStartDate}
+            analyticsStartDate={an.startDate}
+            analyticsEndDate={an.endDate}
+            zones={data.zones}
+            holidays={data.holidays}
+            packages={data.packages}
+            onScheduleMutated={() => loadSchedule(true)}
+            onOpenSegmentModal={(pkg, seg) => {
+              const matchedPkg = data.packages.find((p) => p.id === pkg.id);
+              const matchedSeg = matchedPkg?.segments.find((s) => s.id === seg.id) ?? {
+                id: seg.id || "",
+                zoneCode: seg.zoneCode,
+                segmentOrder: seg.segmentOrder,
+                startDate: seg.startDate,
+                endDate: seg.endDate,
+                workingDays: seg.workingDays,
+                parallelLane: seg.parallelLane,
+                progressPercent: seg.progressPercent ?? 0,
+                notes: seg.notes ?? null,
+              };
+              setEditingSegment({
+                packageId: pkg.id,
+                packageLabel: `PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.name}`,
+                segment: { ...matchedSeg },
+              });
+            }}
+          />
         </Card>
       )}
 
