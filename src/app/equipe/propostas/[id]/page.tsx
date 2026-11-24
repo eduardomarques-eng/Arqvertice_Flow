@@ -20,6 +20,7 @@ import { UNIT_LABELS, type ServiceUnitName } from "@/lib/pricing";
 import { formatCurrencyBRL } from "@/lib/contract-template";
 import { requirePageTeamRole } from "@/server/auth";
 import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { readNormalizedPremissesText, readProposalEditorial } from "@/lib/proposal-standard";
 
 export const dynamic = "force-dynamic";
 
@@ -79,11 +80,9 @@ export default async function EquipeProposalEditorPage({ params }: { params: Pro
     conditions: text(formalText.conditions),
     included: text(formalText.included),
     excluded: text(formalText.excluded),
-    premisses: Array.isArray(formalText.premises)
-      ? formalText.premises.map(String).join("\n")
-      : text(formalText.premises),
+    premisses: readNormalizedPremissesText(formalText),
     observations: text(formalText.observations),
-    validityDays: typeof formalText.validityDays === "number" ? formalText.validityDays : 30,
+    validityDays: typeof formalText.validityDays === "number" ? formalText.validityDays : 15,
     expiresAt: proposal.expiresAt ? proposal.expiresAt.toISOString().slice(0, 10) : "",
     paymentTerms: text(formalText.formaPagamento),
     lines: items.map((item) => ({
@@ -116,6 +115,7 @@ export default async function EquipeProposalEditorPage({ params }: { params: Pro
     })),
     provenance: suggestions?.input.evidence ?? [],
     portfolioOverrides: presentation.portfolioOverrides ?? {},
+    editorial: readProposalEditorial(formalText, { totalValue: Number(version?.total ?? 0) }),
   };
 
   const obrigatorias = items.filter((item) => !item.optional);

@@ -9,6 +9,9 @@ import dynamic from "next/dynamic";
 import { formatDateBR } from "@/lib/formatters";
 import type { DeliverableCardItem } from "@/components/deliverables/deliverable-card";
 import type { DeliverableMatrix } from "@/server/services/deliverable-service";
+import { CommercialSummary } from "@/components/proposals/commercial-summary";
+import { CreateProposalButton } from "@/components/proposals/create-proposal-button";
+import type { TimelineStep } from "@/lib/commercial-timeline";
 
 // Code splitting com next/dynamic (ssr: false) para abas pesadas
 const ProjectAcervoTab = dynamic(
@@ -42,6 +45,13 @@ interface ProjectDetailTabsProps {
   completion: number;
   overdueCount: number;
   basePath?: string;
+  commercial?: {
+    proposal: { id: string; status: string; total: number; version: number | null } | null;
+    contract: { id: string; status: string; version: number } | null;
+    signature: { status: string; label: string; provider: string } | null;
+    service: { status: string; label: string };
+    timeline: TimelineStep[];
+  } | null;
 }
 
 export function ProjectDetailTabs({
@@ -53,8 +63,9 @@ export function ProjectDetailTabs({
   completion = 0,
   overdueCount = 0,
   basePath = "/admin",
+  commercial = null,
 }: ProjectDetailTabsProps) {
-  const [activeTab, setActiveTab] = useState<"acervo" | "documentos">("acervo");
+  const [activeTab, setActiveTab] = useState<"acervo" | "documentos" | "comercial">("acervo");
   const kanbanHref =
     basePath === "/equipe"
       ? `/equipe/cronograma/${project.id}`
@@ -172,6 +183,16 @@ export function ProjectDetailTabs({
         >
           📑 Documentos ({documents.length})
         </button>
+        <button
+          onClick={() => setActiveTab("comercial")}
+          className={`px-4 py-2 text-sm font-semibold rounded-xl transition ${
+            activeTab === "comercial"
+              ? "bg-zinc-900 text-white shadow-sm"
+              : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+          }`}
+        >
+          💼 Comercial (Propostas &amp; Contratos)
+        </button>
       </div>
 
       {/* CONTEÚDO DAS ABAS */}
@@ -200,20 +221,65 @@ export function ProjectDetailTabs({
             ) : (
               <ul className="divide-y divide-zinc-100">
                 {documents.map((doc) => (
-                  <li key={doc.id} className="py-3 flex items-center justify-between">
+                  <li key={doc.id} className="py-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-zinc-800">{doc.name}</p>
                       <p className="text-xs text-zinc-400">{formatDateBR(doc.createdAt)}</p>
                     </div>
-                    <Badge tone={doc.visibility === "CLIENT" ? "blue" : "neutral"} className="text-xs">
-                      {doc.visibility === "CLIENT" ? "Visível p/ Cliente" : "Interno"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={doc.visibility === "CLIENT" ? "blue" : "neutral"} className="text-xs">
+                        {doc.visibility === "CLIENT" ? "Visível p/ Cliente" : "Interno"}
+                      </Badge>
+                      <a
+                        href={`/api/documents/${doc.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                      >
+                        Baixar
+                      </a>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
           </div>
         </Card>
+      )}
+
+      {activeTab === "comercial" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-5">
+            <div>
+              <h3 className="text-base font-bold text-zinc-900">Fluxo Comercial do Empreendimento</h3>
+              <p className="text-xs text-zinc-500">
+                Crie ou edite a proposta comercial, gere o contrato de 8 cláusulas e acompanhe assinaturas.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!commercial?.proposal ? (
+                <CreateProposalButton projectId={project.id} compact label="+ Nova Proposta" />
+              ) : (
+                <Link
+                  href={`${basePath}/propostas/${commercial.proposal.id}`}
+                  className="inline-flex items-center rounded-xl bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+                >
+                  Abrir Proposta
+                </Link>
+              )}
+              {commercial?.contract ? (
+                <Link
+                  href={`/admin/contratos/${commercial.contract.id}`}
+                  className="inline-flex items-center rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                >
+                  Abrir Contrato &amp; Aditivos
+                </Link>
+              ) : null}
+            </div>
+          </div>
+
+          {commercial ? <CommercialSummary summary={commercial} /> : null}
+        </div>
       )}
     </div>
   );

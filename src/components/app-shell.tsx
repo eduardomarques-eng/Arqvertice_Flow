@@ -28,6 +28,7 @@ const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module
 const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }> = [
   { label: "Briefing", href: "/admin/briefing", module: "projetos" },
   { label: "Propostas", href: "/admin/propostas", module: "projetos" },
+  { label: "Contratos", href: "/admin/contratos", module: "projetos" },
   { label: "Mensagens", href: "/admin/mensagens", module: "dashboard" },
   { label: "Serviços", href: "/admin/servicos", module: "dashboard" },
   { label: "Plugins & Downloads", href: "/admin/acervo/plugins", module: "acervo" },

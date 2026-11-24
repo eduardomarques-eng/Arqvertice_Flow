@@ -424,19 +424,19 @@ export async function requireProposalAccess(proposalId: string) {
   const user = await currentUser();
   if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
   if (user.role === "ADMIN") return user;
-  // OPERADOR não acede a propostas: o seu papel é operar o cronograma, não o
-  // fluxo comercial. Um operador com ProjectAccess nunca herda acesso comercial
-  // por essa via — o menor privilégio é prova no servidor, não por omissão.
-  if (user.role === "OPERADOR") throw new DomainError("Proposta não encontrada.", "NOT_FOUND");
+  // OPERADOR, OPERATOR e CLIENTE/CLIENT não acedem ao fluxo interno de propostas:
+  // clientes usam o link tokenizado (/briefing-proposta/[token]).
+  if (["OPERADOR", "OPERATOR", "CLIENTE", "CLIENT"].includes(user.role)) {
+    throw new DomainError("Proposta não encontrada.", "NOT_FOUND");
+  }
+  const perms = getEffectivePermissions({ role: user.role, permissions: user.permissions });
+  if (!perms.includes("projetos")) {
+    throw new DomainError("Proposta não encontrada.", "NOT_FOUND");
+  }
   const proposal = await prisma.proposal.findFirst({
     where: {
       id: proposalId,
-      project: {
-        OR: [
-          ...(user.clientId ? [{ clientId: user.clientId }] : []),
-          { access: { some: { userId: user.id } } },
-        ],
-      },
+      project: { access: { some: { userId: user.id } } },
     },
     select: { id: true },
   });
@@ -453,11 +453,14 @@ export async function requireContractAccess(contractId: string) {
   const user = await currentUser();
   if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
   if (user.role === "ADMIN") return user;
-  // OPERADOR não acede a contratos — mesmo motivo das propostas: só cronograma.
-  if (user.role === "OPERADOR") throw new DomainError("Contrato não encontrado.", "NOT_FOUND");
+  if (["OPERADOR", "OPERATOR"].includes(user.role)) {
+    throw new DomainError("Contrato não encontrado.", "NOT_FOUND");
+  }
+  const isClient = isClientRole(user.role);
   const contract = await prisma.contract.findFirst({
     where: {
       id: contractId,
+      ...(isClient ? { status: { in: ["READY", "SENT", "VIEWED", "SIGNED"] } } : {}),
       proposal: {
         project: {
           OR: [

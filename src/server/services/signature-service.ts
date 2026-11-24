@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { requireRole } from "@/server/auth";
 import { notFound } from "@/server/errors";
 import { recordAudit } from "@/server/audit";
 import { recordNotification } from "@/server/services/notification-service";
@@ -135,7 +135,7 @@ async function recordEvent(
 }
 
 export async function requestContractSignature(contractId: string) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
   const contract = await prisma.contract.findUnique({
     where: { id: contractId },
     include: { proposal: { include: { project: { include: { client: true } } } }, signature: true },
@@ -208,7 +208,7 @@ export async function advanceSignatureStatus(
   status: SignatureStatusName,
   evidence?: Record<string, unknown>,
 ) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
   const current = await prisma.contractSignature.findUnique({ where: { contractId } });
   if (!current) return notFound("Solicitação de assinatura");
   assertSignatureTransition(current.status, status);
@@ -229,6 +229,55 @@ export async function advanceSignatureStatus(
   }
   await recordEvent(status, contractId, signature.signatoryName, getSignatureProvider().providesLegalSignature);
   await recordAudit("CONTRACT_SIGNATURE_UPDATED", "ContractSignature", signature.id, user.id, { status });
+  return signature;
+}
+
+/**
+ * Processa retorno autenticado do webhook externo de assinatura eletrônica.
+ */
+export async function handleSignatureWebhookPayload(input: {
+  externalId?: string;
+  contractId?: string;
+  status: SignatureStatusName;
+  evidence?: Record<string, unknown>;
+}) {
+  const current = input.contractId
+    ? await prisma.contractSignature.findUnique({ where: { contractId: input.contractId } })
+    : input.externalId
+      ? await prisma.contractSignature.findFirst({ where: { externalId: input.externalId } })
+      : null;
+
+  if (!current) return notFound("Solicitação de assinatura");
+  assertSignatureTransition(current.status, input.status);
+
+  const now = new Date();
+  const signature = await prisma.contractSignature.update({
+    where: { id: current.id },
+    data: {
+      status: input.status,
+      viewedAt: input.status === SIGNATURE_STATUS.VIEWED ? now : current.viewedAt,
+      signedAt:
+        input.status === SIGNATURE_STATUS.SIGNED || input.status === SIGNATURE_STATUS.COMPLETED
+          ? now
+          : current.signedAt,
+      completedAt: input.status === SIGNATURE_STATUS.COMPLETED ? now : current.completedAt,
+      ...(input.evidence ? { evidence: json(input.evidence) } : {}),
+    },
+  });
+
+  if (input.status === SIGNATURE_STATUS.SIGNED || input.status === SIGNATURE_STATUS.COMPLETED) {
+    await prisma.contract.update({
+      where: { id: current.contractId },
+      data: { status: "SIGNED", signedAt: now },
+    });
+  }
+
+  await recordEvent(input.status, current.contractId, signature.signatoryName, true);
+  await recordAudit("CONTRACT_SIGNATURE_UPDATED", "ContractSignature", signature.id, "webhook", {
+    status: input.status,
+    externalId: input.externalId ?? null,
+    via: "webhook",
+  });
   return signature;
 }
 

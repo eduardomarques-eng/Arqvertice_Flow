@@ -46,7 +46,7 @@ export function CommercialSummary({ summary }: { summary: CommercialSummaryData 
         <Block label="Serviço" value={summary.service.label} />
       </div>
       {summary.proposal ? (
-        <Link href={`/propostas/${summary.proposal.id}`} className="mt-4 inline-block text-sm font-semibold text-blue-700">
+        <Link href={`/admin/propostas/${summary.proposal.id}`} className="mt-4 inline-block text-sm font-semibold text-blue-700">
           Abrir proposta e contrato
         </Link>
       ) : null}

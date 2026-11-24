@@ -17,6 +17,10 @@ import { listServiceCatalog } from "@/server/services/service-catalog-service";
 import { readProposalItems } from "@/lib/proposal-item";
 import { UNIT_LABELS, type ServiceUnitName } from "@/lib/pricing";
 import { formatCurrencyBRL } from "@/lib/contract-template";
+import { prisma } from "@/server/db";
+import { getStudioLegalProfile } from "@/server/services/settings-service";
+import { readNormalizedPremissesText, readProposalEditorial } from "@/lib/proposal-standard";
+import { ProposalConversionPanel } from "@/components/proposals/proposal-conversion-panel";
 export const dynamic = "force-dynamic";
 
 /** Texto de um campo Json, ou string vazia. */
@@ -37,13 +41,20 @@ function text(value: unknown): string {
  */
 export default async function ProposalEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [proposal, insights, suggestions, catalog] = await Promise.all([
+  const [proposal, insights, suggestions, catalog, legalProfile] = await Promise.all([
     getProposal(id),
     getProposalCommercialInsights(id),
     // O prefill vem do PROJETO, resolvido no servidor (itens 5 e 65).
     getProposalSuggestions(id),
     listServiceCatalog({ includeInactive: false }),
+    getStudioLegalProfile(),
   ]);
+  const eapExists = Boolean(
+    await prisma.eapProject.findFirst({
+      where: { projectId: proposal.project.id },
+      select: { id: true },
+    }),
+  );
 
   const version = proposal.versions[0];
   const presentation = (version?.presentation ?? {}) as {
@@ -92,11 +103,9 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
     conditions: text(formalText.conditions),
     included: text(formalText.included),
     excluded: text(formalText.excluded),
-    premisses: Array.isArray(formalText.premises)
-      ? formalText.premises.map(String).join("\n")
-      : text(formalText.premises),
+    premisses: readNormalizedPremissesText(formalText),
     observations: text(formalText.observations),
-    validityDays: typeof formalText.validityDays === "number" ? formalText.validityDays : 30,
+    validityDays: typeof formalText.validityDays === "number" ? formalText.validityDays : legalProfile.proposalValidityDays,
     expiresAt: proposal.expiresAt ? proposal.expiresAt.toISOString().slice(0, 10) : "",
     paymentTerms: text(formalText.formaPagamento),
     lines: items.map((item) => ({
@@ -131,6 +140,11 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
     })),
     provenance: suggestions?.input.evidence ?? [],
     portfolioOverrides: presentation.portfolioOverrides ?? {},
+    editorial: readProposalEditorial(formalText, {
+      totalValue: Number(version?.total ?? 0),
+      technicalLead: `${legalProfile.studioName} | ${legalProfile.technicalLeadName}`,
+      projectType: proposal.project.type ?? undefined,
+    }),
   };
 
   const obrigatorias = items.filter((item) => !item.optional);
@@ -225,6 +239,21 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
         contractStatus={proposal.contract?.status ?? null}
       />
 
+      <Card className="mt-6">
+        <h2 className="font-semibold text-slate-900">Ações Rápidas, EAP &amp; Conversão</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Exporte o PDF editorial, importe o orçamento EAP da obra ou converta a proposta aprovada diretamente para o Financeiro (ProjectInstallment).
+        </p>
+        <ProposalConversionPanel
+          proposalId={proposal.id}
+          status={proposal.status}
+          contractStatus={proposal.contract?.status ?? null}
+          convertedAt={proposal.convertedAt ? proposal.convertedAt.toISOString() : null}
+          hasEap={eapExists}
+          canEdit={!frozen && proposal.status !== "APPROVED" && proposal.status !== "REJECTED"}
+        />
+      </Card>
+
       {/* Tópico 41: o preview usa o mesmo gerador da página do cliente, com os
           dados reais. É o que garante que o que o ADMIN vê é o que será enviado. */}
       <Card className="mt-6">
@@ -271,12 +300,32 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
 
       {proposal.contract ? (
         <Card className="mt-6">
-          <h2 className="font-semibold text-slate-900">Contrato e assinatura</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Contrato versão {proposal.contract.version}
-            {proposal.contract.templateVersion ? ` · template v${proposal.contract.templateVersion}` : ""} · status{" "}
-            {proposal.contract.status}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-900">Contrato e assinatura</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Contrato versão {proposal.contract.version}
+                {proposal.contract.templateVersion ? ` · template v${proposal.contract.templateVersion}` : ""} · status{" "}
+                {proposal.contract.status}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/admin/contratos/${proposal.contract.id}`}
+                className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              >
+                Abrir Editor &amp; Preview do Contrato
+              </Link>
+              <a
+                href={`/api/contracts/${proposal.contract.id}/pdf`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Baixar PDF Contrato
+              </a>
+            </div>
+          </div>
           <div className="mt-4">
             <SignatureActions
               contractId={proposal.contract.id}

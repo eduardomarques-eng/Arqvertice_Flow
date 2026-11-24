@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,14 @@ import { DISCIPLINES } from "@/lib/commercial-scope";
 import { computeTotals, type ProposalItem } from "@/lib/proposal-item";
 import { formatCurrencyBRL } from "@/lib/contract-template";
 import type { ReadinessIssue } from "@/lib/proposal-readiness";
+import { ProposalLivePreview } from "@/components/proposals/proposal-live-preview";
+import {
+  PROPOSAL_SCOPE_PRESETS,
+  buildDefaultEditorialData,
+  computeInvestmentOptionTotal,
+  type ProposalEditorialData,
+  type ProposalScopePresetKey,
+} from "@/lib/proposal-standard";
 
 /**
  * FASE 4C — O EDITOR DA PROPOSTA.
@@ -91,6 +99,7 @@ export type ProposalEditorData = {
   /** Evidência do prefill: o que veio do projeto e de onde. */
   provenance: Array<{ label: string; value: string }>;
   portfolioOverrides: Record<string, string>;
+  editorial?: ProposalEditorialData;
 };
 
 const emptySlide: Slide = { title: "", body: "" };
@@ -163,6 +172,7 @@ function previewTotals(lines: EditorLine[], adjustment: number) {
  */
 const STEPS = [
   { key: "IDENTIDADE", label: "Identificação" },
+  { key: "EDITORIAL", label: "Modelo Editorial (12 Seções)" },
   { key: "SERVICOS", label: "Serviços" },
   { key: "VALORES", label: "Valores" },
   { key: "PAGAMENTO", label: "Pagamento" },
@@ -218,6 +228,10 @@ export function ProposalEditor({ initial }: { initial: ProposalEditorData }) {
   const [premises, setPremises] = useState(initial.premisses);
   const [observations, setObservations] = useState(initial.observations);
   const [slides, setSlides] = useState<Slide[]>(initial.slides.length ? initial.slides : [emptySlide]);
+  const [editorial, setEditorial] = useState<ProposalEditorialData>(
+    () => initial.editorial ?? buildDefaultEditorialData(),
+  );
+  const [showLivePreview, setShowLivePreview] = useState(true);
 
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -296,7 +310,8 @@ export function ProposalEditor({ initial }: { initial: ProposalEditorData }) {
           excluded: excluded.trim() || null,
           premisses: premises.trim() || null,
           observations: observations.trim() || null,
-          validityDays: Number(validityDays) || 30,
+          validityDays: Number(validityDays) || 15,
+          editorial,
         },
         lines: toServerLines(lines),
         adjustment,
@@ -331,18 +346,55 @@ export function ProposalEditor({ initial }: { initial: ProposalEditorData }) {
   const blockers = readiness.filter((issue) => issue.level === "BLOCKER");
   const warnings = readiness.filter((issue) => issue.level === "WARNING");
 
+  function applyScopePreset(presetKey: ProposalScopePresetKey) {
+    const preset = PROPOSAL_SCOPE_PRESETS[presetKey];
+    if (!preset) return;
+    setEditorial((prev) => ({
+      ...prev,
+      presetKey,
+      cover: { ...prev.cover, subtitle: preset.subtitle },
+      scopeGroups: preset.scopeGroups.map((g) => ({ title: g.title, items: [...g.items] })),
+      schedule: {
+        totalBusinessDays: preset.phases.reduce((sum, p) => sum + p.businessDays, 0),
+        phases: preset.phases.map((p) => ({ ...p })),
+      },
+    }));
+    setIncluded(preset.included);
+    setExcluded(preset.excluded);
+    setPremises(preset.premisses);
+  }
+
   return (
     <div className="space-y-6">
       {/* Identificação permanente: o ADMIN precisa sempre de saber o que edita. */}
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <strong className="text-sm text-slate-900">{initial.code ?? "Proposta sem código"}</strong>
-          <Badge tone={initial.status === "APPROVED" ? "green" : initial.status === "NEGOTIATING" ? "amber" : "blue"}>
-            {initial.status} · v{initial.version}
-          </Badge>
-          {initial.approvedVersion !== null ? (
-            <span className="text-xs font-semibold text-emerald-700">versão aprovada: {initial.approvedVersion}</span>
-          ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <strong className="text-sm text-slate-900">{initial.code ?? "Proposta sem código"}</strong>
+            <Badge tone={initial.status === "APPROVED" ? "green" : initial.status === "NEGOTIATING" ? "amber" : "blue"}>
+              {initial.status} · v{initial.version}
+            </Badge>
+            {initial.approvedVersion !== null ? (
+              <span className="text-xs font-semibold text-emerald-700">versão aprovada: {initial.approvedVersion}</span>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLivePreview((prev) => !prev)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              {showLivePreview ? "Ocultar Pré-Visualização" : "Mostrar Pré-Visualização ao Vivo"}
+            </button>
+            <a
+              href={`/api/proposals/${initial.proposalId}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+            >
+              Baixar PDF
+            </a>
+          </div>
         </div>
         {frozen ? (
           <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
@@ -352,6 +404,8 @@ export function ProposalEditor({ initial }: { initial: ProposalEditorData }) {
         ) : null}
       </div>
 
+      <div className={showLivePreview ? "grid gap-6 lg:grid-cols-2 lg:items-start" : ""}>
+      <div className="space-y-6">
       <nav aria-label="Passos da proposta" className="flex gap-2 overflow-x-auto pb-1">
         {STEPS.map((entry) => (
           <button
@@ -367,6 +421,353 @@ export function ProposalEditor({ initial }: { initial: ProposalEditorData }) {
           </button>
         ))}
       </nav>
+      {step === "EDITORIAL" ? (
+        <Section>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="font-semibold text-slate-900">Modelo Editorial Padrão (12 Seções)</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={editorial.presetKey}
+                onChange={(e) =>
+                  setEditorial((prev) => ({ ...prev, presetKey: e.target.value as ProposalScopePresetKey }))
+                }
+                className="min-h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700"
+              >
+                {Object.values(PROPOSAL_SCOPE_PRESETS).map((preset) => (
+                  <option key={preset.key} value={preset.key}>
+                    Preset: {preset.label}
+                  </option>
+                ))}
+              </select>
+              <Button variant="secondary" onClick={() => applyScopePreset(editorial.presetKey)}>
+                Aplicar Preset de Escopo
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+            <div className="sm:col-span-2">
+              <label className="text-xs font-semibold text-slate-600">Subtítulo da Capa</label>
+              <input
+                className={`${inputClass} mt-1`}
+                value={editorial.cover.subtitle}
+                onChange={(e) =>
+                  setEditorial((prev) => ({ ...prev, cover: { ...prev.cover, subtitle: e.target.value } }))
+                }
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Área (m²)</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className={`${inputClass} mt-1`}
+                value={editorial.cover.areaM2}
+                onChange={(e) => {
+                  const area = Number(e.target.value) || 0;
+                  setEditorial((prev) => ({
+                    ...prev,
+                    cover: { ...prev.cover, areaM2: area },
+                    investmentOptions: prev.investmentOptions.map((opt) =>
+                      opt.mode === "PER_M2" ? { ...opt, areaM2: area } : opt,
+                    ),
+                  }));
+                }}
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="text-xs font-semibold text-slate-600">Responsável Técnico</label>
+              <input
+                className={`${inputClass} mt-1`}
+                value={editorial.cover.technicalLead}
+                onChange={(e) =>
+                  setEditorial((prev) => ({ ...prev, cover: { ...prev.cover, technicalLead: e.target.value } }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* Diagnóstico Inicial */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
+              <input
+                type="checkbox"
+                checked={editorial.diagnosis.enabled}
+                onChange={(e) =>
+                  setEditorial((prev) => ({
+                    ...prev,
+                    diagnosis: { ...prev.diagnosis, enabled: e.target.checked },
+                  }))
+                }
+              />
+              Incluir Diagnóstico Inicial do Imóvel / Terreno
+            </label>
+            {editorial.diagnosis.enabled ? (
+              <div className="grid gap-3">
+                <textarea
+                  placeholder="Análise do imóvel/terreno..."
+                  className={`${inputClass} min-h-16 py-2`}
+                  value={editorial.diagnosis.propertyAnalysis}
+                  onChange={(e) =>
+                    setEditorial((prev) => ({
+                      ...prev,
+                      diagnosis: { ...prev.diagnosis, propertyAnalysis: e.target.value },
+                    }))
+                  }
+                />
+                <textarea
+                  placeholder="Observação estrutural / técnica..."
+                  className={`${inputClass} min-h-16 py-2`}
+                  value={editorial.diagnosis.structuralNote}
+                  onChange={(e) =>
+                    setEditorial((prev) => ({
+                      ...prev,
+                      diagnosis: { ...prev.diagnosis, structuralNote: e.target.value },
+                    }))
+                  }
+                />
+                <input
+                  placeholder="Foco principal do projeto..."
+                  className={inputClass}
+                  value={editorial.diagnosis.projectFocus}
+                  onChange={(e) =>
+                    setEditorial((prev) => ({
+                      ...prev,
+                      diagnosis: { ...prev.diagnosis, projectFocus: e.target.value },
+                    }))
+                  }
+                />
+              </div>
+            ) : null}
+          </div>
+
+          {/* Opções de Investimento (Comparativo) */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Opções de Investimento (Valor/m² × Área ou Fixo)
+              </h4>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setEditorial((prev) => ({
+                    ...prev,
+                    investmentOptions: [
+                      ...prev.investmentOptions,
+                      {
+                        id: `opt-${Date.now()}`,
+                        name: `Opção ${String(prev.investmentOptions.length + 1).padStart(2, "0")}`,
+                        mode: "PER_M2",
+                        areaM2: prev.cover.areaM2 || 180,
+                        unitPricePerM2: 110,
+                        fixedAmount: 0,
+                        summary: "Escopo ampliado",
+                      },
+                    ],
+                  }))
+                }
+              >
+                + Adicionar Opção
+              </Button>
+            </div>
+            {editorial.investmentOptions.map((opt, idx) => (
+              <div key={opt.id} className="grid gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 sm:grid-cols-4">
+                <input
+                  className={`${inputClass} sm:col-span-2`}
+                  value={opt.name}
+                  placeholder="Nome da opção"
+                  onChange={(e) =>
+                    setEditorial((prev) => ({
+                      ...prev,
+                      investmentOptions: prev.investmentOptions.map((o, i) =>
+                        i === idx ? { ...o, name: e.target.value } : o,
+                      ),
+                    }))
+                  }
+                />
+                <select
+                  className={inputClass}
+                  value={opt.mode}
+                  onChange={(e) =>
+                    setEditorial((prev) => ({
+                      ...prev,
+                      investmentOptions: prev.investmentOptions.map((o, i) =>
+                        i === idx ? { ...o, mode: e.target.value as "PER_M2" | "FIXED" } : o,
+                      ),
+                    }))
+                  }
+                >
+                  <option value="PER_M2">Valor / m²</option>
+                  <option value="FIXED">Valor Fechado</option>
+                </select>
+                {opt.mode === "PER_M2" ? (
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className={inputClass}
+                    value={opt.unitPricePerM2}
+                    placeholder="R$/m²"
+                    onChange={(e) =>
+                      setEditorial((prev) => ({
+                        ...prev,
+                        investmentOptions: prev.investmentOptions.map((o, i) =>
+                          i === idx ? { ...o, unitPricePerM2: Number(e.target.value) || 0 } : o,
+                        ),
+                      }))
+                    }
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className={inputClass}
+                    value={opt.fixedAmount}
+                    placeholder="Valor R$"
+                    onChange={(e) =>
+                      setEditorial((prev) => ({
+                        ...prev,
+                        investmentOptions: prev.investmentOptions.map((o, i) =>
+                          i === idx ? { ...o, fixedAmount: Number(e.target.value) || 0 } : o,
+                        ),
+                      }))
+                    }
+                  />
+                )}
+                <div className="sm:col-span-3 text-xs text-slate-600 flex items-center justify-between">
+                  <span>Total calculado: <strong>{formatCurrencyBRL(computeInvestmentOptionTotal(opt))}</strong></span>
+                  {editorial.investmentOptions.length > 1 ? (
+                    <button
+                      type="button"
+                      className="text-rose-600 font-semibold"
+                      onClick={() =>
+                        setEditorial((prev) => ({
+                          ...prev,
+                          investmentOptions: prev.investmentOptions.filter((_, i) => i !== idx),
+                        }))
+                      }
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Condição de Pagamento Editorial + Blocos Opcionais */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              Parcelamento Editorial (ex.: 30% + 35% + 35%) &amp; Blocos Visuais Opcionais
+            </h4>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {editorial.paymentCondition.installments.map((inst, idx) => (
+                <div key={idx} className="flex gap-1.5">
+                  <input
+                    className={inputClass}
+                    value={inst.label}
+                    onChange={(e) =>
+                      setEditorial((prev) => ({
+                        ...prev,
+                        paymentCondition: {
+                          ...prev.paymentCondition,
+                          installments: prev.paymentCondition.installments.map((item, i) =>
+                            i === idx ? { ...item, label: e.target.value } : item,
+                          ),
+                        },
+                      }))
+                    }
+                  />
+                  <input
+                    type="number"
+                    className="min-h-11 w-20 rounded-xl border border-slate-200 px-2 text-sm"
+                    value={inst.percent}
+                    onChange={(e) =>
+                      setEditorial((prev) => ({
+                        ...prev,
+                        paymentCondition: {
+                          ...prev.paymentCondition,
+                          installments: prev.paymentCondition.installments.map((item, i) =>
+                            i === idx ? { ...item, percent: Number(e.target.value) || 0 } : item,
+                          ),
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-4 pt-2 text-xs">
+              <label className="flex items-center gap-2 font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={editorial.optionalBlocks.technicalHighlight.enabled}
+                  onChange={(e) =>
+                    setEditorial((prev) => ({
+                      ...prev,
+                      optionalBlocks: {
+                        ...prev.optionalBlocks,
+                        technicalHighlight: { ...prev.optionalBlocks.technicalHighlight, enabled: e.target.checked },
+                      },
+                    }))
+                  }
+                />
+                Destaque Técnico (Marcenaria / Detalhamento)
+              </label>
+              <label className="flex items-center gap-2 font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={editorial.optionalBlocks.moodboard.enabled}
+                  onChange={(e) =>
+                    setEditorial((prev) => ({
+                      ...prev,
+                      optionalBlocks: {
+                        ...prev.optionalBlocks,
+                        moodboard: { ...prev.optionalBlocks.moodboard, enabled: e.target.checked },
+                      },
+                    }))
+                  }
+                />
+                Moodboard &amp; Paleta de Materiais
+              </label>
+            </div>
+            {editorial.optionalBlocks.technicalHighlight.enabled ? (
+              <textarea
+                placeholder="Texto do Destaque Técnico..."
+                className={`${inputClass} min-h-16 py-2`}
+                value={editorial.optionalBlocks.technicalHighlight.body}
+                onChange={(e) =>
+                  setEditorial((prev) => ({
+                    ...prev,
+                    optionalBlocks: {
+                      ...prev.optionalBlocks,
+                      technicalHighlight: { ...prev.optionalBlocks.technicalHighlight, body: e.target.value },
+                    },
+                  }))
+                }
+              />
+            ) : null}
+            {editorial.optionalBlocks.moodboard.enabled ? (
+              <input
+                placeholder="Paleta e referências de materiais..."
+                className={inputClass}
+                value={editorial.optionalBlocks.moodboard.palette}
+                onChange={(e) =>
+                  setEditorial((prev) => ({
+                    ...prev,
+                    optionalBlocks: {
+                      ...prev.optionalBlocks,
+                      moodboard: { ...prev.optionalBlocks.moodboard, palette: e.target.value },
+                    },
+                  }))
+                }
+              />
+            ) : null}
+          </div>
+        </Section>
+      ) : null}
       {step === "IDENTIDADE" ? (
         <Section>
           <h3 className="font-semibold text-slate-900">1 · Identificação</h3>
@@ -797,6 +1198,26 @@ export function ProposalEditor({ initial }: { initial: ProposalEditorData }) {
           ) : null}
         </Section>
       ) : null}
+      </div>
+      {showLivePreview ? (
+        <div className="lg:sticky lg:top-6">
+          <ProposalLivePreview
+            title={title}
+            code={initial.code}
+            version={initial.version}
+            objectText={object}
+            included={included}
+            excluded={excluded}
+            premisses={premises}
+            conditions={conditions}
+            observations={observations}
+            validityDays={Number(validityDays) || 15}
+            totalServices={totals.total}
+            editorial={editorial}
+          />
+        </div>
+      ) : null}
+      </div>
     </div>
   );
 }

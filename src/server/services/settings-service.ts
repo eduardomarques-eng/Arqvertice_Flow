@@ -51,7 +51,74 @@ const DEFAULT_CRON_JOBS = [
 ];
 
 const DEFAULT_BANK_INSTRUCTIONS =
-  "Pagamento via Pix (Chave CPF: 021.502.003-09 — Eduardo César Costa Marques / ArqVértice Studio). Enviar comprovante pelo Portal do Cliente ou e-mail financeiro@arqvertice.com.br.";
+  "Pagamento via Pix (Chave CNPJ: 66.773.164/0001-60 — ArqVértice Studio). Enviar comprovante pelo Portal do Cliente ou e-mail financeiro@arqvertice.com.br.";
+
+export interface StudioLegalProfile {
+  studioName: string;
+  technicalLeadName: string;
+  technicalLeadCpf: string | null;
+  omitCpfInContracts: boolean;
+  technicalLeadReg: string;
+  studioCnpj: string;
+  pixKey: string;
+  pixKeyType: string;
+  bankInstructions: string;
+  structuralPartner: string;
+  commercialAddress: string;
+  cityState: string;
+  institutionalEmail: string;
+  documentSignature: string;
+  proposalValidityDays: number;
+  defaultProposalScope: string;
+  refundPolicyText: string;
+}
+
+/**
+ * Retorna os dados jurídicos, fiscais e comerciais oficiais de StudioSetting,
+ * blindando contra exposição de CPF pessoal quando `omitCpfInContracts` está ativo.
+ */
+export async function getStudioLegalProfile(): Promise<StudioLegalProfile> {
+  const settings = await getStudioSettings();
+  const cnpj = settings.studioCnpj || "66.773.164/0001-60";
+  const omitCpf = settings.omitCpfInContracts !== false;
+  const rawCpf = (settings.technicalLeadCpf || "").replace(/\D/g, "");
+  const rawPix = (settings.pixKey || "").replace(/\D/g, "");
+  const pixUsesPersonalCpf =
+    omitCpf && (settings.pixKeyType.toUpperCase() === "CPF" || (rawCpf.length === 11 && rawPix === rawCpf));
+
+  const safePixKey = pixUsesPersonalCpf ? cnpj : settings.pixKey || cnpj;
+  const safePixKeyType = pixUsesPersonalCpf ? "CNPJ" : settings.pixKeyType || "CNPJ";
+  const formattedCpf = (settings.technicalLeadCpf || "").trim();
+  const containsPersonalCpfInText =
+    omitCpf &&
+    ((formattedCpf && settings.bankInstructions.includes(formattedCpf)) ||
+      (rawCpf.length === 11 && settings.bankInstructions.replace(/\D/g, "").includes(rawCpf)));
+  const safeBankInstructions =
+    pixUsesPersonalCpf || containsPersonalCpfInText
+      ? `Pagamento via Pix (Chave CNPJ: ${cnpj} — ${settings.studioName}). Enviar comprovante pelo Portal do Cliente.`
+      : settings.bankInstructions;
+
+  return {
+    studioName: settings.studioName || "ArqVértice Studio",
+    technicalLeadName: settings.technicalLeadName || "Eduardo César Costa Marques",
+    technicalLeadCpf: omitCpf ? null : settings.technicalLeadCpf || null,
+    omitCpfInContracts: omitCpf,
+    technicalLeadReg: settings.technicalLeadReg || "",
+    studioCnpj: cnpj,
+    pixKey: safePixKey,
+    pixKeyType: safePixKeyType,
+    bankInstructions: safeBankInstructions,
+    structuralPartner:
+      settings.structuralPartner || "Emanoel Luan Almeida da Rocha — CNPJ 51.510.575/0001-95",
+    commercialAddress: settings.commercialAddress || "",
+    cityState: settings.cityState || "Fortaleza / CE",
+    institutionalEmail: settings.institutionalEmail || "eduardo@arqvertice.com.br",
+    documentSignature: settings.documentSignature || "ArqVértice Studio — Arquitetura & Engenharia",
+    proposalValidityDays: settings.proposalValidityDays || 15,
+    defaultProposalScope: settings.defaultProposalScope || "",
+    refundPolicyText: settings.refundPolicyText || "",
+  };
+}
 
 export async function getStudioSettings(): Promise<StudioSettingDTO> {
   const record = await prisma.studioSetting.upsert({
@@ -68,8 +135,8 @@ export async function getStudioSettings(): Promise<StudioSettingDTO> {
     omitCpfInContracts: record.omitCpfInContracts ?? true,
     technicalLeadReg: record.technicalLeadReg,
     studioCnpj: record.studioCnpj || "66.773.164/0001-60",
-    pixKey: record.pixKey || "021.502.003-09",
-    pixKeyType: record.pixKeyType || "CPF",
+    pixKey: record.pixKey || "66.773.164/0001-60",
+    pixKeyType: record.pixKeyType || "CNPJ",
     bankInstructions: record.bankInstructions || DEFAULT_BANK_INSTRUCTIONS,
     structuralPartner:
       record.structuralPartner ||

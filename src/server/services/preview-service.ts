@@ -1,5 +1,6 @@
 import { prisma } from "@/server/db";
-import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { requireProposalAccess } from "@/server/auth";
+import { getStudioLegalProfile } from "@/server/services/settings-service";
 import { notFound } from "@/server/errors";
 import { resolveProposalAccess } from "@/server/services/proposal-service";
 import { generateProposalDocument, type GeneratorInput, type GeneratedDocument } from "@/lib/document-generator";
@@ -187,7 +188,7 @@ export async function previewProposalDocument(
   proposalId: string,
   versionNumber?: number,
 ): Promise<GeneratedDocument & { planSource: "CONGELADO" | "LEGACY_DERIVED"; planWarnings: string[] }> {
-  await requireModuleAccess("projetos");
+  await requireProposalAccess(proposalId);
   const input = await buildGeneratorInput(proposalId, versionNumber);
   const document = generateProposalDocument(input);
   return { ...document, planSource: input.planSource, planWarnings: input.planWarnings };
@@ -260,6 +261,7 @@ export async function loadPublicProposalDocument(input: {
       discipline: item.image.discipline ?? null,
     }));
 
+  const legalProfile = await getStudioLegalProfile();
   const dto = buildPublicProposalDTO({
     version: {
       version: version.version,
@@ -278,8 +280,8 @@ export async function loadPublicProposalDocument(input: {
     plan: resolvedPlan.snapshot,
     portfolio,
     company: {
-      name: process.env.COMPANY_LEGAL_NAME ?? "ARQVERTICE",
-      document: process.env.COMPANY_LEGAL_DOCUMENT ?? null,
+      name: legalProfile.studioName,
+      document: legalProfile.studioCnpj,
     },
   });
 

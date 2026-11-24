@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { requireRole } from "@/server/auth";
 import { notFound } from "@/server/errors";
 import { recordAudit, systemActor } from "@/server/audit";
 import { recordNotification } from "@/server/services/notification-service";
@@ -116,13 +116,12 @@ async function storeCommercialDocuments(input: {
  *     os índices únicos do banco são a rede de segurança final.
  */
 export async function convertApprovedProposal(proposalId: string): Promise<ConversionOutcome> {
-  await requireModuleAccess("projetos");
+  await requireRole("ADMIN");
 
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
       project: { select: { id: true, name: true, status: true, startDate: true, clientId: true } },
-      versions: { orderBy: { version: "desc" }, take: 1 },
       contract: { select: { id: true, status: true } },
     },
   });
@@ -139,8 +138,16 @@ export async function convertApprovedProposal(proposalId: string): Promise<Conve
 
   const contract = proposal.contract;
   const project = proposal.project;
-  const version = proposal.versions[0];
-  const approvedVersion = proposal.approvedVersion ?? version?.version ?? 1;
+  const version = proposal.approvedVersion
+    ? await prisma.proposalVersion.findFirst({
+        where: { proposalId, version: proposal.approvedVersion },
+      })
+    : await prisma.proposalVersion.findFirst({
+        where: { proposalId },
+        orderBy: { version: "desc" },
+      });
+  if (!version) throw new Error("Versão aprovada da proposta não encontrada.");
+  const approvedVersion = proposal.approvedVersion ?? version.version ?? 1;
 
   const client = await prisma.client.findUnique({
     where: { id: project.clientId },
@@ -198,10 +205,12 @@ export async function convertApprovedProposal(proposalId: string): Promise<Conve
       await tx.client.update({ where: { id: client.id }, data: { status: "ACTIVE" } });
     }
 
-    // 3. Tópico 38 — parcelas do plano aprovado, criadas apenas as que faltam.
+    // 3. Tópico 38 — parcelas do plano aprovado sincronizadas em ProjectInstallment (fonte principal) e Payment (legado).
     let created = 0;
     let skipped = 0;
-    for (const record of records) {
+    for (let idx = 0; idx < records.length; idx++) {
+      const record = records[idx];
+      const instSourceKey = `proposal:${proposalId}:v${approvedVersion}:p${idx + 1}`;
       try {
         await tx.payment.create({ data: record });
         created += 1;
@@ -209,10 +218,24 @@ export async function convertApprovedProposal(proposalId: string): Promise<Conve
         // Chave duplicada = parcela já gerada por uma execução anterior.
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
           skipped += 1;
-          continue;
+        } else {
+          throw error;
         }
-        throw error;
       }
+
+      await tx.projectInstallment.upsert({
+        where: { sourceKey: instSourceKey },
+        update: {},
+        create: {
+          projectId: project.id,
+          description: record.name,
+          amount: Number(record.amount),
+          dueDate: record.dueDate ?? new Date(),
+          status: "PENDING",
+          order: idx + 1,
+          sourceKey: instSourceKey,
+        },
+      });
     }
 
     // 4. Marca de conversão, gravada na MESMA transação dos efeitos acima.
@@ -318,7 +341,7 @@ export async function convertApprovedProposal(proposalId: string): Promise<Conve
  * Usado pela interface para mostrar o botão apenas quando faz sentido.
  */
 export async function getConversionReadiness(proposalId: string) {
-  await requireModuleAccess("projetos");
+  await requireRole("ADMIN");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {

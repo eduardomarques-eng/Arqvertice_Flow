@@ -186,6 +186,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           stages={stages}
           completion={board?.totals?.completion ?? 0}
           overdueCount={board?.totals?.overdue ?? 0}
+          commercial={commercial}
         />
       </div>
     </AppShell>

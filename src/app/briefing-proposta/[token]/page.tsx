@@ -161,13 +161,49 @@ export default async function PublicProposalPage({ params }: { params: Promise<{
           </Card>
         ) : null}
 
+        {(document.included || document.excluded || document.premisses.length > 0 || document.observations) ? (
+          <Card>
+            <h2 className="text-2xl font-bold text-slate-950">Premissas, Inclusos &amp; Exclusões</h2>
+            <div className="mt-4 space-y-3 text-sm text-slate-700">
+              {document.included ? (
+                <div>
+                  <p className="font-semibold text-slate-900">Incluído</p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-600">{document.included}</p>
+                </div>
+              ) : null}
+              {document.excluded ? (
+                <div>
+                  <p className="font-semibold text-slate-900">Não incluído</p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-600">{document.excluded}</p>
+                </div>
+              ) : null}
+              {document.premisses.length > 0 ? (
+                <div>
+                  <p className="font-semibold text-slate-900">Premissas</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-600">
+                    {document.premisses.map((item, idx) => (
+                      <li key={idx}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {document.observations ? (
+                <div>
+                  <p className="font-semibold text-slate-900">Observações</p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-600">{document.observations}</p>
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
+
         <Card>
           <h2 className="text-2xl font-bold text-slate-950">Próximo passo</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Revise as informações e registre sua decisão quando estiver confortável.
           </p>
           <div className="mt-5">
-            <ProposalDecision token={token} disabled={decided} />
+            <ProposalDecision token={token} disabled={!document.decisionEnabled} />
           </div>
         </Card>
       </div>

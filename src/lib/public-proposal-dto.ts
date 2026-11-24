@@ -1,4 +1,5 @@
 import type { PaymentPlanLine, PaymentPlanSnapshot } from "./payment-plan";
+import { readNormalizedPremisses, readProposalEditorial, type ProposalEditorialData } from "./proposal-standard";
 
 /**
  * Prompt 18, item 4 — DTO da proposta pública.
@@ -51,6 +52,11 @@ export type PublicProposalDTO = {
   slides: PublicSlide[];
   object: string | null;
   conditions: string | null;
+  included: string | null;
+  excluded: string | null;
+  premisses: string[];
+  observations: string | null;
+  editorial: ProposalEditorialData | null;
 
   /** Serviços publicados. */
   services: PublicServiceLine[];
@@ -167,6 +173,14 @@ export function buildPublicProposalDTO(source: PublicProposalSource): PublicProp
     slides,
     object: asText(formalText.object),
     conditions: asText(formalText.conditions),
+    included: asText(formalText.included),
+    excluded: asText(formalText.excluded),
+    premisses: readNormalizedPremisses(formalText),
+    observations: asText(formalText.observations),
+    editorial:
+      formalText.editorial && typeof formalText.editorial === "object" && !Array.isArray(formalText.editorial)
+        ? readProposalEditorial(formalText)
+        : null,
 
     services,
 

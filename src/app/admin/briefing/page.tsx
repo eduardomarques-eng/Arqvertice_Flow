@@ -6,6 +6,7 @@ import { requirePageRole } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { BriefingLinkManager } from "@/components/briefing/briefing-link-manager";
 import { getBriefingLinkStatus } from "@/server/services/briefing-link-service";
+import { CreateProposalButton } from "@/components/proposals/create-proposal-button";
 
 export default async function BriefingAdminPage() {
   const user = await requirePageRole("ADMIN");
@@ -38,7 +39,10 @@ export default async function BriefingAdminPage() {
                   <p className="mt-1 text-sm text-slate-500">{project.client.name} · {project.client.email ?? "sem e-mail"} · {project.client.phone ?? "sem WhatsApp"}</p>
                   <p className="mt-2 text-xs text-slate-400">{project.briefing?.submittedAt ? `Respondido em ${project.briefing.submittedAt.toLocaleDateString("pt-BR")}` : "Ainda não enviado ao cliente"}</p>
                 </div>
-                <div className="flex flex-wrap gap-3"><Link href={`/admin/briefing/${project.id}/editor`} className="text-sm font-semibold text-slate-700 hover:text-indigo-700">Editar perguntas →</Link><Link href={`/admin/briefing/${project.id}`} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Ver respostas →</Link><Link href={`/admin/briefing/${project.id}/relatorio`} className="flex items-center gap-1.5 text-sm font-medium text-neutral-600 transition-colors hover:text-indigo-600">Ver relatório formatado <span aria-hidden="true">→</span></Link></div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <CreateProposalButton projectId={project.id} compact label="+ Nova Proposta" />
+                  <Link href={`/admin/briefing/${project.id}/editor`} className="text-sm font-semibold text-slate-700 hover:text-indigo-700">Editar perguntas →</Link><Link href={`/admin/briefing/${project.id}`} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Ver respostas →</Link><Link href={`/admin/briefing/${project.id}/relatorio`} className="flex items-center gap-1.5 text-sm font-medium text-neutral-600 transition-colors hover:text-indigo-600">Ver relatório formatado <span aria-hidden="true">→</span></Link>
+                </div>
               </div>
               <BriefingLinkManager projectId={project.id} clientName={project.client.name} clientPhone={project.client.phone} initialStatus={linkStatus.briefingStatus} initialLinkStatus={linkStatus.linkStatus === "ACTIVE" ? "ACTIVE" : "REVOKED"} />
             </Card>

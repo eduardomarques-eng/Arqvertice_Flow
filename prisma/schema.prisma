@@ -352,9 +352,12 @@ model Client {
   email     String?
   phone     String?
   document  String?
-  cpf       String?
-  rg        String?
-  address   Json?
+  cpf           String?
+  rg            String?
+  nationality   String?
+  maritalStatus String?
+  profession    String?
+  address       Json?
   city      String?
   state     String?
   notes     String?
@@ -406,6 +409,7 @@ model Project {
   acervoFolders               AcervoFolder[]
   acervoWorkflowConfigs       AcervoWorkflowConfig[]
   eapProject                  EapProject?
+  contractAddendums           ContractAddendum[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 
@@ -425,6 +429,7 @@ model ProjectInstallment {
   linkedStageId String?   @db.Uuid
   order         Int       @default(1)
   version       Int       @default(1)
+  sourceKey     String?   @unique
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -1123,12 +1128,34 @@ model Contract {
   signatureMeta   Json?
   proposal        Proposal           @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   template        ContractTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // TÃ³pico 39: o contrato e a via assinada vivem no mesmo mÃ³dulo de documentos.
+  // Tópico 39: o contrato e a via assinada vivem no mesmo módulo de documentos.
   documents       ProjectDocument[]
+  addendums       ContractAddendum[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
   @@index([status, updatedAt])
+}
+
+model ContractAddendum {
+  id               String         @id @default(uuid()) @db.Uuid
+  contractId       String         @db.Uuid
+  projectId        String         @db.Uuid
+  eapSnapshotId    String?        @db.Uuid
+  number           Int
+  title            String
+  description      String         @db.Text
+  additionalValue  Float
+  additionalDays   Int            @default(0)
+  installmentsJson Json?
+  status           ContractStatus @default(DRAFT)
+  contract         Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([contractId, number])
+  @@index([projectId])
 }
 
 enum NotificationChannel {
@@ -1237,9 +1264,9 @@ model StudioSetting {
   omitCpfInContracts   Boolean   @default(true)
   technicalLeadReg     String    @default("")
   studioCnpj           String    @default("66.773.164/0001-60")
-  pixKey               String    @default("021.502.003-09")
-  pixKeyType           String    @default("CPF")
-  bankInstructions     String    @default("Pagamento via Pix (Chave CPF: 021.502.003-09 — Eduardo César Costa Marques / ArqVértice Studio). Enviar comprovante pelo Portal do Cliente ou e-mail financeiro@arqvertice.com.br.")
+  pixKey               String    @default("66.773.164/0001-60")
+  pixKeyType           String    @default("CNPJ")
+  bankInstructions     String    @default("Pagamento via Pix (Chave CNPJ: 66.773.164/0001-60 — ArqVértice Studio). Enviar comprovante pelo Portal do Cliente ou e-mail financeiro@arqvertice.com.br.")
   structuralPartner    String    @default("Emanoel Luan Almeida da Rocha — CNPJ 51.510.575/0001-95")
   commercialAddress    String    @default("")
   cityState            String    @default("Fortaleza / CE")

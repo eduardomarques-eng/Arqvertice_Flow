@@ -2,6 +2,12 @@ import { PdfWriter, type PdfTableOptions } from "./pdf-writer";
 import { readPaymentPlanSnapshot } from "@/lib/payment-plan";
 import { readProposalItems, computeTotals, type ProposalItem } from "@/lib/proposal-item";
 import { formatCurrencyBRL } from "@/lib/contract-template";
+import {
+  computeInvestmentOptionTotal,
+  computeOptionInstallments,
+  readNormalizedPremisses,
+  type ProposalEditorialData,
+} from "@/lib/proposal-standard";
 
 /**
  * FASE 4C — PROPOSTA FORMAL EM PDF (itens 37, 58 e 60).
@@ -45,7 +51,7 @@ export type ProposalPdfInput = {
   validityDays: number | null;
   expiresAt: Date | null;
   issuedAt: Date;
-  company: { name: string; document: string | null };
+  company: { name: string; document: string | null; email?: string | null; cityState?: string | null; technicalLead?: string | null };
 };
 
 const MUTED = "#64748b";
@@ -83,6 +89,9 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
   const items = readProposalItems(input.services);
   const totals = computeTotals(items, Number(input.adjustment ?? 0));
   const formalText = asRecord(input.formalText);
+  const editorial = (formalText.editorial && typeof formalText.editorial === "object" && !Array.isArray(formalText.editorial))
+    ? (formalText.editorial as Partial<ProposalEditorialData>)
+    : null;
   const plan = readPaymentPlanSnapshot(input.frozenPaymentPlan);
 
   const pdf = new PdfWriter({
@@ -91,10 +100,21 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
     subject: `${input.projectName} — versão ${input.version}`,
   });
 
-  /* Capa — identificação (item 37). */
-  pdf.drawText(input.company.name.toUpperCase(), pdf.margin, 64, { size: 11, bold: true, color: MUTED });
-  pdf.heading("PROPOSTA COMERCIAL", { size: 22, gapAfter: 4 });
+  /* Capa — identificação editorial (item 37). */
+  pdf.rect(pdf.margin, 32, pdf.contentWidth, 26, { fill: "#0f172a" });
+  pdf.drawText(input.company.name.toUpperCase(), pdf.margin + 10, 48, { size: 10, bold: true, color: "#ffffff" });
+  pdf.drawText(
+    `${input.company.document ? `CNPJ ${input.company.document} · ` : ""}ArqVértice OS`,
+    pdf.margin + pdf.contentWidth - 10,
+    48,
+    { size: 8, color: "#cbd5e1", align: "right" },
+  );
+  pdf.y = 68;
+  pdf.heading("PROPOSTA COMERCIAL", { size: 20, gapAfter: 4 });
   pdf.paragraph(input.title, { size: 11, color: MUTED });
+  if (editorial?.cover?.subtitle) {
+    pdf.paragraph(editorial.cover.subtitle, { size: 9.5, color: "#334155" });
+  }
   pdf.ensure(24);
   pdf.keyValueGrid(
     [
@@ -102,13 +122,39 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
       { label: "Versão", value: String(input.version) },
       { label: "Cliente", value: input.clientName },
       { label: "Projeto", value: input.projectName },
+      ...(editorial?.cover?.areaM2 ? [{ label: "Área Estimada", value: `${editorial.cover.areaM2} m²` }] : []),
+      ...(editorial?.cover?.technicalLead || input.company.technicalLead
+        ? [{ label: "Resp. Técnico", value: editorial?.cover?.technicalLead || input.company.technicalLead || "" }]
+        : []),
       { label: "Emissão", value: formatDateBR(input.issuedAt) },
       { label: "Validade", value: input.validityDays ? `${input.validityDays} dias` : "—" },
       ...(input.expiresAt ? [{ label: "Válida até", value: formatDateBR(input.expiresAt) }] : []),
-      ...(input.company.document ? [{ label: "Identificação", value: input.company.document }] : []),
+      ...(input.company.document ? [{ label: "CNPJ / Doc.", value: input.company.document }] : []),
     ],
     { columns: 2 },
   );
+
+  /* Diagnóstico Inicial (opcional) */
+  if (editorial?.diagnosis?.enabled) {
+    pdf.ensure(56);
+    pdf.heading("Diagnóstico Inicial");
+    if (editorial.diagnosis.propertyAnalysis) {
+      pdf.paragraph(`Análise do Imóvel / Terreno: ${editorial.diagnosis.propertyAnalysis}`);
+    }
+    if (editorial.diagnosis.structuralNote) {
+      pdf.paragraph(`Observação Estrutural / Técnica: ${editorial.diagnosis.structuralNote}`);
+    }
+    if (editorial.diagnosis.projectFocus) {
+      pdf.paragraph(`Foco do Projeto: ${editorial.diagnosis.projectFocus}`);
+    }
+    if (Array.isArray(editorial.diagnosis.photos) && editorial.diagnosis.photos.length > 0) {
+      editorial.diagnosis.photos.forEach((photo, idx) => {
+        if (photo?.caption || photo?.url) {
+          pdf.flowText(`• Foto ${idx + 1}: ${photo.caption || photo.url}`, { size: 8.5, color: MUTED, gapAfter: 2 });
+        }
+      });
+    }
+  }
 
   /* Objecto e escopo (itens 25, 26 e 37). */
   const object = text(formalText.object);
@@ -137,7 +183,10 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
       ],
       rows: [
         ...obrigatorias.map(serviceRow),
-        ...opcionais.map((item) => [...serviceRow(item), "opcional"]),
+        ...opcionais.map((item) => {
+          const row = serviceRow(item);
+          return [`${row[0]} (opcional)`, row[1], row[2], row[3], row[4]];
+        }),
       ],
       headerFill: "#f1f5f9",
     };
@@ -187,6 +236,64 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
     );
   }
 
+  /* Escopo & Entregáveis + Cronograma editorial (quando preenchidos) */
+  if (editorial?.scopeGroups && editorial.scopeGroups.length > 0) {
+    pdf.ensure(50);
+    pdf.heading("2.2 Entregáveis por Disciplina");
+    for (const group of editorial.scopeGroups) {
+      if (!group?.items?.length) continue;
+      pdf.ensure(30);
+      pdf.drawText(group.title, pdf.margin, pdf.y + 8, { size: 9.5, bold: true, color: "#0f172a" });
+      pdf.y += 12;
+      group.items.forEach((it) => pdf.flowText(`• ${it}`, { size: 8.5, color: "#334155", gapAfter: 2 }));
+    }
+  }
+
+  if (editorial?.schedule?.phases && editorial.schedule.phases.length > 0) {
+    pdf.ensure(60);
+    pdf.heading(`2.3 Cronograma Estimado (${editorial.schedule.totalBusinessDays || 0} dias úteis)`);
+    pdf.table({
+      columns: [
+        { title: "Etapa", weight: 1.5 },
+        { title: "Descrição", weight: 2.5 },
+        { title: "Prazo", weight: 1, align: "right" },
+        { title: "Entregáveis", weight: 3 },
+      ],
+      rows: editorial.schedule.phases.map((p) => [
+        p.code,
+        p.title,
+        `${p.businessDays} d.u.`,
+        p.deliverables,
+      ]),
+      headerFill: "#f1f5f9",
+    });
+    pdf.y += 6;
+  }
+
+  if (editorial?.investmentOptions && editorial.investmentOptions.length > 0) {
+    pdf.ensure(60);
+    pdf.heading("2.4 Opções de Investimento");
+    pdf.table({
+      columns: [
+        { title: "Opção", weight: 2.5 },
+        { title: "Base / Área", weight: 1.5 },
+        { title: "Unitário", weight: 1.5, align: "right" },
+        { title: "Total", weight: 1.5, align: "right" },
+      ],
+      rows: editorial.investmentOptions.map((opt) => {
+        const calcTotal = computeInvestmentOptionTotal(opt);
+        return [
+          `${opt.name}${opt.recommended ? " (Recomendada)" : ""}`,
+          opt.mode === "PER_M2" ? `${opt.areaM2} m²` : "Valor fechado",
+          opt.mode === "PER_M2" ? `${formatCurrencyBRL(opt.unitPricePerM2)}/m²` : "—",
+          formatCurrencyBRL(calcTotal),
+        ];
+      }),
+      headerFill: "#0f172a",
+    });
+    pdf.y += 6;
+  }
+
   /* Incluído / não incluído (itens 25 e 26). */
   const included = text(formalText.included);
   const excluded = text(formalText.excluded);
@@ -206,12 +313,8 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
     }
   }
 
-  /* Premissas (item 27). */
-  const premisses = Array.isArray(formalText.premisses)
-    ? (formalText.premisses as unknown[]).map(String).filter((value) => value.trim())
-    : text(formalText.premises)
-      ? [text(formalText.premises)!]
-      : [];
+  /* Premissas (item 27 — chave unificada `premisses`). */
+  const premisses = readNormalizedPremisses(formalText);
   if (premisses.length > 0) {
     pdf.ensure(60);
     pdf.heading("4. Premissas");
@@ -237,12 +340,47 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
       ]),
       headerFill: "#f1f5f9",
     });
-    const methods = text(formalText.metodoPagamento);
+    const methods = text(formalText.metodoPagamento) || editorial?.paymentCondition?.method;
     if (methods) pdf.paragraph(`Método: ${methods}`, { color: MUTED });
+  } else if (
+    editorial?.investmentOptions?.length &&
+    editorial?.paymentCondition?.installments?.length
+  ) {
+    const primaryTotal = computeInvestmentOptionTotal(editorial.investmentOptions[0]);
+    const calcInst = computeOptionInstallments(primaryTotal, editorial.paymentCondition.installments);
+    pdf.table({
+      columns: [
+        { title: "Parcela", weight: 3 },
+        { title: "%", weight: 1, align: "right" },
+        { title: "Valor", weight: 1.5, align: "right" },
+      ],
+      rows: calcInst.map((inst, idx) => [
+        `${idx + 1}. ${inst.label}`,
+        `${String(inst.percent).replace(".", ",")}%`,
+        formatCurrencyBRL(inst.amount),
+      ]),
+      headerFill: "#f1f5f9",
+    });
+    if (editorial.paymentCondition.method) {
+      pdf.paragraph(`Método: ${editorial.paymentCondition.method}`, { color: MUTED });
+    }
   } else {
     // Item 31: um plano ausente é um dado a reportar, não um espaço em branco.
     // O PDF nunca "adivinha" uma condição de pagamento.
     pdf.paragraph("Condição de pagamento não definida nesta versão.", { color: MUTED });
+  }
+
+  /* Blocos visuais opcionais ativos */
+  if (editorial?.optionalBlocks?.technicalHighlight?.enabled && editorial.optionalBlocks.technicalHighlight.body) {
+    pdf.ensure(40);
+    pdf.heading(editorial.optionalBlocks.technicalHighlight.title || "Destaque Técnico");
+    pdf.paragraph(editorial.optionalBlocks.technicalHighlight.body);
+  }
+  if (editorial?.optionalBlocks?.moodboard?.enabled && (editorial.optionalBlocks.moodboard.palette || editorial.optionalBlocks.moodboard.notes)) {
+    pdf.ensure(40);
+    pdf.heading(editorial.optionalBlocks.moodboard.title || "Moodboard & Paleta");
+    if (editorial.optionalBlocks.moodboard.palette) pdf.paragraph(`Paleta: ${editorial.optionalBlocks.moodboard.palette}`);
+    if (editorial.optionalBlocks.moodboard.notes) pdf.paragraph(editorial.optionalBlocks.moodboard.notes, { color: MUTED });
   }
 
   /* Condições e observações (itens 26 e 27). */
@@ -253,6 +391,20 @@ export function generateProposalPdf(input: ProposalPdfInput): Uint8Array {
     pdf.heading("6. Condições e observações");
     if (conditions) pdf.paragraph(conditions);
     if (observations) pdf.paragraph(observations, { color: MUTED });
+  }
+
+  if (editorial?.nextSteps?.steps?.some(Boolean)) {
+    pdf.ensure(50);
+    pdf.heading("Próximos Passos & Contatos");
+    editorial.nextSteps.steps.filter(Boolean).forEach((s) => pdf.flowText(`• ${s}`, { size: 8.5, color: "#1f2937", gapAfter: 2 }));
+    if (input.company.email || input.company.cityState) {
+      pdf.paragraph(
+        `${input.company.name}${input.company.cityState ? ` · ${input.company.cityState}` : ""}${
+          input.company.email ? ` · ${input.company.email}` : ""
+        }`,
+        { size: 8.5, color: MUTED },
+      );
+    }
   }
 
   /* Aceite (item 37). */

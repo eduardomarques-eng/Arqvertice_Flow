@@ -1,8 +1,21 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
-import { currentUser } from "@/server/auth";
+import { currentUser, requireProposalAccess, requireRole } from "@/server/auth";
+import { getEffectivePermissions } from "@/lib/rbac";
 import { notFound } from "@/server/errors";
-import { requireModuleAccess } from "@/lib/rbac-helpers";
+import { getStudioLegalProfile } from "@/server/services/settings-service";
+import {
+  buildDefaultEditorialData,
+  readNormalizedPremisses,
+  readProposalEditorial,
+  roundCurrency,
+} from "@/lib/proposal-standard";
+import {
+  buildDefaultContractDocument,
+  renderContractDocumentText,
+  type ContractDocumentData,
+} from "@/lib/contract-standard";
+import { readPaymentPlanSnapshot } from "@/lib/payment-plan";
 import { recordAudit } from "@/server/audit";
 import { diffStudioDecks, type StudioEditOrigin } from "@/lib/studio-audit";
 import { AUDIT_ENTITY, type AuditAction } from "@/lib/audit-events";
@@ -148,7 +161,7 @@ async function nextProposalCode(tx: Prisma.TransactionClient, now: Date): Promis
  * é derivado do que o frontend envia (item 65).
  */
 export async function getProjectCommercialInput(projectId: string): Promise<ProjectCommercialInput | null> {
-  const user = await requireModuleAccess("projetos");
+  await requireRole("ADMIN");
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: { client: true, briefing: true },
@@ -238,7 +251,8 @@ export async function getProposalSuggestions(projectId: string, level: PricingLe
  * contaria a mesma oportunidade duas vezes (item 71).
  */
 export async function createProposal(projectId: string) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
+  const legalProfile = await getStudioLegalProfile();
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: { client: true, briefing: true },
@@ -278,14 +292,17 @@ export async function createProposal(projectId: string) {
   });
   const services = catalog.map(toCatalogService);
 
-  // Sugestões NÃO entram como linhas. Ficam em `presentation.suggestions`,
-  // onde o editor as mostra para o ADMIN escolher. Uma linha por sugestão
-  // tornaria a proposta "não vazia" sem nada contratado — e a guarda de
-  // publicação teria de adivinhar a diferença entre contratado e sugerido.
   const suggestions = suggestServices({
     catalog: services,
     project: commercialInput.project,
     environmentCount,
+  });
+
+  const areaNum = Number(String(commercialInput.project.area ?? "").replace(",", ".").replace(/[^\d.]/g, "")) || 180;
+  const editorial = buildDefaultEditorialData({
+    areaM2: areaNum,
+    technicalLead: `${legalProfile.studioName} | ${legalProfile.technicalLeadName}`,
+    projectType: project.type ?? undefined,
   });
 
   const now = new Date();
@@ -299,25 +316,23 @@ export async function createProposal(projectId: string) {
           create: {
             version: 1,
             title: `Proposta comercial — ${project.name}`,
-            // A capa e o objecto vêm do PROJECTO, não de texto genérico.
             presentation: json({
               slides: [{ type: "cover", title: project.name, body: commercialInput.project.description ?? null }],
               suggestions,
               portfolioOverrides: {},
             }),
-            // As condições comerciais que o briefing efectivamente declarou.
-            // Não vêm de um modelo de documento: vêm do que o cliente disse.
             formalText: json({
               object: `Prestação de serviços de projeto — ${project.name}`,
-              validityDays: DEFAULT_VALIDITY_DAYS,
+              validityDays: legalProfile.proposalValidityDays || DEFAULT_VALIDITY_DAYS,
               conditions: commercialInput.project.restrictions.length
                 ? `Condições consideradas: ${commercialInput.project.restrictions.join("; ")}`
-                : null,
+                : legalProfile.refundPolicyText || null,
               premisses: commercialInput.project.requirements,
-              included: null,
+              included: legalProfile.defaultProposalScope || null,
               excluded: null,
               schedule: null,
               observations: commercialInput.project.notes,
+              editorial,
             }),
             services: json([]),
             subtotal: 0,
@@ -368,19 +383,31 @@ export async function createProposal(projectId: string) {
 }
 
 export async function listProposals() {
-  const user = await requireModuleAccess("projetos");
+  const user = await currentUser();
+  if (!user || ["OPERADOR", "OPERATOR", "CLIENTE", "CLIENT"].includes(user.role)) {
+    await requireRole("ADMIN");
+  } else if (user.role !== "ADMIN") {
+    const perms = getEffectivePermissions({ role: user.role, permissions: user.permissions });
+    if (!perms.includes("projetos")) {
+      await requireRole("ADMIN");
+    }
+  }
   return prisma.proposal.findMany({
+    where:
+      user && user.role !== "ADMIN"
+        ? { project: { access: { some: { userId: user.id } } } }
+        : undefined,
     orderBy: { updatedAt: "desc" },
     include: { project: { select: { id: true, name: true, client: { select: { name: true } } } }, versions: { orderBy: { version: "desc" }, take: 1 } },
   });
 }
 
 export async function getProposal(id: string) {
-  const user = await requireModuleAccess("projetos");
+  await requireProposalAccess(id);
   const proposal = await prisma.proposal.findUnique({
     where: { id },
     include: {
-      project: { select: { id: true, name: true, client: { select: { name: true, phone: true } } } },
+      project: { select: { id: true, name: true, type: true, client: { select: { name: true, phone: true } } } },
       versions: { orderBy: { version: "desc" }, take: 1 },
       contract: { include: { signature: true } },
     },
@@ -457,7 +484,7 @@ export type ProposalVersionInput = {
  * próxima versão herdar um preço que o ADMIN já pode ter mudado de propósito.
  */
 export async function saveProposalVersion(proposalId: string, input: ProposalVersionInput) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     select: { id: true, currentVersion: true, status: true, projectId: true },
@@ -691,7 +718,7 @@ export async function saveProposalPresentation(
   proposalId: string,
   raw: unknown,
 ): Promise<{ version: number; slides: number }> {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     select: { id: true, currentVersion: true, status: true },
@@ -794,7 +821,7 @@ function commercialSlotsOf(resolved: Awaited<ReturnType<typeof getProposal>>): C
  * o servidor recusaria — e essa diferença seria sempre um bug difícil de ver.
  */
 export async function getProposalReadiness(proposalId: string): Promise<PublicationReadiness> {
-  const user = await requireModuleAccess("projetos");
+  await requireProposalAccess(proposalId);
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -841,7 +868,7 @@ export async function getProposalReadiness(proposalId: string): Promise<Publicat
  *     que já não é a vigente.
  */
 export async function createProposalLink(proposalId: string) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     select: { id: true, expiresAt: true, status: true, currentVersion: true, code: true },
@@ -1199,21 +1226,21 @@ export async function decideProposal(token: string, decision: "APPROVED" | "REJE
       where: { id: proposal.id },
       data: decision === "APPROVED"
         ? {
-            status: "APPROVED",
-            approvedAt: now,
-            // A VERSÃO APROVADA é a publicada, não a `currentVersion`.
-            approvedVersion,
-            approvalIp: typeof metadata?.ip === "string" ? metadata.ip : null,
-            approvalMeta: metadata ? json(metadata) : undefined,
-          }
+          status: "APPROVED",
+          approvedAt: now,
+          // A VERSÃO APROVADA é a publicada, não a `currentVersion`.
+          approvedVersion,
+          approvalIp: typeof metadata?.ip === "string" ? metadata.ip : null,
+          approvalMeta: metadata ? json(metadata) : undefined,
+        }
         : {
-            status: "REJECTED",
-            rejectedAt: now,
-            // A rejeição também fica presa à versão que o cliente recusou: sem
-            // isto, um "não" a uma proposta cara seria indistinguível de um "não"
-            // a uma versão posterior mais barata.
-            approvedVersion,
-          },
+          status: "REJECTED",
+          rejectedAt: now,
+          // A rejeição também fica presa à versão que o cliente recusou: sem
+          // isto, um "não" a uma proposta cara seria indistinguível de um "não"
+          // a uma versão posterior mais barata.
+          approvedVersion,
+        },
       include: { project: { include: { client: true } }, versions: { orderBy: { version: "desc" }, take: 1 } },
     });
   });
@@ -1230,7 +1257,7 @@ export async function decideProposal(token: string, decision: "APPROVED" | "REJE
   return updated;
 }
 export async function sendProposalWhatsApp(proposalId: string) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -1320,7 +1347,8 @@ export async function sendProposalWhatsApp(proposalId: string) {
  * o PDF também é usado internamente como conferência antes do envio.
  */
 export async function getProposalPdfInput(proposalId: string, versionNumber?: number) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireProposalAccess(proposalId);
+  const legalProfile = await getStudioLegalProfile();
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: { project: { include: { client: true } } },
@@ -1368,8 +1396,11 @@ export async function getProposalPdfInput(proposalId: string, versionNumber?: nu
     expiresAt: proposal.expiresAt,
     issuedAt: version.createdAt,
     company: {
-      name: process.env.COMPANY_LEGAL_NAME ?? "ARQVERTICE",
-      document: process.env.COMPANY_LEGAL_DOCUMENT ?? null,
+      name: legalProfile.studioName,
+      document: legalProfile.studioCnpj,
+      email: legalProfile.institutionalEmail,
+      cityState: legalProfile.cityState,
+      technicalLead: legalProfile.technicalLeadName,
     },
   };
 }
@@ -1391,11 +1422,8 @@ export function proposalPublicUrl(token: string): string {
 
 /** FASE 4C, item 51 — envio da proposta por e-mail. */
 export async function sendProposalEmail(proposalId: string) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
 
-  // A proposta tem de estar PUBLICADA para haver link a enviar. Sem esta
-  // verificação, o e-mail sairia com um link que abre a recusa "expirou ou foi
-  // revogado" — o pior resultado possível num e-mail comercial.
   const link = await prisma.proposalAccessLink.findFirst({
     where: { proposalId, revokedAt: null },
     orderBy: { createdAt: "desc" },
@@ -1412,8 +1440,6 @@ export async function sendProposalEmail(proposalId: string) {
   if (!proposal) return notFound("Proposta");
 
   const client = proposal.project.client;
-  // Sem e-mail cadastrado devolvemos um motivo explícito. Inventar um destinatário
-  // ou simular um envio seria pior que dizer que falta o dado.
   if (!client.email) {
     throw new Error("O cliente não tem e-mail cadastrado. Use o WhatsApp ou actualize o cadastro.");
   }
@@ -1426,9 +1452,6 @@ export async function sendProposalEmail(proposalId: string) {
   const token = createProposalToken();
   const url = proposalPublicUrl(token);
 
-  // Item 39: o conteúdo vem do SISTEMA DE TEMPLATES, não de um texto escrito
-  // aqui. Se o template faltar ou tiver variáveis por resolver, `resolveTemplate`
-  // recusa e o envio não sai — nunca se envia `{{LINK}}` em claro ao cliente.
   const resolved = await resolveTemplate(
     "email.proposal",
     {
@@ -1443,9 +1466,15 @@ export async function sendProposalEmail(proposalId: string) {
   );
   if (!resolved.ok) throw new Error(resolved.message);
 
-  // O token é gerado AQUI e só o HASH é gravado. O valor em claro existe na
-  // mensagem; a base nunca o vê — o mesmo modelo do `createProposalLink`.
-  await prisma.proposalAccessLink.update({ where: { id: link.id }, data: { tokenHash: hashProposalToken(token) } });
+  // Cria um novo token de acesso para o e-mail preservando o link existente (não quebra o link de WhatsApp).
+  await prisma.proposalAccessLink.create({
+    data: {
+      proposalId,
+      tokenHash: hashProposalToken(token),
+      expiresAt: proposal.expiresAt,
+      versionNumber: link.versionNumber,
+    },
+  });
 
   const result = await sendEmail({
     to: client.email,
@@ -1489,7 +1518,8 @@ export async function sendProposalEmail(proposalId: string) {
 }
 
 export async function generateContract(proposalId: string) {
-  const user = await requireModuleAccess("projetos");
+  const user = await requireRole("ADMIN");
+  const legalProfile = await getStudioLegalProfile();
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposalId },
     include: {
@@ -1502,10 +1532,6 @@ export async function generateContract(proposalId: string) {
   if (proposal.status !== "APPROVED") throw new Error("Só é possível gerar o contrato de uma proposta aprovada.");
   if (proposal.contract) return proposal.contract;
 
-  // Tópico 24: usa exatamente a versão aprovada, impedindo divergência entre
-  // a proposta congelada e o contrato.
-  // Tópico 34: o contrato aponta para a versão exata aprovada. Sem ela, geramos
-  // por engano a versão mais recente e o contrato divergiria da aprovação.
   if (!proposal.approvedVersion) {
     throw new Error("A proposta aprovada não registra qual versão foi aprovada. Refaça a aprovação antes de gerar o contrato.");
   }
@@ -1515,7 +1541,6 @@ export async function generateContract(proposalId: string) {
   const services = Array.isArray(version.services) ? (version.services as Array<Record<string, unknown>>) : [];
   const formalText = (version.formalText as Record<string, unknown>) ?? {};
 
-  // Tópico 26: o contrato escolhido reflete os serviços efetivamente contratados.
   const activeTemplates = await listActiveContractTemplates();
   const selection = selectContractTemplateForScope(activeTemplates, services);
   const template = selection.template;
@@ -1524,47 +1549,102 @@ export async function generateContract(proposalId: string) {
   const client = proposal.project.client;
   const briefingResponses = (proposal.project.briefing?.responses ?? {}) as Record<string, unknown>;
   const validityDays = asString(formalText.validityDays);
+  const areaStr =
+    asString(briefingResponses.area ?? briefingResponses.areaTotal ?? briefingResponses.metragem) ||
+    String(readProposalEditorial(formalText).cover.areaM2 || "");
+  const totalValue = Number(version.total ?? 0);
+  const planSnapshot = readPaymentPlanSnapshot(version.paymentPlan);
+  const editorial = readProposalEditorial(formalText, { totalValue });
+  const hasStructural = services.some(
+    (s) => String(s.discipline ?? "").toUpperCase().includes("ESTRUTUR") || String(s.name ?? "").toUpperCase().includes("ESTRUTUR"),
+  );
+
+  const structuredContract: ContractDocumentData = buildDefaultContractDocument({
+    title: `Contrato de Prestação de Serviços — ${proposal.project.name}`,
+    contractor: {
+      studioName: legalProfile.studioName,
+      technicalLeadName: legalProfile.technicalLeadName,
+      cnpj: legalProfile.studioCnpj,
+      cityState: legalProfile.cityState,
+      commercialAddress: legalProfile.commercialAddress,
+      email: legalProfile.institutionalEmail,
+      pixKey: legalProfile.pixKey,
+      pixKeyType: legalProfile.pixKeyType,
+      bankInstructions: legalProfile.bankInstructions,
+    },
+    includeStructuralPartner: hasStructural,
+    client: {
+      name: client.fullName ?? client.name,
+      nationality: client.nationality || "brasileiro(a)",
+      maritalStatus: client.maritalStatus || "a informar",
+      profession: client.profession || "a informar",
+      rg: client.rg || "a informar",
+      cpfOrCnpj: client.cpf || client.document || "a informar",
+      address: formatAddress(client.address) || "Endereço a informar",
+      city: client.city || legalProfile.cityState,
+    },
+    project: {
+      name: proposal.project.name,
+      type: proposal.project.type || "Arquitetura e Engenharia",
+      areaM2: areaStr ? `${areaStr} m²` : "conforme levantamento",
+      cityState: legalProfile.cityState,
+      proposalCode: proposal.code ?? `Proposta v${version.version}`,
+    },
+    scopeLines: services.map((s) => `${asString(s.name) ?? "Serviço"} (${asString(s.quantity) ?? "1"} ${asString(s.unit) ?? "un."})`),
+    businessDays: editorial.schedule.totalBusinessDays,
+    installments:
+      planSnapshot?.installments.map((inst, idx) => ({
+        order: idx + 1,
+        label: inst.label,
+        percent: inst.percent,
+        amount: inst.amount,
+      })) ?? undefined,
+    totalValue,
+    artFee: { enabled: hasStructural, amount: 108.39 },
+    contractDate: proposal.approvedAt ?? new Date(),
+    forumCity: legalProfile.cityState,
+  });
 
   const rendered = buildContractText(template.body, {
     CLIENTE_NOME: client.fullName ?? client.name,
-    CLIENTE_CPF: client.cpf ?? undefined,
+    CLIENTE_CPF: client.cpf ?? client.document ?? undefined,
     CLIENTE_RG: client.rg ?? undefined,
     CLIENTE_ENDERECO: formatAddress(client.address),
     CLIENTE_CIDADE: client.city ?? undefined,
-    CONTRATADO_NOME: process.env.COMPANY_LEGAL_NAME ?? "ARQVERTICE",
-    CONTRATADO_DOCUMENTO: process.env.COMPANY_LEGAL_DOCUMENT ?? undefined,
+    CONTRATADO_NOME: legalProfile.studioName,
+    CONTRATADO_DOCUMENTO: `CNPJ ${legalProfile.studioCnpj}`,
     PROJETO_NOME: proposal.project.name,
     PROJETO_DESCRICAO: proposal.project.description ?? undefined,
-    AREA: asString(briefingResponses.area ?? briefingResponses.areaTotal ?? briefingResponses.metragem),
+    AREA: areaStr || undefined,
     SERVICOS: renderServices(services) || undefined,
     ETAPAS: asString(formalText.etapas),
-    PRAZOS: asString(formalText.prazos),
-    HONORARIOS: asString(formalText.honorarios),
-    FORMA_PAGAMENTO: asString(formalText.formaPagamento),
-    VALOR_TOTAL: formatCurrencyBRL(Number(version.total ?? 0)),
+    PRAZOS: asString(formalText.prazos) || `${editorial.schedule.totalBusinessDays} dias úteis`,
+    HONORARIOS: asString(formalText.honorarios) || formatCurrencyBRL(totalValue),
+    FORMA_PAGAMENTO: asString(formalText.formaPagamento) || legalProfile.bankInstructions,
+    VALOR_TOTAL: formatCurrencyBRL(totalValue),
     VALIDADE: validityDays ? `${validityDays} dias` : undefined,
     DATA_CONTRATO: formatDateLongBR(proposal.approvedAt ?? new Date()),
   });
-  if (rendered.missingRequired.length) {
-    throw new Error(
-      `Template contratual incompleto: variáveis obrigatórias ausentes ${rendered.missingRequired.join(", ")}.`,
-    );
-  }
 
-  const content: ContractDraft = {
+  const finalText = rendered.missingRequired.length === 0 && !template.body.includes("CLÁUSULA 1ª")
+    ? rendered.text
+    : renderContractDocumentText(structuredContract);
+
+  const content: ContractDraft & { structured?: ContractDocumentData } = {
     object: `Contrato de prestação de serviços de projeto — ${proposal.project.name}`,
     parties: { client: client.fullName ?? client.name, project: proposal.project.name },
     services,
     formalText,
-    total: Number(version.total ?? 0),
+    total: totalValue,
     proposalVersion: version.version,
     templateId: template.id,
     templateVersion: template.version,
     scopeKey: template.scopeKey,
     scopeReason: selection.reason,
     disciplines: selection.matched,
-    text: rendered.text,
+    text: finalText,
     missing: rendered.missing,
+    structured: structuredContract,
   };
 
   // Prompt 18, item 40 — IDEMPOTÊNCIA.
@@ -1613,6 +1693,117 @@ export async function generateContract(proposalId: string) {
   });
   await recordAudit("CONTRACT_GENERATED", "Contract", contract.id, user.id, { proposalId, version: version.version });
   return contract;
+}
+
+/**
+ * Importa escopo e valor consolidados da EAP do projeto para uma nova versão rascunho da proposta.
+ */
+export async function importEapIntoProposal(proposalId: string) {
+  const user = await requireRole("ADMIN");
+  const proposal = await prisma.proposal.findUnique({
+    where: { id: proposalId },
+    include: {
+      project: {
+        include: {
+          eapProject: {
+            include: {
+              stages: {
+                orderBy: { orderIndex: "asc" },
+                include: {
+                  groups: {
+                    include: { items: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      versions: { orderBy: { version: "desc" }, take: 1 },
+    },
+  });
+  if (!proposal) return notFound("Proposta");
+  if (!canEditProposal(proposal.status)) {
+    throw new Error("A proposta já foi aprovada/encerrada e não pode receber importação da EAP.");
+  }
+  const eap = proposal.project.eapProject;
+  if (!eap) {
+    throw new Error("Este projeto ainda não possui orçamento EAP cadastrado.");
+  }
+
+  const bdiFactor = 1 + (Number(eap.bdiPercent ?? 0) / 100);
+  const lines = eap.stages
+    .map((stage, idx) => {
+      const stageItems = stage.groups.flatMap((g) => g.items);
+      const stageTotal = stageItems.reduce((sum, it) => {
+        const zones = (it.zoneQuantitiesJson ?? {}) as Record<string, unknown>;
+        const rawQty = Object.values(zones).reduce<number>((acc, q) => acc + (Number(q) || 0), 0);
+        const effQty = rawQty * (1 + (Number(it.lossPercent ?? 0) / 100));
+        const unitCost =
+          (Number(it.materialUnitCost ?? 0) +
+            Number(it.laborUnitCost ?? 0) +
+            Number(it.thirdPartyUnitCost ?? 0)) *
+          Number(it.markupMultiplier ?? 1);
+        return sum + effQty * unitCost * bdiFactor;
+      }, 0);
+      return {
+        name: stage.name,
+        discipline: "EXECUCAO_OBRA",
+        unit: "un.",
+        quantity: 1,
+        unitPrice: roundCurrency(stageTotal),
+        optional: false,
+        order: idx,
+        notes: `Importado da EAP (${stageItems.length} item(ns))`,
+      };
+    })
+    .filter((l) => l.unitPrice > 0);
+
+  if (lines.length === 0) {
+    throw new Error("A EAP do projeto ainda não possui valores lançados nas etapas.");
+  }
+
+  const latest = proposal.versions[0];
+  const formalText = ((latest?.formalText as Record<string, unknown>) ?? {}) as Record<string, unknown>;
+  const presentation = ((latest?.presentation as Record<string, unknown>) ?? {}) as Record<string, unknown>;
+  const editorial = readProposalEditorial(formalText, {
+    areaM2: Number(eap.builtAreaM2 ?? 0) || 180,
+    totalValue: lines.reduce((acc, l) => acc + l.unitPrice, 0),
+  });
+  const totalEap = roundCurrency(lines.reduce((acc, l) => acc + l.unitPrice, 0));
+  const areaM2 = Number(eap.builtAreaM2 ?? 0) || editorial.cover.areaM2 || 180;
+  editorial.cover.areaM2 = areaM2;
+  editorial.investmentOptions = [
+    {
+      id: "opt-eap",
+      name: "Escopo Consolidado EAP",
+      mode: "PER_M2",
+      areaM2,
+      unitPricePerM2: roundCurrency(totalEap / areaM2),
+      fixedAmount: totalEap,
+      summary: `Importado diretamente da EAP (${lines.length} macro-etapas)`,
+      recommended: true,
+    },
+  ];
+  editorial.scopeGroups = [
+    {
+      title: "Macro-Etapas Importadas da EAP",
+      items: lines.map((l) => `${l.name} — ${formatCurrencyBRL(l.unitPrice)}`),
+    },
+  ];
+
+  return saveProposalVersion(proposalId, {
+    title: latest?.title || `Proposta EAP — ${proposal.project.name}`,
+    presentation,
+    formalText: {
+      ...formalText,
+      premisses: readNormalizedPremisses(formalText).join("\n"),
+      editorial,
+    },
+    lines,
+    adjustment: Number(latest?.adjustment ?? 0),
+    expiresAt: proposal.expiresAt,
+  });
 }
 
 

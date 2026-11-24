@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { canUserAccessProject, currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { Prisma } from "@prisma/client";
+import { canEditProposal } from "@/lib/proposal-access";
+import { normalizeProposalItem } from "@/lib/proposal-item";
 
 interface TakeoffItemInput {
   category: string;
@@ -15,6 +17,12 @@ export async function POST(request: Request) {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    if (["CLIENTE", "CLIENT", "OPERADOR", "OPERATOR"].includes(user.role)) {
+      return NextResponse.json(
+        { error: "Apenas administradores e equipe comercial podem enviar quantitativos para propostas." },
+        { status: 403 },
+      );
     }
 
     const body = await request.json();
@@ -61,14 +69,19 @@ export async function POST(request: Request) {
       },
     });
 
-    const mappedServices = items.map((item) => ({
-      name: `[${item.category}] ${item.description}`,
-      description: `Levantamento BIM/IA (${documentCode || "PRANCHA"} ${revisionNumber || "R00"})`,
-      quantity: item.quantity,
-      unit: item.unit,
-      unitPrice: 0,
-      total: 0,
-    }));
+    const mappedServices = items.map((item, idx) =>
+      normalizeProposalItem(
+        {
+          name: `[${item.category}] ${item.description}`,
+          description: `Levantamento BIM/IA (${documentCode || "PRANCHA"} ${revisionNumber || "R00"})`,
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: 0,
+          optional: false,
+        },
+        idx,
+      ),
+    );
 
     if (!proposal) {
       const year = new Date().getFullYear();
@@ -105,6 +118,12 @@ export async function POST(request: Request) {
         },
       });
     } else {
+      if (!canEditProposal(proposal.status) || proposal.convertedAt) {
+        return NextResponse.json(
+          { error: "Proposta já aprovada, convertida ou encerrada não pode receber novos itens." },
+          { status: 409 },
+        );
+      }
       const latestVersion = proposal.versions[0];
       const existingServices = Array.isArray(latestVersion?.services)
         ? (latestVersion.services as Array<Record<string, unknown>>)

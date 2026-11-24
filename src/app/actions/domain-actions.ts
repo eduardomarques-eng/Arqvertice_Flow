@@ -17,7 +17,9 @@ import { finishBriefingByToken, saveBriefingResponsesByToken } from "@/server/se
 import { updateReportVisibility } from "@/server/services/report-visibility-service";
 import { saveBriefingQuestions } from "@/server/services/briefing-service";
 import { archiveProjectDocument, uploadProjectDocument } from "@/server/services/document-service";
-import { createProposal, createProposalLink, decideProposal, generateContract, getProposalReadiness, listProposals, saveProposalPresentation, saveProposalVersion, sendProposalEmail, sendProposalWhatsApp } from "@/server/services/proposal-service";
+import { createProposal, createProposalLink, decideProposal, generateContract, getProposalReadiness, importEapIntoProposal, listProposals, saveProposalPresentation, saveProposalVersion, sendProposalEmail, sendProposalWhatsApp } from "@/server/services/proposal-service";
+import { createContractAddendum, createContractTemplate, updateContractStructuredDraft } from "@/server/services/contract-service";
+import type { ContractDocumentData } from "@/lib/contract-standard";
 import { listContractTemplates, listMessageTemplates, updateContractTemplate, updateMessageTemplate } from "@/server/services/message-template-service";
 import { listNotificationEvents } from "@/server/services/notification-service";
 import {
@@ -419,6 +421,50 @@ export async function sendProposalEmailAction(proposalId: string) {
 export async function generateContractAction(proposalId: string) {
   const result = await generateContract(proposalId);
   revalidatePath(`/admin/propostas/${proposalId}`);
+  revalidatePath("/admin/contratos");
+  return result;
+}
+
+export async function importEapIntoProposalAction(proposalId: string) {
+  const result = await importEapIntoProposal(proposalId);
+  revalidatePath(`/admin/propostas/${proposalId}`);
+  revalidatePath(`/admin/propostas/${proposalId}/preview`);
+  return result;
+}
+
+export async function updateContractDraftAction(contractId: string, structured: ContractDocumentData) {
+  const result = await updateContractStructuredDraft(contractId, structured);
+  revalidatePath(`/admin/contratos/${contractId}`);
+  revalidatePath("/admin/contratos");
+  return result;
+}
+
+export async function createContractAddendumAction(input: {
+  contractId: string;
+  title: string;
+  description: string;
+  additionalValue: number;
+  additionalDays?: number;
+  eapSnapshotId?: string | null;
+  dueDate?: Date | null;
+}) {
+  const result = await createContractAddendum(input);
+  revalidatePath(`/admin/contratos/${input.contractId}`);
+  revalidatePath("/admin/contratos");
+  revalidatePath("/admin/financeiro");
+  return result;
+}
+
+export async function createContractTemplateAction(input: {
+  name: string;
+  body: string;
+  scopeKey?: string | null;
+  disciplines?: string[];
+  isDefault?: boolean;
+}) {
+  const result = await createContractTemplate(input);
+  revalidatePath("/admin/mensagens");
+  revalidatePath("/admin/contratos");
   return result;
 }
 

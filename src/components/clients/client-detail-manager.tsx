@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ClientFinancialCard, type ClientData, type InstallmentData } from "@/components/admin/client-financial-card";
+import { CreateProposalButton } from "@/components/proposals/create-proposal-button";
 
 type Project = { id: string; name: string; type: string | null; progress: number };
 
@@ -55,13 +56,19 @@ export function ClientDetailManager({
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={createAccess}
-          className="rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100/80 px-4 py-2 text-xs font-bold text-blue-700 transition"
-        >
-          {hasAccess ? "↺ Redefinir Credenciais de Acesso" : "+ Gerar Acesso do Cliente ao Portal"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <CreateProposalButton
+            compact
+            projects={projects.map((p) => ({ id: p.id, name: p.name, clientName: client.name }))}
+          />
+          <button
+            type="button"
+            onClick={createAccess}
+            className="rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100/80 px-4 py-2 text-xs font-bold text-blue-700 transition"
+          >
+            {hasAccess ? "↺ Redefinir Credenciais de Acesso" : "+ Gerar Acesso do Cliente ao Portal"}
+          </button>
+        </div>
       </div>
 
       {error ? (

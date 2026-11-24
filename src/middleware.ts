@@ -103,7 +103,8 @@ export function middleware(request: NextRequest) {
         !isAllowedOrigin &&
         !pathname.startsWith("/api/briefings") &&
         !pathname.startsWith("/api/email/inbound") &&
-        !pathname.startsWith("/api/whatsapp/webhook")
+        !pathname.startsWith("/api/whatsapp/webhook") &&
+        pathname !== "/api/contracts/webhook"
       ) {
         return new NextResponse(JSON.stringify({ error: "Forbidden: Origem não autorizada." }), {
           status: 403,

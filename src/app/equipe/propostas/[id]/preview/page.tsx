@@ -42,12 +42,22 @@ export default async function EquipeProposalPreviewPage({
               <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px]">{document.fingerprint}</code>.
             </p>
           </div>
-          <Link
-            href={`/equipe/propostas/${id}`}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-          >
-            Voltar à edição
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/api/proposals/${id}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Baixar PDF Editorial
+            </a>
+            <Link
+              href={`/equipe/propostas/${id}`}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+            >
+              Voltar à edição
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -10,6 +10,9 @@ import {
 import { prisma } from "@/server/db";
 import { getScheduleReport } from "@/server/services/schedule-report-service";
 import { getDeliverableMatrix } from "@/server/services/deliverable-service";
+import { listProjectContractsForPortal } from "@/server/services/contract-service";
+import { listProjectInstallments } from "@/server/services/installment-service";
+import { formatCurrencyBRL } from "@/lib/contract-template";
 import {
   ClientSimplifiedReport,
   type ClientDeliverable,
@@ -27,7 +30,7 @@ export default async function ClientPortalPage({
   await requirePageClientPortal();
   const user = await requirePageProjectAccess(id);
 
-  const [bundle, projectDb, deliverableMatrix, rawDeliverables, publishedEap] = await Promise.all([
+  const [bundle, projectDb, deliverableMatrix, rawDeliverables, publishedEap, portalContracts, portalInstallments] = await Promise.all([
     getScheduleReport(id, new Date(), { skipAuth: true }),
     prisma.project.findUnique({
       where: { id },
@@ -62,6 +65,8 @@ export default async function ClientPortalPage({
         select: { id: true, status: true, builtAreaM2: true },
       })
       .catch(() => null),
+    listProjectContractsForPortal(id).catch(() => []),
+    listProjectInstallments(id).catch(() => []),
   ]);
 
   if (!projectDb) {
@@ -167,6 +172,60 @@ export default async function ClientPortalPage({
               Abrir Relatório EAP →
             </Link>
           </div>
+        )}
+
+        {(portalContracts.length > 0 || portalInstallments.length > 0) && (
+          <section className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+              <h2 className="text-sm font-bold text-slate-900">Contratos &amp; Assinaturas</h2>
+              {portalContracts.length === 0 ? (
+                <p className="text-xs text-slate-500">Nenhum contrato emitido até o momento.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {portalContracts.map((c) => (
+                    <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+                      <div>
+                        <p className="font-bold text-slate-900">{c.title}</p>
+                        <p className="text-slate-500">
+                          Status: {c.status} · Assinatura: {c.signature?.status ?? "Pendente"}
+                          {c.addendums.length > 0 ? ` · ${c.addendums.length} Aditivo(s)` : ""}
+                        </p>
+                      </div>
+                      <a
+                        href={`/api/contracts/${c.id}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800"
+                      >
+                        Baixar PDF
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+              <h2 className="text-sm font-bold text-slate-900">Parcelas &amp; Investimento</h2>
+              {portalInstallments.length === 0 ? (
+                <p className="text-xs text-slate-500">Nenhuma parcela financeira lançada ainda.</p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {portalInstallments.map((inst) => (
+                    <div key={inst.id} className="flex items-center justify-between gap-2 py-2 text-xs">
+                      <div>
+                        <p className="font-semibold text-slate-800">{inst.description}</p>
+                        <p className="text-[11px] text-slate-500">
+                          Venc.: {new Date(inst.dueDate).toLocaleDateString("pt-BR")} · {inst.status}
+                        </p>
+                      </div>
+                      <strong className="text-slate-900">{formatCurrencyBRL(Number(inst.amount ?? 0))}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
         )}
 
         <ClientSimplifiedReport

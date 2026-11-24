@@ -4,6 +4,8 @@ import { SectionHeading } from "@/components/section-heading";
 import Link from "next/link";
 import { requirePageAdminRole } from "@/server/auth";
 import { listProposals } from "@/server/services/proposal-service";
+import { prisma } from "@/server/db";
+import { CreateProposalButton } from "@/components/proposals/create-proposal-button";
 import {
   BentoCollapsiblePanel,
   BentoHorizontalRanking,
@@ -14,7 +16,13 @@ export const dynamic = "force-dynamic";
 
 export default async function ProposalsPage() {
   await requirePageAdminRole();
-  const proposals = await listProposals();
+  const [proposals, projects] = await Promise.all([
+    listProposals(),
+    prisma.project.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, name: true, client: { select: { name: true } } },
+    }),
+  ]);
   const totalProposed = proposals.reduce(
     (s, p) => s + Number(p.versions[0]?.total ?? 0),
     0
@@ -28,7 +36,19 @@ export default async function ProposalsPage() {
 
   return (
     <AppShell eyebrow="Comercial">
-      <SectionHeading title="Propostas" description="Apresentações, propostas formais, versões e decisões do cliente." />
+      <SectionHeading
+        title="Propostas"
+        description="Apresentações, propostas formais, versões e decisões do cliente."
+        action={
+          <CreateProposalButton
+            projects={projects.map((p) => ({
+              id: p.id,
+              name: p.name,
+              clientName: p.client.name,
+            }))}
+          />
+        }
+      />
 
       <div className="mb-6">
         <BentoCollapsiblePanel title="Panorama Comercial & Funil" badge={`${proposals.length} propostas`}>
@@ -78,7 +98,7 @@ export default async function ProposalsPage() {
       <div className="grid gap-4">
         {proposals.length ? proposals.map((proposal) => {
           const version = proposal.versions[0];
-          return <Link key={proposal.id} href={`/propostas/${proposal.id}`} className="block"><Card><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{proposal.status}</p><h2 className="mt-2 text-xl font-bold text-slate-950">{version?.title ?? "Proposta"}</h2><p className="mt-1 text-sm text-slate-500">{proposal.project.client.name} · {proposal.project.name} · versão {version?.version ?? proposal.currentVersion}</p></div><strong className="text-lg text-slate-900">R$ {Number(version?.total ?? 0).toFixed(2).replace(".", ",")}</strong></div></Card></Link>;
+          return <Link key={proposal.id} href={`/admin/propostas/${proposal.id}`} className="block"><Card><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{proposal.status}</p><h2 className="mt-2 text-xl font-bold text-slate-950">{version?.title ?? "Proposta"}</h2><p className="mt-1 text-sm text-slate-500">{proposal.project.client.name} · {proposal.project.name} · versão {version?.version ?? proposal.currentVersion}</p></div><strong className="text-lg text-slate-900">R$ {Number(version?.total ?? 0).toFixed(2).replace(".", ",")}</strong></div></Card></Link>;
         }) : <Card><p className="text-sm text-slate-500">Nenhuma proposta criada ainda.</p></Card>}
       </div>
     </AppShell>
