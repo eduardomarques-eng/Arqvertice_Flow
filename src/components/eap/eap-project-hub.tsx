@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapConferenceWorkbench } from "@/components/admin/eap/eap-conference-workbench";
+import { EapSchedulePlanner } from "@/components/admin/eap/eap-schedule-planner";
 
 interface CityOption {
   id: string;
@@ -371,19 +372,10 @@ export function EapProjectHub({
       )}
 
       {activeTab === "planning" && (
-        <Card className="rounded-3xl border border-slate-200/90 bg-white p-8 text-center space-y-2 dark:border-zinc-800 dark:bg-[#16161D]">
-          <Badge tone={initialEap.status === "CONFERENCIA_OK" ? "green" : "amber"}>
-            {initialEap.status === "CONFERENCIA_OK"
-              ? "Conferência EAP Homologada — Pronto para Fase 4"
-              : "Aguardando Validação da Conferência na Aba 2"}
-          </Badge>
-          <h3 className="text-base font-bold text-slate-950 dark:text-zinc-100">
-            Submódulo Planejamento — Linha de Balanço (38 Pacotes LOB)
-          </h3>
-          <p className="mx-auto max-w-xl text-xs text-slate-500 dark:text-zinc-400">
-            Conectado à Fase 4: Gantt interativo, Curva S, Desembolso Mensal e Calendário de Suprimentos com feriados de {initialEap.cityLabel}.
-          </p>
-        </Card>
+        <EapSchedulePlanner
+          projectId={projectId}
+          onBaselineApproved={() => router.refresh()}
+        />
       )}
 
       {activeTab === "report" && (
