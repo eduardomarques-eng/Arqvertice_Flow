@@ -80,6 +80,26 @@ export async function extractPdfFromBuffer(buffer: Buffer): Promise<ExtractedPdf
   throw new Error("Driver pdf-parse indisponível neste ambiente.");
 }
 
+export async function readRawBufferFromSource(source: {
+  storageKey?: string | null;
+  url?: string | null;
+}): Promise<Buffer> {
+  if (source.storageKey) {
+    return getStoredObject(source.storageKey);
+  }
+
+  if (source.url && /^https?:\/\//i.test(source.url)) {
+    const res = await fetch(source.url, { signal: AbortSignal.timeout(25_000) });
+    if (!res.ok) {
+      throw new Error(`Falha ao baixar arquivo da URL (${res.status}).`);
+    }
+    const arrayBuf = await res.arrayBuffer();
+    return Buffer.from(arrayBuf);
+  }
+
+  throw new Error("Fonte sem storageKey ou URL válida.");
+}
+
 /**
  * Baixa o buffer de um arquivo do storage privado (R2/S3 ou local) ou de URL HTTP(S) e extrai o PDF.
  */
@@ -87,19 +107,6 @@ export async function readPdfFromSource(source: {
   storageKey?: string | null;
   url?: string | null;
 }): Promise<ExtractedPdfDocument> {
-  if (source.storageKey) {
-    const bytes = await getStoredObject(source.storageKey);
-    return extractPdfFromBuffer(bytes);
-  }
-
-  if (source.url && /^https?:\/\//i.test(source.url)) {
-    const res = await fetch(source.url, { signal: AbortSignal.timeout(25_000) });
-    if (!res.ok) {
-      throw new Error(`Falha ao baixar PDF da URL (${res.status}).`);
-    }
-    const arrayBuf = await res.arrayBuffer();
-    return extractPdfFromBuffer(Buffer.from(arrayBuf));
-  }
-
-  throw new Error("Fonte de PDF sem storageKey ou URL válida.");
+  const bytes = await readRawBufferFromSource(source);
+  return extractPdfFromBuffer(bytes);
 }

@@ -166,8 +166,12 @@ export function reconcileMinedCandidates(input: {
     const mat = findMatchingMaterial(cand, cityMaterials);
     const lab = findMatchingLabor(cand, cityLabor);
 
-    // 4. AUDITORIA DE SANIDADE DIMENSIONAL & UNIDADE
+    // 4. AUDITORIA DE SANIDADE DIMENSIONAL, UNIDADE & PREÇO DEFASADO
     const flags: string[] = [];
+    if (cand.sanityFlag) {
+      flags.push(cand.sanityFlag);
+      sanityWarnings.push(cand.sanityFlag);
+    }
 
     if (!Number.isFinite(qty) || qty < 0) {
       flags.push("QUANTIDADE_INVALIDA: Quantidade negativa ou NaN detectada.");
@@ -178,6 +182,16 @@ export function reconcileMinedCandidates(input: {
       flags.push(
         `UNIDADE_INCOMPATIVEL: Item minerado em '${cand.unit}', mas catálogo '${mat.code}' utiliza '${mat.unit}'.`
       );
+    }
+
+    // Rejeita preço defasado do HTML (ex.: R$ 6,80/m² no TQS) se divergir > 50% do catálogo regional
+    if (mat && typeof cand.sourceUnitPrice === "number" && cand.sourceUnitPrice > 0) {
+      const regionalPrice = (mat.materialUnitCost || 0) + (mat.thirdPartyUnitCost || 0);
+      if (regionalPrice > 0 && Math.abs(cand.sourceUnitPrice - regionalPrice) / regionalPrice > 0.5) {
+        const msg = `PRECO_HTML_IGNORADO: Preço da fonte (R$ ${cand.sourceUnitPrice.toFixed(2).replace(".", ",")}/${cand.unit}) diverge >50% do catálogo regional (R$ ${regionalPrice.toFixed(2).replace(".", ",")}/${mat.unit}). Aplicado valor oficial da praça.`;
+        flags.push(msg);
+        sanityWarnings.push(msg);
+      }
     }
 
     // Proteção contra erro clássico de lançar metro linear de verga/contraverga em campo de m³
@@ -229,6 +243,12 @@ export function reconcileMinedCandidates(input: {
           item.sanityFlag = item.sanityFlag ? `${item.sanityFlag} | ${msg}` : msg;
         }
       }
+    }
+  } else if (hasTqsSource && totalConcreteM3 > 0 && totalSteelKg === 0) {
+    steelRateKgPerM3 = 0;
+    const msg = `ACO_PRINCIPAL_ZERADO: Concreto (${totalConcreteM3.toFixed(2)} m³) sem aço principal detalhado no TQS (estimativa sugerida: ${Math.round(totalConcreteM3 * 85)} kg).`;
+    if (!sanityWarnings.some((w) => w.includes("aço principal"))) {
+      sanityWarnings.push(msg);
     }
   }
 

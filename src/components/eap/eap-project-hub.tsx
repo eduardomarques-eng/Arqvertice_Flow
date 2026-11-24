@@ -26,7 +26,54 @@ interface SourceFileDTO {
   revisionLabel: string;
   includedInMining: boolean;
   status: string;
+  extractedSummaryJson?: {
+    carbonKgCo2?: number | null;
+    zeroSteelAlert?: {
+      concreteM3: number;
+      suggestedKg: number;
+      message: string;
+    } | null;
+  } | null;
 }
+
+const DISCIPLINE_UPLOAD_CARDS = [
+  {
+    code: "ARQUITETONICO",
+    title: "Arquitetônico",
+    defaultSoftware: "REVIT" as const,
+    hint: "Alvenaria, esquadrias, pisos, forros e pinturas",
+  },
+  {
+    code: "ESTRUTURAL",
+    title: "Estrutural",
+    defaultSoftware: "TQS" as const,
+    hint: "Relatório TQS (RESDES.HTM / PDF): concreto, aço, fôrmas, laje",
+  },
+  {
+    code: "ELETRICO",
+    title: "Elétrico",
+    defaultSoftware: "REVIT" as const,
+    hint: "Quadros, circuitos, pontos elétricos e luminotécnica",
+  },
+  {
+    code: "HIDRO_ABASTECIMENTO",
+    title: "Hidro — Abastecimento",
+    defaultSoftware: "REVIT" as const,
+    hint: "Água fria, água quente, reservatórios e registros",
+  },
+  {
+    code: "HIDRO_ESGOTAMENTO",
+    title: "Hidro — Esgotamento",
+    defaultSoftware: "REVIT" as const,
+    hint: "Esgoto sanitário, ventilação, caixas de inspeção",
+  },
+  {
+    code: "HIDRO_DRENAGEM",
+    title: "Hidro — Drenagem",
+    defaultSoftware: "REVIT" as const,
+    hint: "Águas pluviais, calhas, ralos e caixas de drenagem",
+  },
+] as const;
 
 interface ConflictDTO {
   id: string;
@@ -104,8 +151,7 @@ export function EapProjectHub({
 
   // Curadoria & Upload
   const [selectedAcervoIds, setSelectedAcervoIds] = useState<string[]>([]);
-  const [uploadSoftware, setUploadSoftware] = useState<"TQS" | "REVIT">("TQS");
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [dragDiscipline, setDragDiscipline] = useState<string | null>(null);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -172,28 +218,81 @@ export function EapProjectHub({
     }
   }
 
-  async function handleUploadPdf(e: React.FormEvent) {
-    e.preventDefault();
-    if (!uploadFile) return;
-    setBusy("upload");
+  async function handleDisciplineUpload(
+    discipline: string,
+    sourceSoftware: "TQS" | "REVIT",
+    fileList: FileList | File[] | null
+  ) {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    setBusy(`upload-${discipline}`);
+    setFeedback(null);
+    const added: SourceFileDTO[] = [];
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("sourceSoftware", sourceSoftware);
+        fd.append("discipline", discipline);
+        const res = await fetch(`/api/eap/projects/${projectId}/sources/upload`, {
+          method: "POST",
+          body: fd,
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+          setFeedback({ type: "error", text: json.error || `Erro ao enviar ${file.name}.` });
+          return;
+        }
+        added.push(json.source);
+      }
+      if (added.length > 0) {
+        setSources((prev) => [...added, ...prev]);
+        setFeedback({
+          type: "success",
+          text: `${added.length} arquivo(s) de ${discipline} adicionado(s) à fila de mineração.`,
+        });
+        router.refresh();
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleApplyPreliminarySteel(suggestedKg: number, concreteM3: number) {
+    if (suggestedKg <= 0) return;
+    setBusy("prelim-steel");
     setFeedback(null);
     try {
-      const fd = new FormData();
-      fd.append("file", uploadFile);
-      fd.append("sourceSoftware", uploadSoftware);
-      fd.append("discipline", uploadSoftware === "TQS" ? "ESTRUTURAL" : "ARQUITETURA");
-      const res = await fetch(`/api/eap/projects/${projectId}/sources/upload`, {
+      const res = await fetch(`/api/eap/projects/${projectId}/items`, {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stageCode: "04",
+          code: "ACO-PRELIM-85",
+          description: `Estimativa Preliminar Aço CA-50/CA-60 (Taxa 85 kg/m³ · ${concreteM3.toFixed(2)} m³)`,
+          unit: "kg",
+          category: "ACO",
+          zoneQuantities: {
+            FUND_TERREO: suggestedKg,
+            PAV_SUPERIOR: 0,
+            COBERTURA: 0,
+            EXTERNO: 0,
+          },
+          lossPercent: 10,
+          materialUnitCost: 7.8,
+          laborUnitCost: 3.1,
+          thirdPartyUnitCost: 0,
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setFeedback({ type: "error", text: json.error || "Erro ao enviar PDF." });
+        setFeedback({ type: "error", text: json.error || "Erro ao aplicar estimativa preliminar." });
         return;
       }
-      setUploadFile(null);
-      setSources((prev) => [json.source, ...prev]);
-      setFeedback({ type: "success", text: `Arquivo ${json.source.fileName} adicionado à fila de mineração.` });
+      setFeedback({
+        type: "success",
+        text: `Estimativa preliminar de ${suggestedKg.toFixed(0)} kg de aço adicionada na Etapa 04 (Supraestrutura). Confira na aba Planilha EAP.`,
+      });
       router.refresh();
     } finally {
       setBusy(null);
@@ -529,39 +628,87 @@ export function EapProjectHub({
         </Card>
 
         <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-              2. Upload Dedicado de Relatório PDF (TQS / Revit)
-            </h3>
-            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-              Envie resumos de aço/concreto do TQS ou tabelas quantitativas (Schedules) do Revit.
-            </p>
-          </div>
-          <form onSubmit={handleUploadPdf} className="space-y-3">
-            <div className="flex flex-wrap gap-3">
-              <select
-                value={uploadSoftware}
-                onChange={(e) => setUploadSoftware(e.target.value as "TQS" | "REVIT")}
-                className={INPUT_CLASS}
-              >
-                <option value="TQS">TQS (Estrutura: Aço, Concreto, Fôrmas)</option>
-                <option value="REVIT">Revit (Arquitetura: Alvenaria, Esquadrias, Acabamentos)</option>
-              </select>
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                className="text-xs text-slate-700 dark:text-zinc-300"
-              />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                2. Upload por Disciplina de Engenharia (PDF / HTML TQS & Revit)
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                Arraste ou selecione múltiplos arquivos `.pdf`, `.html` ou `.htm` (ex.: `RESDES.HTM` do TQS ou Schedules HTML/PDF do Revit).
+              </p>
             </div>
-            <button
-              type="submit"
-              disabled={busy === "upload" || !uploadFile}
-              className="h-9 rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white disabled:opacity-50 cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
-            >
-              {busy === "upload" ? "Enviando..." : "Enviar PDF para Fila da EAP"}
-            </button>
-          </form>
+            {(() => {
+              const totalCarbon = sources.reduce(
+                (acc, s) => acc + (s.extractedSummaryJson?.carbonKgCo2 || 0),
+                0
+              );
+              return totalCarbon > 0 ? (
+                <Badge tone="green">Carbono Embutido: {totalCarbon.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kgCO2</Badge>
+              ) : null;
+            })()}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {DISCIPLINE_UPLOAD_CARDS.map((card) => {
+              const discFiles = sources.filter(
+                (s) => s.discipline === card.code || (card.code === "ARQUITETONICO" && s.discipline === "ARQUITETURA")
+              );
+              const isUploading = busy === `upload-${card.code}`;
+              const isDrag = dragDiscipline === card.code;
+
+              return (
+                <label
+                  key={card.code}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragDiscipline(card.code);
+                  }}
+                  onDragLeave={() => setDragDiscipline(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragDiscipline(null);
+                    void handleDisciplineUpload(card.code, card.defaultSoftware, e.dataTransfer.files);
+                  }}
+                  className={`flex flex-col justify-between rounded-2xl border-2 border-dashed p-3.5 transition cursor-pointer ${
+                    isDrag
+                      ? "border-blue-500 bg-blue-50/70 dark:border-amber-400 dark:bg-amber-950/20"
+                      : "border-slate-200 bg-slate-50/60 hover:border-slate-400 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                        {card.title}
+                      </span>
+                      <Badge tone={discFiles.length > 0 ? "green" : "neutral"}>
+                        {isUploading ? "Enviando..." : `${discFiles.length} arq.`}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">
+                      {card.hint}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-200/80 pt-2 text-[10px] font-semibold text-slate-700 dark:border-zinc-800 dark:text-zinc-300">
+                    <span>Padrão: {card.defaultSoftware}</span>
+                    <span className="text-blue-700 dark:text-amber-400">+ PDF / HTML</span>
+                  </div>
+
+                  <input
+                    type="file"
+                    accept=".pdf,.html,.htm,application/pdf,text/html"
+                    multiple
+                    disabled={isUploading}
+                    onChange={(e) => {
+                      void handleDisciplineUpload(card.code, card.defaultSoftware, e.target.files);
+                      e.target.value = "";
+                    }}
+                    className="sr-only"
+                  />
+                </label>
+              );
+            })}
+          </div>
         </Card>
       </div>
 
@@ -592,8 +739,20 @@ export function EapProjectHub({
                   </td>
                   <td className="px-3 py-2">
                     <div className="font-semibold">{src.fileName}</div>
-                    <div className="text-[10px] text-slate-500 dark:text-zinc-400">
-                      {src.discipline} · {src.revisionLabel}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500 dark:text-zinc-400">
+                      <span>{src.discipline} · {src.revisionLabel}</span>
+                      {typeof src.extractedSummaryJson?.carbonKgCo2 === "number" &&
+                        src.extractedSummaryJson.carbonKgCo2 > 0 && (
+                          <Badge tone="green">
+                            {src.extractedSummaryJson.carbonKgCo2.toLocaleString("pt-BR", {
+                              maximumFractionDigits: 0,
+                            })}{" "}
+                            kgCO2
+                          </Badge>
+                        )}
+                      {src.extractedSummaryJson?.zeroSteelAlert && (
+                        <Badge tone="amber">Aço principal 0 kg</Badge>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2">
@@ -697,6 +856,35 @@ export function EapProjectHub({
               {allFlaggedItems.length} alerta(s) dimensional(is) · {populatedStages.length} etapa(s) pré-preenchida(s)
             </p>
           </div>
+
+          {sources
+            .filter((s) => s.includedInMining && s.extractedSummaryJson?.zeroSteelAlert)
+            .map((s) => {
+              const zAlert = s.extractedSummaryJson!.zeroSteelAlert!;
+              return (
+                <div
+                  key={`zero-steel-${s.id}`}
+                  className="rounded-2xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs dark:border-amber-800 dark:bg-amber-950/30"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-bold text-amber-950 dark:text-amber-200">
+                      Alerta Estrutural ({s.fileName}) — Aço Principal Zerado
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy === "prelim-steel"}
+                      onClick={() => handleApplyPreliminarySteel(zAlert.suggestedKg, zAlert.concreteM3)}
+                      className="h-8 rounded-xl bg-amber-600 px-3 text-[11px] font-bold text-white hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      {busy === "prelim-steel"
+                        ? "Aplicando..."
+                        : `Aplicar Estimativa Preliminar (85 kg/m³ · ${zAlert.suggestedKg.toFixed(0)} kg)`}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-amber-900 dark:text-amber-300">{zAlert.message}</p>
+                </div>
+              );
+            })}
 
           {allFlaggedItems.length > 0 && (
             <div className="space-y-2">

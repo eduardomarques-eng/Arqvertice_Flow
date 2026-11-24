@@ -1,4 +1,5 @@
 import type { ExtractedPdfPage } from "../pdf-reader";
+import { extractHtmlTables, stripHtmlTags } from "./tqs-html-parser";
 import {
   createEmptyZones,
   detectZoneFromText,
@@ -219,9 +220,29 @@ const REVIT_RULES: RevitRule[] = [
     isStructural: false,
     labelPrefix: "Pintura Interna PVA/Acrílica",
   },
-  // Instalações & Louças
+  // Instalações Elétricas (Etapa 08)
   {
-    regex: /\b(ponto(?:s)?\s+el[ée]trico(?:s)?|tomada(?:s)?\s+e\s+interruptor)\b.*?(\d[\d.,]*)\s*(?:unid|un|pt|pontos?)\b/i,
+    regex: /\b(quadro\s+de\s+distribui[çc][ãa]o|qdc|qgbt|disjuntor(?:es)?)\b.*?(\d[\d.,]*)\s*(?:unid|un|p[çc])\b/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "08",
+    unit: "unid",
+    materialHintCode: "INST-PTO-ELET",
+    laborHintCode: "MO-ELETRICISTA",
+    isStructural: false,
+    labelPrefix: "Quadro / Disjuntor Elétrico",
+  },
+  {
+    regex: /\b(eletroduto(?:s)?|condu[íi]te(?:s)?|cabo(?:s)?\s+flex[íi]vel|fio(?:s)?\s+\d)\b.*?(\d[\d.,]*)\s*(?:m|ml)(?![a-zA-Z0-9²³])/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "08",
+    unit: "m",
+    materialHintCode: "INST-PTO-ELET",
+    laborHintCode: "MO-ELETRICISTA",
+    isStructural: false,
+    labelPrefix: "Eletroduto / Cabeamento Elétrico",
+  },
+  {
+    regex: /\b(ponto(?:s)?\s+el[ée]trico(?:s)?|tomada(?:s)?(?:\s+e\s+interruptor)?|interruptor(?:es)?)\b.*?(\d[\d.,]*)\s*(?:unid|un|pt|pontos?)\b/i,
     rawCategory: "INSTALACOES",
     eapStageCode: "08",
     unit: "unid",
@@ -239,6 +260,69 @@ const REVIT_RULES: RevitRule[] = [
     laborHintCode: "MO-ELETRICISTA",
     isStructural: false,
     labelPrefix: "Pontos Luminotécnicos",
+  },
+  // Hidrossanitário — Abastecimento Água Fria/Quente (Etapa 09)
+  {
+    regex: /\b(reservat[óo]rio|caixa\s*d['’]?\s*[áa]gua|bomba\s+recalque|pressurizador|registro\s+(?:de\s+)?(?:gaveta|press[ãa]o))\b.*?(\d[\d.,]*)\s*(?:unid|un|p[çc])\b/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "09",
+    unit: "unid",
+    materialHintCode: "INST-PTO-HIDRO",
+    laborHintCode: "MO-ENCANADOR",
+    isStructural: false,
+    labelPrefix: "Abastecimento — Equipamento / Registro",
+  },
+  {
+    regex: /\b(tubo(?:s|la[çc][ãa]o)?\s+(?:[áa]gua\s+fria|[áa]gua\s+quente|pvc\s+sold[áa]vel|ppr|cpvc)|[áa]gua\s+fria|[áa]gua\s+quente)\b.*?(\d[\d.,]*)\s*(?:m|ml)(?![a-zA-Z0-9²³])/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "09",
+    unit: "m",
+    materialHintCode: "INST-PTO-HIDRO",
+    laborHintCode: "MO-ENCANADOR",
+    isStructural: false,
+    labelPrefix: "Abastecimento — Tubulação AF/AQ",
+  },
+  // Hidrossanitário — Esgotamento Sanitário (Etapa 09)
+  {
+    regex: /\b(caixa\s+(?:sifonada|de\s+gordura|de\s+inspe[çc][ãa]o)|fossa\s+s[ée]ptica|sumidouro)\b.*?(\d[\d.,]*)\s*(?:unid|un|p[çc])\b/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "09",
+    unit: "unid",
+    materialHintCode: "INST-PTO-HIDRO",
+    laborHintCode: "MO-ENCANADOR",
+    isStructural: false,
+    labelPrefix: "Esgotamento — Caixa / Tratamento",
+  },
+  {
+    regex: /\b(tubo(?:s|la[çc][ãa]o)?\s+(?:de\s+)?esgoto|pvc\s+esgoto|ventila[çc][ãa]o\s+sanit[áa]ria)\b.*?(\d[\d.,]*)\s*(?:m|ml)(?![a-zA-Z0-9²³])/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "09",
+    unit: "m",
+    materialHintCode: "INST-PTO-HIDRO",
+    laborHintCode: "MO-ENCANADOR",
+    isStructural: false,
+    labelPrefix: "Esgotamento — Tubulação PVC Esgoto",
+  },
+  // Hidrossanitário — Drenagem Pluvial (Etapa 09)
+  {
+    regex: /\b(calha(?:s)?|condutor(?:es)?\s+pluv|dreno(?:s)?|tubo(?:s)?\s+pluvial)\b.*?(\d[\d.,]*)\s*(?:m|ml)(?![a-zA-Z0-9²³])/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "09",
+    unit: "m",
+    materialHintCode: "INST-PTO-HIDRO",
+    laborHintCode: "MO-ENCANADOR",
+    isStructural: false,
+    labelPrefix: "Drenagem Pluvial — Calha / Condutor",
+  },
+  {
+    regex: /\b(caixa\s+(?:de\s+areia|de\s+passagem)|grelha(?:s)?\s+pluv|ralo\s+pluvial)\b.*?(\d[\d.,]*)\s*(?:unid|un|p[çc])\b/i,
+    rawCategory: "INSTALACOES",
+    eapStageCode: "09",
+    unit: "unid",
+    materialHintCode: "INST-PTO-HIDRO",
+    laborHintCode: "MO-ENCANADOR",
+    isStructural: false,
+    labelPrefix: "Drenagem Pluvial — Caixa / Grelha",
   },
   {
     regex: /\b(ponto(?:s)?\s+hidr[áa]ulico(?:s)?|hidrossanit[áa]rio)\b.*?(\d[\d.,]*)\s*(?:unid|un|pt|pontos?)\b/i,
@@ -340,4 +424,34 @@ export function parseRevitPages(
     pagesAnalyzed: pages.length,
     notes,
   };
+}
+
+/**
+ * Parser para Schedules HTML/HTM exportados do Revit (Arquitetura, Elétrico e Hidrossanitário).
+ */
+export function parseRevitHtml(
+  html: string,
+  options?: { discipline?: string; sourceFileId?: string | null }
+): ParsedDocumentResult {
+  const tables = extractHtmlTables(html);
+  const lines: string[] = [];
+
+  for (const table of tables) {
+    for (const row of table) {
+      const joined = row.filter(Boolean).join(" — ").trim();
+      if (joined) lines.push(joined);
+    }
+  }
+
+  if (lines.length === 0) {
+    lines.push(stripHtmlTags(html));
+  }
+
+  const headerContext = options?.discipline ? `Disciplina: ${options.discipline}\n` : "";
+  const pages: ExtractedPdfPage[] = [{ pageNumber: 1, text: `${headerContext}${lines.join("\n")}` }];
+  const parsed = parseRevitPages(pages, options?.sourceFileId);
+  if (options?.discipline) {
+    parsed.notes.push(`Schedule HTML Revit processado na disciplina ${options.discipline}.`);
+  }
+  return parsed;
 }

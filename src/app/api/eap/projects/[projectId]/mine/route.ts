@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
-import { readPdfFromSource } from "@/server/eap/pdf-reader";
+import { computeSha256, extractPdfFromBuffer, readRawBufferFromSource } from "@/server/eap/pdf-reader";
 import { parseTqsPages } from "@/server/eap/parsers/tqs-parser";
-import { parseRevitPages } from "@/server/eap/parsers/revit-parser";
-import type { MinedEapCandidate } from "@/server/eap/parsers/types";
+import { parseTqsHtml } from "@/server/eap/parsers/tqs-html-parser";
+import { parseRevitHtml, parseRevitPages } from "@/server/eap/parsers/revit-parser";
+import type { MinedEapCandidate, ZeroSteelAlert } from "@/server/eap/parsers/types";
 import { reconcileMinedCandidates } from "@/server/eap/reconciler";
 
 export const dynamic = "force-dynamic";
@@ -73,18 +74,51 @@ export async function POST(
 
     const allCandidates: MinedEapCandidate[] = [];
     let hasTqsSource = false;
+    let totalCarbonKgCo2: number | null = null;
+    let zeroSteelAlert: ZeroSteelAlert | null = null;
     const processedFiles: Array<{ id: string; status: string; count: number; error?: string }> = [];
 
     for (const src of eap.sourceFiles) {
       try {
-        const pdf = await readPdfFromSource({ storageKey: src.storageKey || null, url: src.url || null });
-        const parsed =
-          src.sourceSoftware === "TQS"
-            ? parseTqsPages(pdf.pages, src.id)
-            : parseRevitPages(pdf.pages, src.id);
+        const rawBytes = await readRawBufferFromSource({ storageKey: src.storageKey || null, url: src.url || null });
+        const sha256 = computeSha256(rawBytes);
+        const lowerName = src.fileName.toLowerCase();
+        const headText = rawBytes.subarray(0, 512).toString("utf8").trim().toLowerCase();
+        const isHtml =
+          lowerName.endsWith(".html") ||
+          lowerName.endsWith(".htm") ||
+          headText.startsWith("<!doctype") ||
+          headText.startsWith("<html") ||
+          headText.includes("<table");
 
-        if (src.sourceSoftware === "TQS") {
+        const isTqs = src.sourceSoftware === "TQS" || src.discipline === "ESTRUTURAL";
+        let numPages = 1;
+        let parsed;
+
+        if (isHtml) {
+          const htmlText = rawBytes.toString("latin1").includes("Ã")
+            ? rawBytes.toString("utf8")
+            : rawBytes.toString("utf8").includes("\uFFFD")
+              ? rawBytes.toString("latin1")
+              : rawBytes.toString("utf8");
+          parsed = isTqs
+            ? parseTqsHtml(htmlText, src.id)
+            : parseRevitHtml(htmlText, { discipline: src.discipline, sourceFileId: src.id });
+          numPages = parsed.pagesAnalyzed;
+        } else {
+          const pdf = await extractPdfFromBuffer(rawBytes);
+          numPages = pdf.numPages;
+          parsed = isTqs ? parseTqsPages(pdf.pages, src.id) : parseRevitPages(pdf.pages, src.id);
+        }
+
+        if (isTqs) {
           hasTqsSource = true;
+        }
+        if (typeof parsed.carbonKgCo2 === "number" && parsed.carbonKgCo2 > 0) {
+          totalCarbonKgCo2 = (totalCarbonKgCo2 ?? 0) + parsed.carbonKgCo2;
+        }
+        if (parsed.zeroSteelAlert) {
+          zeroSteelAlert = parsed.zeroSteelAlert;
         }
 
         allCandidates.push(...parsed.candidates);
@@ -93,17 +127,22 @@ export async function POST(
           data: {
             status: "PROCESSADO",
             processedAt: new Date(),
-            extractedSummaryJson: {
-              sha256: pdf.sha256,
-              numPages: pdf.numPages,
-              extractedItems: parsed.candidates.length,
-              notes: parsed.notes,
-            },
+            extractedSummaryJson: JSON.parse(
+              JSON.stringify({
+                sha256,
+                numPages,
+                extractedItems: parsed.candidates.length,
+                notes: parsed.notes,
+                carbonKgCo2: parsed.carbonKgCo2 ?? null,
+                zeroSteelAlert: parsed.zeroSteelAlert ?? null,
+                detectedAreaM2: parsed.detectedAreaM2 ?? null,
+              }),
+            ),
           },
         });
         processedFiles.push({ id: src.id, status: "PROCESSADO", count: parsed.candidates.length });
       } catch (fileErr) {
-        const message = fileErr instanceof Error ? fileErr.message : "Erro ao processar PDF";
+        const message = fileErr instanceof Error ? fileErr.message : "Erro ao processar arquivo";
         await prisma.eapSourceFile.update({
           where: { id: src.id },
           data: {
@@ -208,6 +247,8 @@ export async function POST(
         conflictsCount: reconciled.conflicts.length,
         sanityWarnings: reconciled.sanityWarnings,
         steelRateKgPerM3: reconciled.steelRateKgPerM3,
+        carbonKgCo2: totalCarbonKgCo2,
+        zeroSteelAlert,
       },
       { headers: { "Cache-Control": "no-store" } }
     );

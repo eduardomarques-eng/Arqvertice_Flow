@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type {
@@ -158,6 +158,9 @@ export function EapConferenceWorkbench({
     return true;
   }
 
+  const [viewMode, setViewMode] = useState<"EXECUTIVE" | "DETAILED">("EXECUTIVE");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+
   function updateLocalItem(itemId: string, updater: (item: ComputedEapItemDTO) => ComputedEapItemDTO) {
     setTree((prev) => {
       if (!prev) return prev;
@@ -229,7 +232,8 @@ export function EapConferenceWorkbench({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           stageCode: newItem.stageCode,
-          newGroupName: newItem.newGroupName.trim() || undefined,
+          groupId: selectedGroupId || undefined,
+          newGroupName: selectedGroupId ? undefined : newItem.newGroupName.trim() || undefined,
           materialCatalogId: newItem.materialCatalogId || null,
           code: newItem.code.trim() || null,
           description: newItem.description.trim(),
@@ -255,6 +259,7 @@ export function EapConferenceWorkbench({
         return;
       }
       setShowAddModal(false);
+      setSelectedGroupId(null);
       setExpandedStages((prev) => ({ ...prev, [newItem.stageCode]: true }));
       setFeedback({ type: "success", text: "Novo item adicionado à planilha EAP." });
       await loadTree();
@@ -464,6 +469,30 @@ export function EapConferenceWorkbench({
                 Aplicar
               </button>
             </div>
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-900">
+              <button
+                type="button"
+                onClick={() => setViewMode("EXECUTIVE")}
+                className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold cursor-pointer ${
+                  viewMode === "EXECUTIVE"
+                    ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "text-slate-600 dark:text-zinc-300"
+                }`}
+              >
+                Planilha Executiva
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("DETAILED")}
+                className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold cursor-pointer ${
+                  viewMode === "DETAILED"
+                    ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "text-slate-600 dark:text-zinc-300"
+                }`}
+              >
+                Composição Interna
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => toggleAllStages(true)}
@@ -480,7 +509,10 @@ export function EapConferenceWorkbench({
             </button>
             <button
               type="button"
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                setSelectedGroupId(null);
+                setShowAddModal(true);
+              }}
               className="h-8 rounded-xl bg-slate-900 px-3 text-[11px] font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
             >
               + Adicionar Item / Material
@@ -517,265 +549,315 @@ export function EapConferenceWorkbench({
         )}
       </Card>
 
-      {/* Planilha Hierárquica (26 Macro-Etapas) */}
-      <div className="space-y-2.5">
-        {tree.stages.map((stage) => {
-          const isOpen = Boolean(expandedStages[stage.code]);
-          const stageFilteredItems = stage.groups.flatMap((g) => g.items.filter(matchesFilter));
-          if ((search || filter !== "ALL") && stageFilteredItems.length === 0) return null;
+      {/* Planilha Executiva Hierárquica (CUSTO_AC — 3 Níveis + Cabeçalho Sticky Corporativo) */}
+      <Card className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white dark:border-zinc-800 dark:bg-[#16161D]">
+        <div className="max-h-[760px] overflow-auto">
+          <table className="w-full border-collapse text-left text-[11px]">
+            <thead className="sticky top-0 z-20 bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm dark:bg-zinc-950">
+              <tr>
+                <th className="px-2.5 py-3 whitespace-nowrap">Item</th>
+                <th className="px-2 py-3 whitespace-nowrap">Código</th>
+                <th className="px-3 py-3 min-w-[260px]">Discriminação dos Serviços</th>
+                <th className="px-1.5 py-3 text-center whitespace-nowrap">Unid</th>
+                <th className="px-1.5 py-3 text-right whitespace-nowrap">Qtd. Térreo</th>
+                <th className="px-1.5 py-3 text-right whitespace-nowrap">Qtd. Superior</th>
+                <th className="px-1.5 py-3 text-right whitespace-nowrap">Qtd. Coberta</th>
+                <th className="px-1.5 py-3 text-right whitespace-nowrap">Qtd. Externo</th>
+                {viewMode === "DETAILED" && (
+                  <>
+                    <th className="px-1.5 py-3 text-right whitespace-nowrap">Perda%</th>
+                    <th className="px-1.5 py-3 text-right whitespace-nowrap">Mat R$</th>
+                    <th className="px-1.5 py-3 text-right whitespace-nowrap">MO R$</th>
+                    <th className="px-1.5 py-3 text-right whitespace-nowrap">Terc R$</th>
+                    <th className="px-1.5 py-3 text-right whitespace-nowrap">M.Up</th>
+                    <th className="px-1.5 py-3 text-right whitespace-nowrap">Eq.</th>
+                  </>
+                )}
+                <th className="px-2 py-3 text-right whitespace-nowrap">Qtd. Total</th>
+                <th className="px-2 py-3 text-right whitespace-nowrap">Pr. Unitário</th>
+                <th className="px-2.5 py-3 text-right whitespace-nowrap">Pr. Total</th>
+                <th className="px-2 py-3 text-right whitespace-nowrap">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
+              {tree.stages.map((stage) => {
+                const isOpen = Boolean(expandedStages[stage.code]);
+                const stageFilteredItems = stage.groups.flatMap((g) => g.items.filter(matchesFilter));
+                if ((search || filter !== "ALL") && stageFilteredItems.length === 0) return null;
+                const totalCols = viewMode === "DETAILED" ? 18 : 12;
 
-          return (
-            <Card
-              key={stage.id}
-              className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white dark:border-zinc-800 dark:bg-[#16161D]"
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setExpandedStages((prev) => ({ ...prev, [stage.code]: !prev[stage.code] }))
-                }
-                className="flex w-full flex-wrap items-center justify-between gap-3 bg-slate-50/90 px-4 py-3 text-left hover:bg-slate-100/80 cursor-pointer dark:bg-zinc-900/80 dark:hover:bg-zinc-900"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="font-mono text-xs text-slate-400">{isOpen ? "▼" : "▶"}</span>
-                  <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-bold text-white dark:bg-amber-500 dark:text-zinc-950">
-                    {stage.code}
-                  </span>
-                  <span className="text-xs font-bold text-slate-950 dark:text-zinc-100">{stage.name}</span>
-                  <Badge tone="neutral">{stage.itemsCount} item(ns)</Badge>
-                </div>
+                return (
+                  <Fragment key={stage.id}>
+                    {/* Nível 1: Macro-Etapa */}
+                    <tr
+                      onClick={() =>
+                        setExpandedStages((prev) => ({ ...prev, [stage.code]: !prev[stage.code] }))
+                      }
+                      className="cursor-pointer bg-slate-100/95 hover:bg-slate-200/70 dark:bg-zinc-900 dark:hover:bg-zinc-800/90"
+                    >
+                      <td className="px-2.5 py-2.5 font-mono font-bold text-slate-950 dark:text-amber-400">
+                        {isOpen ? "▼" : "▶"} {stage.code}
+                      </td>
+                      <td className="px-2 py-2.5 font-mono text-[10px] text-slate-500">ETAPA</td>
+                      <td colSpan={totalCols - 4} className="px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-950 dark:text-zinc-100">
+                            {stage.name}
+                          </span>
+                          <Badge tone="neutral">{stage.itemsCount} item(ns)</Badge>
+                          <span className="font-mono text-[10px] font-semibold text-blue-700 dark:text-amber-400">
+                            {stage.weightPercent.toFixed(1)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td colSpan={2} className="px-2.5 py-2.5 text-right font-mono text-xs font-extrabold tabular-nums text-slate-950 dark:text-zinc-100 whitespace-nowrap">
+                        {fmtBRL(stage.totalCommercialPrice)}
+                      </td>
+                    </tr>
 
-                <div className="flex items-center gap-4">
-                  <div className="hidden sm:flex items-center gap-2 w-28">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-800">
-                      <div
-                        style={{ width: `${Math.min(100, stage.weightPercent)}%` }}
-                        className="h-full bg-blue-600 dark:bg-amber-500"
-                      />
-                    </div>
-                    <span className="font-mono text-[11px] tabular-nums text-slate-600 dark:text-zinc-400">
-                      {stage.weightPercent.toFixed(1)}%
-                    </span>
-                  </div>
-                  <span className="font-mono text-xs font-bold tabular-nums text-slate-950 dark:text-zinc-100">
-                    {fmtBRL(stage.totalCommercialPrice)}
-                  </span>
-                </div>
-              </button>
+                    {/* Nível 2 & 3: Subgrupos e Serviços */}
+                    {isOpen &&
+                      stage.groups.map((group) => {
+                        const groupItems = group.items.filter(matchesFilter);
+                        if ((search || filter !== "ALL") && groupItems.length === 0) return null;
 
-              {isOpen && (
-                <div className="overflow-x-auto border-t border-slate-200 dark:border-zinc-800">
-                  <table className="w-full text-left text-[11px]">
-                    <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-zinc-950 dark:text-zinc-400">
-                      <tr>
-                        <th className="px-3 py-2 min-w-[230px]">Serviço / Rastreabilidade</th>
-                        <th className="px-1.5 py-2">Un.</th>
-                        <th className="px-1.5 py-2 text-right">Térreo</th>
-                        <th className="px-1.5 py-2 text-right">Sup.</th>
-                        <th className="px-1.5 py-2 text-right">Cob.</th>
-                        <th className="px-1.5 py-2 text-right">Ext.</th>
-                        <th className="px-1.5 py-2 text-right">Perda%</th>
-                        <th className="px-1.5 py-2 text-right">Qtd c/P</th>
-                        <th className="px-1.5 py-2 text-right">Mat R$</th>
-                        <th className="px-1.5 py-2 text-right">MO R$</th>
-                        <th className="px-1.5 py-2 text-right">Terc R$</th>
-                        <th className="px-1.5 py-2 text-right">M.Up</th>
-                        <th className="px-1.5 py-2 text-right">Eq.</th>
-                        <th className="px-2 py-2 text-right">Total Com.</th>
-                        <th className="px-2 py-2 text-right">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                      {stage.groups.flatMap((group) =>
-                        group.items.filter(matchesFilter).map((item) => (
-                          <tr
-                            key={item.id}
-                            className={`text-slate-800 dark:text-zinc-200 ${
-                              item.sanityFlag ? "bg-rose-50/60 dark:bg-rose-950/20" : ""
-                            }`}
-                          >
-                            <td className="px-3 py-2">
-                              <div className="font-semibold text-slate-900 dark:text-zinc-100">
-                                {item.description}
-                              </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-1">
-                                <Badge tone="neutral">
-                                  {item.sourceSoftware}
-                                  {item.sourcePage ? ` p.${item.sourcePage}` : ""}
-                                </Badge>
-                                {item.revisionTag !== "ORIGINAL" && (
-                                  <Badge
-                                    tone={
-                                      item.revisionTag === "ADICIONADO"
-                                        ? "green"
-                                        : item.revisionTag === "QUANTIDADE_ALTERADA"
-                                          ? "blue"
-                                          : "amber"
-                                    }
-                                  >
-                                    {item.revisionTag}
-                                  </Badge>
-                                )}
-                                {item.sanityFlag && (
+                        return (
+                          <Fragment key={group.id}>
+                            <tr className="bg-slate-50/90 dark:bg-zinc-950/60">
+                              <td className="px-2.5 py-1.5 pl-4 font-mono text-[11px] font-bold text-slate-700 dark:text-zinc-300">
+                                {group.code}
+                              </td>
+                              <td className="px-2 py-1.5 font-mono text-[10px] text-slate-400">—</td>
+                              <td colSpan={totalCols - 4} className="px-3 py-1.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="font-bold text-slate-800 dark:text-zinc-200">
+                                    {group.name}
+                                  </span>
                                   <button
                                     type="button"
-                                    onClick={() => saveInlineItem(item, { clearSanityFlag: true })}
-                                    title={item.sanityFlag}
-                                    className="rounded-md bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white cursor-pointer"
+                                    onClick={() => {
+                                      setSelectedGroupId(group.id);
+                                      setNewItem((prev) => ({
+                                        ...prev,
+                                        stageCode: stage.code,
+                                        newGroupName: "",
+                                      }));
+                                      setShowAddModal(true);
+                                    }}
+                                    className="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
                                   >
-                                    ⚠ Confirmar Valor
+                                    + Adicionar Serviço
                                   </button>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-1.5 py-2 font-mono">{item.unit}</td>
-                            {(["FUND_TERREO", "PAV_SUPERIOR", "COBERTURA", "EXTERNO"] as const).map((zKey) => (
-                              <td key={zKey} className="px-1 py-1.5 text-right">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={item.zoneQuantities[zKey]}
-                                  onChange={(e) =>
-                                    updateLocalItem(item.id, (curr) => ({
-                                      ...curr,
-                                      zoneQuantities: {
-                                        ...curr.zoneQuantities,
-                                        [zKey]: Number(e.target.value),
-                                      },
-                                    }))
-                                  }
-                                  className={INPUT_NUM}
-                                />
+                                </div>
                               </td>
+                              <td colSpan={2} className="px-2.5 py-1.5 text-right font-mono text-[11px] font-bold tabular-nums text-slate-700 dark:text-zinc-300 whitespace-nowrap">
+                                {fmtBRL(group.totalCommercialPrice)}
+                              </td>
+                            </tr>
+
+                            {groupItems.map((item, itemIdx) => (
+                              <tr
+                                key={item.id}
+                                className={`text-slate-800 hover:bg-slate-50/70 dark:text-zinc-200 dark:hover:bg-zinc-900/40 ${
+                                  item.sanityFlag ? "bg-rose-50/60 dark:bg-rose-950/20" : ""
+                                }`}
+                              >
+                                <td className="px-2.5 py-2 pl-6 font-mono text-[10px] text-slate-500 whitespace-nowrap">
+                                  {group.code}.{itemIdx + 1}
+                                </td>
+                                <td className="px-2 py-2 font-mono text-[10px] text-slate-600 dark:text-zinc-400 whitespace-nowrap">
+                                  {item.code || "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="font-semibold text-slate-900 dark:text-zinc-100">
+                                    {item.description}
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                                    <Badge tone="neutral">
+                                      {item.sourceSoftware}
+                                      {item.sourcePage ? ` p.${item.sourcePage}` : ""}
+                                    </Badge>
+                                    {item.revisionTag !== "ORIGINAL" && (
+                                      <Badge
+                                        tone={
+                                          item.revisionTag === "ADICIONADO"
+                                            ? "green"
+                                            : item.revisionTag === "QUANTIDADE_ALTERADA"
+                                              ? "blue"
+                                              : "amber"
+                                        }
+                                      >
+                                        {item.revisionTag}
+                                      </Badge>
+                                    )}
+                                    {item.sanityFlag && (
+                                      <button
+                                        type="button"
+                                        onClick={() => saveInlineItem(item, { clearSanityFlag: true })}
+                                        title={item.sanityFlag}
+                                        className="rounded-md bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white cursor-pointer"
+                                      >
+                                        ⚠ Confirmar Valor
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-1.5 py-2 text-center font-mono">{item.unit}</td>
+                                {(["FUND_TERREO", "PAV_SUPERIOR", "COBERTURA", "EXTERNO"] as const).map((zKey) => (
+                                  <td key={zKey} className="px-1 py-1.5 text-right">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={item.zoneQuantities[zKey]}
+                                      onChange={(e) =>
+                                        updateLocalItem(item.id, (curr) => ({
+                                          ...curr,
+                                          zoneQuantities: {
+                                            ...curr.zoneQuantities,
+                                            [zKey]: Number(e.target.value),
+                                          },
+                                        }))
+                                      }
+                                      className={INPUT_NUM}
+                                    />
+                                  </td>
+                                ))}
+                                {viewMode === "DETAILED" && (
+                                  <>
+                                    <td className="px-1 py-1.5 text-right">
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        value={item.lossPercent}
+                                        onChange={(e) =>
+                                          updateLocalItem(item.id, (curr) => ({
+                                            ...curr,
+                                            lossPercent: Number(e.target.value),
+                                          }))
+                                        }
+                                        className={`${INPUT_NUM} w-12`}
+                                      />
+                                    </td>
+                                    <td className="px-1 py-1.5 text-right">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={item.materialUnitCost}
+                                        onChange={(e) =>
+                                          updateLocalItem(item.id, (curr) => ({
+                                            ...curr,
+                                            materialUnitCost: Number(e.target.value),
+                                          }))
+                                        }
+                                        className={INPUT_NUM}
+                                      />
+                                    </td>
+                                    <td className="px-1 py-1.5 text-right">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={item.laborUnitCost}
+                                        onChange={(e) =>
+                                          updateLocalItem(item.id, (curr) => ({
+                                            ...curr,
+                                            laborUnitCost: Number(e.target.value),
+                                          }))
+                                        }
+                                        className={INPUT_NUM}
+                                      />
+                                    </td>
+                                    <td className="px-1 py-1.5 text-right">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={item.thirdPartyUnitCost}
+                                        onChange={(e) =>
+                                          updateLocalItem(item.id, (curr) => ({
+                                            ...curr,
+                                            thirdPartyUnitCost: Number(e.target.value),
+                                          }))
+                                        }
+                                        className={INPUT_NUM}
+                                      />
+                                    </td>
+                                    <td className="px-1 py-1.5 text-right">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={item.markupMultiplier}
+                                        onChange={(e) =>
+                                          updateLocalItem(item.id, (curr) => ({
+                                            ...curr,
+                                            markupMultiplier: Number(e.target.value),
+                                          }))
+                                        }
+                                        className={`${INPUT_NUM} w-14`}
+                                      />
+                                    </td>
+                                    <td className="px-1 py-1.5 text-right">
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={item.teamsCount}
+                                        onChange={(e) =>
+                                          updateLocalItem(item.id, (curr) => ({
+                                            ...curr,
+                                            teamsCount: Math.max(1, Number(e.target.value)),
+                                          }))
+                                        }
+                                        className={`${INPUT_NUM} w-12`}
+                                      />
+                                    </td>
+                                  </>
+                                )}
+                                <td className="px-2 py-2 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
+                                  {item.totalQtyWithLoss.toFixed(2)}
+                                </td>
+                                <td className="px-2 py-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-700 dark:text-zinc-300">
+                                  {fmtBRL(item.unitCommercialPrice)}
+                                </td>
+                                <td className="px-2.5 py-2 text-right font-mono font-bold tabular-nums whitespace-nowrap">
+                                  {fmtBRL(item.totalCommercialPrice)}
+                                </td>
+                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                  <div className="inline-flex gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => saveInlineItem(item)}
+                                      disabled={savingId === item.id}
+                                      className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
+                                    >
+                                      {savingId === item.id ? "..." : "Salvar"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteItem(item.id)}
+                                      disabled={savingId === item.id}
+                                      className="rounded-lg border border-rose-300 px-1.5 py-1 text-[10px] font-semibold text-rose-600 cursor-pointer"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
                             ))}
-                            <td className="px-1 py-1.5 text-right">
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={item.lossPercent}
-                                onChange={(e) =>
-                                  updateLocalItem(item.id, (curr) => ({
-                                    ...curr,
-                                    lossPercent: Number(e.target.value),
-                                  }))
-                                }
-                                className={`${INPUT_NUM} w-12`}
-                              />
-                            </td>
-                            <td className="px-1.5 py-2 text-right font-mono font-semibold tabular-nums">
-                              {item.totalQtyWithLoss.toFixed(2)}
-                            </td>
-                            <td className="px-1 py-1.5 text-right">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.materialUnitCost}
-                                onChange={(e) =>
-                                  updateLocalItem(item.id, (curr) => ({
-                                    ...curr,
-                                    materialUnitCost: Number(e.target.value),
-                                  }))
-                                }
-                                className={INPUT_NUM}
-                              />
-                            </td>
-                            <td className="px-1 py-1.5 text-right">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.laborUnitCost}
-                                onChange={(e) =>
-                                  updateLocalItem(item.id, (curr) => ({
-                                    ...curr,
-                                    laborUnitCost: Number(e.target.value),
-                                  }))
-                                }
-                                className={INPUT_NUM}
-                              />
-                            </td>
-                            <td className="px-1 py-1.5 text-right">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.thirdPartyUnitCost}
-                                onChange={(e) =>
-                                  updateLocalItem(item.id, (curr) => ({
-                                    ...curr,
-                                    thirdPartyUnitCost: Number(e.target.value),
-                                  }))
-                                }
-                                className={INPUT_NUM}
-                              />
-                            </td>
-                            <td className="px-1 py-1.5 text-right">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.markupMultiplier}
-                                onChange={(e) =>
-                                  updateLocalItem(item.id, (curr) => ({
-                                    ...curr,
-                                    markupMultiplier: Number(e.target.value),
-                                  }))
-                                }
-                                className={`${INPUT_NUM} w-14`}
-                              />
-                            </td>
-                            <td className="px-1 py-1.5 text-right">
-                              <input
-                                type="number"
-                                min={1}
-                                value={item.teamsCount}
-                                onChange={(e) =>
-                                  updateLocalItem(item.id, (curr) => ({
-                                    ...curr,
-                                    teamsCount: Math.max(1, Number(e.target.value)),
-                                  }))
-                                }
-                                className={`${INPUT_NUM} w-12`}
-                              />
-                            </td>
-                            <td className="px-2 py-2 text-right font-mono font-bold tabular-nums whitespace-nowrap">
-                              {fmtBRL(item.totalCommercialPrice)}
-                            </td>
-                            <td className="px-2 py-2 text-right whitespace-nowrap">
-                              <div className="inline-flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => saveInlineItem(item)}
-                                  disabled={savingId === item.id}
-                                  className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
-                                >
-                                  {savingId === item.id ? "..." : "Salvar"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => deleteItem(item.id)}
-                                  disabled={savingId === item.id}
-                                  className="rounded-lg border border-rose-300 px-1.5 py-1 text-[10px] font-semibold text-rose-600 cursor-pointer"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                      {stageFilteredItems.length === 0 && (
-                        <tr>
-                          <td colSpan={15} className="px-4 py-4 text-center text-slate-400">
-                            Nenhum item nesta etapa. Use &quot;+ Adicionar Item / Material&quot; para incluir.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          );
-        })}
-      </div>
+                          </Fragment>
+                        );
+                      })}
+                    {isOpen && stageFilteredItems.length === 0 && (
+                      <tr>
+                        <td colSpan={totalCols} className="px-4 py-3 text-center text-slate-400">
+                          Nenhum serviço cadastrado nesta etapa. Use &quot;+ Adicionar Serviço&quot; ou &quot;+ Adicionar Item / Material&quot;.
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {/* Editor Colapsável de Premissas & Exclusões da Proposta */}
       <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">

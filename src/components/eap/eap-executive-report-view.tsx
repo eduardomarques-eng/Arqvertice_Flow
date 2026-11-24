@@ -258,40 +258,60 @@ export function EapExecutiveReportView({
               )}
             </div>
             <div className="rounded-2xl bg-white/5 p-3.5">
-              <p className="text-[10px] uppercase text-slate-400">Indicadores Estruturais</p>
+              <p className="text-[10px] uppercase text-slate-400">Indicadores Estruturais & Carbono</p>
               <p className="mt-1 font-mono text-xs font-bold tabular-nums">
                 Aço: {report.kpis.steelRateKgPerM3} kg/m³ · Conc: {report.kpis.concreteM3PerM2} m³/m²
               </p>
               <p className="text-[11px] text-slate-400 font-mono">
                 Alvenaria: {report.kpis.masonryM2PerM2} m²/m²
+                {(report.kpis as { embodiedCarbonKgCo2?: number }).embodiedCarbonKgCo2
+                  ? ` · ${(report.kpis as { embodiedCarbonKgCo2?: number }).embodiedCarbonKgCo2!.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kgCO2`
+                  : ""}
               </p>
             </div>
             <div className="rounded-2xl bg-white/5 p-3.5">
-              <p className="text-[10px] uppercase text-slate-400">Curva ABC (Pareto 80/20)</p>
-              <p className="mt-1 font-mono text-xs font-bold tabular-nums">
-                Classe A: {report.abcCurve.summaryByClass.A.itemsCount} itens (
-                {report.abcCurve.summaryByClass.A.sharePercent}%)
-              </p>
-              <p className="text-[11px] text-slate-400 font-mono">
-                B: {report.abcCurve.summaryByClass.B.itemsCount} · C:{" "}
-                {report.abcCurve.summaryByClass.C.itemsCount}
-              </p>
+              {typeof (report.kpis as { actualPhysicalPercent?: number }).actualPhysicalPercent === "number" ? (
+                <>
+                  <p className="text-[10px] uppercase text-slate-400">Andamento Físico (Real × Prev.)</p>
+                  <p className="mt-1 font-mono text-xs font-bold tabular-nums text-emerald-300">
+                    {(report.kpis as { actualPhysicalPercent?: number }).actualPhysicalPercent!.toFixed(1)}% real
+                    {" · "}
+                    {((report.kpis as { plannedPhysicalPercent?: number }).plannedPhysicalPercent ?? 0).toFixed(1)}% prev.
+                  </p>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    SPI {((report.kpis as { spi?: number }).spi ?? 0).toFixed(2)} · CPI{" "}
+                    {((report.kpis as { cpi?: number }).cpi ?? 0).toFixed(2)}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px] uppercase text-slate-400">Curva ABC (Pareto 80/20)</p>
+                  <p className="mt-1 font-mono text-xs font-bold tabular-nums">
+                    Classe A: {report.abcCurve.summaryByClass.A.itemsCount} itens (
+                    {report.abcCurve.summaryByClass.A.sharePercent}%)
+                  </p>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    B: {report.abcCurve.summaryByClass.B.itemsCount} · C:{" "}
+                    {report.abcCurve.summaryByClass.C.itemsCount}
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </Card>
 
-        {/* BLOCO 2 — PAINEL GRÁFICO: MACRO-ETAPAS + CURVA ABC */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        {/* BLOCO 2 — PAINEL GRÁFICO: MACRO-ETAPAS + DONUT COMPOSIÇÃO + CURVA ABC */}
+        <div className="grid gap-6 lg:grid-cols-3">
           <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
             <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-              Distribuição por Macro-Etapa da EAP (Top 10)
+              Distribuição por Macro-Etapa (Top 10)
             </h3>
             <div className="mt-4 h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topStagesChart} layout="vertical" margin={{ left: 20 }}>
+                <BarChart data={topStagesChart} layout="vertical" margin={{ left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                   <XAxis type="number" tick={{ fontSize: 10 }} />
-                  <YAxis type="category" dataKey="name" width={135} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={125} tick={{ fontSize: 10 }} />
                   <Tooltip formatter={(val) => fmtBRL(Number(val) || 0)} />
                   <Bar dataKey="valor" name="Valor Comercial" fill="#2563eb" radius={[0, 6, 6, 0]} />
                 </BarChart>
@@ -299,10 +319,96 @@ export function EapExecutiveReportView({
             </div>
           </Card>
 
+          <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                Composição Financeira (Mat × MO × Terceiros)
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                Participação proporcional sobre o investimento total
+              </p>
+            </div>
+            {(() => {
+              const r = 44;
+              const circ = 2 * Math.PI * r;
+              const mat = report.kpis.materialSharePercent;
+              const lab = report.kpis.laborSharePercent;
+              const third = report.kpis.thirdPartySharePercent;
+              const matLen = (mat / 100) * circ;
+              const labLen = (lab / 100) * circ;
+              const thirdLen = (third / 100) * circ;
+              return (
+                <div className="my-4 flex flex-col items-center gap-4">
+                  <div className="relative h-40 w-40">
+                    <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+                      <circle cx="60" cy="60" r={r} fill="none" stroke="#e2e8f0" strokeWidth="18" />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r={r}
+                        fill="none"
+                        stroke="#2563eb"
+                        strokeWidth="18"
+                        strokeDasharray={`${matLen} ${circ}`}
+                        strokeDashoffset={0}
+                      />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r={r}
+                        fill="none"
+                        stroke="#10b981"
+                        strokeWidth="18"
+                        strokeDasharray={`${labLen} ${circ}`}
+                        strokeDashoffset={-matLen}
+                      />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r={r}
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="18"
+                        strokeDasharray={`${thirdLen} ${circ}`}
+                        strokeDashoffset={-(matLen + labLen)}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-[10px] font-semibold uppercase text-slate-500">Total</span>
+                      <span className="font-mono text-xs font-bold text-slate-900 dark:text-zinc-100">
+                        100%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-zinc-300">
+                        <span className="h-2.5 w-2.5 rounded-full bg-blue-600" /> Materiais & Insumos
+                      </span>
+                      <span className="font-mono font-bold">{mat.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-zinc-300">
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Mão de Obra
+                      </span>
+                      <span className="font-mono font-bold">{lab.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-zinc-300">
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Terceiros / Empreita
+                      </span>
+                      <span className="font-mono font-bold">{third.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </Card>
+
           <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-                Curva ABC de Insumos & Serviços (Pareto 80/20)
+                Curva ABC (Pareto 80/20)
               </h3>
               <div className="flex gap-1.5">
                 <Badge tone="red">A: {report.abcCurve.summaryByClass.A.sharePercent}%</Badge>
@@ -334,7 +440,7 @@ export function EapExecutiveReportView({
           </Card>
         </div>
 
-        {/* BLOCO 3 — CRONOGRAMA & DESEMBOLSO DO CLIENTE */}
+        {/* BLOCO 3 — CRONOGRAMA, DESEMBOLSO EMPILHADO & TIMELINE DE ONDAS */}
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
             <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
@@ -363,7 +469,7 @@ export function EapExecutiveReportView({
 
           <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
             <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-              Fluxo de Desembolso Mensal Previsto
+              Desembolso Mensal Empilhado (Mat × MO × Terc)
             </h3>
             <div className="mt-4 h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -372,12 +478,52 @@ export function EapExecutiveReportView({
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip formatter={(v) => fmtBRL(Number(v) || 0)} />
-                  <Bar dataKey="commercialCost" name="Desembolso Mês" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                  <Legend />
+                  <Bar dataKey="materialCost" stackId="cash" name="Material" fill="#2563eb" />
+                  <Bar dataKey="laborCost" stackId="cash" name="Mão de Obra" fill="#10b981" />
+                  <Bar dataKey="thirdPartyCost" stackId="cash" name="Terceiros" fill="#f59e0b" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
         </div>
+
+        {/* TIMELINE DE ONDAS CONSTRUTIVAS */}
+        {report.schedule.waves.length > 0 && (
+          <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-3">
+            <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+              Timeline Executiva por Ondas Construtivas
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {report.schedule.waves.map((w) => {
+                const pct = (w as { progressPercent?: number }).progressPercent ?? 0;
+                return (
+                  <div
+                    key={w.waveName}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/70"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-bold text-slate-900 dark:text-zinc-100">
+                        {w.waveName}
+                      </span>
+                      <Badge tone="neutral">{w.packagesCount} pct</Badge>
+                    </div>
+                    <p className="mt-1 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
+                      {w.startDate || "—"} → {w.endDate || "—"}
+                    </p>
+                    <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                      <span>{w.totalWorkingDays} d.u.</span>
+                      <span>{pct.toFixed(0)}%</span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-800">
+                      <div style={{ width: `${Math.min(100, pct)}%` }} className="h-full bg-emerald-500" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* BLOCO 4 — GALERIA DO PROJETO & PLANTAS DO ACERVO MANAGER */}
         {(report.acervoVisuals.technicalSheets.length > 0 ||
@@ -395,8 +541,15 @@ export function EapExecutiveReportView({
                     href={img.fileUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900"
+                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition hover:border-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-amber-400"
                   >
+                    <div className="aspect-video w-full overflow-hidden bg-slate-200 dark:bg-zinc-800">
+                      <img
+                        src={img.fileUrl}
+                        alt={img.title}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                      />
+                    </div>
                     <div className="p-3">
                       <p className="truncate text-xs font-bold text-slate-900 dark:text-zinc-100">
                         {img.title}

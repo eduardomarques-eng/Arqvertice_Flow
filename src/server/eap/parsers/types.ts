@@ -17,6 +17,14 @@ export interface MinedEapCandidate {
   isStructural: boolean;
   isDerived?: boolean;
   elementKey?: string;
+  sourceUnitPrice?: number | null;
+  sanityFlag?: string | null;
+}
+
+export interface ZeroSteelAlert {
+  concreteM3: number;
+  suggestedKg: number;
+  message: string;
 }
 
 export interface ParsedDocumentResult {
@@ -25,6 +33,8 @@ export interface ParsedDocumentResult {
   detectedAreaM2?: number | null;
   pagesAnalyzed: number;
   notes: string[];
+  carbonKgCo2?: number | null;
+  zeroSteelAlert?: ZeroSteelAlert | null;
 }
 
 export function createEmptyZones(): Record<EapZoneCode, number> {

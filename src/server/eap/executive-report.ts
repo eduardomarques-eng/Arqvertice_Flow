@@ -61,6 +61,7 @@ export interface ExecutiveWaveSummaryDTO {
   startDate: string | null;
   endDate: string | null;
   totalWorkingDays: number;
+  progressPercent?: number;
 }
 
 export interface ExecutiveAcervoSheetDTO {
@@ -110,6 +111,11 @@ export interface ExecutiveReportPayload {
     steelRateKgPerM3: number;
     concreteM3PerM2: number;
     masonryM2PerM2: number;
+    embodiedCarbonKgCo2?: number;
+    actualPhysicalPercent?: number;
+    plannedPhysicalPercent?: number;
+    spi?: number;
+    cpi?: number;
   };
   stages: ExecutiveReportStageDTO[];
   abcCurve: {
@@ -217,7 +223,7 @@ export function buildExecutiveReportPayload(input: {
   analytics: ReturnType<typeof computeScheduleAnalytics>;
   packages: Array<{
     waveName: string;
-    segments: Array<{ startDate: string; endDate: string; workingDays: number }>;
+    segments: Array<{ startDate: string; endDate: string; workingDays: number; progressPercent?: number }>;
     procurementGates: Array<{
       id: string;
       title: string;
@@ -228,6 +234,13 @@ export function buildExecutiveReportPayload(input: {
   }>;
   technicalSheets: ExecutiveAcervoSheetDTO[];
   galleryImages: ExecutiveGalleryImageDTO[];
+  embodiedCarbonKgCo2?: number;
+  executionSummary?: {
+    actualPhysicalPercent: number;
+    plannedPhysicalPercent: number;
+    spi: number;
+    cpi: number;
+  } | null;
 }): ExecutiveReportPayload {
   const isInternal = input.audience === "INTERNAL";
   const { tree, analytics } = input;
@@ -277,7 +290,13 @@ export function buildExecutiveReportPayload(input: {
   // Agrupamento de ondas do cronograma
   const waveMap = new Map<
     string,
-    { packagesCount: number; starts: string[]; ends: string[]; totalWorkingDays: number }
+    {
+      packagesCount: number;
+      starts: string[];
+      ends: string[];
+      totalWorkingDays: number;
+      weightedProgress: number;
+    }
   >();
   for (const pkg of input.packages) {
     const curr = waveMap.get(pkg.waveName) || {
@@ -285,12 +304,14 @@ export function buildExecutiveReportPayload(input: {
       starts: [],
       ends: [],
       totalWorkingDays: 0,
+      weightedProgress: 0,
     };
     curr.packagesCount += 1;
     for (const s of pkg.segments) {
       curr.starts.push(s.startDate);
       curr.ends.push(s.endDate);
       curr.totalWorkingDays += s.workingDays;
+      curr.weightedProgress += s.workingDays * (s.progressPercent ?? 0);
     }
     waveMap.set(pkg.waveName, curr);
   }
@@ -301,6 +322,8 @@ export function buildExecutiveReportPayload(input: {
     startDate: v.starts.length > 0 ? v.starts.sort()[0] : null,
     endDate: v.ends.length > 0 ? v.ends.sort()[v.ends.length - 1] : null,
     totalWorkingDays: v.totalWorkingDays,
+    progressPercent:
+      v.totalWorkingDays > 0 ? round2(v.weightedProgress / v.totalWorkingDays) : 0,
   }));
 
   const procurementMilestones = input.packages
@@ -335,6 +358,12 @@ export function buildExecutiveReportPayload(input: {
     steelRateKgPerM3: tree.indicators.steelRateKgPerM3,
     concreteM3PerM2: tree.indicators.concreteM3PerM2,
     masonryM2PerM2: tree.indicators.masonryM2PerM2,
+    embodiedCarbonKgCo2:
+      typeof input.embodiedCarbonKgCo2 === "number" ? round2(input.embodiedCarbonKgCo2) : undefined,
+    actualPhysicalPercent: input.executionSummary?.actualPhysicalPercent,
+    plannedPhysicalPercent: input.executionSummary?.plannedPhysicalPercent,
+    spi: input.executionSummary?.spi,
+    cpi: input.executionSummary?.cpi,
   };
   if (isInternal) {
     kpis.totalDirectCost = tree.indicators.totalDirectCost;
@@ -376,6 +405,19 @@ export async function loadExecutiveReportFromDb(
         city: { include: { holidays: true } },
         zones: { orderBy: { orderIndex: "asc" } },
         conflictLogs: { select: { id: true, status: true } },
+        sourceFiles: {
+          where: { includedInMining: true },
+          select: { extractedSummaryJson: true },
+        },
+        measurements: {
+          orderBy: { referenceDate: "desc" },
+          select: {
+            physicalProgressPercent: true,
+            realizedMaterialCost: true,
+            realizedLaborCost: true,
+            realizedThirdPartyCost: true,
+          },
+        },
         baselineSnapshots: { orderBy: { approvedAt: "desc" }, take: 1 },
         stages: {
           orderBy: { orderIndex: "asc" },
@@ -450,6 +492,7 @@ export async function loadExecutiveReportFromDb(
       startDate: s.startDate.toISOString().slice(0, 10),
       endDate: s.endDate.toISOString().slice(0, 10),
       workingDays: s.workingDays,
+      progressPercent: s.progressPercent,
     })),
     procurementGates: p.procurementGates.map((g) => ({
       id: g.id,
@@ -459,6 +502,62 @@ export async function loadExecutiveReportFromDb(
       status: g.status,
     })),
   }));
+
+  const embodiedCarbonKgCo2 = round2(
+    eap.sourceFiles.reduce((acc, sf) => {
+      const raw = sf.extractedSummaryJson as { carbonKgCo2?: number | null } | null;
+      return acc + (typeof raw?.carbonKgCo2 === "number" ? raw.carbonKgCo2 : 0);
+    }, 0)
+  );
+
+  const allSegments = eap.schedulePackages.flatMap((p) => p.segments);
+  const totalSegDays = allSegments.reduce((s, x) => s + x.workingDays, 0);
+  const weightedSegProgress = allSegments.reduce(
+    (s, x) => s + x.workingDays * (x.progressPercent || 0),
+    0
+  );
+  const segAvgProgress = totalSegDays > 0 ? round2(weightedSegProgress / totalSegDays) : 0;
+  const actualPhysicalPercent =
+    eap.measurements[0]?.physicalProgressPercent ?? segAvgProgress;
+
+  const todayMs = Date.now();
+  const plannedSegDaysElapsed = allSegments.reduce((acc, s) => {
+    const startMs = s.startDate.getTime();
+    const endMs = s.endDate.getTime();
+    if (todayMs <= startMs) return acc;
+    if (todayMs >= endMs) return acc + s.workingDays;
+    const ratio = (todayMs - startMs) / Math.max(86_400_000, endMs - startMs);
+    return acc + s.workingDays * ratio;
+  }, 0);
+  const plannedPhysicalPercent =
+    totalSegDays > 0 ? round2(Math.min(100, (plannedSegDaysElapsed / totalSegDays) * 100)) : 0;
+  const realizedCostTotal = eap.measurements.reduce(
+    (acc, m) =>
+      acc +
+      (m.realizedMaterialCost || 0) +
+      (m.realizedLaborCost || 0) +
+      (m.realizedThirdPartyCost || 0),
+    0
+  );
+  const earnedValue = round2((actualPhysicalPercent / 100) * tree.indicators.totalCommercialPrice);
+  const hasExecution =
+    eap.status === "EM_EXECUCAO" ||
+    eap.status === "CONCLUIDA" ||
+    eap.measurements.length > 0 ||
+    actualPhysicalPercent > 0;
+  const executionSummary = hasExecution
+    ? {
+        actualPhysicalPercent,
+        plannedPhysicalPercent,
+        spi:
+          plannedPhysicalPercent > 0
+            ? round2(actualPhysicalPercent / plannedPhysicalPercent)
+            : actualPhysicalPercent > 0
+              ? 1
+              : 0,
+        cpi: realizedCostTotal > 0 ? round2(earnedValue / realizedCostTotal) : 0,
+      }
+    : null;
 
   const analytics = computeScheduleAnalytics({
     packages,
@@ -514,6 +613,8 @@ export async function loadExecutiveReportFromDb(
     packages,
     technicalSheets,
     galleryImages,
+    embodiedCarbonKgCo2,
+    executionSummary,
   });
 }
 
@@ -522,7 +623,7 @@ function fmtBRL(v: number): string {
 }
 
 /**
- * Gera PDF corporativo determinístico (%PDF-1.4) sem dependências nativas (100% Vercel Serverless).
+ * Gera PDF corporativo determinístico (%PDF-1.4) com gráficos vetoriais sem dependências nativas (100% Vercel Serverless).
  */
 export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8Array {
   const pdf = new PdfWriter({
@@ -573,9 +674,57 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
     { size: 9, gapAfter: 4 }
   );
   pdf.flowText(
-    `Engenharia: Taxa de Aco ${payload.kpis.steelRateKgPerM3} kg/m3 · Concreto ${payload.kpis.concreteM3PerM2} m3/m2 · Alvenaria ${payload.kpis.masonryM2PerM2} m2/m2`,
-    { size: 9, gapAfter: 12 }
+    `Engenharia: Taxa de Aco ${payload.kpis.steelRateKgPerM3} kg/m3 · Concreto ${payload.kpis.concreteM3PerM2} m3/m2 · Alvenaria ${payload.kpis.masonryM2PerM2} m2/m2${
+      payload.kpis.embodiedCarbonKgCo2 ? ` · Carbono Embutido: ${payload.kpis.embodiedCarbonKgCo2.toFixed(0)} kgCO2` : ""
+    }`,
+    { size: 9, gapAfter: payload.kpis.actualPhysicalPercent !== undefined ? 4 : 12 }
   );
+  if (payload.kpis.actualPhysicalPercent !== undefined) {
+    pdf.flowText(
+      `Andamento Fisico: ${payload.kpis.actualPhysicalPercent.toFixed(1)}% realizado (Prev. ${(payload.kpis.plannedPhysicalPercent ?? 0).toFixed(1)}%) · SPI ${(payload.kpis.spi ?? 0).toFixed(2)} · CPI ${(payload.kpis.cpi ?? 0).toFixed(2)}`,
+      { size: 9, bold: true, gapAfter: 12 }
+    );
+  }
+
+  // 2B. GRAFICO VETORIAL — TOP MACRO-ETAPAS (BARRAS HORIZONTAIS PROPORCIONAIS)
+  const topStages = [...payload.stages]
+    .filter((s) => s.totalCommercialPrice > 0)
+    .sort((a, b) => b.totalCommercialPrice - a.totalCommercialPrice)
+    .slice(0, 8);
+
+  if (topStages.length > 0) {
+    const rowH = 18;
+    const blockH = 26 + topStages.length * rowH;
+    pdf.ensure(blockH);
+    pdf.flowText("GRAFICO 1 — DISTRIBUICAO POR MACRO-ETAPA (TOP 8)", {
+      size: 10.5,
+      bold: true,
+      gapAfter: 6,
+    });
+    const maxStageVal = Math.max(...topStages.map((s) => s.totalCommercialPrice), 1);
+    const labelW = 165;
+    const valueW = 110;
+    const barMaxW = pdf.contentWidth - labelW - valueW - 12;
+
+    for (const st of topStages) {
+      const yRow = pdf.y;
+      const ratio = Math.max(0.02, st.totalCommercialPrice / maxStageVal);
+      pdf.drawText(`${st.code} ${st.name.slice(0, 26)}`, pdf.margin, yRow + 10, {
+        size: 8,
+        color: "0.15 0.18 0.24",
+      });
+      pdf.rect(pdf.margin + labelW, yRow + 2, barMaxW, 10, { fill: "0.93 0.95 0.98" });
+      pdf.rect(pdf.margin + labelW, yRow + 2, barMaxW * ratio, 10, { fill: "0.15 0.39 0.92" });
+      pdf.drawText(
+        `${fmtBRL(st.totalCommercialPrice)} (${st.weightPercent.toFixed(1)}%)`,
+        pdf.margin + pdf.contentWidth,
+        yRow + 10,
+        { size: 7.5, bold: true, align: "right", color: "0.09 0.11 0.16" }
+      );
+      pdf.y += rowH;
+    }
+    pdf.y += 8;
+  }
 
   // 3. MACRO-ETAPAS DA EAP (26 ETAPAS)
   pdf.flowText("2. ORCAMENTO CONSOLIDADO POR MACRO-ETAPA (26 ETAPAS EAP)", {
@@ -607,12 +756,59 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
 
   pdf.y += 8;
 
-  // 5. CRONOGRAMA & DESEMBOLSO MENSAL
+  // 5. CRONOGRAMA & DESEMBOLSO MENSAL + GRAFICO VETORIAL (BARRAS VERTICAIS + CURVA S)
   pdf.flowText("4. CRONOGRAMA FISICO-FINANCEIRO & DESEMBOLSO MENSAL", {
     size: 12,
     bold: true,
     gapAfter: 6,
   });
+
+  const chartMonths = payload.schedule.monthlySeries.slice(0, 12);
+  if (chartMonths.length > 0) {
+    pdf.ensure(145);
+    pdf.flowText("GRAFICO 2 — FLUXO DE DESEMBOLSO MENSAL & CURVA S (%)", {
+      size: 10,
+      bold: true,
+      gapAfter: 6,
+    });
+    const frameY = pdf.y;
+    const frameH = 100;
+    const plotH = 68;
+    pdf.rect(pdf.margin, frameY, pdf.contentWidth, frameH, {
+      fill: "0.98 0.99 1.00",
+      stroke: "0.84 0.87 0.91",
+      lineWidth: 0.5,
+    });
+    const maxMonthly = Math.max(...chartMonths.map((m) => m.commercialCost), 1);
+    const slotW = (pdf.contentWidth - 16) / chartMonths.length;
+    const barW = Math.min(24, Math.max(8, slotW * 0.55));
+    const baselineY = frameY + 80;
+
+    chartMonths.forEach((m, idx) => {
+      const centerX = pdf.margin + 8 + idx * slotW + slotW / 2;
+      const barH = Math.max(2, (m.commercialCost / maxMonthly) * plotH);
+      const barX = centerX - barW / 2;
+      // Barra de desembolso mensal (azul corporativo)
+      pdf.rect(barX, baselineY - barH, barW, barH, { fill: "0.15 0.39 0.92" });
+      // Indicador Curva S acumulada (barra fina esmeralda ao lado)
+      const sCurveH = Math.max(2, (m.cumulativePhysicalPercent / 100) * plotH);
+      pdf.rect(barX + barW + 1, baselineY - sCurveH, 3, sCurveH, { fill: "0.06 0.72 0.51" });
+
+      pdf.drawText(`${(m.commercialCost / 1000).toFixed(0)}k`, centerX, baselineY - barH - 3, {
+        size: 6.5,
+        align: "center",
+        color: "0.15 0.18 0.24",
+      });
+      pdf.drawText(m.label.slice(0, 6), centerX, baselineY + 10, {
+        size: 6.5,
+        align: "center",
+        color: "0.35 0.40 0.48",
+      });
+    });
+
+    pdf.y = frameY + frameH + 10;
+  }
+
   for (const m of payload.schedule.monthlySeries) {
     pdf.flowText(
       `${m.label}: ${fmtBRL(m.commercialCost)} (Acumulado: ${fmtBRL(m.cumulativeCommercialCost)} · Curva S: ${m.cumulativePhysicalPercent.toFixed(1)}%)`,

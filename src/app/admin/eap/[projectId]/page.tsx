@@ -107,6 +107,15 @@ export default async function EapProjectPage({
           revisionLabel: s.revisionLabel,
           includedInMining: s.includedInMining,
           status: s.status,
+          extractedSummaryJson:
+            (s.extractedSummaryJson as {
+              carbonKgCo2?: number | null;
+              zeroSteelAlert?: {
+                concreteM3: number;
+                suggestedKg: number;
+                message: string;
+              } | null;
+            } | null) ?? null,
         })),
         conflicts: eapRaw.conflictLogs.map((c) => ({
           id: c.id,

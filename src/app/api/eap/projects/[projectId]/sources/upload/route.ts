@@ -7,6 +7,16 @@ import { computeSha256 } from "@/server/eap/pdf-reader";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const ALLOWED_DISCIPLINES = new Set([
+  "ARQUITETONICO",
+  "ESTRUTURAL",
+  "ELETRICO",
+  "HIDRO_ABASTECIMENTO",
+  "HIDRO_ESGOTAMENTO",
+  "HIDRO_DRENAGEM",
+  "GERAL",
+]);
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ projectId: string }> }
@@ -28,13 +38,26 @@ export async function POST(
 
     const formData = await request.formData();
     const file = formData.get("file");
-    const sourceSoftwareRaw = String(formData.get("sourceSoftware") || "REVIT").toUpperCase();
-    const discipline = String(formData.get("discipline") || "ARQUITETURA").toUpperCase();
+    const rawDiscipline = String(formData.get("discipline") || "ARQUITETONICO").toUpperCase();
+    const discipline = ALLOWED_DISCIPLINES.has(rawDiscipline) ? rawDiscipline : "ARQUITETONICO";
+    const sourceSoftwareRaw = String(
+      formData.get("sourceSoftware") || (discipline === "ESTRUTURAL" ? "TQS" : "REVIT")
+    ).toUpperCase();
     const revisionLabel = String(formData.get("revisionLabel") || "R00").toUpperCase();
 
     if (!(file instanceof File)) {
       return NextResponse.json(
-        { ok: false, error: "Arquivo PDF obrigatório no campo 'file'." },
+        { ok: false, error: "Arquivo obrigatório (.pdf, .html ou .htm) no campo 'file'." },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    const lowerName = file.name.toLowerCase();
+    const isHtml = lowerName.endsWith(".html") || lowerName.endsWith(".htm") || file.type === "text/html";
+    const isPdf = lowerName.endsWith(".pdf") || file.type === "application/pdf";
+    if (!isHtml && !isPdf) {
+      return NextResponse.json(
+        { ok: false, error: "Formato inválido. Envie arquivos PDF, HTML ou HTM do TQS/Revit." },
         { status: 400, headers: { "Cache-Control": "no-store" } }
       );
     }
@@ -46,8 +69,9 @@ export async function POST(
     const hash = computeSha256(bytes).slice(0, 16);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storageKey = `eap/${projectId}/${Date.now()}-${hash}-${safeName}`;
+    const mimeType = isHtml ? "text/html" : "application/pdf";
 
-    await putStoredObject(storageKey, bytes, file.type || "application/pdf");
+    await putStoredObject(storageKey, bytes, mimeType);
 
     const source = await prisma.eapSourceFile.create({
       data: {
