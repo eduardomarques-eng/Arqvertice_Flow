@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { RealtimeSyncBadge, useRealtimeMutation } from "@/hooks/use-realtime-mutation";
 import { formatDateBR } from "@/lib/formatters";
 import type { WorkspaceRfiItem } from "@/components/acervo/cde-workspace-viewer";
+import type { ExtractedTakeoffItem } from "@/app/api/acervo/extract/route";
 import { AcervoQrCodeModal } from "@/components/acervo/acervo-qrcode-modal";
 import { AcervoUploadRevisionModal } from "@/components/acervo/acervo-upload-revision-modal";
 import {
@@ -203,7 +204,7 @@ export function AcervoProjectDetailView({
   const [isSavingRfi, setIsSavingRfi] = useState(false);
 
   // Quantitativos BIM/IA
-  const [takeoffs, setTakeoffs] = useState<ExtractedIfcTakeoff[]>([]);
+  const [takeoffs, setTakeoffs] = useState<ExtractedTakeoffItem[]>([]);
   const [extractSource, setExtractSource] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSendingProposal, setIsSendingProposal] = useState(false);
@@ -229,7 +230,7 @@ export function AcervoProjectDetailView({
             ? JSON.parse(activeRevision.extractedMetadata)
             : (activeRevision.extractedMetadata as Record<string, unknown>);
         if (Array.isArray(parsed?.takeoffs)) {
-          setTakeoffs(parsed.takeoffs as ExtractedIfcTakeoff[]);
+          setTakeoffs(parsed.takeoffs as ExtractedTakeoffItem[]);
           setExtractSource((parsed.source as string) || "CACHE_BIM");
           return;
         }
