@@ -2,9 +2,11 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { EapExecutiveReportView } from "@/components/eap/eap-executive-report-view";
+import { EapExecutionTracker } from "@/components/eap/eap-execution-tracker";
 import { requirePageClientPortal, requirePageProjectAccess } from "@/server/auth";
+import { prisma } from "@/server/db";
 
-export const metadata = { title: "Relatório Executivo EAP — Portal do Cliente" };
+export const metadata = { title: "Relatório Executivo & Evolução da Obra — Portal do Cliente" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -17,12 +19,20 @@ export default async function ClientPortalEapPage({
   await requirePageClientPortal();
   const user = await requirePageProjectAccess(id);
 
+  const eap = await prisma.eapProject.findUnique({
+    where: { projectId: id },
+    select: { status: true },
+  });
+
+  const showExecutionEvolution =
+    eap?.status === "EM_EXECUCAO" || eap?.status === "CONCLUIDA";
+
   return (
     <AppShell eyebrow="Portal do Cliente · EAP" environment="client" role={user.role}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <SectionHeading
-          title="Orçamento Executivo EAP & Cronograma da Obra"
-          description="Apresentação consolidada de investimento, Curva ABC, fluxo de desembolso mensal, plantas oficiais e premissas."
+          title="Orçamento Executivo EAP & Acompanhamento da Obra"
+          description="Apresentação consolidada de investimento, Curva ABC, fluxo de desembolso mensal, plantas oficiais e evolução física/financeira."
         />
         <Link
           href={`/portal/${id}`}
@@ -31,7 +41,24 @@ export default async function ClientPortalEapPage({
           ← Voltar ao Meu Projeto
         </Link>
       </div>
-      <EapExecutiveReportView projectId={id} isAdmin={false} initialAudience="CLIENT" />
+
+      <div className="space-y-8">
+        {showExecutionEvolution && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-zinc-300">
+              Evolução Periódica da Obra (Previsto × Realizado)
+            </h2>
+            <EapExecutionTracker projectId={id} isAdmin={false} />
+          </section>
+        )}
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-zinc-300">
+            Relatório Executivo & Linha de Base
+          </h2>
+          <EapExecutiveReportView projectId={id} isAdmin={false} initialAudience="CLIENT" />
+        </section>
+      </div>
     </AppShell>
   );
 }

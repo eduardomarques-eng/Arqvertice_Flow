@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EapConferenceWorkbench } from "@/components/admin/eap/eap-conference-workbench";
 import { EapSchedulePlanner } from "@/components/admin/eap/eap-schedule-planner";
 import { EapExecutiveReportView } from "@/components/eap/eap-executive-report-view";
+import { EapExecutionTracker } from "@/components/eap/eap-execution-tracker";
 
 interface CityOption {
   id: string;
@@ -112,6 +113,11 @@ export function EapProjectHub({
   const [sources, setSources] = useState<SourceFileDTO[]>(initialEap?.sourceFiles ?? []);
   const [activeTab, setActiveTab] = useState<"sources" | "conference" | "planning" | "report">(
     initialEap && initialEap.status !== "RASCUNHO" ? "conference" : "sources"
+  );
+  const [reportSubTab, setReportSubTab] = useState<"executive" | "execution">(
+    initialEap && (initialEap.status === "EM_EXECUCAO" || initialEap.status === "CONCLUIDA")
+      ? "execution"
+      : "executive"
   );
 
   async function handleInitEap(e: React.FormEvent) {
@@ -380,12 +386,47 @@ export function EapProjectHub({
       )}
 
       {activeTab === "report" && (
-        <EapExecutiveReportView
-          projectId={projectId}
-          isAdmin={true}
-          initialAudience="CLIENT"
-          onPublished={() => router.refresh()}
-        />
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setReportSubTab("executive")}
+              className={`h-8 rounded-xl px-3.5 text-xs font-semibold transition cursor-pointer ${
+                reportSubTab === "executive"
+                  ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+              }`}
+            >
+              Relatório Executivo Inicial (Baseline)
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportSubTab("execution")}
+              className={`h-8 rounded-xl px-3.5 text-xs font-semibold transition cursor-pointer ${
+                reportSubTab === "execution"
+                  ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+              }`}
+            >
+              Controle de Obra & Medições (Ciclo II)
+            </button>
+          </div>
+
+          {reportSubTab === "executive" ? (
+            <EapExecutiveReportView
+              projectId={projectId}
+              isAdmin={true}
+              initialAudience="CLIENT"
+              onPublished={() => router.refresh()}
+            />
+          ) : (
+            <EapExecutionTracker
+              projectId={projectId}
+              isAdmin={true}
+              onMutated={() => router.refresh()}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === "sources" && (
