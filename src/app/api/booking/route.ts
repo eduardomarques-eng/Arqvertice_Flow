@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/server/db";
 import { ensureEmailBootstrap } from "@/lib/email/email-infra";
+import { sendEmail } from "@/server/services/email-service";
+import { buildArqVerticeEmailTemplate } from "@/lib/email/resend-service";
+import {
+  resolveOfficialGatewayConfig,
+  sendViaOfficialGateway,
+} from "@/lib/whatsapp/gateway-client";
+import { buildBucketKey, checkRateLimit } from "@/lib/rate-limit";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function sanitizeHeaderField(val: string, maxLen = 120): string {
+  return val.replace(/[\r\n]+/g, " ").trim().slice(0, maxLen);
+}
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
@@ -70,6 +83,21 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const clientIp =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip")?.trim() ||
+    "local";
+  const rate = checkRateLimit(buildBucketKey("public-booking", clientIp), {
+    limit: 10,
+    windowMs: 15 * 60_000,
+  });
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Muitas tentativas de agendamento. Aguarde alguns minutos." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
+    );
+  }
+
   await ensureEmailBootstrap();
   const body = (await req.json().catch(() => ({}))) as {
     clientName?: string;
@@ -95,9 +123,35 @@ export async function POST(req: Request) {
     );
   }
 
+  const cleanName = sanitizeHeaderField(body.clientName, 100);
+  const cleanEmail = body.clientEmail.trim().toLowerCase().slice(0, 160);
+  const cleanTopic = sanitizeHeaderField(body.topic, 160);
+  const cleanNotes = body.notes ? body.notes.trim().slice(0, 600) : null;
+  if (!EMAIL_REGEX.test(cleanEmail)) {
+    return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date) || !/^\d{2}:\d{2}$/.test(body.time)) {
+    return NextResponse.json({ error: "Formato de data ou horário inválido." }, { status: 400 });
+  }
+
   const scheduledAt = new Date(`${body.date}T${body.time}:00.000Z`);
-  if (Number.isNaN(scheduledAt.getTime())) {
-    return NextResponse.json({ error: "Data ou horário inválido." }, { status: 400 });
+  if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
+    return NextResponse.json({ error: "Data ou horário deve ser no futuro." }, { status: 400 });
+  }
+
+  const dayOfWeek = scheduledAt.getUTCDay();
+  const slotCfg = await prisma.bookingSlotConfig.findUnique({ where: { dayOfWeek } });
+  const reqMin = toMinutes(body.time);
+  if (
+    !slotCfg ||
+    !slotCfg.isEnabled ||
+    reqMin < toMinutes(slotCfg.startTime) ||
+    reqMin + Math.max(15, slotCfg.slotMinutes) > toMinutes(slotCfg.endTime)
+  ) {
+    return NextResponse.json(
+      { error: "Horário fora da janela de atendimento configurada." },
+      { status: 400 }
+    );
   }
 
   const conflict = await prisma.clientBooking.findFirst({
@@ -115,17 +169,74 @@ export async function POST(req: Request) {
 
   const created = await prisma.clientBooking.create({
     data: {
-      clientName: body.clientName.trim(),
-      clientEmail: body.clientEmail.trim().toLowerCase(),
-      clientPhone: body.clientPhone?.trim() || null,
-      topic: body.topic.trim(),
+      clientName: cleanName,
+      clientEmail: cleanEmail,
+      clientPhone: body.clientPhone?.trim().slice(0, 30) || null,
+      topic: cleanTopic,
       meetingType: body.meetingType === "PRESENCIAL" ? "PRESENCIAL" : "ONLINE",
       scheduledAt,
       durationMin: 45,
       status: "CONFIRMED",
-      notes: body.notes?.trim() || null,
+      notes: cleanNotes,
     },
   });
+
+  const dateLabel = `${body.date} às ${body.time}`;
+  const clientBody = [
+    `Sua reunião com o ArqVértice Studio foi confirmada!`,
+    `• Assunto: ${created.topic}`,
+    `• Modalidade: ${created.meetingType}`,
+    `• Data e Horário: ${dateLabel} (45 min)`,
+    ...(created.notes ? [`• Observações: ${created.notes}`] : []),
+  ].join("\n");
+
+  const adminEmail =
+    process.env.ADMIN_ALERT_EMAIL?.trim() || "eduardo.marques.arq@gmail.com";
+  const adminBody = [
+    `Novo agendamento recebido via /agendar:`,
+    `• Cliente: ${created.clientName} (${created.clientEmail})`,
+    ...(created.clientPhone ? [`• WhatsApp: ${created.clientPhone}`] : []),
+    `• Assunto: ${created.topic}`,
+    `• Modalidade: ${created.meetingType}`,
+    `• Data e Horário: ${dateLabel}`,
+  ].join("\n");
+
+  await Promise.allSettled([
+    sendEmail({
+      to: created.clientEmail,
+      subject: `Reunião confirmada (${dateLabel}) — ArqVértice Studio`,
+      text: clientBody,
+      html: buildArqVerticeEmailTemplate({
+        recipientName: created.clientName,
+        category: "Agenda Confirmada",
+        messageBody: clientBody,
+      }),
+      eventType: "message.sent",
+      entityType: "ClientBooking",
+      entityId: created.id,
+    }),
+    sendEmail({
+      to: adminEmail,
+      subject: `Novo Agendamento: ${sanitizeHeaderField(created.clientName, 60)} — ${dateLabel}`,
+      text: adminBody,
+      html: buildArqVerticeEmailTemplate({
+        recipientName: "Eduardo Marques",
+        category: "Novo Agendamento",
+        messageBody: adminBody,
+      }),
+      eventType: "message.sent",
+      entityType: "ClientBooking",
+      entityId: created.id,
+    }),
+  ]);
+
+  const gwCfg = await resolveOfficialGatewayConfig().catch(() => null);
+  if (gwCfg?.autoNotifyBooking && created.clientPhone) {
+    await sendViaOfficialGateway({
+      phone: created.clientPhone,
+      message: `Olá, ${created.clientName}! Sua reunião no ArqVértice Studio está confirmada para ${dateLabel} (${created.meetingType}) sobre: ${created.topic}.`,
+    }).catch(() => undefined);
+  }
 
   return NextResponse.json({ ok: true, booking: created });
 }

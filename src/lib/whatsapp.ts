@@ -71,76 +71,28 @@ export async function sendWhatsAppMessage({
   success: boolean;
   url: string;
   externalId?: string;
-  deliveryMethod: "WHATSAPP_CLI_BRIDGE" | "WHATSAPP_API" | "WHATSAPP_DEEP_LINK";
+  deliveryMethod: "WA_AKG_GATEWAY" | "WHATSAPP_DEEP_LINK";
 }> {
-  const directUrl = generateWhatsAppLink(phone, message);
-  const bridgeUrl = process.env.WHATSAPP_BRIDGE_URL?.trim();
-  const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET?.trim() || "arqvertice-local-bridge-2026";
+  const cleanPhone = sanitizePhoneNumber(phone);
+  const directUrl = generateWhatsAppLink(cleanPhone, message);
+  const { sendViaOfficialGateway } = await import("@/lib/whatsapp/gateway-client");
+  const result = await sendViaOfficialGateway({
+    phone: cleanPhone,
+    message: message.trim(),
+  });
 
-  // 1. Tenta envio pelo micro-serviço local CLI/HTTP Bridge (Baileys Gratuito)
-  if (bridgeUrl) {
-    try {
-      const response = await fetch(`${bridgeUrl}/send`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-bridge-secret": bridgeSecret,
-        },
-        body: JSON.stringify({
-          phone: sanitizePhoneNumber(phone),
-          message: message.trim(),
-        }),
-        signal: AbortSignal.timeout(4000), // Timeout curto para não prender a UI
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          success: true,
-          url: directUrl,
-          externalId: data.id,
-          deliveryMethod: "WHATSAPP_CLI_BRIDGE",
-        };
-      }
-    } catch {
-      // Bridge indisponível ou offline: continua para próximo fallback
-    }
+  if (result.ok && result.method === "WA_AKG_GATEWAY") {
+    return {
+      success: true,
+      url: result.deepLink || directUrl,
+      externalId: result.messageId,
+      deliveryMethod: "WA_AKG_GATEWAY",
+    };
   }
 
-  // 2. Gateway API legado se configurado
-  const provider = (process.env.WHATSAPP_PROVIDER ?? "wa.me").toLowerCase();
-  const apiUrl = process.env.WHATSAPP_API_URL?.trim();
-  const apiToken = process.env.WHATSAPP_API_TOKEN?.trim();
-
-  if (provider === "api" && apiUrl && apiToken) {
-    try {
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${apiToken}` },
-        body: JSON.stringify({
-          number: sanitizePhoneNumber(phone),
-          text: message.trim(),
-          instanceId: process.env.WHATSAPP_INSTANCE_ID?.trim() || undefined,
-        }),
-      });
-      if (response.ok) {
-        const data = (await response.json().catch(() => ({}))) as { id?: string; messageId?: string };
-        return {
-          success: true,
-          url: directUrl,
-          externalId: data.id ?? data.messageId,
-          deliveryMethod: "WHATSAPP_API",
-        };
-      }
-    } catch (error) {
-      console.error("[WHATSAPP] Erro no gateway.", error instanceof Error ? error.message : error);
-    }
-  }
-
-  // 3. Fallback automático e imediato para Deep Link (wa.me / api.whatsapp.com)
   return {
     success: true,
-    url: directUrl,
+    url: result.deepLink || directUrl,
     deliveryMethod: "WHATSAPP_DEEP_LINK",
   };
 }

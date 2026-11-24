@@ -118,7 +118,7 @@ export async function POST(req: Request) {
       toAddresses,
       subject,
       bodyText: textBody,
-      bodyHtml: body.html || null,
+      bodyHtml: body.html ? body.html.replace(/<\s*(script|iframe|object|embed|svg|math|style|form)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, "").replace(/(?:^|[\s/"'`])on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, " ").replace(/(?:javascript|vbscript)\s*:/gi, "blocked:") : null,
       status: "RECEIVED",
       providerId: body.providerId || null,
       sentAt: new Date(),

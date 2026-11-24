@@ -7,6 +7,8 @@ export type EmailInput = {
   subject: string;
   html: string;
   text: string;
+  /** Versão sanitizada do texto para auditoria em `NotificationEvent` (omite senhas temporárias). */
+  auditBody?: string;
   /** Contexto do evento de negócio, gravado em `NotificationEvent`. */
   eventType?: string;
   entityType?: string;
@@ -43,7 +45,7 @@ export async function sendEmail(input: EmailInput): Promise<EmailResult> {
       channel: NOTIFICATION_CHANNEL.EMAIL,
       status: status as never,
       subject: input.subject,
-      body: input.text,
+      body: input.auditBody ?? input.text,
       recipient: input.to,
       error,
       entityType: input.entityType,

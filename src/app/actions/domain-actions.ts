@@ -155,22 +155,6 @@ export async function saveBriefingAction(projectId: string, input: unknown) {
   const result = await saveBriefingResponses(projectId, input);
   revalidatePath(`/admin/projetos/${projectId}`);
   revalidatePath(`/portal/${projectId}`);
-  // Notifica automaticamente o Arquiteto Eduardo Marques quando o cliente
-  // complementa ou edita as respostas do briefing.
-  try {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { client: { select: { name: true } } },
-    });
-    const clientName = project?.client.name;
-    if (clientName) {
-      await notifyBriefingSubmitted(result.id, projectId, clientName).catch(() =>
-        undefined,
-      );
-    }
-  } catch {
-    // Não falha o salvamento do briefing por causa da notificação.
-  }
   return result;
 }
 

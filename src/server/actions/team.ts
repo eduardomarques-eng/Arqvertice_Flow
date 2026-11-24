@@ -237,8 +237,8 @@ export async function createTeamMemberAction(input: CreateProfileInput) {
  * 4. Disparo Unificado de Comunicação Externa (E-mail Resend / WhatsApp Bridge)
  */
 export async function dispatchCommunicationAction(input: DispatchCommunicationInput) {
-  const admin = await currentUser();
-  const adminName = admin?.name || "Administrador ArqVértice";
+  const admin = await requireRole("ADMIN");
+  const adminName = admin.name || "Administrador ArqVértice";
 
   let deliveryMethod = "DESCONHECIDO";
   let externalId: string | undefined = undefined;
@@ -271,7 +271,7 @@ export async function dispatchCommunicationAction(input: DispatchCommunicationIn
     deliveryMethod = result.method;
     externalId = result.messageId;
     directLinkUrl = result.fallbackUrl;
-    status = result.method === "WHATSAPP_CLI_BRIDGE" ? "ENVIADO" : "DISPARADO_LINK";
+    status = result.method === "WA_AKG_GATEWAY" ? "ENVIADO" : "DISPARADO_LINK";
   }
 
   // Registra no banco de dados
@@ -317,6 +317,8 @@ export async function recordReminderLogAction(data: {
   triggerType: "PRAZO_PROXIMO" | "ENTREGA_HOJE" | "ATRASADO";
   messageBody: string;
 }) {
+  await requireRole("ADMIN");
+
   const created = await prisma.stageReminderLog.create({
     data: {
       stageId: data.stageId,

@@ -46,7 +46,7 @@ export default async function EquipeEmailPage() {
   });
 
   return (
-    <AppShell eyebrow="Comunicação Corporativa" environment="admin">
+    <AppShell eyebrow="Comunicação Corporativa · Equipe" environment="admin" role={user.role}>
       <EmailWorkspaceHub
         isAdmin={user.role === "ADMIN"}
         initialMailboxes={mailboxes}

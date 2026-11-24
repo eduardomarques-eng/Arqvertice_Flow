@@ -1,32 +1,34 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/server/db";
 import { shouldIndexInboundMessage } from "@/lib/whatsapp/multi-session";
+import { verifyWhatsAppWebhookAuth } from "@/lib/whatsapp/gateway-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function isWebhookAuthorized(secretHeader: string | null): boolean {
-  const expected = process.env.WA_AKG_WEBHOOK_SECRET?.trim();
-  if (!expected) return true;
-  if (!secretHeader) return false;
-  const a = Buffer.from(secretHeader.trim());
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 export async function POST(req: Request) {
-  if (!isWebhookAuthorized(req.headers.get("x-webhook-secret"))) {
-    return NextResponse.json({ error: "Webhook não autorizado." }, { status: 401 });
-  }
-
-  const body = (await req.json().catch(() => ({}))) as {
+  const rawBody = await req.text().catch(() => "");
+  let body: {
     sessionId?: string;
     event?: string;
     data?: Record<string, unknown>;
-  };
+    timestamp?: string;
+  } = {};
+  try {
+    body = rawBody ? (JSON.parse(rawBody) as typeof body) : {};
+  } catch {
+    body = {};
+  }
+
+  const authCheck = verifyWhatsAppWebhookAuth({
+    rawBody,
+    headers: req.headers,
+    parsedTimestamp: typeof body.timestamp === "string" ? body.timestamp : null,
+  });
+  if (!authCheck.ok) {
+    return NextResponse.json({ error: authCheck.error || "Webhook não autorizado." }, { status: 401 });
+  }
 
   if (!body.sessionId || !body.event) {
     return NextResponse.json({ error: "Payload inválido." }, { status: 400 });
@@ -75,6 +77,7 @@ export async function POST(req: Request) {
       data: {
         connectionStatus: "DISCONNECTED",
         qrCodeDataUrl: null,
+        pairingCode: null,
       },
     });
   } else if (body.event === "message.upsert") {
@@ -85,17 +88,17 @@ export async function POST(req: Request) {
       const client =
         digits.length >= 8
           ? await prisma.client.findFirst({
-              where: { phone: { contains: digits.slice(-8) } },
-              select: {
-                id: true,
-                name: true,
-                projects: {
-                  orderBy: { updatedAt: "desc" },
-                  take: 1,
-                  select: { id: true },
-                },
+            where: { phone: { contains: digits.slice(-8) } },
+            select: {
+              id: true,
+              name: true,
+              projects: {
+                orderBy: { updatedAt: "desc" },
+                take: 1,
+                select: { id: true },
               },
-            })
+            },
+          })
           : null;
 
       if (

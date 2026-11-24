@@ -10,6 +10,13 @@ import {
   Prisma,
 } from "@prisma/client";
 import { getNextRevisionNumber, parseAndValidateSheetName } from "@/lib/acervo/naming-engine";
+import { appUrl } from "@/lib/email";
+import { sendEmail } from "@/server/services/email-service";
+import { buildArqVerticeEmailTemplate } from "@/lib/email/resend-service";
+import {
+  resolveOfficialGatewayConfig,
+  sendViaOfficialGateway,
+} from "@/lib/whatsapp/gateway-client";
 
 /**
  * Cria ou registra nova versão de prancha/documento no CDE
@@ -289,7 +296,7 @@ export async function createAcervoGrd({
   revisionIds: string[];
   createdById?: string;
 }) {
-  return prisma.$transaction(async (tx) => {
+  const grd = await prisma.$transaction(async (tx) => {
     const year = new Date().getFullYear();
     const countThisYear = await tx.acervoGrd.count({
       where: {
@@ -301,13 +308,20 @@ export async function createAcervoGrd({
     const grdCode = `GRD-${year}-${nextSeq}`;
     const hashToken = `grd_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    // Busca detalhes das revisões para o snapshot
+    // Busca detalhes das revisões estritamente do projeto selecionado (anti-BOLA)
     const revisions = await tx.acervoRevision.findMany({
-      where: { id: { in: revisionIds } },
+      where: {
+        id: { in: revisionIds },
+        document: { projectId },
+      },
       include: { document: true },
     });
 
-    const grd = await tx.acervoGrd.create({
+    if (revisions.length === 0 || revisions.length !== revisionIds.length) {
+      throw new Error("Uma ou mais revisões informadas não pertencem ao empreendimento selecionado.");
+    }
+
+    return tx.acervoGrd.create({
       data: {
         code: grdCode,
         projectId,
@@ -331,12 +345,62 @@ export async function createAcervoGrd({
       },
       include: {
         items: true,
-        project: { select: { id: true, name: true } },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            client: { select: { id: true, name: true, phone: true } },
+          },
+        },
       },
     });
-
-    return grd;
   });
+
+  const cleanEmail = recipientEmail?.trim();
+  const basePortalUrl = `${appUrl()}/equipe/acervo/${projectId}`;
+  const itemsLines = grd.items.map(
+    (it) =>
+      `• ${it.documentCode} (${it.revisionNumber} · ${it.statusAtIssue}) — ${it.documentTitle}${it.fileUrl ? ` | Arquivo: ${it.fileUrl}` : ""}`
+  );
+  const grdSummaryBody = [
+    `Foi emitida a Guia de Remessa de Documentos ${grd.code} para o empreendimento ${grd.project.name}.`,
+    `Assunto: ${subject}`,
+    ...(recipientOrg ? [`Organização: ${recipientOrg}`] : []),
+    ...(notes ? [`Observações: ${notes}`] : []),
+    "",
+    `Pranchas e documentos incluídos (${grd.items.length}):`,
+    ...itemsLines,
+    "",
+    `Acesse o Acervo CDE: ${basePortalUrl}`,
+  ].join("\n");
+
+  if (cleanEmail) {
+    await sendEmail({
+      to: cleanEmail,
+      subject: `[${grd.code}] ${subject} — ${grd.project.name}`,
+      text: grdSummaryBody,
+      html: buildArqVerticeEmailTemplate({
+        recipientName,
+        category: "Acervo Técnico · GRD",
+        projectName: grd.project.name,
+        messageBody: grdSummaryBody,
+      }),
+      eventType: "message.sent",
+      entityType: "AcervoGrd",
+      entityId: grd.id,
+    }).catch(() => undefined);
+  }
+
+  const gwCfg = await resolveOfficialGatewayConfig().catch(() => null);
+  const clientPhone = grd.project.client?.phone?.trim();
+  if (gwCfg?.autoNotifyAcervo && clientPhone) {
+    await sendViaOfficialGateway({
+      phone: clientPhone,
+      message: `Olá, ${grd.project.client?.name || recipientName}! Emitimos a ${grd.code} com ${grd.items.length} documento(s) técnicos do projeto ${grd.project.name}.`,
+    }).catch(() => undefined);
+  }
+
+  return grd;
 }
 
 /**

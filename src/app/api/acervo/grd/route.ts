@@ -30,6 +30,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (user.role === "CLIENTE" || user.role === "CLIENT") {
+      return NextResponse.json(
+        { error: "Apenas a equipe técnica pode emitir GRD." },
+        { status: 403 }
+      );
+    }
+
     const hasAccess = await canUserAccessProject(user, projectId);
     if (!hasAccess) {
       return NextResponse.json(

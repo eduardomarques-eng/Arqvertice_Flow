@@ -22,6 +22,19 @@ export default async function EquipeWhatsAppPage() {
     await Promise.all([
       prisma.whatsAppUserSession.findMany({
         orderBy: [{ isStudioOfficial: "desc" }, { userName: "asc" }],
+        select: {
+          id: true,
+          userId: true,
+          userName: true,
+          userRole: true,
+          sessionName: true,
+          isStudioOfficial: true,
+          connectionStatus: true,
+          connectedPhone: true,
+          onlyKnownContacts: true,
+          autoSyncProjectTimeline: true,
+          lastConnectedAt: true,
+        },
       }),
       prisma.whatsAppGatewayConfig.findUnique({ where: { id: "default" } }),
       prisma.whatsAppConversation.findMany({
@@ -46,17 +59,24 @@ export default async function EquipeWhatsAppPage() {
       }),
     ]);
 
-  const serializeSession = (s: typeof mySession) => ({
-    ...s,
-    lastConnectedAt: s.lastConnectedAt ? s.lastConnectedAt.toISOString() : null,
-  });
+  const safeMySession = {
+    ...mySession,
+    qrCodeDataUrl: mySession.connectionStatus === "QR_READY" ? mySession.qrCodeDataUrl : null,
+    pairingCode: mySession.connectionStatus === "QR_READY" ? mySession.pairingCode : null,
+    lastConnectedAt: mySession.lastConnectedAt ? mySession.lastConnectedAt.toISOString() : null,
+  };
 
   return (
-    <AppShell eyebrow="Comunicação WhatsApp" environment="admin">
+    <AppShell eyebrow="Comunicação WhatsApp · Equipe" environment="admin" role={user.role}>
       <WhatsAppMultiSessionHub
         isAdmin={user.role === "ADMIN"}
-        initialMySession={serializeSession(mySession)}
-        initialTeamSessions={teamSessions.map(serializeSession)}
+        initialMySession={safeMySession}
+        initialTeamSessions={teamSessions.map((s) => ({
+          ...s,
+          qrCodeDataUrl: null,
+          pairingCode: null,
+          lastConnectedAt: s.lastConnectedAt ? s.lastConnectedAt.toISOString() : null,
+        }))}
         initialConversations={conversations.map((c) => ({
           ...c,
           lastMessageAt: c.lastMessageAt.toISOString(),

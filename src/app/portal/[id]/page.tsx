@@ -13,6 +13,7 @@ import { getDeliverableMatrix } from "@/server/services/deliverable-service";
 import { listProjectContractsForPortal } from "@/server/services/contract-service";
 import { listProjectInstallments } from "@/server/services/installment-service";
 import { formatCurrencyBRL } from "@/lib/contract-template";
+import { generateWhatsAppLink, normalizeWhatsAppPhone } from "@/lib/whatsapp";
 import {
   ClientSimplifiedReport,
   type ClientDeliverable,
@@ -30,7 +31,7 @@ export default async function ClientPortalPage({
   await requirePageClientPortal();
   const user = await requirePageProjectAccess(id);
 
-  const [bundle, projectDb, deliverableMatrix, rawDeliverables, publishedEap, portalContracts, portalInstallments] = await Promise.all([
+  const [bundle, projectDb, deliverableMatrix, rawDeliverables, publishedEap, portalContracts, portalInstallments, officialWaSession, adminContact] = await Promise.all([
     getScheduleReport(id, new Date(), { skipAuth: true }),
     prisma.project.findUnique({
       where: { id },
@@ -67,7 +68,33 @@ export default async function ClientPortalPage({
       .catch(() => null),
     listProjectContractsForPortal(id).catch(() => []),
     listProjectInstallments(id).catch(() => []),
+    prisma.whatsAppUserSession
+      .findFirst({
+        where: { isStudioOfficial: true, connectedPhone: { not: null } },
+        select: { connectedPhone: true },
+      })
+      .catch(() => null),
+    prisma.user
+      .findFirst({
+        where: { role: "ADMIN", isActive: true },
+        select: { whatsapp: true, phone: true },
+      })
+      .catch(() => null),
   ]);
+
+  const studioWhatsAppDigits = normalizeWhatsAppPhone(
+    officialWaSession?.connectedPhone ||
+      adminContact?.whatsapp ||
+      adminContact?.phone ||
+      process.env.STUDIO_WHATSAPP_PHONE ||
+      ""
+  );
+  const studioWhatsAppHref = studioWhatsAppDigits
+    ? generateWhatsAppLink(
+        studioWhatsAppDigits,
+        `Olá! Gostaria de falar sobre o andamento do projeto ${projectDb?.name || "no ArqVértice OS"}.`
+      )
+    : null;
 
   if (!projectDb) {
     return (
@@ -110,6 +137,26 @@ export default async function ClientPortalPage({
       <div className="space-y-6">
         {/* Card Executivo Discreto do Cliente */}
         <section className="space-y-4">
+          {studioWhatsAppHref && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 dark:border-zinc-800 dark:bg-[#16161D]">
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                  Canal Direto com o Estúdio
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Dúvidas técnicas, alinhamentos de obra ou envio de comprovantes Pix.
+                </p>
+              </div>
+              <a
+                href={studioWhatsAppHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700"
+              >
+                Atendimento via WhatsApp
+              </a>
+            </div>
+          )}
           <BentoKpiStrip
             columns={3}
             items={[

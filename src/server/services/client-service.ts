@@ -4,6 +4,9 @@ import { DomainError, notFound } from "@/server/errors";
 import { clientSchema, clientUpdateSchema } from "@/lib/validation";
 import { hashPassword } from "@/lib/password";
 import { randomBytes } from "node:crypto";
+import { appUrl, escapeHtml } from "@/lib/email";
+import { sendEmail } from "@/server/services/email-service";
+import { buildArqVerticeEmailTemplate } from "@/lib/email/resend-service";
 
 function normalizeClientData(data: ReturnType<typeof clientSchema.parse>) {
   const { address, phone, document, ...rest } = data;
@@ -111,6 +114,52 @@ export async function provisionClientAccess(id: string) {
         });
     return account;
   });
+  const portalUrl = `${appUrl()}/login`;
+  const clientName = client.fullName ?? client.name;
+  const welcomeLines = [
+    `Olá, ${clientName}!`,
+    "",
+    "Seu acesso ao Portal do Cliente do ArqVértice OS foi liberado com sucesso.",
+    `• Link de acesso: ${portalUrl}`,
+    `• E-mail: ${user.email}`,
+    ...(password
+      ? [
+          `• Senha inicial temporária: ${password}`,
+          "Recomendamos alterar a senha no primeiro acesso.",
+        ]
+      : ["Use sua senha cadastrada anteriormente ou a opção 'Esqueci a senha' para redefinir."]),
+    "",
+    "No Portal você acompanha cronogramas, pranchas liberadas, propostas, contratos e financeiro.",
+  ];
+  const messageBody = welcomeLines.join("\n");
+  const auditBody = [
+    `Olá, ${clientName}!`,
+    "",
+    "Seu acesso ao Portal do Cliente do ArqVértice OS foi liberado com sucesso.",
+    `• Link de acesso: ${portalUrl}`,
+    `• E-mail: ${user.email}`,
+    password
+      ? "• Senha inicial temporária: [ENVIADA POR E-MAIL / PROTEGIDA]"
+      : "• Acesso com senha cadastrada anteriormente.",
+  ].join("\n");
+
+  const html = buildArqVerticeEmailTemplate({
+    recipientName: clientName,
+    category: "Acesso ao Portal",
+    messageBody,
+  });
+
+  await sendEmail({
+    to: user.email,
+    subject: `Acesso ao Portal do Cliente — ${clientName.replace(/[\r\n]+/g, " ")}`,
+    text: messageBody,
+    auditBody,
+    html,
+    eventType: "message.sent",
+    entityType: "Client",
+    entityId: id,
+  }).catch(() => undefined);
+
   return { userId: user.id, email: user.email, ready: true, temporaryPassword: password };
 }
 

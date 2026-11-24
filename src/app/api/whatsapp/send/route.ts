@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { currentUser } from "@/server/auth";
+import { canUserAccessProject, currentUser } from "@/server/auth";
 import { prisma } from "@/server/db";
 import {
   ensureWhatsAppBootstrapForUser,
   getHumanizedDelayMs,
 } from "@/lib/whatsapp/multi-session";
+import { resolveOfficialGatewayConfig } from "@/lib/whatsapp/gateway-client";
+import { buildBucketKey, checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,12 +18,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
+  const rate = checkRateLimit(buildBucketKey("wa-send", user.id), {
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Limite de envios WhatsApp excedido." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
+    );
+  }
+
   const body = (await req.json().catch(() => ({}))) as {
     action?: "send" | "convert_to_rfi";
     sessionId?: string;
     toPhone?: string;
     contactName?: string;
     projectId?: string | null;
+    documentId?: string | null;
+    revisionId?: string | null;
     clientId?: string | null;
     text?: string;
     conversationId?: string;
@@ -39,24 +54,90 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Sem permissão nesta conversa." }, { status: 403 });
     }
 
-    // Also log communication/audit entry for project traceability
+    const targetProjectId = body.projectId || conv.projectId || null;
+    if (user.role !== "ADMIN" && targetProjectId) {
+      const canAccess = await canUserAccessProject(user, targetProjectId);
+      if (!canAccess) {
+        return NextResponse.json({ error: "Sem permissão neste projeto." }, { status: 403 });
+      }
+    }
+
+    const targetRevision = body.revisionId
+      ? await prisma.acervoRevision.findUnique({
+          where: { id: body.revisionId },
+          include: { document: { select: { id: true, projectId: true, code: true } } },
+        })
+      : body.documentId
+        ? await prisma.acervoRevision.findFirst({
+            where: { documentId: body.documentId },
+            orderBy: [{ isCurrent: "desc" }, { createdAt: "desc" }],
+            include: { document: { select: { id: true, projectId: true, code: true } } },
+          })
+        : targetProjectId
+          ? await prisma.acervoRevision.findFirst({
+              where: {
+                document: { projectId: targetProjectId, isArchived: false },
+              },
+              orderBy: [{ isCurrent: "desc" }, { createdAt: "desc" }],
+              include: { document: { select: { id: true, projectId: true, code: true } } },
+            })
+          : null;
+
+    if (targetRevision && user.role !== "ADMIN") {
+      const canAccessRevProj = await canUserAccessProject(user, targetRevision.document.projectId);
+      if (!canAccessRevProj) {
+        return NextResponse.json(
+          { error: "Sem permissão na revisão/documento informado." },
+          { status: 403 }
+        );
+      }
+    }
+
+    let createdRfi: { id: string; code: string; documentId: string; revisionId: string } | null = null;
+    if (targetRevision) {
+      const existingRfiCount = await prisma.acervoRfiMarkup.count({
+        where: { documentId: targetRevision.documentId },
+      });
+      const rfiCode = `RFI-${String(existingRfiCount + 1).padStart(3, "0")}`;
+      createdRfi = await prisma.acervoRfiMarkup.create({
+        data: {
+          code: rfiCode,
+          documentId: targetRevision.documentId,
+          revisionId: targetRevision.id,
+          title: `RFI WhatsApp — ${(conv.contactName || conv.contactPhone).slice(0, 80)}`,
+          description: body.text.trim(),
+          status: "ABERTA",
+          markupType: "PIN",
+          createdById: user.id,
+        },
+        select: { id: true, code: true, documentId: true, revisionId: true },
+      });
+    }
+
     await prisma.communicationLog.create({
       data: {
         recipientType: "CLIENTE",
         recipientId: conv.clientId || conv.id,
         recipientName: conv.contactName || conv.contactPhone,
         recipientContact: conv.contactPhone,
-        projectId: conv.projectId,
+        projectId: targetRevision?.document.projectId || targetProjectId,
         channel: "WHATSAPP",
         category: "RFI_OBRA",
         deliveryMethod: "CONVERSAO_WHATSAPP",
         status: "ENVIADO",
         sentBy: user.name,
-        messageBody: `[RFI convertido do WhatsApp] ${body.text}`,
+        messageBody: createdRfi
+          ? `[${createdRfi.code} convertido do WhatsApp] ${body.text}`
+          : `[RFI convertido do WhatsApp] ${body.text}`,
       },
     });
 
-    return NextResponse.json({ ok: true, converted: true });
+    revalidatePath("/admin/acervo");
+    revalidatePath("/equipe/acervo");
+    revalidatePath("/admin/whatsapp");
+    revalidatePath("/equipe/whatsapp");
+
+    return NextResponse.json({ ok: true, converted: true, rfi: createdRfi });
   }
 
   const toPhone = (body.toPhone || "").replace(/\D/g, "");
@@ -68,6 +149,13 @@ export async function POST(req: Request) {
     );
   }
 
+  if (body.projectId && user.role !== "ADMIN") {
+    const canAccess = await canUserAccessProject(user, body.projectId);
+    if (!canAccess) {
+      return NextResponse.json({ error: "Sem permissão neste projeto." }, { status: 403 });
+    }
+  }
+
   const mySession = await ensureWhatsAppBootstrapForUser(user);
   const senderSession =
     user.role === "ADMIN" && body.sessionId
@@ -76,11 +164,7 @@ export async function POST(req: Request) {
         })) || mySession
       : mySession;
 
-  const gateway = await prisma.whatsAppGatewayConfig.findUnique({
-    where: { id: "default" },
-  });
-  const gatewayUrl = gateway?.gatewayUrl?.replace(/\/$/, "");
-  const apiKey = process.env.WA_AKG_API_KEY?.trim() || "";
+  const { gatewayUrl, apiKey } = await resolveOfficialGatewayConfig();
 
   const remoteJid = `${toPhone}@s.whatsapp.net`;
   const matchedClient =
@@ -118,7 +202,7 @@ export async function POST(req: Request) {
   let providerMsgId: string | null = null;
   const humanizedDelayMs = getHumanizedDelayMs();
 
-  if (gatewayUrl && senderSession.connectionStatus === "CONNECTED") {
+  if (gatewayUrl && apiKey && senderSession.connectionStatus === "CONNECTED") {
     try {
       const gwRes = await fetch(
         `${gatewayUrl}/sessions/${encodeURIComponent(senderSession.sessionName)}/send`,
@@ -126,9 +210,11 @@ export async function POST(req: Request) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(apiKey ? { "x-api-key": apiKey } : {}),
+            "x-api-key": apiKey,
           },
           body: JSON.stringify({ to: toPhone, text, delayMs: humanizedDelayMs }),
+          signal: AbortSignal.timeout(4000),
+          redirect: "error",
         }
       );
       if (gwRes.ok) {

@@ -159,9 +159,13 @@ export function WhatsAppMultiSessionHub({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...extra }),
       });
-      const data = (await res.json()) as { ok?: boolean; session?: WaSessionDTO; error?: string };
-      if (!res.ok) {
-        setFeedback(data.error || "Erro ao atualizar sessão WhatsApp.");
+      const data = (await res.json()) as { ok?: boolean; status?: string; session?: WaSessionDTO; error?: string };
+      if (!res.ok || data.status === "GATEWAY_OFFLINE") {
+        setFeedback(
+          data.status === "GATEWAY_OFFLINE"
+            ? data.error || "Gateway WA-AKG offline. Inicie o serviço local e verifique a URL do túnel."
+            : data.error || "Erro ao atualizar sessão WhatsApp."
+        );
       } else if (data.session) {
         if (data.session.id === mySession.id) setMySession(data.session);
         setTeamSessions((prev) =>
@@ -193,9 +197,12 @@ export function WhatsAppMultiSessionHub({
           gatewayUrl: gatewayUrlInput,
         }),
       });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (res.ok) {
         setFeedback("URL do Túnel Cloudflare (Gateway Local) salva com sucesso.");
         await refreshState();
+      } else {
+        setFeedback(json.error || "URL do gateway inválida ou não autorizada.");
       }
     } finally {
       setBusy(false);

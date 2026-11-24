@@ -1,7 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * ArqVértice Flow — WhatsApp Bridge Local
+ * DESCONTINUADO — Bridge Legada (:3001)
+ * Use o gateway multi-sessão oficial em `..\wa-akg-service\start-local-gateway.ps1` (:3005).
+ */
+if (!process.argv.includes("--force-legacy")) {
+  console.error(
+    "[DEPRECATED] A bridge legada (scripts/whatsapp-bridge.mjs) foi desativada.\n" +
+      "Inicie o gateway oficial multi-sessão em: ..\\wa-akg-service\\start-local-gateway.ps1"
+  );
+  process.exit(1);
+}
+
+/**
+ * ArqVértice OS — WhatsApp Bridge Legada (somente com --force-legacy)
  * Executa Baileys fora do Next.js bundle para não conflitar com Server Components.
  * 
  * Suporta:

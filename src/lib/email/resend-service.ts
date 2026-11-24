@@ -1,4 +1,22 @@
-import { Resend } from "resend";
+import { appUrl, escapeHtml, sendTransactionalEmail } from "@/lib/email";
+
+export function sanitizeEmailHtml(rawHtml: string): string {
+  let clean = rawHtml;
+  // Iterative strip to defeat nested/reconstructed tags (<scr<script>ipt>)
+  for (let i = 0; i < 3; i++) {
+    clean = clean
+      .replace(/<\s*(script|iframe|object|embed|svg|math|style|form)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
+      .replace(/<\s*(script|iframe|object|embed|svg|math|style|form|meta|link|base)\b[^>]*\/?>/gi, "");
+  }
+  // Strip inline event handlers whether separated by whitespace or slash (<img/src=x/onerror=...>)
+  clean = clean.replace(/(?:^|[\s/"'`])on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, " ");
+  // Decode control whitespace/entities around dangerous URI schemes and neutralize them
+  clean = clean
+    .replace(/(href|src|action|formaction)\s*=\s*(['"])\s*(?:&#?\w+;|\s)*(?:j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t|v\s*b\s*s\s*c\s*r\s*i\s*p\s*t|data\s*:\s*text\/html)\s*:[^'"]*\2/gi, '$1="#"')
+    .replace(/(?:javascript|vbscript)\s*:/gi, "blocked:")
+    .replace(/data\s*:\s*text\/html/gi, "blocked:");
+  return clean;
+}
 
 export interface ArqVerticeEmailParams {
   to: string | string[];
@@ -17,7 +35,7 @@ export interface EmailDispatchResult {
 }
 
 /**
- * Template HTML Responsivo Institucional do ArqVértice Studio
+ * Template HTML Responsivo Institucional do ArqVértice OS (anti-XSS)
  */
 export function buildArqVerticeEmailTemplate({
   recipientName,
@@ -30,10 +48,13 @@ export function buildArqVerticeEmailTemplate({
   messageBody: string;
   projectName?: string;
 }): string {
+  const safeCategory = escapeHtml(category);
+  const safeRecipient = recipientName ? escapeHtml(recipientName) : "";
+  const safeProject = projectName ? escapeHtml(projectName) : "";
   const formattedBody = messageBody
     .split("\n")
     .filter((line) => line.trim().length > 0)
-    .map((p) => `<p style="margin: 0 0 12px 0; line-height: 1.6; color: #3f3f46;">${p}</p>`)
+    .map((p) => `<p style="margin: 0 0 12px 0; line-height: 1.6; color: #3f3f46;">${escapeHtml(p)}</p>`)
     .join("");
 
   return `
@@ -61,7 +82,7 @@ export function buildArqVerticeEmailTemplate({
                   </td>
                   <td align="right">
                     <span style="display: inline-block; padding: 4px 12px; font-size: 11px; font-weight: 600; color: #d4d4d8; background-color: #27272a; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
-                      ${category}
+                      ${safeCategory}
                     </span>
                   </td>
                 </tr>
@@ -72,29 +93,27 @@ export function buildArqVerticeEmailTemplate({
           <!-- CONTEÚDO PRINCIPAL -->
           <tr>
             <td style="padding: 36px;">
-              ${
-                recipientName
-                  ? `<h2 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #18181b;">Olá, ${recipientName}!</h2>`
-                  : ""
-              }
+              ${safeRecipient
+      ? `<h2 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #18181b;">Olá, ${safeRecipient}!</h2>`
+      : ""
+    }
 
-              ${
-                projectName
-                  ? `
+              ${safeProject
+      ? `
                 <div style="margin-bottom: 24px; padding: 12px 16px; background-color: #f8fafc; border-left: 4px solid #0284c7; border-radius: 8px;">
                   <span style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Empreendimento:</span>
-                  <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 2px;">${projectName}</div>
+                  <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 2px;">${safeProject}</div>
                 </div>
               `
-                  : ""
-              }
+      : ""
+    }
 
               <div style="font-size: 14px; line-height: 1.6; color: #3f3f46;">
                 ${formattedBody}
               </div>
 
               <div style="margin-top: 36px; padding-top: 24px; border-top: 1px solid #f4f4f5;">
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app"}" style="display: inline-block; background-color: #09090b; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 12px 24px; border-radius: 10px;">
+                <a href="${escapeHtml(appUrl())}" style="display: inline-block; background-color: #09090b; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 12px 24px; border-radius: 10px;">
                   Acessar ArqVértice OS →
                 </a>
               </div>
@@ -121,7 +140,7 @@ export function buildArqVerticeEmailTemplate({
 }
 
 /**
- * Função de envio institucional de e-mail via Resend
+ * Função institucional unificada de envio de e-mail (Resend + fallback SMTP)
  */
 export async function sendArqVerticeEmail({
   to,
@@ -131,55 +150,40 @@ export async function sendArqVerticeEmail({
   messageBody,
   projectName,
 }: ArqVerticeEmailParams): Promise<EmailDispatchResult> {
-  const apiKey = process.env.RESEND_API_KEY;
+  const html = buildArqVerticeEmailTemplate({
+    recipientName,
+    category,
+    messageBody,
+    projectName,
+  });
 
-  if (!apiKey) {
-    console.warn("[ResendService] RESEND_API_KEY não configurada no ambiente.");
+  const recipients = Array.isArray(to) ? to.join(", ") : to;
+  const tx = await sendTransactionalEmail({
+    to: recipients,
+    subject,
+    html,
+    text: messageBody,
+  });
+
+  if (!tx.configured) {
     return {
       success: false,
       fallbackMailto: true,
-      error: "RESEND_API_KEY não configurada",
+      error: tx.error || "Nenhum provider de e-mail configurado",
     };
   }
 
-  const fromEmail =
-    process.env.RESEND_FROM_EMAIL || "ArqVértice OS <notificacoes@arqvertice.com.br>";
-
-  try {
-    const resend = new Resend(apiKey);
-    const html = buildArqVerticeEmailTemplate({
-      recipientName,
-      category,
-      messageBody,
-      projectName,
-    });
-
-    const response = await resend.emails.send({
-      from: fromEmail,
-      to,
-      subject,
-      html,
-    });
-
-    if (response.error) {
-      console.error("[ResendService] Erro retornado pela API:", response.error);
-      return {
-        success: false,
-        error: response.error.message,
-      };
-    }
-
-    return {
-      success: true,
-      messageId: response.data?.id,
-    };
-  } catch (err: any) {
-    console.error("[ResendService] Exceção no envio:", err);
+  if (!tx.ok) {
     return {
       success: false,
       fallbackMailto: true,
-      error: err?.message || "Erro desconhecido ao enviar e-mail via Resend",
+      error: tx.error || "Falha no envio de e-mail",
     };
   }
+
+  return {
+    success: true,
+    messageId: tx.externalId,
+  };
 }
 

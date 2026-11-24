@@ -5,6 +5,8 @@ import {
   getAccessibleMailboxes,
   sendEmailViaResendApi,
 } from "@/lib/email/email-infra";
+import { sanitizeEmailHtml } from "@/lib/email/resend-service";
+import { buildBucketKey, checkRateLimit } from "@/lib/rate-limit";
 
 interface SendEmailPayload {
   action?: "queue" | "dispatch";
@@ -31,6 +33,17 @@ export async function POST(req: Request) {
   const user = await currentUser();
   if (!user || user.role === "CLIENTE" || user.role === "CLIENT") {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  }
+
+  const rate = checkRateLimit(buildBucketKey("email-send", user.id), {
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Limite de envios por minuto excedido. Tente novamente em instantes." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
+    );
   }
 
   const body = (await req.json().catch(() => ({}))) as SendEmailPayload;
@@ -137,9 +150,22 @@ export async function POST(req: Request) {
     resolvedClientId = matchedClient?.id || null;
   }
 
-  const thread = body.threadId
-    ? await prisma.emailThread.findUnique({ where: { id: body.threadId } })
-    : null;
+  const sanitizedHtml = body.bodyHtml ? sanitizeEmailHtml(body.bodyHtml) : null;
+
+  let thread = null as Awaited<ReturnType<typeof prisma.emailThread.findUnique>>;
+  if (body.threadId) {
+    thread = await prisma.emailThread.findUnique({ where: { id: body.threadId } });
+    if (!thread) {
+      return NextResponse.json({ error: "Thread de e-mail não encontrada." }, { status: 404 });
+    }
+    const ownsThread = accessible.some((m) => m.id === thread!.mailboxId);
+    if (!ownsThread) {
+      return NextResponse.json(
+        { error: "Sem permissão para responder nesta caixa de e-mail." },
+        { status: 403 }
+      );
+    }
+  }
 
   const activeThread =
     thread ||
@@ -172,7 +198,7 @@ export async function POST(req: Request) {
       ccAddresses: ccList,
       subject: body.subject.trim(),
       bodyText: body.bodyText,
-      bodyHtml: body.bodyHtml || null,
+      bodyHtml: sanitizedHtml,
       status: initialStatus,
       cancelDeadlineAt,
       scheduledFor: isScheduled ? scheduledDate : null,
@@ -189,7 +215,7 @@ export async function POST(req: Request) {
         cc: ccList,
         subject: body.subject.trim(),
         text: body.bodyText,
-        html: body.bodyHtml,
+        html: sanitizedHtml,
       });
       await prisma.emailMessage.update({
         where: { id: createdMsg.id },

@@ -1,4 +1,8 @@
-import { generateWhatsAppLink, sanitizePhoneNumber, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { generateWhatsAppLink, sanitizePhoneNumber } from "@/lib/whatsapp";
+import {
+  resolveOfficialGatewayConfig,
+  sendViaOfficialGateway,
+} from "@/lib/whatsapp/gateway-client";
 
 export type WhatsAppProviderName = "wa.me" | "api";
 
@@ -10,35 +14,36 @@ export type WhatsAppDispatchResult = {
 };
 
 export function getWhatsAppProvider(): WhatsAppProviderName {
-  return (process.env.WHATSAPP_PROVIDER ?? "wa.me").toLowerCase() === "api" ? "api" : "wa.me";
+  if ((process.env.WHATSAPP_PROVIDER ?? "").toLowerCase() === "wa.me") {
+    return "wa.me";
+  }
+  return process.env.WA_AKG_GATEWAY_URL || process.env.WA_AKG_URL || (process.env.WHATSAPP_PROVIDER ?? "").toLowerCase() === "api"
+    ? "api"
+    : "wa.me";
 }
 
-export function isWhatsAppApiConfigured(): boolean {
-  return Boolean(process.env.WHATSAPP_API_URL && process.env.WHATSAPP_API_TOKEN);
+export async function isWhatsAppApiConfigured(): Promise<boolean> {
+  const cfg = await resolveOfficialGatewayConfig();
+  return Boolean(cfg.gatewayUrl && cfg.apiKey);
 }
 
 export async function dispatchWhatsAppMessage(phone: string, message: string): Promise<WhatsAppDispatchResult> {
   const digits = sanitizePhoneNumber(phone);
+  const deepLink = generateWhatsAppLink(digits, message);
 
-  if (getWhatsAppProvider() === "wa.me") {
-    return { provider: "wa.me", status: "SKIPPED", deepLink: generateWhatsAppLink(digits, message) };
-  }
-
-  const url = process.env.WHATSAPP_API_URL;
-  const token = process.env.WHATSAPP_API_TOKEN;
-  if (!url || !token) {
+  const result = await sendViaOfficialGateway({ phone: digits, message });
+  if (result.ok && result.method === "WA_AKG_GATEWAY") {
     return {
-      provider: "wa.me",
-      status: "SKIPPED",
-      deepLink: generateWhatsAppLink(digits, message),
+      provider: "api",
+      status: "SENT",
+      deepLink: result.deepLink || deepLink,
+      externalId: result.messageId,
     };
   }
 
-  const result = await sendWhatsAppMessage({ phone: digits, message });
   return {
-    provider: "api",
-    status: result.success ? "SENT" : "SKIPPED",
-    deepLink: result.url,
-    externalId: result.externalId,
+    provider: "wa.me",
+    status: "SKIPPED",
+    deepLink: result.deepLink || deepLink,
   };
 }

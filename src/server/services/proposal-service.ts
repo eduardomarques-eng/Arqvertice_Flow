@@ -1452,19 +1452,39 @@ export async function sendProposalEmail(proposalId: string) {
   const token = createProposalToken();
   const url = proposalPublicUrl(token);
 
+  const clientName = client.fullName ?? client.name;
+  const totalValueStr = formatCurrencyBRL(Number(version.total ?? 0));
+  const validityStr = validityDays ? `${validityDays} dias` : null;
+
   const resolved = await resolveTemplate(
     "email.proposal",
     {
-      CLIENTE: client.fullName ?? client.name,
+      CLIENTE: clientName,
       PROJETO: proposal.project.name,
       PROPOSTA: version.title,
-      VALOR: formatCurrencyBRL(Number(version.total ?? 0)),
-      VALIDADE: validityDays ? `${validityDays} dias` : null,
+      VALOR: totalValueStr,
+      VALIDADE: validityStr,
       LINK: url,
     },
-    { blockOnMissing: true },
+    { blockOnMissing: false },
   );
-  if (!resolved.ok) throw new Error(resolved.message);
+
+  const fallbackText = [
+    `Olá, ${clientName}!`,
+    "",
+    `Preparamos a proposta comercial "${version.title}" para o projeto ${proposal.project.name}.`,
+    `Investimento previsto: ${totalValueStr}${validityStr ? ` (validade: ${validityStr})` : ""}.`,
+    "",
+    "Acesse sua apresentação interativa pelo link abaixo:",
+    url,
+    "",
+    "Atenciosamente,",
+    "ArqVértice Studio",
+  ].join("\n");
+
+  const emailBodyText = resolved.ok ? resolved.text : fallbackText;
+  const templateKeyUsed = resolved.ok ? resolved.key : "email.proposal.fallback";
+  const templateVersionUsed = resolved.ok ? resolved.version : 0;
 
   // Cria um novo token de acesso para o e-mail preservando o link existente (não quebra o link de WhatsApp).
   await prisma.proposalAccessLink.create({
@@ -1479,14 +1499,14 @@ export async function sendProposalEmail(proposalId: string) {
   const result = await sendEmail({
     to: client.email,
     subject: `${proposal.code ?? "Proposta"} — ${proposal.project.name}`,
-    text: resolved.text,
+    text: emailBodyText,
     html: `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:24px;background:#f5f5f7;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
     <table role="presentation" width="100%" style="max-width:560px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px">
       <tr><td>
         <p style="margin:0 0 4px;font-size:18px;font-weight:700">ARQVERTICE<span style="color:#2563eb">.</span></p>
         <p style="margin:0 0 24px;font-size:13px;color:#64748b">Arquitetura e Engenharia</p>
-        <pre style="margin:0;font-family:inherit;font-size:14px;line-height:1.7;white-space:pre-wrap">${escapeHtml(resolved.text)}</pre>
+        <pre style="margin:0;font-family:inherit;font-size:14px;line-height:1.7;white-space:pre-wrap">${escapeHtml(emailBodyText)}</pre>
       </td></tr>
     </table>
   </td></tr></table></body></html>`,
@@ -1506,8 +1526,8 @@ export async function sendProposalEmail(proposalId: string) {
       // é auditado — só o hash fica na base, e é o que deve continuar lá.
       recipient: client.email,
       version: link.versionNumber,
-      template: resolved.key,
-      templateVersion: resolved.version,
+      template: templateKeyUsed,
+      templateVersion: templateVersionUsed,
       delivered: result.ok,
       configured: result.configured,
       error: result.error ?? null,
