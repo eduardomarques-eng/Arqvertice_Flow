@@ -1985,6 +1985,11 @@ model EapSourceFile {
   sourceSoftware       String     @default("MANUAL") // TQS | REVIT | MANUAL
   discipline           String
   revisionLabel        String     @default("R00")
+  versionCode          String     @default("R00")
+  versionNumber        Int        @default(0)
+  isActive             Boolean    @default(true)
+  revisionNote         String?
+  supersedesId         String?    @db.Uuid
   includedInMining     Boolean    @default(true)
   status               String     @default("PENDENTE") // PENDENTE | PROCESSADO | DESATUALIZADO_NO_ACERVO | ERRO
   extractedSummaryJson Json?
@@ -1993,6 +1998,7 @@ model EapSourceFile {
   createdAt            DateTime   @default(now())
 
   @@index([eapProjectId, status])
+  @@index([eapProjectId, discipline, isActive])
   @@index([acervoDocumentId])
 }
 

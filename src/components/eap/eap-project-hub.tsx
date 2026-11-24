@@ -33,6 +33,12 @@ interface SourceFileDTO {
   sourceSoftware: string;
   discipline: string;
   revisionLabel: string;
+  versionCode?: string;
+  versionNumber?: number;
+  isActive?: boolean;
+  revisionNote?: string | null;
+  supersedesId?: string | null;
+  createdAt?: string;
   includedInMining: boolean;
   status: string;
   extractedSummaryJson?: {
@@ -164,6 +170,7 @@ export function EapProjectHub({
   // Upload por disciplina & pré-visualização
   const [dragDiscipline, setDragDiscipline] = useState<string | null>(null);
   const [previewSource, setPreviewSource] = useState<SourceFileDTO | null>(null);
+  const [openHistoryDisc, setOpenHistoryDisc] = useState<Record<string, boolean>>({});
 
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -209,7 +216,8 @@ export function EapProjectHub({
   async function handleDisciplineUpload(
     discipline: EapDisciplineCode,
     sourceSoftware: "TQS" | "REVIT",
-    fileList: FileList | File[] | null
+    fileList: FileList | File[] | null,
+    supersedesId?: string | null
   ) {
     if (!fileList || fileList.length === 0) return;
     const files = Array.from(fileList);
@@ -222,6 +230,9 @@ export function EapProjectHub({
         fd.append("file", file);
         fd.append("sourceSoftware", sourceSoftware);
         fd.append("discipline", discipline);
+        if (supersedesId) {
+          fd.append("supersedesId", supersedesId);
+        }
         const res = await fetch(`/api/eap/projects/${projectId}/sources/upload`, {
           method: "POST",
           body: fd,
@@ -234,13 +245,56 @@ export function EapProjectHub({
         added.push(json.source);
       }
       if (added.length > 0) {
-        setSources((prev) => [...added, ...prev]);
+        setSources((prev) => {
+          const updatedPrev = supersedesId
+            ? prev.map((s) =>
+                s.discipline === discipline ? { ...s, isActive: false, includedInMining: false } : s
+              )
+            : prev;
+          return [...added, ...updatedPrev];
+        });
         setFeedback({
           type: "success",
-          text: `${added.length} arquivo(s) anexado(s) na disciplina ${discipline}.`,
+          text: supersedesId
+            ? `Nova revisão (${added[0]?.versionCode || "R01"}) ativada na disciplina ${discipline}.`
+            : `${added.length} arquivo(s) anexado(s) na disciplina ${discipline}.`,
         });
         router.refresh();
       }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleActivateVersion(src: SourceFileDTO) {
+    setBusy(`activate-${src.id}`);
+    setFeedback(null);
+    try {
+      const res = await fetch(
+        `/api/eap/projects/${projectId}/sources/${src.id}/activate`,
+        { method: "PATCH" }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        setFeedback({ type: "error", text: json.error || "Erro ao restaurar versão." });
+        return;
+      }
+      setSources((prev) =>
+        prev.map((s) =>
+          s.discipline === src.discipline
+            ? {
+                ...s,
+                isActive: s.id === src.id,
+                includedInMining: s.id === src.id,
+              }
+            : s
+        )
+      );
+      setFeedback({
+        type: "success",
+        text: `Versão ${src.versionCode || src.revisionLabel} ("${src.fileName}") definida como vigente.`,
+      });
+      router.refresh();
     } finally {
       setBusy(null);
     }
@@ -428,7 +482,8 @@ export function EapProjectHub({
     s.flaggedItems.map((item) => ({ ...item, stageCode: s.code, stageName: s.name }))
   );
   const populatedStages = initialEap.stageSummaries.filter((s) => s.itemsCount > 0);
-  const totalCarbon = sources.reduce(
+  const activeSources = sources.filter((s) => s.isActive !== false);
+  const totalCarbon = activeSources.reduce(
     (acc, s) => acc + (s.extractedSummaryJson?.carbonKgCo2 || 0),
     0
   );
@@ -532,8 +587,8 @@ export function EapProjectHub({
                 <span className="font-mono text-xs text-slate-600 dark:text-zinc-400">
                   Área: {initialEap.builtAreaM2} m² · BDI: {initialEap.bdiPercent}%
                 </span>
-                <Badge tone={sources.length > 0 ? "green" : "neutral"}>
-                  {sources.length} arquivo(s) anexado(s)
+                <Badge tone={activeSources.length > 0 ? "green" : "neutral"}>
+                  {activeSources.length} arquivo(s) vigente(s)
                 </Badge>
                 {totalCarbon > 0 && (
                   <Badge tone="green">
@@ -544,7 +599,7 @@ export function EapProjectHub({
               <button
                 type="button"
                 onClick={handleMineAll}
-                disabled={busy === "mine" || sources.length === 0}
+                disabled={busy === "mine" || activeSources.length === 0}
                 className="h-10 rounded-xl bg-slate-900 px-5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
               >
                 {busy === "mine" ? "Minerando Quantitativos..." : "⚡ Minerar & Pré-Preencher EAP"}
@@ -578,6 +633,9 @@ export function EapProjectHub({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {DISCIPLINE_UPLOAD_CARDS.map((card) => {
                 const discFiles = sources.filter((s) => matchesDiscipline(s.discipline, card.code));
+                const activeDiscFiles = discFiles.filter((s) => s.isActive !== false);
+                const historyDiscFiles = discFiles.filter((s) => s.isActive === false);
+                const isHistoryOpen = Boolean(openHistoryDisc[card.code]);
                 const isUploading = busy === `upload-${card.code}`;
                 const isDrag = dragDiscipline === card.code;
 
@@ -606,25 +664,26 @@ export function EapProjectHub({
                           <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
                             {card.title}
                           </span>
-                          <Badge tone={discFiles.length > 0 ? "green" : "neutral"}>
-                            {isUploading ? "Enviando..." : `${discFiles.length} arq.`}
+                          <Badge tone={activeDiscFiles.length > 0 ? "green" : "neutral"}>
+                            {isUploading ? "Enviando..." : `${activeDiscFiles.length} vigente(s)`}
                           </Badge>
                         </div>
-                        <p className="mt-1 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">
+                        <p className="mt-1 text-[10px] leading-snug text-slate-600 dark:text-zinc-300">
                           {card.hint}
                         </p>
                       </div>
 
-                      {/* Lista de arquivos anexados na disciplina */}
-                      {discFiles.length > 0 && (
+                      {/* Lista de arquivos vigentes na disciplina */}
+                      {activeDiscFiles.length > 0 && (
                         <div className="space-y-1.5">
-                          {discFiles.map((src) => {
+                          {activeDiscFiles.map((src) => {
                             const isHtml = isHtmlFileName(src.fileName);
                             const isRemoving = busy === `remove-${src.id}`;
+                            const vCode = src.versionCode || src.revisionLabel || "R00";
                             return (
                               <div
                                 key={src.id}
-                                className="rounded-xl border border-slate-200/90 bg-white p-2 text-[11px] dark:border-zinc-700/80 dark:bg-zinc-950/70"
+                                className="rounded-xl border border-slate-200/90 bg-white p-2 text-[11px] shadow-sm dark:border-zinc-700/80 dark:bg-zinc-950/70"
                               >
                                 <div className="flex items-center justify-between gap-1.5">
                                   <span
@@ -633,15 +692,18 @@ export function EapProjectHub({
                                   >
                                     {src.fileName}
                                   </span>
-                                  <Badge tone={isHtml ? "amber" : "blue"}>
-                                    {isHtml ? "HTML" : "PDF"}
-                                  </Badge>
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <Badge tone="green">{vCode}</Badge>
+                                    <Badge tone={isHtml ? "amber" : "blue"}>
+                                      {isHtml ? "HTML" : "PDF"}
+                                    </Badge>
+                                  </div>
                                 </div>
-                                <div className="mt-1.5 flex items-center justify-between gap-2">
+                                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5">
                                   <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
                                     {src.sourceSoftware} · {src.status}
                                   </span>
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex flex-wrap items-center gap-1">
                                     <button
                                       type="button"
                                       onClick={() => setPreviewSource(src)}
@@ -649,6 +711,24 @@ export function EapProjectHub({
                                     >
                                       Visualizar
                                     </button>
+                                    <label className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 cursor-pointer dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
+                                      Nova Revisão (+R)
+                                      <input
+                                        type="file"
+                                        accept=".pdf,.html,.htm,application/pdf,text/html"
+                                        disabled={isUploading}
+                                        onChange={(e) => {
+                                          void handleDisciplineUpload(
+                                            card.code,
+                                            card.defaultSoftware,
+                                            e.target.files,
+                                            src.id
+                                          );
+                                          e.target.value = "";
+                                        }}
+                                        className="sr-only"
+                                      />
+                                    </label>
                                     <button
                                       type="button"
                                       disabled={isRemoving}
@@ -662,6 +742,57 @@ export function EapProjectHub({
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* Histórico de Revisões Anteriores */}
+                      {historyDiscFiles.length > 0 && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenHistoryDisc((prev) => ({
+                                ...prev,
+                                [card.code]: !prev[card.code],
+                              }))
+                            }
+                            className="text-[10px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer dark:text-zinc-400 dark:hover:text-zinc-200"
+                          >
+                            {isHistoryOpen ? "▼" : "▶"} Histórico ({historyDiscFiles.length})
+                          </button>
+                          {isHistoryOpen && (
+                            <div className="mt-1.5 space-y-1">
+                              {historyDiscFiles.map((h) => (
+                                <div
+                                  key={h.id}
+                                  className="rounded-lg border border-slate-200/80 bg-white/80 p-1.5 text-[10px] dark:border-zinc-800 dark:bg-zinc-950/60"
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="truncate font-medium text-slate-700 dark:text-zinc-300">
+                                      <strong className="font-mono">{h.versionCode || h.revisionLabel}</strong> · {h.fileName}
+                                    </span>
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setPreviewSource(h)}
+                                        className="rounded border border-slate-300 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:text-zinc-300"
+                                      >
+                                        Ver
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={busy === `activate-${h.id}`}
+                                        onClick={() => void handleActivateVersion(h)}
+                                        className="rounded bg-slate-900 px-1.5 py-0.5 text-[9px] font-semibold text-white hover:bg-slate-800 cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
+                                      >
+                                        Tornar Vigente
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

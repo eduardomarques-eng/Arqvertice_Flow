@@ -70,6 +70,12 @@ export default async function EapProjectPage({
           sourceSoftware: s.sourceSoftware,
           discipline: s.discipline,
           revisionLabel: s.revisionLabel,
+          versionCode: s.versionCode,
+          versionNumber: s.versionNumber,
+          isActive: s.isActive,
+          revisionNote: s.revisionNote,
+          supersedesId: s.supersedesId,
+          createdAt: s.createdAt.toISOString(),
           includedInMining: s.includedInMining,
           status: s.status,
           extractedSummaryJson:

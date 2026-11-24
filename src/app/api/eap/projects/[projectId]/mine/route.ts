@@ -23,7 +23,7 @@ export async function POST(
     const eap = await prisma.eapProject.findUnique({
       where: { projectId },
       include: {
-        sourceFiles: { where: { includedInMining: true } },
+        sourceFiles: { where: { isActive: true, includedInMining: true } },
         stages: {
           include: { groups: { orderBy: { orderIndex: "asc" } } },
           orderBy: { orderIndex: "asc" },

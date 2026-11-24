@@ -67,6 +67,17 @@ export async function POST(
     const sourceSoftware: "TQS" | "REVIT" | "MANUAL" =
       sourceSoftwareRaw === "TQS" || sourceSoftwareRaw === "REVIT" ? sourceSoftwareRaw : "MANUAL";
 
+    const revisionNoteRaw = formData.get("revisionNote");
+    const revisionNote =
+      typeof revisionNoteRaw === "string" && revisionNoteRaw.trim()
+        ? revisionNoteRaw.trim().slice(0, 240)
+        : null;
+    const supersedesIdRaw = formData.get("supersedesId");
+    const supersedesId =
+      typeof supersedesIdRaw === "string" && supersedesIdRaw.trim()
+        ? supersedesIdRaw.trim()
+        : null;
+
     const bytes = Buffer.from(await file.arrayBuffer());
     const hash = computeSha256(bytes).slice(0, 16);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -75,19 +86,57 @@ export async function POST(
 
     await putStoredObject(storageKey, bytes, mimeType);
 
-    const source = await prisma.eapSourceFile.create({
-      data: {
-        eapProjectId: eap.id,
-        acervoDocumentId: null,
-        fileName: file.name,
-        storageKey,
-        url: storageKey,
-        sourceSoftware,
-        discipline,
-        revisionLabel,
-        includedInMining: true,
-        status: "PENDENTE",
-      },
+    const source = await prisma.$transaction(async (tx) => {
+      let nextVersionNumber = 0;
+      let nextVersionCode = revisionLabel || "R00";
+      let resolvedDiscipline = discipline;
+
+      if (supersedesId) {
+        const prev = await tx.eapSourceFile.findFirst({
+          where: { id: supersedesId, eapProjectId: eap.id },
+        });
+        if (prev) {
+          resolvedDiscipline = prev.discipline;
+          const maxExisting = await tx.eapSourceFile.aggregate({
+            where: { eapProjectId: eap.id, discipline: prev.discipline },
+            _max: { versionNumber: true },
+          });
+          nextVersionNumber = (maxExisting._max.versionNumber ?? prev.versionNumber ?? 0) + 1;
+          nextVersionCode = `R${String(nextVersionNumber).padStart(2, "0")}`;
+
+          await tx.eapSourceFile.updateMany({
+            where: {
+              eapProjectId: eap.id,
+              discipline: prev.discipline,
+              isActive: true,
+            },
+            data: {
+              isActive: false,
+              includedInMining: false,
+            },
+          });
+        }
+      }
+
+      return tx.eapSourceFile.create({
+        data: {
+          eapProjectId: eap.id,
+          acervoDocumentId: null,
+          fileName: file.name,
+          storageKey,
+          url: storageKey,
+          sourceSoftware,
+          discipline: resolvedDiscipline,
+          revisionLabel: nextVersionCode,
+          versionCode: nextVersionCode,
+          versionNumber: nextVersionNumber,
+          isActive: true,
+          revisionNote,
+          supersedesId,
+          includedInMining: true,
+          status: "PENDENTE",
+        },
+      });
     });
 
     return NextResponse.json({ ok: true, source }, { status: 201, headers: { "Cache-Control": "no-store" } });
