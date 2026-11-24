@@ -92,6 +92,7 @@ export default async function EapProjectPage({
   const initialEap = eapRaw
     ? {
         id: eapRaw.id,
+        cityId: eapRaw.cityId,
         title: eapRaw.title,
         status: eapRaw.status,
         builtAreaM2: eapRaw.builtAreaM2,

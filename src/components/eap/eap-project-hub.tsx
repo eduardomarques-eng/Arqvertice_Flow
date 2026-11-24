@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EapConferenceWorkbench } from "@/components/admin/eap/eap-conference-workbench";
 
 interface CityOption {
   id: string;
@@ -51,6 +52,7 @@ interface StageSummaryDTO {
 
 interface InitialEapDTO {
   id: string;
+  cityId: string;
   title: string;
   status: string;
   builtAreaM2: number;
@@ -106,6 +108,9 @@ export function EapProjectHub({
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [conflicts, setConflicts] = useState<ConflictDTO[]>(initialEap?.conflicts ?? []);
   const [sources, setSources] = useState<SourceFileDTO[]>(initialEap?.sourceFiles ?? []);
+  const [activeTab, setActiveTab] = useState<"sources" | "conference" | "planning" | "report">(
+    initialEap && initialEap.status !== "RASCUNHO" ? "conference" : "sources"
+  );
 
   async function handleInitEap(e: React.FormEvent) {
     e.preventDefault();
@@ -332,6 +337,69 @@ export function EapProjectHub({
 
   return (
     <div className="space-y-6">
+      {/* Navegação por Abas da Seção EAP */}
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "sources", label: "1. Fontes & Compatibilização (TQS/Revit)" },
+            { id: "conference", label: "2. Planilha EAP & Custos (Conferência)" },
+            { id: "planning", label: "3. Planejamento (LOB & Cronograma)" },
+            { id: "report", label: "4. Relatório Executivo & Medições" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`h-9 rounded-xl px-4 text-xs font-semibold transition cursor-pointer ${
+              activeTab === tab.id
+                ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "conference" && (
+        <EapConferenceWorkbench
+          projectId={projectId}
+          cityId={initialEap.cityId}
+          onValidated={() => router.refresh()}
+        />
+      )}
+
+      {activeTab === "planning" && (
+        <Card className="rounded-3xl border border-slate-200/90 bg-white p-8 text-center space-y-2 dark:border-zinc-800 dark:bg-[#16161D]">
+          <Badge tone={initialEap.status === "CONFERENCIA_OK" ? "green" : "amber"}>
+            {initialEap.status === "CONFERENCIA_OK"
+              ? "Conferência EAP Homologada — Pronto para Fase 4"
+              : "Aguardando Validação da Conferência na Aba 2"}
+          </Badge>
+          <h3 className="text-base font-bold text-slate-950 dark:text-zinc-100">
+            Submódulo Planejamento — Linha de Balanço (38 Pacotes LOB)
+          </h3>
+          <p className="mx-auto max-w-xl text-xs text-slate-500 dark:text-zinc-400">
+            Conectado à Fase 4: Gantt interativo, Curva S, Desembolso Mensal e Calendário de Suprimentos com feriados de {initialEap.cityLabel}.
+          </p>
+        </Card>
+      )}
+
+      {activeTab === "report" && (
+        <Card className="rounded-3xl border border-slate-200/90 bg-white p-8 text-center space-y-2 dark:border-zinc-800 dark:bg-[#16161D]">
+          <Badge tone="neutral">Fases 5 & 6</Badge>
+          <h3 className="text-base font-bold text-slate-950 dark:text-zinc-100">
+            Relatório Executivo do Cliente & Ciclo II (Previsto × Realizado)
+          </h3>
+          <p className="mx-auto max-w-xl text-xs text-slate-500 dark:text-zinc-400">
+            Dashboards interativos, plantas do Acervo Manager, exportação PDF executiva e boletins de medição física/financeira.
+          </p>
+        </Card>
+      )}
+
+      {activeTab === "sources" && (
+        <div className="space-y-6">
       {/* Cabeçalho Resumo */}
       <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -564,10 +632,10 @@ export function EapProjectHub({
                     <button
                       type="button"
                       disabled={busy === c.id}
-                      onClick={() => handleUpdateConflict(c.id, "BLOQUEADO_AUTO")}
-                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-800 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                      onClick={() => handleUpdateConflict(c.id, "RESOLVIDO")}
+                      className="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-900 cursor-pointer dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200"
                     >
-                      Manter Bloqueio
+                      Confirmar Bloqueio (Resolver)
                     </button>
                     <button
                       type="button"
@@ -629,6 +697,8 @@ export function EapProjectHub({
           </div>
         </Card>
       </div>
+        </div>
+      )}
     </div>
   );
 }
