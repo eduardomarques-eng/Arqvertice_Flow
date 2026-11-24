@@ -114,7 +114,7 @@ export default async function AdminDashboardPage() {
         <header className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
-              ArqVértice Flow / Command Center
+              ArqVértice OS / Command Center
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
               {greeting}, {user.name}.
@@ -587,7 +587,7 @@ export default async function AdminDashboardPage() {
               year: "numeric",
             })}
           </span>
-          <span>ArqVértice Flow · visão executiva</span>
+          <span>ArqVértice OS · visão executiva</span>
         </footer>
       </div>
     </AppShell>

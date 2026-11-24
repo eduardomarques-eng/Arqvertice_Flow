@@ -6,7 +6,7 @@ import { EapProjectHub } from "@/components/eap/eap-project-hub";
 import { prisma } from "@/server/db";
 import { requirePageAdminRole } from "@/server/auth";
 
-export const metadata = { title: "Hub EAP da Obra — ArqVértice Flow" };
+export const metadata = { title: "Hub EAP da Obra" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

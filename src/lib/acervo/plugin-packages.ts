@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import type { ZipEntryInput } from "./zip-builder";
 
-export const CDE_BASE_URL = "https://arqvertice-flow.vercel.app";
+export const CDE_BASE_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "");
 
 export type PluginPackageId = "revit" | "autocad" | "sketchup" | "3dsmax" | "tqs" | "cad";
 
@@ -27,7 +27,7 @@ function computeSha256(content: string): string {
 
 function generateElevationScript(pluginName: string, installScriptBody: string): string {
   return `# ==============================================================================
-# ArqVértice Flow — Instalador Oficial Windows (${pluginName})
+# ArqVértice OS — Instalador Oficial Windows (${pluginName})
 # Endpoint: ${CDE_BASE_URL}
 # ==============================================================================
 
@@ -189,7 +189,7 @@ export function getPluginPackageEntries(id: PluginPackageId): {
         {
           name: "README.txt",
           content: `==============================================================================
-ArqVértice Flow — Plugin Oficial Autodesk Revit (2022-2026)
+ArqVértice OS — Plugin Oficial Autodesk Revit (2022-2026)
 Ambiente: ${CDE_BASE_URL}
 ==============================================================================
 
@@ -206,7 +206,7 @@ INSTALAÇÃO AUTOMATIZADA:
    C:\\ProgramData\\Autodesk\\Revit\\Addins\\{Versão}\\
 
 CONFIGURAÇÃO:
-- Defina a variável de ambiente ARQVERTICE_CDE_TOKEN com seu token gerado no Flow,
+- Defina a variável de ambiente ARQVERTICE_CDE_TOKEN com seu token gerado no ArqVértice OS,
   ou insira o Bearer Token diretamente na janela da Ribbon 'Acervo Manager'.
 
 ENDPOINT BATCH:
@@ -253,7 +253,7 @@ if ($installedCount -eq 0) {
     <AddInId>9A42C18B-2B11-4F29-B371-8A6E44D910C2</AddInId>
     <FullClassName>ArqVertice.Revit.AcervoApp</FullClassName>
     <VendorId>ARQVERTICE</VendorId>
-    <VendorDescription>ArqVértice Flow CDE (${CDE_BASE_URL})</VendorDescription>
+    <VendorDescription>ArqVértice OS CDE (${CDE_BASE_URL})</VendorDescription>
   </AddIn>
 </RevitAddIns>
 `,
@@ -269,7 +269,7 @@ using Autodesk.Revit.UI;
 namespace ArqVertice.Revit
 {
     /// <summary>
-    /// AddIn Oficial ArqVértice Flow CDE para Revit 2022-2026.
+    /// AddIn Oficial ArqVértice OS CDE para Revit 2022-2026.
     /// Suporta .NET 4.8 e .NET 8.0 com doca WebView2 para visualização do Acervo.
     /// </summary>
     public class AcervoApp : IExternalApplication
@@ -374,7 +374,7 @@ except Exception as e:
         {
           name: "README.txt",
           content: `==============================================================================
-ArqVértice Flow — Plugin Oficial Autodesk AutoCAD (2022-2026)
+ArqVértice OS — Plugin Oficial Autodesk AutoCAD (2022-2026)
 Ambiente: ${CDE_BASE_URL}
 ==============================================================================
 
@@ -417,9 +417,9 @@ Write-Host "[OK] Bundle instalado com sucesso em $targetBundle" -ForegroundColor
                     ProductType="Application"
                     Name="ArqVertice Acervo Manager"
                     AppVersion="1.0.0"
-                    Author="ArqVertice Flow"
+                    Author="ArqVértice OS"
                     ProductCode="{A7F82C10-D82B-4C91-912A-18B21893C012}">
-  <CompanyDetails Name="ArqVertice Flow" Url="${CDE_BASE_URL}" />
+  <CompanyDetails Name="ArqVértice OS" Url="${CDE_BASE_URL}" />
   <Components Description="ArqVertice Ribbon &amp; Batch Publisher">
     <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.0" SeriesMax="R25.1" />
     <ComponentEntry AppName="ArqVerticeAutoCAD" Version="1.0.0" ModuleName="./ArqVerticeAutoCAD.lsp" />
@@ -495,7 +495,7 @@ namespace ArqVertice.AutoCAD
         {
           name: "README.txt",
           content: `==============================================================================
-ArqVértice Flow — Extensão Oficial SketchUp Pro (2022-2026)
+ArqVértice OS — Extensão Oficial SketchUp Pro (2022-2026)
 Ambiente: ${CDE_BASE_URL}
 ==============================================================================
 
@@ -538,7 +538,7 @@ module ArqVertice
   module AcervoManager
     ext = SketchupExtension.new('Acervo Manager CDE', 'arqvertice_acervo/main')
     ext.version = '1.0.0'
-    ext.creator = 'ArqVertice Flow'
+    ext.creator = 'ArqVértice OS'
     ext.description = 'Conexão nativa com CDE ArqVertice (${CDE_BASE_URL}) para publicação de Scenes e modelos 3D.'
     Sketchup.register_extension(ext, true)
   end
@@ -603,7 +603,7 @@ end
         {
           name: "README.txt",
           content: `==============================================================================
-ArqVértice Flow — Conector Autodesk 3ds Max (2022-2026)
+ArqVértice OS — Conector Autodesk 3ds Max (2022-2026)
 Ambiente: ${CDE_BASE_URL}
 ==============================================================================
 
@@ -671,7 +671,7 @@ toolTip:"Exportar FBX/GLB para CDE ArqVértice"
         {
           name: "README.txt",
           content: `==============================================================================
-ArqVértice Flow — TQS Desktop Sync v23-v25
+ArqVértice OS — TQS Desktop Sync v23-v25
 Ambiente: ${CDE_BASE_URL}
 ==============================================================================
 
@@ -742,7 +742,7 @@ Write-Host "Pressione Ctrl+C para encerrar o monitor." -ForegroundColor Yellow
         {
           name: "README.txt",
           content: `==============================================================================
-ArqVértice Flow — CAD Universal Connector
+ArqVértice OS — CAD Universal Connector
 Ambiente: ${CDE_BASE_URL}
 ==============================================================================
 
@@ -821,7 +821,7 @@ print(f"[CAD Universal Watcher] Monitor ativo. Sincronizando com: {ENDPOINT}")
 
 export function generateEnvCheckerScript(): string {
   return `# ==============================================================================
-# ArqVértice Flow — Verificador de Ambiente Windows (CAD / BIM / 3D)
+# ArqVértice OS — Verificador de Ambiente Windows (CAD / BIM / 3D)
 # Endpoint Alvo: ${CDE_BASE_URL}
 # ==============================================================================
 
@@ -829,7 +829,7 @@ export function generateEnvCheckerScript(): string {
 Clear-Host
 
 Write-Host "=======================================================================" -ForegroundColor Cyan
-Write-Host "       ArqVértice Flow — Diagnóstico de Estação de Trabalho CAD/BIM    " -ForegroundColor White
+Write-Host "       ArqVértice OS — Diagnóstico de Estação de Trabalho CAD/BIM    " -ForegroundColor White
 Write-Host "       Verificador de Compatibilidade .NET, WebView2, RAM e Firewall   " -ForegroundColor Gray
 Write-Host "=======================================================================" -ForegroundColor Cyan
 Write-Host ""

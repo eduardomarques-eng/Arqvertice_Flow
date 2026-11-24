@@ -125,7 +125,7 @@ export function MobileNav({ links, areaLabel, groupLabel }: MobileNavProps) {
 
         <div className="border-t border-slate-200/60 p-4 pb-safe">
           <div className="text-xs text-slate-400 text-center">
-            ArqVértice Flow · Mobile iOS/Android
+            ArqVértice OS · Mobile iOS/Android
           </div>
         </div>
       </div>

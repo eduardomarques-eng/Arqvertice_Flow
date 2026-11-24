@@ -11,8 +11,8 @@ import {
 } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Termos de Uso | ArqVértice Flow",
-  description: "Termos de uso, licenciamento de projetos, preços e regras de cancelamento do ArqVértice Flow.",
+  title: "Termos de Uso | ArqVértice OS",
+  description: "Termos de uso, licenciamento de projetos, preços e regras de cancelamento do ArqVértice OS.",
 };
 
 export default function TermosPage() {
@@ -23,10 +23,10 @@ export default function TermosPage() {
         Legislação
       </p>
       <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-        Termos de Uso — ArqVértice Flow
+        Termos de Uso — ArqVértice OS
       </h1>
       <p className="mt-4 text-sm leading-relaxed text-slate-600">
-        Ao utilizar o ArqVértice Flow você concorda com as condições abaixo. Em
+        Ao utilizar o ArqVértice OS você concorda com as condições abaixo. Em
         caso de divergência, o ambiente de maior confiança é o painel
         administrativo do escritório, que sempre rege a interpretação dos
         contratos.
@@ -70,7 +70,7 @@ export default function TermosPage() {
       <Card className="mt-6">
         <h2 className="text-xl font-bold text-slate-900">4. Licença de propriedade intelectual</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Os projetos, desenhos, modelagens e artefatos gerados no ArqVértice Flow
+          Os projetos, desenhos, modelagens e artefatos gerados no ArqVértice OS
           são de propriedade do ArqVértice Studio. Ao concluir o pagamento e
           aprovar a entrega, o cliente recebe <strong className="text-slate-900">licença
           não exclusiva e limitada</strong> para uso interno da obra no seu
@@ -106,7 +106,7 @@ export default function TermosPage() {
         <h2 className="text-xl font-bold text-amber-900">Dados de pagamento</h2>
         <p className="mt-2 text-sm text-amber-800">
           O checkout seguro é feito por provedor autorizado; dados não ficam no
-          ArqVértice Flow.
+          ArqVértice OS.
         </p>
       </Card>
       <Card className="mt-6 border-slate-200">

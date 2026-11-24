@@ -1,8 +1,7 @@
-# ArqVértice Flow
+# ArqVértice OS
 
-Aplicação Next.js para gestão de clientes, projetos, cronograma, pagamentos,
-briefing guiado, relatórios e portal do cliente. O aplicativo legado continua
-preservado na raiz para migração gradual.
+Aplicação Next.js para gestão integrada de clientes, projetos, EAP & planejamento,
+acervo técnico (CDE), cronograma, financeiro, propostas, contratos e portal do cliente.
 
 ## Desenvolvimento
 

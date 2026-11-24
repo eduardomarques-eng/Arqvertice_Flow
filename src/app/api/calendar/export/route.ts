@@ -60,10 +60,10 @@ export async function GET(request: Request) {
   const icsContent = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//ArqVertice Studio//Flow Engineering v2.4//PT",
+    "PRODID:-//ArqVertice Studio//ArqVertice OS v2.4//PT",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "X-WR-CALNAME:ArqVértice Flow - Cronograma Oficial",
+    "X-WR-CALNAME:ArqVértice OS - Cronograma Oficial",
     "X-WR-TIMEZONE:America/Fortaleza",
     events,
     "END:VCALENDAR",

@@ -1,5 +1,5 @@
 /**
- * ArqVértice Flow — Disparo Híbrido de WhatsApp
+ * ArqVértice OS — Disparo Híbrido de WhatsApp
  * 
  * 1. Sanitização com prefixo 55 obrigatório.
  * 2. Em ambiente de nuvem (Vercel) ou sem Bridge externa configurada, aciona imediatamente o fallback de link direto.

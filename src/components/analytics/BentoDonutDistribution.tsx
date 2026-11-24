@@ -9,7 +9,7 @@ export interface BentoDonutSlice {
   formattedValue?: string;
 }
 
-// Paleta oficial ArqVértice Flow (Grafite Ônix + Âmbar Arquitetônico + Linho/Zinco)
+// Paleta oficial ArqVértice OS (Grafite Ônix + Âmbar Arquitetônico + Linho/Zinco)
 const MONO_AMBER_HEX = [
   "#18181B", // Grafite Ônix
   "#B45309", // Âmbar Arquitetônico

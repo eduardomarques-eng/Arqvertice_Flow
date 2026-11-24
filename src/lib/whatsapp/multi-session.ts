@@ -51,7 +51,7 @@ export function buildWhatsAppTemplates(pixKey = "021.502.003-09", pixKeyType = "
     {
       id: "agendar",
       label: "Confirmação Reunião",
-      text: `Olá! Para confirmar ou remarcar nossa reunião de alinhamento, acesse nossa agenda executiva:\nhttps://arqvertice-flow.vercel.app/agendar`,
+      text: `Olá! Para confirmar ou remarcar nossa reunião de alinhamento, acesse nossa agenda executiva:\nhttps://arqvertice-os.vercel.app/agendar`,
     },
   ];
 }

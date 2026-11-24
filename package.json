@@ -1,8 +1,8 @@
 {
-  "name": "cronograma-arqvertice",
+  "name": "arqvertice-os",
   "version": "2.1.0",
   "private": true,
-  "description": "ArqVértice Flow — fundação moderna em migração incremental do painel legado.",
+  "description": "ArqVértice OS — Plataforma integrada de gestão de projetos, obras, EAP e relacionamento com clientes.",
   "engines": {
     "node": ">=20"
   },
@@ -21,9 +21,6 @@
     "db:seed": "prisma db seed",
     "seed:eap": "tsx prisma/seed-eap.ts",
     "whatsapp:cli": "node scripts/whatsapp-bridge.mjs",
-    "wagner:setup": "node scripts/setup-wagner.mjs",
-    "wagner:reset": "node scripts/reset-wagner.mjs",
-    "sync:credentials": "node scripts/sync-credentials.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

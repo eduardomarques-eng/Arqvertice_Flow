@@ -1,4 +1,4 @@
-// ArqVértice Flow — LGPD / Privacidade e governança comercial
+// ArqVértice OS — LGPD / Privacidade e governança comercial
 // Rotas públicas: /privacidade, /cookies, /termos
 
 export const LEGAL_CONTROLLER = {
@@ -100,19 +100,19 @@ export const COOKIE_CATEGORIES: CookieInfo[] = [
 ];
 
 export const IP_LICENSING = {
-  scope: "ArqVértice Flow reserva a licença dos projetos gerados pela IA para o cliente em uso.",
+  scope: "ArqVértice OS reserva a licença dos projetos gerados pela IA para o cliente em uso.",
   thirdParty: "Modelos de linguagem de terceiros são usados apenas para suporte operacional, sem armazenamento de conteúdo do cliente.",
   optOut: "O cliente pode preferir a edição humana a qualquer momento nos ajustes da IA.",
 };
 
 export const AI_TRANSPARENCY = {
-  notice: "O ArqVértice Flow pode usar inteligência artificial para ajudar a formatar textos, sugerir etapas de cronograma e resumir documentos. A IA não substitui a responsabilidade do arquiteto ou engenheiro. O cliente deve sempre revisar e aprovar o conteúdo final antes de entrega ou assinatura.",
+  notice: "O ArqVértice OS pode usar inteligência artificial para ajudar a formatar textos, sugerir etapas de cronograma e resumir documentos. A IA não substitui a responsabilidade do arquiteto ou engenheiro. O cliente deve sempre revisar e aprovar o conteúdo final antes de entrega ou assinatura.",
   humanInLoop: "Toda recomendação gerada por IA é sujeita à revisão manual e assinatura humana.",
   training: "Nenhum conteúdo do cliente é usado para treinar modelos externos.",
 };
 
 export const TERMS = {
-  acceptance: "Ao utilizar o ArqVértice Flow você aceita estes termos e as políticas de privacidade vigentes.",
+  acceptance: "Ao utilizar o ArqVértice OS você aceita estes termos e as políticas de privacidade vigentes.",
   data: "Os dados pessoais são tratados conforme a LGPD e esta Política de Privacidade.",
   liability: "A aplicação é fornecida 'como está'. O ArqVértice Studio não se responsabiliza por erros, perdas ou danos decorrentes do uso indevido ou de falhas de segurança não preveníveis.",
   jurisdiction: "As disputas serão resolvidas pelos tribunais de São Paulo, SP.",
@@ -122,7 +122,7 @@ export const CANCELLATION_AND_REFUND = {
   noticePeriod: "Cancelamento sem penalização até 15 dias após a assinatura do contrato.",
   proportional: "Reembolso proporcional para cancelamento no período de validade da proposta; após assinatura, apenas com justa causa ou após 15 dias, sem reembolso exceto caso de falha de entrega.",
   invoice: "Alterações de valor de projeto precisam de reenvio de nota fiscal e revisão contratual.",
-  ip: "Dados de pagamento são processados por provedores certificados e não ficam armazenados no ArqVértice Flow.",
+  ip: "Dados de pagamento são processados por provedores certificados e não ficam armazenados no ArqVértice OS.",
 };
 
 export const DATA_SUBJECT_RIGHTS = [

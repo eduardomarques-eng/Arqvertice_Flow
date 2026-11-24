@@ -72,18 +72,32 @@ export function middleware(request: NextRequest) {
   if (isMutatingMethod) {
     const origin = request.headers.get("origin");
     if (origin) {
-      const isAllowedOrigin =
-        origin === request.nextUrl.origin ||
-        origin === "https://arqvertice.com" ||
-        origin === "https://www.arqvertice.com" ||
-        (origin.startsWith("https://") && origin.endsWith(".vercel.app")) ||
-        (process.env.VERCEL_URL && origin === `https://${process.env.VERCEL_URL}`) ||
-        (process.env.NEXT_PUBLIC_APP_URL && origin === process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "")) ||
-        (process.env.NODE_ENV !== "production" ||
-          request.nextUrl.hostname === "localhost" ||
-          request.nextUrl.hostname === "127.0.0.1" ||
-          origin.startsWith("http://localhost:") ||
-          origin.startsWith("http://127.0.0.1:"));
+      const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
+      const vercelProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : undefined;
+      const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined;
+      const explicitAllowedOrigins = new Set(
+        [
+          request.nextUrl.origin,
+          "https://arqvertice.com",
+          "https://www.arqvertice.com",
+          "https://arqvertice-os.vercel.app",
+          "https://arqvertice-flow.vercel.app", // Domínio de transição
+          configuredAppUrl,
+          vercelProductionUrl,
+          vercelUrl,
+        ].filter((value): value is string => Boolean(value)),
+      );
+
+      const isLocalOrigin =
+        process.env.NODE_ENV !== "production" ||
+        request.nextUrl.hostname === "localhost" ||
+        request.nextUrl.hostname === "127.0.0.1" ||
+        origin.startsWith("http://localhost:") ||
+        origin.startsWith("http://127.0.0.1:");
+
+      const isAllowedOrigin = explicitAllowedOrigins.has(origin) || isLocalOrigin;
 
       if (
         !isAllowedOrigin &&

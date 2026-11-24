@@ -50,7 +50,7 @@ export async function generateGoogleCalendarUrl({
 /**
  * Retorna os links de inscrição direta no Google Agenda para o Admin
  */
-export async function getCalendarSubscriptionLinks(baseUrl = "https://arqvertice-flow.vercel.app") {
+export async function getCalendarSubscriptionLinks(baseUrl = "https://arqvertice-os.vercel.app") {
   const icsFeedUrl = `${baseUrl}/api/calendar/export`;
   const webcalUrl = icsFeedUrl.replace(/^https?:\/\//i, "webcal://");
   const googleSubscribeUrl = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;

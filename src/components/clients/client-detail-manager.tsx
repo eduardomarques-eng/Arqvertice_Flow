@@ -84,7 +84,7 @@ export function ClientDetailManager({
             Copie e envie a mensagem abaixo diretamente pelo WhatsApp para o cliente:
           </p>
           <div className="mt-2 rounded-xl bg-white/90 p-4 font-mono text-xs text-slate-800 border border-emerald-200/60 whitespace-pre-line select-all">
-            Olá, {client.name}! Seu acesso ao portal ArqVértice está disponível em {typeof window !== "undefined" ? window.location.origin : "https://arqvertice-flow.vercel.app"}/login.
+            Olá, {client.name}! Seu acesso ao portal ArqVértice está disponível em {typeof window !== "undefined" ? window.location.origin : "https://arqvertice-os.vercel.app"}/login.
             {"\n"}• E-mail: {access.email}
             {"\n"}• Senha de acesso: {access.temporaryPassword || "sua senha cadastrada"}
             {"\n\n"}Acesse para acompanhar o cronograma e o briefing do seu projeto.

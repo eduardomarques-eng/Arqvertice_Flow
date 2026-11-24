@@ -40,7 +40,7 @@ export default async function VerificarQrPage({
             Código Não Encontrado
           </h1>
           <p className="text-xs text-slate-500 leading-relaxed">
-            O selo QR escaneado não corresponde a nenhum documento registrado no Acervo Manager CDE do ArqVértice Flow.
+            O selo QR escaneado não corresponde a nenhum documento registrado no Acervo Manager CDE do ArqVértice OS.
           </p>
           <Link
             href="/"
@@ -183,7 +183,7 @@ export default async function VerificarQrPage({
 
         {/* Rodapé Apple-Minimalista */}
         <p className="text-center text-[11px] text-slate-400">
-          ArqVértice Flow CDE · Protocolo de Integridade Digital de Canteiro
+          ArqVértice OS CDE · Protocolo de Integridade Digital de Canteiro
         </p>
       </div>
     </main>

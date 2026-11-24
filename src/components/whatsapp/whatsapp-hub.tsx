@@ -382,7 +382,7 @@ export function WhatsAppMultiSessionHub({
                 className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600"
               />
               <span className="text-slate-700 dark:text-zinc-200">
-                <strong>Modo Número Próprio:</strong> Sincronizar apenas Clientes e Obras do ArqVértice Flow (Ocultar conversas pessoais e grupos)
+                <strong>Modo Número Próprio:</strong> Sincronizar apenas Clientes e Obras do ArqVértice OS (Ocultar conversas pessoais e grupos)
               </span>
             </label>
 

@@ -649,6 +649,6 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
     }
   }
 
-  pdf.stampFooters(`ArqVertice Flow · ${payload.meta.projectName} · ${payload.meta.baselineLabel}`);
+  pdf.stampFooters(`ArqVértice OS · ${payload.meta.projectName} · ${payload.meta.baselineLabel}`);
   return pdf.build();
 }

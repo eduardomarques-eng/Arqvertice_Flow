@@ -97,7 +97,7 @@ export function appUrl() {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
   if (configured) return configured.replace(/\/+$/, "");
   if (process.env.NODE_ENV === "production") {
-    return "https://arqvertice-flow.vercel.app";
+    return "https://arqvertice-os.vercel.app";
   }
   return "http://localhost:3000";
 }

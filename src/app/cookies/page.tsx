@@ -11,8 +11,8 @@ import {
 } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Política de Cookies | ArqVértice Flow",
-  description: "Como o ArqVértice Flow utiliza cookies, tags e tecnologias similares, com opções de consentimento ajustável.",
+  title: "Política de Cookies | ArqVértice OS",
+  description: "Como o ArqVértice OS utiliza cookies, tags e tecnologias similares, com opções de consentimento ajustável.",
 };
 
 export default function CookiesPage() {
@@ -87,10 +87,12 @@ export default function CookiesPage() {
         <h2 className="text-xl font-bold text-slate-900">4. Cookies de terceiros</h2>
         <p className="mt-2 text-sm text-slate-600">
           A plataforma pode integrar serviços de analytics, suporte e
-          comunicação. Esses provedores operam seus próprios cookies. Verifique
-          os avisos específicos no seu site ou em <Link className="text-blue-600" href="https://www.example.com">
-           Configure de privacidade
-          </Link>.
+          comunicação. Esses provedores operam seus próprios cookies. Consulte
+          também nossa{" "}
+          <Link className="text-blue-600 underline" href="/privacidade">
+            Política de Privacidade
+          </Link>
+          .
         </p>
       </Card>
 
@@ -106,7 +108,7 @@ export default function CookiesPage() {
       <Card className="mt-6 border-amber-200 bg-amber-50/50">
         <h2 className="text-xl font-bold text-amber-900">Privacy by design</h2>
         <p className="mt-2 text-sm text-amber-800">
-          O ArqVértice Flow aplica <strong className="text-amber-900">auth default
+          O ArqVértice OS aplica <strong className="text-amber-900">auth default
           móvel</strong>: dados sensíveis são recuperados do servidor, e
           consentimento de cookies é registrado quando aceito.
         </p>

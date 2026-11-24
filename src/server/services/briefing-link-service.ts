@@ -50,7 +50,7 @@ export async function generateSecureToken(briefingIdOrProjectId: string, originH
   const appBaseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     originHeader ||
-    "https://arqvertice-flow.vercel.app";
+    "https://arqvertice-os.vercel.app";
 
   const publicUrl = `${appBaseUrl.replace(/\/+$/, "")}/briefing/${token}`;
 

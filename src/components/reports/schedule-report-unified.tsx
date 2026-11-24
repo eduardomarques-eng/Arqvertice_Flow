@@ -198,7 +198,7 @@ export function UnifiedScheduleReport({
               <span className="rounded-md bg-zinc-950 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs print:text-[9px] print:px-1.5 print:py-0.5">
                 ArqVértice Studio
               </span>
-              <span className="text-xs font-semibold text-zinc-400 print:text-[9px]">· Flow Engineering v2.4</span>
+              <span className="text-xs font-semibold text-zinc-400 print:text-[9px]">· ArqVértice OS v2.4</span>
               <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider print:text-[8px] print:px-1.5">
                 Relatório Oficial
               </span>
@@ -704,7 +704,7 @@ export function UnifiedScheduleReport({
               <strong className="font-mono text-slate-800">{report.documentHash}</strong>
             </p>
             <p className="mt-0.5 text-[11px] text-slate-400 print:text-[7.5px] print:mt-0">
-              Documento oficial gerado e certificado digitalmente pelo Sistema ArqVértice Flow. Dispensa assinaturas manuscritas.
+              Documento oficial gerado e certificado digitalmente pelo Sistema ArqVértice OS. Dispensa assinaturas manuscritas.
             </p>
           </div>
           {showBackLink && (

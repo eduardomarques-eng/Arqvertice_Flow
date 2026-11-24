@@ -154,10 +154,10 @@ export async function AppShell({
   }
 
   const areaLabel = isClient
-    ? "Flow · portal do cliente"
+    ? "OS · portal do cliente"
     : effectiveRole === "ADMIN"
-    ? "Flow · gestão executiva"
-    : "Flow · operação técnica";
+    ? "OS · gestão executiva"
+    : "OS · operação técnica";
 
   const groupLabel = isClient ? "Meu projeto" : effectiveRole === "ADMIN" ? "Administração" : "Painel Técnico";
 

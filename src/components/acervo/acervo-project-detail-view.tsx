@@ -1101,7 +1101,7 @@ export function AcervoProjectDetailView({
                         Sync API Ativa
                       </p>
                       <p className="font-mono text-[10px] break-all rounded-lg bg-white border border-slate-200 p-2 text-slate-800">
-                        POST https://arqvertice-flow.vercel.app/api/acervo/sync-plugin
+                        POST {(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin
                       </p>
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-600">Tokens ativos no projeto:</span>

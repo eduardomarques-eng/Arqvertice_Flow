@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/server/db";
 import { requirePageAdminRole } from "@/server/auth";
 
-export const metadata = { title: "EAP & Controle de Obra — ArqVértice Flow" };
+export const metadata = { title: "EAP & Controle de Obra" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

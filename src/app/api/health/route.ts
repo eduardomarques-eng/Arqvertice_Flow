@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         status: database.ok ? "ok" : "degraded",
-        service: "arqvertice-flow",
+        service: "arqvertice-os",
         database: database.ok ? "ok" : "unavailable",
         reason: database.reason,
         version: process.env.APP_VERSION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "unknown",
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
   } catch (error) {
     logError("health_check_failed", error, { requestId });
     return NextResponse.json(
-      { status: "degraded", service: "arqvertice-flow", database: "unavailable", requestId },
+      { status: "degraded", service: "arqvertice-os", database: "unavailable", requestId },
       {
         status: 503,
         headers: {

@@ -229,7 +229,7 @@ export function NotificationManagementView({
           </a>
 
           <a
-            href="https://calendar.google.com/calendar/r?cid=https%3A%2F%2Farqvertice-flow.vercel.app%2Fapi%2Fcalendar%2Fexport"
+            href="https://calendar.google.com/calendar/r?cid=https%3A%2F%2Farqvertice-os.vercel.app%2Fapi%2Fcalendar%2Fexport"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 transition active:scale-95"

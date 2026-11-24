@@ -8,7 +8,7 @@ import { SectionHeading } from "@/components/section-heading";
 import { requirePageAdminRole } from "@/server/auth";
 import { listOperationProjects } from "@/server/services/operation-service";
 
-export const metadata = { title: "Cronograma & Operação — ArqVértice Flow" };
+export const metadata = { title: "Cronograma & Operação" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminCronogramaPage() {

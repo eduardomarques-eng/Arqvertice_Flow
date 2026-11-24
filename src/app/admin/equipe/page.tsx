@@ -13,7 +13,7 @@ import {
   type CommLogItem,
 } from "@/components/team/team-governance-hub";
 
-export const metadata = { title: "Equipe & Governança — ArqVértice Flow" };
+export const metadata = { title: "Equipe & Governança" };
 export const dynamic = "force-dynamic";
 
 export default async function EquipePage() {

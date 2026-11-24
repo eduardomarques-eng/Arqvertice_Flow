@@ -4,7 +4,7 @@ import { AdminSettingsHub } from "@/components/settings/admin-settings-hub";
 import { requirePageAdminRole } from "@/server/auth";
 import { getInfrastructureHealth, getStudioSettings } from "@/server/services/settings-service";
 
-export const metadata = { title: "Configurações do Estúdio — ArqVértice Flow" };
+export const metadata = { title: "Configurações do Estúdio" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

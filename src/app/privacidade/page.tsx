@@ -13,8 +13,8 @@ import {
 } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade | ArqVértice Flow",
-  description: "Como o ArqVértice Flow trata, protege e gerencia seus dados pessoais em conformidade com a LGPD.",
+  title: "Política de Privacidade | ArqVértice OS",
+  description: "Como o ArqVértice OS trata, protege e gerencia seus dados pessoais em conformidade com a LGPD.",
 };
 
 export default function PrivacidadePage() {
@@ -25,7 +25,7 @@ export default function PrivacidadePage() {
         Política de Privacidade
       </h1>
       <p className="mt-4 text-sm leading-relaxed text-slate-600">
-        O ArqVértice Flow recolhe, utiliza e armazena dados pessoais de forma
+        O ArqVértice OS recolhe, utiliza e armazena dados pessoais de forma
         transparente, segura e conforme a Lei Geral de Proteção de Dados
         (LGPD — Lei nº 13.709/2018).
       </p>

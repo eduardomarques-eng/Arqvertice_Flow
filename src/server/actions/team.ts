@@ -251,7 +251,7 @@ export async function dispatchCommunicationAction(input: DispatchCommunicationIn
       to: input.recipientContact.trim(),
       recipientName: input.recipientName,
       category: input.category,
-      subject: input.subject || `ArqVértice Flow — Notificação Oficial`,
+      subject: input.subject || `ArqVértice OS — Notificação Oficial`,
       messageBody: input.messageBody,
       projectName: input.projectName || undefined,
     });

@@ -6,7 +6,7 @@
  * prova definitiva de autorizacao continua nas paginas via `requirePage*`,
  * porque o middleware nao tem acesso ao Prisma.
  *
- * Regras oficiais ArqVertice Flow:
+ * Regras oficiais ArqVértice OS:
  *  - /admin e /admin/*   -> APENAS role === "ADMIN" (Eduardo Marques)
  *  - /equipe e /equipe/* -> Equipe Tecnica: "ENGENHEIRO" | "ARQUITETO" | "EQUIPE" | "OPERADOR"
  *  - /portal e /portal/* -> APENAS role === "CLIENTE" | "CLIENT"

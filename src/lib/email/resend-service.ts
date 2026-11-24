@@ -94,8 +94,8 @@ export function buildArqVerticeEmailTemplate({
               </div>
 
               <div style="margin-top: 36px; padding-top: 24px; border-top: 1px solid #f4f4f5;">
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-flow.vercel.app"}" style="display: inline-block; background-color: #09090b; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 12px 24px; border-radius: 10px;">
-                  Acessar ArqVértice Flow →
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app"}" style="display: inline-block; background-color: #09090b; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 12px 24px; border-radius: 10px;">
+                  Acessar ArqVértice OS →
                 </a>
               </div>
             </td>
@@ -106,7 +106,7 @@ export function buildArqVerticeEmailTemplate({
             <td style="background-color: #fafafa; padding: 24px 36px; border-top: 1px solid #f4f4f5; text-align: center;">
               <p style="margin: 0; font-size: 11px; color: #a1a1aa; line-height: 1.5;">
                 ArqVértice Studio & Consultoria Técnica · Gestão Integrada de Arquitetura e Engenharia<br />
-                Este é um e-mail automatizado pelo sistema de governança do ArqVértice Flow.
+                Este é um e-mail automatizado pelo sistema de governança do ArqVértice OS.
               </p>
             </td>
           </tr>
@@ -143,7 +143,7 @@ export async function sendArqVerticeEmail({
   }
 
   const fromEmail =
-    process.env.RESEND_FROM_EMAIL || "ArqVértice Flow <notificacoes@arqvertice.com.br>";
+    process.env.RESEND_FROM_EMAIL || "ArqVértice OS <notificacoes@arqvertice.com.br>";
 
   try {
     const resend = new Resend(apiKey);

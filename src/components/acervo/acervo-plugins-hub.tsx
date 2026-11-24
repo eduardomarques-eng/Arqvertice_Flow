@@ -310,7 +310,7 @@ export function AcervoPluginsHub({ basePath }: { basePath: "/admin" | "/equipe" 
                 { title: "Microsoft .NET", detail: ".NET Framework 4.8 (Revit 2022-2024 / AutoCAD) e .NET 8.0 Desktop Runtime (Revit 2025-2026 / TQS)" },
                 { title: "Microsoft Edge WebView2", detail: "Runtime WebView2 obrigatório para renderização de painéis interativos de publicação" },
                 { title: "Memória RAM", detail: "Mínimo de 16 GB; Recomendado 32 GB ou 64 GB para modelos pesados Revit/IFC/3D" },
-                { title: "Portas & Firewall", detail: "Porta 443 (HTTPS) de saída liberada para o domínio arqvertice-flow.vercel.app" },
+                { title: "Portas & Firewall", detail: "Porta 443 (HTTPS) de saída liberada para o domínio arqvertice-os.vercel.app" },
                 { title: "Privilégios Locais", detail: "Acesso de Administrador local necessário para instalação dos arquivos .addin e .bundle" },
               ].map((item, idx) => (
                 <div key={idx} className="flex items-start gap-2.5 rounded-xl bg-slate-50/70 p-2.5 border border-slate-100/80">

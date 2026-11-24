@@ -156,7 +156,7 @@ function createGoogleCalendarUrl(title: string, dueDateStr: string, projectName:
   if (isNaN(date.getTime())) return "#";
   const startStr = date.toISOString().replace(/-|:|\.\d\d\d/g, "").slice(0, 8) + "T120000Z";
   const endStr = date.toISOString().replace(/-|:|\.\d\d\d/g, "").slice(0, 8) + "T130000Z";
-  const details = `Etapa executiva do projeto ${projectName} no ArqVértice Flow.`;
+  const details = `Etapa executiva do projeto ${projectName} no ArqVértice OS.`;
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
     title
   )}&dates=${startStr}/${endStr}&details=${encodeURIComponent(details)}`;
@@ -942,7 +942,7 @@ export function TeamGovernanceHub({
                     type="text"
                     value={dispatchSubject}
                     onChange={(e) => setDispatchSubject(e.target.value)}
-                    placeholder="Ex: Atualização do Cronograma — ArqVértice Flow"
+                    placeholder="Ex: Atualização do Cronograma — ArqVértice OS"
                     className="w-full min-h-[44px] rounded-xl border border-slate-300 px-3.5 py-2 text-xs text-slate-900"
                   />
                 </div>
@@ -965,7 +965,7 @@ export function TeamGovernanceHub({
                           const projName = proj ? proj.name : "[Projeto]";
                           setDispatchSubject(`Lembrete de Prazo — ${projName}`);
                           setDispatchMessage(
-                            `Olá, ${name}! Lembrete técnico do ArqVértice Flow: a etapa [Etapa] do projeto ${projName} tem entrega prevista para [Data] (avanço atual: 50%). Por favor, revise os prazos.`
+                            `Olá, ${name}! Lembrete técnico do ArqVértice OS: a etapa [Etapa] do projeto ${projName} tem entrega prevista para [Data] (avanço atual: 50%). Por favor, revise os prazos.`
                           );
                         }}
                         className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition"
@@ -993,9 +993,9 @@ export function TeamGovernanceHub({
                         onClick={() => {
                           const target = members.find((m) => m.id === dispatchRecipientId);
                           const name = target ? target.name.split(" ")[0] : "[Nome]";
-                          setDispatchSubject(`Acesso Atualizado — ArqVértice Flow`);
+                          setDispatchSubject(`Acesso Atualizado — ArqVértice OS`);
                           setDispatchMessage(
-                            `Olá, ${name}! Suas permissões de acesso no ArqVértice Flow foram atualizadas pelo Administrador. Acesse: https://arqvertice-flow.vercel.app/login`
+                            `Olá, ${name}! Suas permissões de acesso no ArqVértice OS foram atualizadas pelo Administrador. Acesse: https://arqvertice-os.vercel.app/login`
                           );
                         }}
                         className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition"

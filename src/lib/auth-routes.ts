@@ -7,7 +7,7 @@
  *  - Página de login legado (src/app/login/page.tsx)
  *  - Middleware (src/middleware.ts) — como referência de rota padrão
  *
- * Regras oficiais ArqVértice Flow:
+ * Regras oficiais ArqVértice OS:
  *  - ADMIN        → /admin  (Painel Executivo da Diretoria)
  *  - CLIENTE      → /portal (Portal do Cliente)
  *  - ENGENHEIRO   → /equipe (Ambiente Técnico Operacional)

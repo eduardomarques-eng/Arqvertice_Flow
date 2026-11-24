@@ -19,7 +19,7 @@ import {
 export function renderScheduleReportPdf(report: ScheduleReport): Uint8Array {
   const writer = new PdfWriter({
     title: `${REPORT_TITLE} — ${report.ficha.find((row) => row.label === "Obra")?.value ?? ""}`,
-    author: "ArqVértice Flow",
+    author: "ArqVértice OS",
     subject: REPORT_DOCUMENT_KIND,
   });
 
@@ -168,7 +168,7 @@ function institutionalFooter(writer: PdfWriter, report: ScheduleReport): void {
     { size: 7.5, bold: true, color: "#0f172a", align: "center" },
   );
   writer.drawText(
-    "Documento oficial certificado digitalmente pelo Sistema ArqVértice Flow. Dispensa assinaturas manuscritas.",
+    "Documento oficial certificado digitalmente pelo Sistema ArqVértice OS. Dispensa assinaturas manuscritas.",
     writer.width / 2,
     writer.y + 26,
     { size: 6.5, color: "#64748b", align: "center" },

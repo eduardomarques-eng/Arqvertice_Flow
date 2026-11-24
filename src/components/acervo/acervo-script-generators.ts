@@ -2,7 +2,7 @@ export function generateAutoLispScript(projectId: string, projectName: string): 
   return `;;; ============================================================================
 ;;; ArqVérticeSync.lsp — Integração AutoCAD ➔ Acervo Manager (CDE)
 ;;; Empreendimento: ${projectName}
-;;; Endpoint: https://arqvertice-flow.vercel.app/api/acervo/sync-plugin
+;;; Endpoint: ${(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin
 ;;; ============================================================================
 
 (defun c:ARQSYNC (/ dwgName dwgPath pdfPath code token payload cmd)
@@ -33,7 +33,7 @@ export function generateAutoLispScript(projectId: string, projectName: string): 
 
   (setq cmd
     (strcat
-      "curl -s -X POST https://arqvertice-flow.vercel.app/api/acervo/sync-plugin "
+      "curl -s -X POST ${(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin "
       "-H \\"Content-Type: application/json\\" "
       "-H \\"Authorization: Bearer " token "\\" "
       "-d '" payload "'"
@@ -55,7 +55,7 @@ export function generatePyRevitScript(projectId: string, projectName: string): s
 """
 ArqVerticeSync_script.py — Botão pyRevit ➔ Acervo Manager (CDE)
 Empreendimento: ${projectName}
-Endpoint: https://arqvertice-flow.vercel.app/api/acervo/sync-plugin
+Endpoint: ${(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin
 """
 
 import os
@@ -63,7 +63,7 @@ import json
 import urllib2
 from pyrevit import revit, forms, script
 
-ENDPOINT = "https://arqvertice-flow.vercel.app/api/acervo/sync-plugin"
+ENDPOINT = "${(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin"
 PROJECT_ID = "${projectId}"
 
 doc = revit.doc
@@ -71,7 +71,7 @@ active_view = doc.ActiveView
 
 token = os.environ.get("ARQVERTICE_CDE_TOKEN") or forms.ask_for_string(
     prompt="Cole o Bearer Token CDE gerado em /admin/acervo/configuracoes:",
-    title="ArqVértice Flow — Sync Revit"
+    title="ArqVértice OS — Sync Revit"
 )
 
 if not token:
@@ -120,7 +120,7 @@ try:
             result.get("revisionNumber", "R00"),
             result.get("grdCode", "-")
         ),
-        title="ArqVértice Flow CDE"
+        title="ArqVértice OS CDE"
     )
 except Exception as exc:
     forms.alert("Erro ao sincronizar com Acervo Manager: {}".format(exc), exitscript=True)
@@ -131,7 +131,7 @@ export function generateMaxScript(projectId: string, projectName: string): strin
   return `-- ============================================================================
 -- ArqVerticeSync.ms — MaxScript 3ds Max -> Acervo Manager (CDE)
 -- Empreendimento: ${projectName}
--- Endpoint: https://arqvertice-flow.vercel.app/api/acervo/sync-plugin
+-- Endpoint: ${(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin
 -- ============================================================================
 
 macroScript ArqVerticeSync3dsMax
@@ -139,7 +139,7 @@ category:"ArqVertice CDE"
 toolTip:"Publicar FBX/GLB no Acervo Manager"
 (
   local projectId = "${projectId}"
-  local endpoint = "https://arqvertice-flow.vercel.app/api/acervo/sync-plugin"
+  local endpoint = "${(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin"
   local sceneBase = getFilenameFile maxFileName
   if sceneBase == "" do sceneBase = "MOD-3D-EXEC-001"
 

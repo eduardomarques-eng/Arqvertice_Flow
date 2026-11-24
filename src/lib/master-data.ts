@@ -1,7 +1,7 @@
 /**
  * CENTRAL DE CADASTROS MESTRES (Single Source of Truth)
  * ====================================================
- * Define a parametrização normativa e corporativa do estúdio ArqVértice Flow.
+ * Define a parametrização normativa e corporativa do estúdio ArqVértice OS.
  * Alimenta automaticamente selects, modais, tabelas, filtros e dashboards da aplicação.
  */
 
@@ -200,7 +200,7 @@ export const MASTER_ROLES: MasterRole[] = [
  * Funções utilitárias auxiliares para selects, modais e filtros
  */
 /**
- * Menus Suspensos Padronizados Oficiais - ArqVértice Flow
+ * Menus Suspensos Padronizados Oficiais - ArqVértice OS
  * Reflete estritamente os 5 profissionais oficiais do estúdio
  */
 export const STANDARDIZED_RESPONSIBLES = [

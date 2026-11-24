@@ -94,7 +94,7 @@ export default async function PublicProposalPage({ params }: { params: Promise<{
       <div id="conteudo" tabIndex={-1} className="mx-auto max-w-6xl space-y-6 focus:outline-none">
         <header className="rounded-3xl bg-slate-950 p-8 text-white md:p-14">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
-            ArqVértice Flow · proposta
+            ArqVértice OS · proposta
           </p>
           <h1 className="mt-5 max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">{document.title}</h1>
           <p className="mt-4 max-w-2xl text-slate-300">

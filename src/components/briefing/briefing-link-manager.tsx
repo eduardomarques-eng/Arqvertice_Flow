@@ -39,7 +39,7 @@ export function BriefingLinkManager({
 
         const base = typeof window !== "undefined" && window.location.origin
           ? window.location.origin
-          : "https://arqvertice-flow.vercel.app";
+          : "https://arqvertice-os.vercel.app";
         const value = `${base}/briefing/${res.token}`;
         setLink(value);
 

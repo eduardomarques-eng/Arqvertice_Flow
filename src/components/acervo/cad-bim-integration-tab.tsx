@@ -97,7 +97,7 @@ export function CadBimIntegrationTab({
             Endpoint de Sincronização REST:
           </span>
           <p className="font-mono text-xs font-bold text-slate-800 bg-white border border-slate-200 p-2 rounded-lg select-all">
-            POST https://arqvertice-flow.vercel.app/api/acervo/sync-plugin
+            POST {(process.env.NEXT_PUBLIC_APP_URL || "https://arqvertice-os.vercel.app").replace(/\/+$/, "")}/api/acervo/sync-plugin
           </p>
           <p className="text-[11px] text-slate-500">
             Cabeçalho obrigatório:{" "}

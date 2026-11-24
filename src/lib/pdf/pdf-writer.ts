@@ -463,7 +463,7 @@ export class PdfWriter {
       .join(" ")}] /Count ${contents.length} >>`;
     const fontRegular = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
     const fontBold = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>";
-    const info = `<< /Title ${hexString(this.info.title)} /Author ${hexString(this.info.author)} /Subject ${hexString(this.info.subject)} /Producer ${hexString("ArqVértice Flow")} >>`;
+    const info = `<< /Title ${hexString(this.info.title)} /Author ${hexString(this.info.author)} /Subject ${hexString(this.info.subject)} /Producer ${hexString("ArqVértice OS")} >>`;
 
     const ordered: string[] = [catalog, pages, fontRegular, fontBold, info];
     contents.forEach((content, index) => {

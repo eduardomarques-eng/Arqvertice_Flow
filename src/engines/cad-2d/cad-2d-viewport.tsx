@@ -234,7 +234,7 @@ export function Cad2dViewport({
               </text>
             </svg>
             <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-[10px] font-mono text-slate-400">
-              <span>CARIMBO ARQVÉRTICE FLOW CDE</span>
+              <span>CARIMBO ArqVértice OS CDE</span>
               <span>ESCALA 1:50</span>
             </div>
           </div>

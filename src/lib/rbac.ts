@@ -1,7 +1,7 @@
 import type { UserRole } from "@prisma/client";
 
 /**
- * Chaves oficiais de módulos do ArqVértice Flow
+ * Chaves oficiais de módulos do ArqVértice OS
  */
 export type AppModule =
   | "dashboard"

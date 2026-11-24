@@ -8,8 +8,8 @@ import { IdleTimerProvider } from "@/components/idle-timer-provider";
 
 export const metadata: Metadata = {
   title: {
-    default: "ArqVértice Flow",
-    template: "%s · ArqVértice Flow",
+    default: "ArqVértice OS",
+    template: "%s · ArqVértice OS",
   },
   description: "Base moderna para gestão de projetos, obras e relacionamento com clientes.",
   manifest: "/manifest.json",

@@ -99,7 +99,7 @@ const TEMPLATES = [
     id: "reuniao",
     label: "Convite Reunião",
     subject: "Agendamento de Reunião de Alinhamento — ArqVértice",
-    body: "Olá,\n\nPara agilizar nossa próxima reunião de alinhamento, escolha o melhor horário diretamente na nossa agenda pública:\nhttps://arqvertice-flow.vercel.app/agendar\n\nAguardamos você!\nArqVértice Studio",
+    body: "Olá,\n\nPara agilizar nossa próxima reunião de alinhamento, escolha o melhor horário diretamente na nossa agenda pública:\nhttps://arqvertice-os.vercel.app/agendar\n\nAguardamos você!\nArqVértice Studio",
   },
 ];
 

@@ -1,5 +1,5 @@
 /**
- * Utilitários Oficiais de Formatação Regional (pt-BR) - ArqVértice Flow
+ * Utilitários Oficiais de Formatação Regional (pt-BR) - ArqVértice OS
  * Padroniza datas (DD/MM/AAAA) e valores monetários (R$ 1.234,56),
  * prevenindo erros de "Invalid Date" e desvios de fuso horário (UTC offset).
  */

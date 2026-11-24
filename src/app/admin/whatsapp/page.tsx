@@ -5,7 +5,7 @@ import { prisma } from "@/server/db";
 import { requirePageAdminRole } from "@/server/auth";
 import { getStudioSettings } from "@/server/services/settings-service";
 
-export const metadata = { title: "Central WhatsApp Multi-Usuário — ArqVértice Flow" };
+export const metadata = { title: "Central WhatsApp Multi-Usuário" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

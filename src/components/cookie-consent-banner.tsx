@@ -108,7 +108,7 @@ export function CookieConsentBanner() {
               {pathname?.startsWith("/portal") ? "Seus dados" : "Privacidade"}
             </p>
             <p className="mt-1 text-sm leading-relaxed text-slate-600">
-              O ArqVértice Flow utiliza cookies para funcionalidade essencial,
+              O ArqVértice OS utiliza cookies para funcionalidade essencial,
               analytics e comunicação. Você decide quais categorias aceitar.
               <a
                 href="/privacidade"

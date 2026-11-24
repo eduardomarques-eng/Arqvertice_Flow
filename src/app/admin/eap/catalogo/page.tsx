@@ -10,7 +10,7 @@ import {
   MASTER_LOB_PACKAGES,
 } from "@/server/eap/templates/residential-master";
 
-export const metadata = { title: "EAP — Catálogo Regional & Templates — ArqVértice Flow" };
+export const metadata = { title: "EAP — Catálogo Regional & Templates" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

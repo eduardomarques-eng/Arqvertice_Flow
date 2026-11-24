@@ -879,7 +879,7 @@ export function renderProgressEvolutionPdf(
   }
 
   pdf.stampFooters(
-    `ArqVertice Flow · Evolucao de Obra · ${safePayload.meta.projectName} · ${safePayload.meta.activeBaselineLabel}`
+    `ArqVértice OS · Evolucao de Obra · ${safePayload.meta.projectName} · ${safePayload.meta.activeBaselineLabel}`
   );
   return pdf.build();
 }

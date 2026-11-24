@@ -8,7 +8,7 @@ import {
 import { prisma } from "@/server/db";
 import { requirePageAdminRole } from "@/server/auth";
 
-export const metadata = { title: "E-mail Profissional — ArqVértice Flow" };
+export const metadata = { title: "E-mail Profissional" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

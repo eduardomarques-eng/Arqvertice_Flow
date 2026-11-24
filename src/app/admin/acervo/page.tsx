@@ -6,7 +6,7 @@ import { AcervoManagerView, type AcervoProjectOption, type CdeDocumentItem } fro
 import { seedAcervoManagerDemo } from "@/server/services/acervo-seed";
 import { getAcervoExecutiveKpis } from "@/server/services/acervo-cde-service";
 
-export const metadata = { title: "Acervo Manager (CDE) — ArqVértice Flow" };
+export const metadata = { title: "Acervo Manager (CDE)" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminAcervoPage({

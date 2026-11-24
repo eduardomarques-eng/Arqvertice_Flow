@@ -5,7 +5,7 @@ import { getStudioSettings } from "@/server/services/settings-service";
 import { FinanceHubView, type ProjectOption } from "@/components/finance/finance-hub-view";
 import type { Installment } from "@/components/projects/project-finance-manager";
 
-export const metadata = { title: "Gestão Financeira & Parcelas — ArqVértice Flow" };
+export const metadata = { title: "Gestão Financeira & Parcelas" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

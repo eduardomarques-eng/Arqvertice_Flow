@@ -18,9 +18,14 @@ export async function GET(
       return NextResponse.json({ error: "Revisão ou token não encontrado." }, { status: 404 });
     }
 
-    const host = request.headers.get("host") || "arqvertice-flow.vercel.app";
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const verificationUrl = `${protocol}://${host}/verificar/${revision.qrVerificationToken}`;
+    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
+    const requestHost = request.headers.get("host");
+    const baseUrl = configuredAppUrl
+      ? configuredAppUrl
+      : requestHost
+        ? `${requestHost.includes("localhost") ? "http" : "https"}://${requestHost}`
+        : "https://arqvertice-os.vercel.app";
+    const verificationUrl = `${baseUrl}/verificar/${revision.qrVerificationToken}`;
 
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
       width: 256,

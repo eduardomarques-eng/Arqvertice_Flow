@@ -7,7 +7,7 @@ import { listProjects } from "@/server/services/project-service";
 import { ProjectsExecutiveGrid, type ProjectCardData } from "@/components/projects/projects-executive-grid";
 import { ProjectsBentoDashboard } from "@/components/analytics/ProjectsBentoDashboard";
 
-export const metadata = { title: "Projetos Ativos — ArqVértice Flow" };
+export const metadata = { title: "Projetos Ativos" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminProjectsPage({
