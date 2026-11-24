@@ -17,7 +17,7 @@ const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module
   { label: "Projetos", href: "/admin/projetos", icon: "📋", module: "projetos" },
   { label: "Cronograma & Operação", href: "/admin/cronograma", icon: "📅", module: "cronograma" },
   { label: "Acervo Manager", href: "/admin/acervo", icon: "📁", module: "acervo" },
-  { label: "EAP", href: "/admin/eap/catalogo", icon: "🧱", module: "projetos" },
+  { label: "EAP", href: "/admin/eap", icon: "🧱", module: "projetos" },
   { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
   { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
   { label: "Central WhatsApp", href: "/admin/whatsapp", icon: "💬", module: "dashboard" },

@@ -112,6 +112,24 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <span className="text-zinc-500 truncate max-w-[240px] sm:max-w-none">{project.name}</span>
         </div>
 
+        {/* Acesso direto ao Módulo EAP & Controle de Obra */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-[#16161D]">
+          <div>
+            <p className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+              EAP, Orçamento Regional & Planejamento de Obra
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+              Mineração TQS + Revit, compatibilização anti-duplicidade, 26 Macro-Etapas e 38 Pacotes LOB.
+            </p>
+          </div>
+          <Link
+            href={`/admin/eap/${id}`}
+            className="inline-flex h-9 items-center rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-amber-500 dark:text-zinc-950 dark:hover:bg-amber-400"
+          >
+            Abrir EAP da Obra →
+          </Link>
+        </div>
+
         {/* Mini-Dashboard Bento de Cronograma do Projeto */}
         <ProjectDetailBentoMini
           completionPct={board?.totals?.completion ?? 0}
