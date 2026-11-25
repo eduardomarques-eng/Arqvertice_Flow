@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapConferenceWorkbench } from "@/components/admin/eap/eap-conference-workbench";
 import { EapSchedulePlanner } from "@/components/admin/eap/eap-schedule-planner";
+import { EapFieldMeasurement } from "@/components/admin/eap/eap-field-measurement";
 import { EapExecutiveReportView } from "@/components/eap/eap-executive-report-view";
 import { EapExecutionTracker } from "@/components/eap/eap-execution-tracker";
 
@@ -173,9 +174,19 @@ export function EapProjectHub({
   const [openHistoryDisc, setOpenHistoryDisc] = useState<Record<string, boolean>>({});
 
   const [busy, setBusy] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+    showQuickMine?: boolean;
+  } | null>(null);
+  const [miningSummary, setMiningSummary] = useState<{
+    versions: string[];
+    acceptedItemsCount: number;
+    preservedManualCount: number;
+    warningsCount: number;
+  } | null>(null);
   const [sources, setSources] = useState<SourceFileDTO[]>(initialEap?.sourceFiles ?? []);
-  const [activeTab, setActiveTab] = useState<"sources" | "conference" | "planning" | "report">(
+  const [activeTab, setActiveTab] = useState<"sources" | "conference" | "planning" | "field" | "report">(
     initialEap && initialEap.status !== "RASCUNHO" ? "conference" : "sources"
   );
   const [reportSubTab, setReportSubTab] = useState<"executive" | "execution">(
@@ -258,6 +269,7 @@ export function EapProjectHub({
           text: supersedesId
             ? `Nova revisão (${added[0]?.versionCode || "R01"}) ativada na disciplina ${discipline}.`
             : `${added.length} arquivo(s) anexado(s) na disciplina ${discipline}.`,
+          showQuickMine: Boolean(supersedesId),
         });
         router.refresh();
       }
@@ -293,6 +305,7 @@ export function EapProjectHub({
       setFeedback({
         type: "success",
         text: `Versão ${src.versionCode || src.revisionLabel} ("${src.fileName}") definida como vigente.`,
+        showQuickMine: true,
       });
       router.refresh();
     } finally {
@@ -368,6 +381,7 @@ export function EapProjectHub({
   async function handleMineAll() {
     setBusy("mine");
     setFeedback(null);
+    setMiningSummary(null);
     try {
       const res = await fetch(`/api/eap/projects/${projectId}/mine`, { method: "POST" });
       const json = await res.json();
@@ -375,6 +389,20 @@ export function EapProjectHub({
         setFeedback({ type: "error", text: json.error || "Falha na mineração." });
         return;
       }
+      const versions = Array.isArray(json.processedFiles)
+        ? json.processedFiles
+            .filter((f: { status: string }) => f.status === "PROCESSADO")
+            .map(
+              (f: { discipline: string; versionCode?: string }) =>
+                `${f.discipline} ${f.versionCode || "R00"}`
+            )
+        : [];
+      setMiningSummary({
+        versions,
+        acceptedItemsCount: Number(json.acceptedItemsCount || 0),
+        preservedManualCount: Number(json.preservedManualCount || 0),
+        warningsCount: Array.isArray(json.sanityWarnings) ? json.sanityWarnings.length : 0,
+      });
       setFeedback({
         type: "success",
         text: `Mineração concluída: ${json.acceptedItemsCount} item(ns) pré-preenchido(s) na Planilha EAP.`,
@@ -497,17 +525,18 @@ export function EapProjectHub({
             { id: "sources", label: "1. Upload de Quantitativos" },
             { id: "conference", label: "2. Planilha EAP & Custos (Conferência)" },
             { id: "planning", label: "3. Planejamento (LOB & Cronograma)" },
-            { id: "report", label: "4. Relatório Executivo & Medições" },
+            { id: "field", label: "4. Medição no Canteiro" },
+            { id: "report", label: "5. Relatório Executivo & Medições" },
           ] as const
         ).map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`h-9 rounded-xl px-4 text-xs font-semibold transition cursor-pointer ${
+            className={`h-9 rounded-xl px-4 text-xs font-semibold transition-all duration-150 active:scale-[0.985] cursor-pointer ${
               activeTab === tab.id
-                ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
-                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                ? "bg-zinc-900 text-white shadow-[0_2px_10px_-2px_rgba(0,0,0,0.18)] ring-1 ring-inset ring-white/15 dark:bg-zinc-100 dark:text-zinc-950"
+                : "border border-zinc-200/80 bg-white/75 text-zinc-700 backdrop-blur-md hover:bg-white/95 hover:text-zinc-950 dark:border-white/10 dark:bg-zinc-900/70 dark:text-zinc-300 dark:hover:bg-zinc-800/85"
             }`}
           >
             {tab.label}
@@ -527,6 +556,13 @@ export function EapProjectHub({
         <EapSchedulePlanner
           projectId={projectId}
           onBaselineApproved={() => router.refresh()}
+        />
+      )}
+
+      {activeTab === "field" && (
+        <EapFieldMeasurement
+          projectId={projectId}
+          onSaved={() => router.refresh()}
         />
       )}
 
@@ -608,13 +644,47 @@ export function EapProjectHub({
 
             {feedback && (
               <div
-                className={`mt-4 rounded-xl border px-3.5 py-2.5 text-xs font-medium ${
+                className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-medium ${
                   feedback.type === "success"
                     ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
                     : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
                 }`}
               >
-                {feedback.text}
+                <span>{feedback.text}</span>
+                {feedback.showQuickMine && (
+                  <button
+                    type="button"
+                    disabled={busy === "mine"}
+                    onClick={() => void handleMineAll()}
+                    className="h-7 rounded-lg bg-slate-900 px-3 text-[11px] font-semibold text-white hover:bg-slate-800 cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
+                  >
+                    {busy === "mine" ? "Atualizando..." : "⚡ Atualizar EAP com esta versão"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {miningSummary && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2 text-[11px] text-blue-950 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                <span className="font-bold">Rastreabilidade:</span>
+                <span>
+                  Versões vigentes:{" "}
+                  <strong>
+                    {miningSummary.versions.length > 0 ? miningSummary.versions.join(" · ") : "—"}
+                  </strong>
+                </span>
+                <span>·</span>
+                <span>{miningSummary.acceptedItemsCount} preenchido(s)/atualizado(s)</span>
+                <span>·</span>
+                <span>{miningSummary.preservedManualCount} edição(ões) manual(is) preservada(s)</span>
+                {miningSummary.warningsCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="font-semibold text-amber-700 dark:text-amber-300">
+                      {miningSummary.warningsCount} alerta(s)
+                    </span>
+                  </>
+                )}
               </div>
             )}
           </Card>

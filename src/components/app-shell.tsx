@@ -167,20 +167,20 @@ export async function AppShell({
       {/* Tab Guard de Sessão Efêmera no Cliente */}
       <SessionGuard />
 
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-slate-200/60 dark:lg:border-white/10 lg:bg-white/85 dark:lg:bg-[#18181B]/95 lg:backdrop-blur-xl">
-        <div className="flex h-16 items-center px-6 border-b border-slate-200/60 dark:border-white/10">
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-zinc-200/70 dark:lg:border-white/10 lg:bg-white/80 dark:lg:bg-[#141419]/85 lg:backdrop-blur-xl">
+        <div className="flex h-16 items-center px-6 border-b border-zinc-200/70 dark:border-white/10">
           <Brand compact />
         </div>
 
         <div className="px-6 py-3">
-          <span className="text-[11px] font-medium tracking-wide uppercase text-slate-400">
+          <span className="text-[11px] font-medium tracking-[0.06em] uppercase text-zinc-500 dark:text-zinc-400">
             {areaLabel}
           </span>
         </div>
 
         <nav className="flex-1 px-4 py-2 overflow-y-auto">
           <div className="pb-2">
-            <span className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <span className="px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
               {groupLabel}
             </span>
           </div>
@@ -189,11 +189,11 @@ export async function AppShell({
         </nav>
 
         {user ? (
-          <div className="p-4 border-t border-slate-200/60 dark:border-white/10 bg-slate-50/50 dark:bg-[#09090B]/60">
+          <div className="p-4 border-t border-zinc-200/70 dark:border-white/10 bg-zinc-50/60 dark:bg-[#09090B]/50">
             <div className="flex items-center justify-between">
               <div className="min-w-0 pr-2">
-                <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{user.name}</p>
-                <p className="truncate text-[10px] text-slate-400 uppercase tracking-wider">{user.role}</p>
+                <p className="truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100">{user.name}</p>
+                <p className="truncate text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">{user.role}</p>
               </div>
 
               <form
@@ -205,7 +205,7 @@ export async function AppShell({
               >
                 <button
                   type="submit"
-                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors duration-150"
                 >
                   Sair
                 </button>
@@ -216,10 +216,10 @@ export async function AppShell({
       </div>
 
       <div className="lg:pl-72 min-w-0 max-w-full">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200/60 dark:border-white/10 bg-white/85 dark:bg-[#18181B]/90 px-4 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-zinc-200/70 dark:border-white/10 bg-white/80 dark:bg-[#141419]/85 px-4 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
             <MobileNav links={allowedLinks} areaLabel={areaLabel} groupLabel={groupLabel} />
-            <span className="truncate text-xs font-semibold text-slate-400 uppercase tracking-widest">
+            <span className="truncate text-[11px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.1em]">
               {eyebrow}
             </span>
           </div>
@@ -229,8 +229,8 @@ export async function AppShell({
 
             {user ? (
               <div className="flex items-center gap-3">
-                <span className="hidden sm:inline text-xs font-medium text-slate-600 dark:text-slate-300">
-                  {user.name} <span className="text-slate-400">({user.role})</span>
+                <span className="hidden sm:inline text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                  {user.name} <span className="text-zinc-400">({user.role})</span>
                 </span>
 
                 <form
@@ -242,7 +242,7 @@ export async function AppShell({
                 >
                   <button
                     type="submit"
-                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#09090B] px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 active:scale-95 transition shadow-2xs"
+                    className="apple-glass-btn min-h-[38px] px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50/90 dark:hover:bg-rose-950/40"
                   >
                     Sair
                   </button>
@@ -251,7 +251,7 @@ export async function AppShell({
             ) : (
               <Link
                 href="/"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:underline"
               >
                 Entrar →
               </Link>
@@ -259,13 +259,13 @@ export async function AppShell({
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl min-w-0 px-4 py-6 sm:px-5 sm:py-8 md:px-10 md:py-12">{children}</main>
+        <main className="mx-auto max-w-[1440px] min-w-0 px-5 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>
 
       {/* BOTTOM NAV MOBILE (Fixo em baixo em telas < 1024px) */}
       {!isClient && bottomNavLinks.length > 0 && (
         <nav
-          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#18181B]/95 backdrop-blur-md border-t border-slate-200/60 dark:border-white/10 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)]"
+          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/90 dark:bg-[#141419]/90 backdrop-blur-xl border-t border-zinc-200/70 dark:border-white/10 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)]"
           aria-label="Navegação rápida móvel"
         >
           {bottomNavLinks.map((item) => (

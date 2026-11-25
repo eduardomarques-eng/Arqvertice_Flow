@@ -77,8 +77,8 @@ export default async function AdminAcervoPage({
   return (
     <AppShell eyebrow="Acervo Manager CDE">
       <SectionHeading
-        title="Acervo Manager — Ambiente Comum de Dados (CDE)"
-        description="Gestão integrada de projetos, controle de revisões (R00, R01...), validação de nomenclatura, esteira Bom para Obra e emissão de GRDs."
+        title="Acervo Manager (CDE)"
+        description="Controle de revisões (R00, R01…), nomenclatura, esteira Bom para Obra e emissão de GRDs."
       />
       <div className="mt-6">
         <AcervoManagerView

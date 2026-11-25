@@ -19,7 +19,7 @@ export default async function AdminContractsPage() {
     <AppShell eyebrow="Jurídico & Comercial">
       <SectionHeading
         title="Contratos & Termos Aditivos"
-        description="Gerador padrão de minutas com 8 cláusulas editáveis, qualificação automática via StudioSetting, arquivamento PDF no Acervo e aditivos ligados à EAP/Financeiro."
+        description="Minutas editáveis, assinatura eletrônica, arquivamento PDF no Acervo e aditivos integrados."
       />
       <div className="mt-6">
         <ContractsHubClient

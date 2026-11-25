@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -17,6 +17,15 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapLobSpreadsheet } from "@/components/admin/eap/eap-lob-spreadsheet";
+import { EapTeamsAndPackagesManager } from "@/components/admin/eap/eap-teams-and-packages-manager";
+import { EapConstraintsKanban } from "@/components/admin/eap/eap-constraints-kanban";
+import type { LobPackageBlockSummary } from "@/server/eap/constraints-lookahead";
+import type {
+  EapStageFloorLoad,
+  LobFloorAllocationItem,
+  LobFloorDefinition,
+} from "@/lib/eap-lob-grid";
+import type { ServicePackageDTO, WorkTeamDTO } from "@/components/admin/eap/eap-teams-and-packages-manager";
 import type {
   MonthlyCashflowPoint,
   ScheduleAnalyticsResult,
@@ -67,6 +76,13 @@ interface ScheduleApiPayload {
   zones: Array<{ id: string; code: string; name: string; orderIndex: number }>;
   holidays: Array<{ id: string; date: string; name: string; type: string }>;
   packages: SchedulePackageDTO[];
+  servicePackages?: ServicePackageDTO[];
+  workTeams?: WorkTeamDTO[];
+  lobFloors?: LobFloorDefinition[];
+  lobAllocations?: LobFloorAllocationItem[];
+  eapStageFloorLoads?: EapStageFloorLoad[];
+  constraintBlocks?: Record<string, LobPackageBlockSummary>;
+  constraintsMetrics?: { total: number; criticalCount: number };
   analytics: ScheduleAnalyticsResult;
   audit: ScheduleAuditResult;
   baselines: Array<{
@@ -79,7 +95,7 @@ interface ScheduleApiPayload {
   }>;
 }
 
-type PlannerSubView = "lob" | "table" | "charts" | "procurement";
+type PlannerSubView = "lob" | "constraints" | "table" | "charts" | "procurement";
 
 const WAVE_COLORS = [
   "bg-blue-600 text-white",
@@ -460,6 +476,10 @@ export function EapSchedulePlanner({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <EapTeamsAndPackagesManager
+              projectId={projectId}
+              buttonClassName="inline-flex h-9 items-center gap-1.5 rounded-xl border border-indigo-300/80 bg-indigo-50/90 px-3.5 text-xs font-semibold text-indigo-900 shadow-xs transition hover:bg-indigo-100 cursor-pointer dark:border-indigo-500/40 dark:bg-indigo-950/60 dark:text-indigo-200 dark:hover:bg-indigo-900/70"
+            />
             {data.baselines[0] && (
               <Badge tone="green">Baseline {data.baselines[0].versionLabel} Ativa</Badge>
             )}
@@ -517,6 +537,10 @@ export function EapSchedulePlanner({
         {(
           [
             { id: "lob", label: "Linha de Balanço (LOB — Zonas)" },
+            {
+              id: "constraints",
+              label: `Restrições & Suprimentos (${data.constraintsMetrics?.criticalCount ? `${data.constraintsMetrics.criticalCount} crít.` : "Lookahead 45d"})`,
+            },
             { id: "table", label: "Tabela de Pacotes & Trechos (38 PCTs)" },
             { id: "charts", label: "Gantt, Curva S & Desembolso Mensal" },
             { id: "procurement", label: `Calendário de Suprimentos (${allGates.length})` },
@@ -557,6 +581,12 @@ export function EapSchedulePlanner({
             zones={data.zones}
             holidays={data.holidays}
             packages={data.packages}
+            servicePackages={data.servicePackages}
+            workTeams={data.workTeams}
+            initialFloors={data.lobFloors}
+            initialAllocations={data.lobAllocations}
+            stageLoads={data.eapStageFloorLoads}
+            constraintBlocks={data.constraintBlocks}
             onScheduleMutated={() => loadSchedule(true)}
             onOpenSegmentModal={(pkg, seg) => {
               const matchedPkg = data.packages.find((p) => p.id === pkg.id);
@@ -579,6 +609,17 @@ export function EapSchedulePlanner({
             }}
           />
         </Card>
+      )}
+
+      {/* SUB-VISÃO: KANBAN DE RESTRIÇÕES & SUPRIMENTOS (LOOKAHEAD 45D) */}
+      {subView === "constraints" && (
+        <EapConstraintsKanban
+          projectId={projectId}
+          floors={data.lobFloors ?? []}
+          servicePackages={data.servicePackages ?? []}
+          workTeams={data.workTeams ?? []}
+          onConstraintsChanged={() => loadSchedule(true)}
+        />
       )}
 
       {/* SUB-VISÃO 2: TABELA EDITÁVEL DE PACOTES & TRECHOS */}

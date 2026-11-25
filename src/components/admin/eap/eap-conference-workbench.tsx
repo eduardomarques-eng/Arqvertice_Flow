@@ -12,14 +12,18 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapFullscreenShell } from "@/components/admin/eap/eap-fullscreen-shell";
+import { EapTeamsAndPackagesManager } from "@/components/admin/eap/eap-teams-and-packages-manager";
 import { useHistoryStack } from "@/lib/history-stack";
 import {
   applyCommercialUnitPrice,
+  createDuplicateItemPayload,
   formatPtBrCurrency,
   formatPtBrDecimalInput,
   formatPtBrQty,
+  parseClipboardMatrix,
   parsePtBrNumber,
   recomputeTreeTotals,
+  reorderItemsInList,
 } from "@/lib/eap-spreadsheet";
 import type {
   ComputedEapItemDTO,
@@ -90,6 +94,8 @@ interface SheetCellProps {
   align?: "left" | "center" | "right";
   className?: string;
   onCommit: (raw: string) => void;
+  onFocusCell?: (rowIndex: number, colIndex: number) => void;
+  onPasteMatrix?: (rowIndex: number, colIndex: number, matrix: string[][]) => void;
   onNavigate: (
     rowIndex: number,
     colIndex: number,
@@ -107,6 +113,8 @@ function SpreadsheetCell({
   align = "right",
   className = "",
   onCommit,
+  onFocusCell,
+  onPasteMatrix,
   onNavigate,
   registerRef,
 }: SheetCellProps) {
@@ -133,6 +141,7 @@ function SpreadsheetCell({
     committedInKeyRef.current = false;
     setDraft(editValue);
     setFocused(true);
+    onFocusCell?.(rowIndex, colIndex);
     requestAnimationFrame(() => {
       inputRef.current?.select();
     });
@@ -221,6 +230,15 @@ function SpreadsheetCell({
       placeholder={placeholder}
       onFocus={handleFocus}
       onChange={(e) => setDraft(e.target.value)}
+      onPaste={(e) => {
+        const text = e.clipboardData.getData("text/plain");
+        if (text && (text.includes("\t") || text.includes("\n"))) {
+          e.preventDefault();
+          committedInKeyRef.current = true;
+          setFocused(false);
+          onPasteMatrix?.(rowIndex, colIndex, parseClipboardMatrix(text));
+        }
+      }}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       className={`w-full rounded-none border border-transparent bg-transparent text-slate-900 transition-colors hover:bg-blue-50/40 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-600/30 dark:text-zinc-100 dark:hover:bg-zinc-800/40 dark:focus:border-amber-400 dark:focus:bg-zinc-900 dark:focus:ring-amber-400/30 ${alignClass} ${className}`}
@@ -255,6 +273,9 @@ export function EapConferenceWorkbench({
   const [viewMode, setViewMode] = useState<"EXECUTIVE" | "DETAILED">("EXECUTIVE");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [density, setDensity] = useState<SpreadsheetDensity>("PADRAO");
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [activeRowItemId, setActiveRowItemId] = useState<string | null>(null);
+  const [needsPlanningSync, setNeedsPlanningSync] = useState(false);
   const history = useHistoryStack<EapTreeResponse>(40);
 
   // Menu de contexto discreto na linha (⋮)
@@ -630,7 +651,33 @@ export function EapConferenceWorkbench({
       const activeTag = document.activeElement?.tagName.toLowerCase();
       if (activeTag === "textarea") return;
       const key = e.key.toLowerCase();
-      if (key === "z" && !e.shiftKey) {
+      if (e.altKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        const currItem = activeRowItemId
+          ? treeRef.current?.stages
+              .flatMap((s) => s.groups.flatMap((g) => g.items))
+              .find((it) => it.id === activeRowItemId)
+          : null;
+        void handleQuickAddInStage(currItem?.stageCode || "04", currItem?.groupId);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d" && activeRowItemId) {
+        e.preventDefault();
+        const currItem = treeRef.current?.stages
+          .flatMap((s) => s.groups.flatMap((g) => g.items))
+          .find((it) => it.id === activeRowItemId);
+        if (currItem) void handleDuplicateItem(currItem);
+      } else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && activeRowItemId) {
+        e.preventDefault();
+        const currItem = treeRef.current?.stages
+          .flatMap((s) => s.groups.flatMap((g) => g.items))
+          .find((it) => it.id === activeRowItemId);
+        if (currItem) {
+          void handleReorderItem(
+            currItem.groupId,
+            currItem.id,
+            e.key === "ArrowUp" ? "up" : "down"
+          );
+        }
+      } else if (key === "z" && !e.shiftKey) {
         e.preventDefault();
         handleUndo();
       } else if (key === "y" || (key === "z" && e.shiftKey)) {
@@ -674,12 +721,223 @@ export function EapConferenceWorkbench({
     dirtySetRef.current.add(itemId);
     setDirtyIds(Array.from(dirtySetRef.current));
     setAutoSaveState("dirty");
+    setNeedsPlanningSync(true);
 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       void flushDirtyItems(false);
     }, 850);
   }
+
+  const handleQuickAddInStage = useCallback(
+    async (stageCode: string, groupId?: string) => {
+      setSavingId(`quick-add-${stageCode}`);
+      setFeedback(null);
+      try {
+        const res = await fetch(`/api/eap/projects/${projectId}/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stageCode,
+            groupId,
+            description: "Novo serviço",
+            unit: "unid",
+            zoneQuantities: { FUND_TERREO: 0, PAV_SUPERIOR: 0, COBERTURA: 0, EXTERNO: 0 },
+            lossPercent: 0,
+            materialUnitCost: 0,
+            laborUnitCost: 0,
+            thirdPartyUnitCost: 0,
+            teamsCount: 1,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+          setFeedback({ type: "error", text: json.error || "Erro ao adicionar item." });
+          return;
+        }
+        setExpandedStages((prev) => ({ ...prev, [stageCode]: true }));
+        setNeedsPlanningSync(true);
+        await loadTree();
+        if (json.item?.id) {
+          setActiveRowItemId(json.item.id);
+          requestAnimationFrame(() => {
+            const idx = visibleRowOrder.indexOf(json.item.id);
+            if (idx >= 0) {
+              cellRefs.current.get(`${idx}:1`)?.focus();
+            }
+          });
+        }
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [projectId, loadTree, visibleRowOrder]
+  );
+
+  const handleDuplicateItem = useCallback(
+    async (item: ComputedEapItemDTO) => {
+      setOpenMenuId(null);
+      setSavingId(`dup-${item.id}`);
+      try {
+        const payload = createDuplicateItemPayload(item);
+        const res = await fetch(`/api/eap/projects/${projectId}/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+          setFeedback({ type: "error", text: json.error || "Erro ao duplicar linha." });
+          return;
+        }
+        setNeedsPlanningSync(true);
+        setFeedback({ type: "success", text: `Linha "${item.description.slice(0, 32)}" duplicada.` });
+        await loadTree();
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [projectId, loadTree]
+  );
+
+  const handleReorderItem = useCallback(
+    async (groupId: string, itemId: string, direction: "up" | "down") => {
+      setOpenMenuId(null);
+      const currentTree = treeRef.current;
+      if (!currentTree) return;
+      let orderedIds: string[] = [];
+      history.record(currentTree);
+      setTree((prev) => {
+        if (!prev) return prev;
+        const next: EapTreeResponse = {
+          ...prev,
+          stages: prev.stages.map((st) => ({
+            ...st,
+            groups: st.groups.map((g) => {
+              if (g.id !== groupId) return g;
+              const reordered = reorderItemsInList(g.items, itemId, direction);
+              orderedIds = reordered.map((it) => it.id);
+              return { ...g, items: reordered };
+            }),
+          })),
+        };
+        return recomputeTreeTotals(next);
+      });
+      if (orderedIds.length > 0) {
+        await fetch(`/api/eap/projects/${projectId}/items/batch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "REORDER", groupId, orderedItemIds: orderedIds }),
+        });
+      }
+    },
+    [projectId, history]
+  );
+
+  const handleBatchAction = useCallback(
+    async (action: "DELETE" | "CLEAR_QUANTITIES") => {
+      if (selectedItemIds.length === 0) return;
+      setSavingId("batch");
+      try {
+        const res = await fetch(`/api/eap/projects/${projectId}/items/batch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, itemIds: selectedItemIds }),
+        });
+        if (res.ok) {
+          setSelectedItemIds([]);
+          setNeedsPlanningSync(true);
+          setFeedback({
+            type: "success",
+            text:
+              action === "DELETE"
+                ? "Itens selecionados removidos."
+                : "Quantidades dos itens selecionados zeradas.",
+          });
+          await loadTree();
+        }
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [projectId, selectedItemIds, loadTree]
+  );
+
+  const handlePasteMatrix = useCallback(
+    (startRow: number, startCol: number, matrix: string[][]) => {
+      const currentTree = treeRef.current;
+      if (!currentTree || matrix.length === 0) return;
+      history.record(currentTree);
+
+      const touchedIds = new Set<string>();
+      const updatesByItemId = new Map<string, Array<{ colIdx: number; raw: string }>>();
+
+      for (let r = 0; r < matrix.length; r++) {
+        const targetItemId = visibleRowOrder[startRow + r];
+        if (!targetItemId) continue;
+        const rowCells = matrix[r];
+        for (let c = 0; c < rowCells.length; c++) {
+          const targetCol = startCol + c;
+          if (targetCol >= editableColCount) break;
+          touchedIds.add(targetItemId);
+          const list = updatesByItemId.get(targetItemId) ?? [];
+          list.push({ colIdx: targetCol, raw: rowCells[c] });
+          updatesByItemId.set(targetItemId, list);
+        }
+      }
+
+      if (touchedIds.size === 0) return;
+
+      setTree((prev) => {
+        if (!prev) return prev;
+        const next: EapTreeResponse = {
+          ...prev,
+          stages: prev.stages.map((st) => ({
+            ...st,
+            groups: st.groups.map((g) => ({
+              ...g,
+              items: g.items.map((it) => {
+                const ops = updatesByItemId.get(it.id);
+                if (!ops) return it;
+                let nextIt = { ...it, zoneQuantities: { ...it.zoneQuantities } };
+                for (const { colIdx, raw } of ops) {
+                  if (colIdx === 0) nextIt.code = raw.trim().toUpperCase() || null;
+                  else if (colIdx === 1 && raw.trim()) nextIt.description = raw.trim();
+                  else if (colIdx === 2 && raw.trim()) nextIt.unit = raw.trim();
+                  else if (colIdx === 3) nextIt.zoneQuantities.FUND_TERREO = parsePtBrNumber(raw);
+                  else if (colIdx === 4) nextIt.zoneQuantities.PAV_SUPERIOR = parsePtBrNumber(raw);
+                  else if (colIdx === 5) nextIt.zoneQuantities.COBERTURA = parsePtBrNumber(raw);
+                  else if (colIdx === 6) nextIt.zoneQuantities.EXTERNO = parsePtBrNumber(raw);
+                  else if (
+                    (viewMode === "EXECUTIVE" && colIdx === 7) ||
+                    (viewMode === "DETAILED" && colIdx === 13)
+                  ) {
+                    const split = applyCommercialUnitPrice(nextIt, parsePtBrNumber(raw));
+                    nextIt = { ...nextIt, ...split };
+                  }
+                }
+                if (nextIt.revisionTag === "ORIGINAL") {
+                  nextIt.revisionTag = "EDITADO_MANUAL";
+                }
+                return nextIt;
+              }),
+            })),
+          })),
+        };
+        return recomputeTreeTotals(next);
+      });
+
+      for (const id of touchedIds) dirtySetRef.current.add(id);
+      setDirtyIds(Array.from(dirtySetRef.current));
+      setAutoSaveState("dirty");
+      setNeedsPlanningSync(true);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        void flushDirtyItems(false);
+      }, 850);
+    },
+    [visibleRowOrder, editableColCount, viewMode, history, flushDirtyItems]
+  );
 
   async function handleConfirmSanity(item: ComputedEapItemDTO) {
     setOpenMenuId(null);
@@ -1615,6 +1873,12 @@ export function EapConferenceWorkbench({
             {densityControls}
             {saveButton}
 
+            <EapTeamsAndPackagesManager
+              projectId={projectId}
+              stages={tree.stages.map((st) => ({ code: st.code, name: st.name }))}
+              onLaborSynced={() => void loadTree()}
+            />
+
             <button
               type="button"
               onClick={() => setIsFullscreen(true)}
@@ -1646,10 +1910,37 @@ export function EapConferenceWorkbench({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-zinc-400">
-          <span>
-            Dica de planilha: clique em qualquer célula para editar · use <kbd className="rounded border px-1">Tab</kbd>,{" "}
-            <kbd className="rounded border px-1">Enter</kbd> e <kbd className="rounded border px-1">↑↓←→</kbd> para navegar · <kbd className="rounded border px-1">Esc</kbd> cancela.
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span>
+              Dica: <kbd className="rounded border px-1">Tab</kbd>/<kbd className="rounded border px-1">Enter</kbd>/setas navegam ·{" "}
+              <kbd className="rounded border px-1">Alt+N</kbd> nova linha · <kbd className="rounded border px-1">Ctrl+D</kbd> duplica ·{" "}
+              <kbd className="rounded border px-1">Ctrl+V</kbd> cola matriz Excel.
+            </span>
+            {needsPlanningSync && (
+              <Badge tone="blue">EAP atualizada — pronta para sincronizar no Planejamento</Badge>
+            )}
+            {selectedItemIds.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-0.5 dark:bg-zinc-800">
+                <strong className="text-slate-800 dark:text-zinc-200">
+                  {selectedItemIds.length} selecionado(s)
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => void handleBatchAction("CLEAR_QUANTITIES")}
+                  className="text-amber-700 hover:underline cursor-pointer dark:text-amber-300"
+                >
+                  Zerar Qtds
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleBatchAction("DELETE")}
+                  className="text-rose-700 hover:underline cursor-pointer dark:text-rose-400"
+                >
+                  Excluir
+                </button>
+              </span>
+            )}
+          </div>
           <span className="font-mono">
             {autoSaveState === "saving"
               ? "Sincronizando alterações..."

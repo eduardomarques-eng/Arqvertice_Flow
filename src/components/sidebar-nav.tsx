@@ -11,29 +11,21 @@ export function SidebarNav({ links }: { links: readonly NavLink[] }) {
   const pathname = usePathname();
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {links.map(([label, href, badge]) => {
         const isActive =
           pathname === href || (!ROOT_PATHS.has(href) && pathname.startsWith(href));
-        const is3D = label === "3D Viewer";
-        const isEmail = label === "E-mail Profissional";
-        const isWhatsApp = label === "Central WhatsApp";
         return (
           <Link
             key={href}
             href={href}
-            className={`group flex items-center justify-between rounded-xl px-3 py-2 text-sm tracking-tight transition-colors duration-150 ${
+            className={`group flex items-center justify-between rounded-xl px-3 py-2 text-[13.5px] tracking-tight transition-all duration-150 ease-out ${
               isActive
-                ? "bg-[#EDE5D8]/85 dark:bg-white/15 font-semibold text-[#18181B] dark:text-[#EDE5D8]"
-                : "font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-zinc-900/[0.06] dark:bg-white/[0.11] font-semibold text-zinc-950 dark:text-white ring-1 ring-inset ring-zinc-900/[0.06] dark:ring-white/[0.08]"
+                : "font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-900/[0.035] dark:hover:bg-white/[0.05] hover:text-zinc-950 dark:hover:text-white"
             }`}
           >
-            <span className="inline-flex items-center gap-2">
-              {is3D && <span aria-hidden="true">🧊</span>}
-              {isEmail && <span aria-hidden="true">✉️</span>}
-              {isWhatsApp && <span aria-hidden="true">💬</span>}
-              <span>{label}</span>
-            </span>
+            <span className="truncate">{label}</span>
             <span className="inline-flex items-center gap-1.5">
               {typeof badge === "number" && badge > 0 && (
                 <span className="rounded-full bg-[#B45309] dark:bg-[#F59E0B] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:text-[#18181B] tabular-nums">
@@ -41,10 +33,10 @@ export function SidebarNav({ links }: { links: readonly NavLink[] }) {
                 </span>
               )}
               <span
-                className={`text-xs transition-transform duration-150 ${
+                className={`text-xs transition-all duration-150 ${
                   isActive
-                    ? "text-[#18181B] dark:text-[#EDE5D8]"
-                    : "text-slate-400 group-hover:translate-x-0.5"
+                    ? "text-zinc-700 dark:text-zinc-200 opacity-100"
+                    : "text-zinc-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5"
                 }`}
               >
                 →

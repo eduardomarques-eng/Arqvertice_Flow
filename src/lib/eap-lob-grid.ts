@@ -781,3 +781,960 @@ export function autoLevelConflictingPackages<T extends LobPackageLike>(input: {
     leveledPackageNumbers: leveled,
   };
 }
+
+// ============================================================================
+// FASE 9 — NOVA MATRIZ LOB: PAVIMENTOS × DATAS + CÉLULAS EQUIPE+PACOTE (A1, B3)
+// ============================================================================
+
+export interface LobFloorDefinition {
+  floorId: string;
+  floorName: string;
+  floorOrder: number;
+}
+
+export interface LobCellToken {
+  teamCode: string;
+  packageNumber: number;
+  code: string; // Ex.: "A1", "B15"
+}
+
+export interface LobFloorAllocationItem {
+  floorId: string;
+  floorName: string;
+  floorOrder: number;
+  dateIso: string;
+  teamCode: string;
+  packageNumber: number;
+  isOvertime: boolean;
+  isLocked?: boolean;
+}
+
+export interface ContinuousTimelineColumn extends LobTimelineColumn {
+  isWeekend: boolean;
+  isNonWorking: boolean;
+  weekdayInitial: string;
+  dateShort: string; // "DD/MM"
+  allDatesIso: string[];
+}
+
+export interface ContinuousTimelineResult {
+  columns: ContinuousTimelineColumn[];
+  topGroups: Array<{ key: string; label: string; count: number }>;
+  allCalendarDaysIso: string[];
+  allWorkingDaysIso: string[];
+}
+
+export const DEFAULT_LOB_FLOORS: LobFloorDefinition[] = [
+  { floorId: "FUNDACAO", floorName: "Infraestrutura / Fundação", floorOrder: 1 },
+  { floorId: "TERREO", floorName: "Térreo", floorOrder: 2 },
+  { floorId: "PAV_SUPERIOR", floorName: "Pavimento Superior", floorOrder: 3 },
+  { floorId: "COBERTA", floorName: "Coberta", floorOrder: 4 },
+  { floorId: "AREA_EXTERNA", floorName: "Área Externa", floorOrder: 5 },
+];
+
+/**
+ * Faz o parsing inteligente de entradas como "a1", "A1", "B4, C12", "A5 B15" ou "3" (usando equipe ativa).
+ */
+export function parseLobCellInput(raw: string, activeTeamCode = "A"): LobCellToken[] {
+  const safeDefaultTeam = (activeTeamCode || "A").trim().toUpperCase().replace(/[^A-Z]/g, "") || "A";
+  const parts = raw
+    .split(/[,;\s]+/)
+    .map((p) => p.trim().toUpperCase())
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const tokens: LobCellToken[] = [];
+
+  for (const part of parts) {
+    const matchCombined = part.match(/^([A-Z]{1,4})(\d{1,3})$/);
+    if (matchCombined) {
+      const teamCode = matchCombined[1];
+      const packageNumber = Number(matchCombined[2]);
+      if (packageNumber >= 1) {
+        const code = `${teamCode}${packageNumber}`;
+        if (!seen.has(code)) {
+          seen.add(code);
+          tokens.push({ teamCode, packageNumber, code });
+        }
+      }
+      continue;
+    }
+
+    const matchNumberOnly = part.match(/^(\d{1,3})$/);
+    if (matchNumberOnly) {
+      const packageNumber = Number(matchNumberOnly[1]);
+      if (packageNumber >= 1) {
+        const code = `${safeDefaultTeam}${packageNumber}`;
+        if (!seen.has(code)) {
+          seen.add(code);
+          tokens.push({ teamCode: safeDefaultTeam, packageNumber, code });
+        }
+      }
+    }
+  }
+
+  return tokens;
+}
+
+/**
+ * Gera linha do tempo contínua com TODOS os dias corridos (incluindo Sábados e Domingos sombreados)
+ * e feriados regionais, suportando escalas Diário, Semanal, Mensal e Anual.
+ */
+export function buildContinuousLobTimeline(input: {
+  scale: LobTimeScale;
+  startDate: string;
+  endDate: string;
+  holidays: Array<{ date: string; name: string }>;
+  trailingDays?: number;
+}): ContinuousTimelineResult {
+  const holidayMap = new Map(input.holidays.map((h) => [h.date.slice(0, 10), h.name]));
+  const holidaySet = new Set(holidayMap.keys());
+
+  const safeStart = input.startDate ? input.startDate.slice(0, 10) : "2026-04-01";
+  const rawEnd = input.endDate && input.endDate >= safeStart ? input.endDate.slice(0, 10) : safeStart;
+
+  const endCursor = parseUtcDate(rawEnd);
+  endCursor.setUTCDate(endCursor.getUTCDate() + Math.max(0, input.trailingDays ?? 14));
+  const effectiveEnd = toIsoDateKeyUTC(endCursor);
+
+  const allCalendarDaysIso: string[] = [];
+  const allWorkingDaysIso: string[] = [];
+
+  const cursor = parseUtcDate(safeStart);
+  const endTs = parseUtcDate(effectiveEnd).getTime();
+  while (cursor.getTime() <= endTs && allCalendarDaysIso.length < 900) {
+    const iso = toIsoDateKeyUTC(cursor);
+    allCalendarDaysIso.push(iso);
+    if (!isNonWorkingDayUTC(cursor, holidaySet)) {
+      allWorkingDaysIso.push(iso);
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  const columns: ContinuousTimelineColumn[] = [];
+
+  if (input.scale === "DIARIO") {
+    for (const iso of allCalendarDaysIso) {
+      const dt = parseUtcDate(iso);
+      const dow = dt.getUTCDay();
+      const isWeekend = dow === 0 || dow === 6;
+      const isHoliday = holidaySet.has(iso);
+      const isNonWorking = isWeekend || isHoliday;
+      const m = dt.getUTCMonth();
+      const yy = String(dt.getUTCFullYear()).slice(-2);
+      const dd = String(dt.getUTCDate()).padStart(2, "0");
+      const mm = String(m + 1).padStart(2, "0");
+
+      columns.push({
+        key: iso,
+        label: `${dd}/${mm}`,
+        subLabel: WEEKDAY_INITIAL[dow],
+        groupKey: `${dt.getUTCFullYear()}-${mm}`,
+        groupLabel: `${MONTH_FULL_PT[m]}-${yy}`,
+        isHoliday,
+        holidayName: holidayMap.get(iso) ?? null,
+        isWeekend,
+        isNonWorking,
+        weekdayInitial: WEEKDAY_INITIAL[dow],
+        dateShort: `${dd}/${mm}`,
+        editable: true,
+        workingDaysIso: isNonWorking ? [] : [iso],
+        allDatesIso: [iso],
+        startIso: iso,
+        endIso: iso,
+      });
+    }
+  } else if (input.scale === "SEMANAL") {
+    for (let i = 0; i < allCalendarDaysIso.length; i += 7) {
+      const chunk = allCalendarDaysIso.slice(i, i + 7);
+      const firstDt = parseUtcDate(chunk[0]);
+      const lastDt = parseUtcDate(chunk[chunk.length - 1]);
+      const m = firstDt.getUTCMonth();
+      const yy = String(firstDt.getUTCFullYear()).slice(-2);
+      const mm = String(m + 1).padStart(2, "0");
+      const working = chunk.filter((d) => !isNonWorkingDayUTC(parseUtcDate(d), holidaySet));
+
+      columns.push({
+        key: `W-${chunk[0]}`,
+        label: `${String(firstDt.getUTCDate()).padStart(2, "0")}/${mm}`,
+        subLabel: `S${Math.floor(i / 7) + 1}`,
+        groupKey: `${firstDt.getUTCFullYear()}-${mm}`,
+        groupLabel: `${MONTH_FULL_PT[m]}-${yy}`,
+        isHoliday: working.length === 0,
+        holidayName: null,
+        isWeekend: false,
+        isNonWorking: working.length === 0,
+        weekdayInitial: `S${Math.floor(i / 7) + 1}`,
+        dateShort: `${String(firstDt.getUTCDate()).padStart(2, "0")}–${String(lastDt.getUTCDate()).padStart(2, "0")}`,
+        editable: true,
+        workingDaysIso: working,
+        allDatesIso: chunk,
+        startIso: chunk[0],
+        endIso: chunk[chunk.length - 1],
+      });
+    }
+  } else if (input.scale === "MENSAL") {
+    const byMonth = new Map<string, string[]>();
+    for (const iso of allCalendarDaysIso) {
+      const key = iso.slice(0, 7);
+      const list = byMonth.get(key) ?? [];
+      list.push(iso);
+      byMonth.set(key, list);
+    }
+    for (const [ym, days] of byMonth.entries()) {
+      const [yStr, mStr] = ym.split("-");
+      const mIdx = Number(mStr) - 1;
+      const working = days.filter((d) => !isNonWorkingDayUTC(parseUtcDate(d), holidaySet));
+      columns.push({
+        key: ym,
+        label: `${MONTH_SHORT_PT[mIdx]}/${yStr.slice(-2)}`,
+        subLabel: `${working.length}d.u.`,
+        groupKey: yStr,
+        groupLabel: yStr,
+        isHoliday: working.length === 0,
+        holidayName: null,
+        isWeekend: false,
+        isNonWorking: working.length === 0,
+        weekdayInitial: `${working.length}d`,
+        dateShort: `${MONTH_SHORT_PT[mIdx]}`,
+        editable: true,
+        workingDaysIso: working,
+        allDatesIso: days,
+        startIso: days[0],
+        endIso: days[days.length - 1],
+      });
+    }
+  } else {
+    const byYear = new Map<string, string[]>();
+    for (const iso of allCalendarDaysIso) {
+      const key = iso.slice(0, 4);
+      const list = byYear.get(key) ?? [];
+      list.push(iso);
+      byYear.set(key, list);
+    }
+    for (const [yStr, days] of byYear.entries()) {
+      const working = days.filter((d) => !isNonWorkingDayUTC(parseUtcDate(d), holidaySet));
+      columns.push({
+        key: yStr,
+        label: yStr,
+        subLabel: `${working.length}d.u.`,
+        groupKey: "OBRA",
+        groupLabel: "Anual",
+        isHoliday: working.length === 0,
+        holidayName: null,
+        isWeekend: false,
+        isNonWorking: working.length === 0,
+        weekdayInitial: `${working.length}d`,
+        dateShort: yStr,
+        editable: true,
+        workingDaysIso: working,
+        allDatesIso: days,
+        startIso: days[0],
+        endIso: days[days.length - 1],
+      });
+    }
+  }
+
+  const topGroups: Array<{ key: string; label: string; count: number }> = [];
+  for (const col of columns) {
+    const last = topGroups[topGroups.length - 1];
+    if (last && last.key === col.groupKey) {
+      last.count += 1;
+    } else {
+      topGroups.push({ key: col.groupKey, label: col.groupLabel, count: 1 });
+    }
+  }
+
+  return {
+    columns,
+    topGroups,
+    allCalendarDaysIso,
+    allWorkingDaysIso,
+  };
+}
+
+/**
+ * Preenche horizontalmente uma sequência de dias úteis (pulando Sábados, Domingos e feriados,
+ * salvo se `includeWeekends` for true) com os tokens informados.
+ */
+export function fillFloorAllocationsHorizontally(input: {
+  allocations: LobFloorAllocationItem[];
+  floor: LobFloorDefinition;
+  startDateIso: string;
+  workingDaysCount: number;
+  tokens: LobCellToken[];
+  holidaySet: Set<string>;
+  includeWeekends?: boolean;
+}): LobFloorAllocationItem[] {
+  if (input.tokens.length === 0 || input.workingDaysCount <= 0) {
+    return input.allocations;
+  }
+
+  const targetDates: string[] = [];
+  const cursor = parseUtcDate(input.startDateIso);
+  let guard = 0;
+  while (targetDates.length < input.workingDaysCount && guard < 1500) {
+    const iso = toIsoDateKeyUTC(cursor);
+    const nonWorking = isNonWorkingDayUTC(cursor, input.holidaySet);
+    if (input.includeWeekends || !nonWorking) {
+      targetDates.push(iso);
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    guard += 1;
+  }
+
+  const map = new Map<string, LobFloorAllocationItem>();
+  for (const item of input.allocations) {
+    map.set(`${item.floorId}::${item.dateIso}::${item.teamCode}::${item.packageNumber}`, item);
+  }
+
+  for (const dateIso of targetDates) {
+    const isNonWorking = isNonWorkingDayUTC(parseUtcDate(dateIso), input.holidaySet);
+    for (const tok of input.tokens) {
+      const key = `${input.floor.floorId}::${dateIso}::${tok.teamCode}::${tok.packageNumber}`;
+      map.set(key, {
+        floorId: input.floor.floorId,
+        floorName: input.floor.floorName,
+        floorOrder: input.floor.floorOrder,
+        dateIso,
+        teamCode: tok.teamCode,
+        packageNumber: tok.packageNumber,
+        isOvertime: isNonWorking,
+      });
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/**
+ * Desloca alocações de pavimentos em +N / -N dias úteis, pulando automaticamente finais de semana e feriados.
+ */
+export function shiftFloorAllocations(input: {
+  allocations: LobFloorAllocationItem[];
+  floorIds?: string[];
+  deltaWorkingDays: number;
+  holidaySet: Set<string>;
+}): LobFloorAllocationItem[] {
+  if (input.deltaWorkingDays === 0) return input.allocations;
+  const floorFilter = input.floorIds && input.floorIds.length > 0 ? new Set(input.floorIds) : null;
+
+  const map = new Map<string, LobFloorAllocationItem>();
+  for (const item of input.allocations) {
+    const shouldShift = !floorFilter || floorFilter.has(item.floorId);
+    const nextDateIso = shouldShift
+      ? stepWorkingDayUTC(item.dateIso, input.deltaWorkingDays, input.holidaySet)
+      : item.dateIso;
+
+    const moved: LobFloorAllocationItem = {
+      ...item,
+      dateIso: nextDateIso,
+    };
+    map.set(`${moved.floorId}::${moved.dateIso}::${moved.teamCode}::${moved.packageNumber}`, moved);
+  }
+
+  return Array.from(map.values());
+}
+
+// ============================================================================
+// FASE 10 — MOTOR INTELIGENTE LOB × EAP × EQUIPES A/B/C & NIVELAMENTO
+// ============================================================================
+
+export interface EapStageFloorLoad {
+  stageCode: string;
+  stageName: string;
+  floorQuantities: Record<string, number>;
+}
+
+export interface FloorMatrixServicePackage {
+  packageNumber: number;
+  name: string;
+  discipline: string;
+  corHex: string;
+  textHex: string;
+  predecessorNumbers: number[];
+  productivityPerDay: number;
+  productivityUnit: string;
+  linkedEapStageCodes: string[];
+  isActive: boolean;
+}
+
+export interface FloorMatrixWorkTeam {
+  teamCode: string;
+  name: string;
+  specialty: string;
+  maxDailyHours: number;
+  maxSimultaneousFronts: number;
+  dailyCost?: number;
+  workers: Array<{
+    roleName: string;
+    headcount: number;
+    dailyRate: number;
+    socialChargesPct: number;
+    maxDailyOutput?: number | null;
+  }>;
+}
+
+export interface FloorMatrixConflictItem {
+  type: "TEAM_OVERLOAD" | "PRECEDENCE_VIOLATION" | "CAPACITY_EXCEEDED" | "UNALLOCATED_EAP";
+  severity: "critical" | "warning";
+  floorId?: string;
+  floorName?: string;
+  dateIso?: string;
+  teamCode?: string;
+  packageNumber?: number;
+  message: string;
+}
+
+export interface FloorMatrixTeamSummary {
+  teamCode: string;
+  name: string;
+  workingDays: number;
+  headcount: number;
+  dailyCost: number;
+  totalEstimatedCost: number;
+  occupancyPercent: number;
+  maxSimultaneousFronts: number;
+}
+
+export interface FloorMatrixAnalysisResult {
+  startDate: string | null;
+  endDate: string | null;
+  totalWorkingDays: number;
+  totalCalendarDays: number;
+  isValid: boolean;
+  conflicts: FloorMatrixConflictItem[];
+  conflictCellKeys: string[];
+  teamSummaries: FloorMatrixTeamSummary[];
+  unallocatedStages: Array<{ stageCode: string; stageName: string; totalQty: number }>;
+}
+
+export function inferDefaultTeamCodeForPackage(
+  pkg: Pick<FloorMatrixServicePackage, "linkedEapStageCodes" | "discipline">,
+  workTeams: FloorMatrixWorkTeam[]
+): string {
+  const available = new Set(workTeams.map((t) => t.teamCode.toUpperCase()));
+  const stages = pkg.linkedEapStageCodes;
+
+  if (stages.some((c) => ["08", "09", "10"].includes(c)) && available.has("B")) {
+    return "B";
+  }
+  if (
+    stages.some((c) => Number(c) >= 11 && Number(c) <= 26) &&
+    available.has("C")
+  ) {
+    return "C";
+  }
+  if (available.has("A")) {
+    return "A";
+  }
+  return workTeams[0]?.teamCode.toUpperCase() || "A";
+}
+
+export function computeEffectiveDailyCapacity(
+  pkg: Pick<FloorMatrixServicePackage, "productivityPerDay">,
+  team?: FloorMatrixWorkTeam | null
+): number {
+  const baseProd = Math.max(0.01, Number(pkg.productivityPerDay) || 1);
+  if (!team || team.workers.length === 0) return baseProd;
+
+  const hoursFactor = Math.max(0.25, (Number(team.maxDailyHours) || 8) / 8);
+  const cappedOutputs = team.workers
+    .filter((w) => typeof w.maxDailyOutput === "number" && w.maxDailyOutput > 0)
+    .map((w) => Math.max(1, Number(w.headcount) || 1) * Number(w.maxDailyOutput) * hoursFactor);
+
+  if (cappedOutputs.length === 0) {
+    return Math.round(baseProd * hoursFactor * 100) / 100;
+  }
+
+  const teamDailyCap = cappedOutputs.reduce((acc, v) => acc + v, 0);
+  return Math.max(0.01, Math.round(Math.min(baseProd * hoursFactor, teamDailyCap) * 100) / 100);
+}
+
+export function computeTeamDailyCostEstimate(team: FloorMatrixWorkTeam): number {
+  if (typeof team.dailyCost === "number" && team.dailyCost >= 0) {
+    return Math.round(team.dailyCost * 100) / 100;
+  }
+  let total = 0;
+  for (const w of team.workers) {
+    const qty = Math.max(0, Number(w.headcount) || 0);
+    const rate = Math.max(0, Number(w.dailyRate) || 0);
+    const charges = Math.max(0, Number(w.socialChargesPct) || 0);
+    total += qty * rate * (1 + charges / 100);
+  }
+  return Math.round(total * 100) / 100;
+}
+
+/**
+ * Gera automaticamente a matriz LOB (Pavimentos × Datas) cruzando quantitativos da EAP,
+ * produtividade dos pacotes e limites diários das equipes A, B, C...
+ */
+export function generateIntelligentFloorLobMatrix(input: {
+  startDate: string;
+  floors: LobFloorDefinition[];
+  servicePackages: FloorMatrixServicePackage[];
+  workTeams: FloorMatrixWorkTeam[];
+  stageLoads: EapStageFloorLoad[];
+  holidaySet: Set<string>;
+  existingAllocations?: LobFloorAllocationItem[];
+  preserveLocked?: boolean;
+}): {
+  allocations: LobFloorAllocationItem[];
+  scheduledPackagesCount: number;
+  skippedNoLoadPackages: number[];
+  endDate: string;
+} {
+  const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
+  const activePackages = [...input.servicePackages]
+    .filter((p) => p.isActive)
+    .sort((a, b) => a.packageNumber - b.packageNumber);
+
+  const stageLoadMap = new Map(input.stageLoads.map((s) => [s.stageCode, s]));
+  const teamMap = new Map(input.workTeams.map((t) => [t.teamCode.toUpperCase(), t]));
+
+  const lockedAllocations = input.preserveLocked
+    ? (input.existingAllocations ?? []).filter((a) => a.isLocked)
+    : [];
+
+  const resultMap = new Map<string, LobFloorAllocationItem>();
+  const teamOccupancy = new Map<string, Set<string>>(); // "teamCode::dateIso" -> Set<"floorId::pkg">
+  const pkgEndByFloor = new Map<string, string>(); // "floorId::pkgNumber" -> maxDateIso
+  const lockedFloorDate = new Set<string>(); // "floorId::dateIso"
+
+  for (const alloc of lockedAllocations) {
+    const key = `${alloc.floorId}::${alloc.dateIso}::${alloc.teamCode}::${alloc.packageNumber}`;
+    resultMap.set(key, alloc);
+    lockedFloorDate.add(`${alloc.floorId}::${alloc.dateIso}`);
+
+    const occKey = `${alloc.teamCode}::${alloc.dateIso}`;
+    const occSet = teamOccupancy.get(occKey) ?? new Set<string>();
+    occSet.add(`${alloc.floorId}::${alloc.packageNumber}`);
+    teamOccupancy.set(occKey, occSet);
+
+    const endKey = `${alloc.floorId}::${alloc.packageNumber}`;
+    const prevEnd = pkgEndByFloor.get(endKey);
+    if (!prevEnd || alloc.dateIso > prevEnd) {
+      pkgEndByFloor.set(endKey, alloc.dateIso);
+    }
+  }
+
+  const baseStart = stepWorkingDayUTC(input.startDate.slice(0, 10), 0, input.holidaySet);
+  const skippedNoLoadPackages: number[] = [];
+  let scheduledPackagesCount = 0;
+  let maxEndDate = baseStart;
+
+  for (const pkg of activePackages) {
+    const teamCode = inferDefaultTeamCodeForPackage(pkg, input.workTeams);
+    const team = teamMap.get(teamCode);
+    const maxFronts = Math.max(1, team?.maxSimultaneousFronts ?? 1);
+    const effectiveCap = computeEffectiveDailyCapacity(pkg, team);
+
+    let pkgHasAnyLoad = false;
+
+    for (const floor of orderedFloors) {
+      let floorQty = 0;
+      for (const stageCode of pkg.linkedEapStageCodes) {
+        const load = stageLoadMap.get(stageCode);
+        if (load) {
+          floorQty += Math.max(0, Number(load.floorQuantities[floor.floorId]) || 0);
+        }
+      }
+
+      if (floorQty <= 0) continue;
+      pkgHasAnyLoad = true;
+
+      const workingDaysNeeded = Math.max(1, Math.ceil(floorQty / effectiveCap));
+
+      // Respeita predecessores no mesmo pavimento
+      let earliestStart = baseStart;
+      for (const predNum of pkg.predecessorNumbers) {
+        const predEnd = pkgEndByFloor.get(`${floor.floorId}::${predNum}`);
+        if (predEnd) {
+          const nextAfterPred = stepWorkingDayUTC(predEnd, 1, input.holidaySet);
+          if (nextAfterPred > earliestStart) {
+            earliestStart = nextAfterPred;
+          }
+        }
+      }
+
+      // Encontra a primeira janela contínua livre respeitando maxSimultaneousFronts da equipe
+      let candidateStart = earliestStart;
+      let allocatedDates: string[] = [];
+      let guard = 0;
+
+      while (guard < 500) {
+        const windowDates: string[] = [];
+        let cursor = candidateStart;
+        let validWindow = true;
+
+        for (let d = 0; d < workingDaysNeeded; d++) {
+          const occKey = `${teamCode}::${cursor}`;
+          const usedFronts = teamOccupancy.get(occKey)?.size ?? 0;
+          if (usedFronts >= maxFronts) {
+            validWindow = false;
+            break;
+          }
+          windowDates.push(cursor);
+          cursor = stepWorkingDayUTC(cursor, 1, input.holidaySet);
+        }
+
+        if (validWindow) {
+          allocatedDates = windowDates;
+          break;
+        }
+        candidateStart = stepWorkingDayUTC(candidateStart, 1, input.holidaySet);
+        guard += 1;
+      }
+
+      for (const dateIso of allocatedDates) {
+        if (input.preserveLocked && lockedFloorDate.has(`${floor.floorId}::${dateIso}`)) {
+          continue;
+        }
+        const key = `${floor.floorId}::${dateIso}::${teamCode}::${pkg.packageNumber}`;
+        resultMap.set(key, {
+          floorId: floor.floorId,
+          floorName: floor.floorName,
+          floorOrder: floor.floorOrder,
+          dateIso,
+          teamCode,
+          packageNumber: pkg.packageNumber,
+          isOvertime: false,
+          isLocked: false,
+        });
+
+        const occKey = `${teamCode}::${dateIso}`;
+        const occSet = teamOccupancy.get(occKey) ?? new Set<string>();
+        occSet.add(`${floor.floorId}::${pkg.packageNumber}`);
+        teamOccupancy.set(occKey, occSet);
+
+        const endKey = `${floor.floorId}::${pkg.packageNumber}`;
+        const prevEnd = pkgEndByFloor.get(endKey);
+        if (!prevEnd || dateIso > prevEnd) {
+          pkgEndByFloor.set(endKey, dateIso);
+        }
+        if (dateIso > maxEndDate) {
+          maxEndDate = dateIso;
+        }
+      }
+    }
+
+    if (pkgHasAnyLoad) {
+      scheduledPackagesCount += 1;
+    } else {
+      skippedNoLoadPackages.push(pkg.packageNumber);
+    }
+  }
+
+  return {
+    allocations: Array.from(resultMap.values()),
+    scheduledPackagesCount,
+    skippedNoLoadPackages,
+    endDate: maxEndDate,
+  };
+}
+
+/**
+ * Valida em tempo real a matriz LOB: frentes simultâneas da equipe, precedência no pavimento,
+ * capacidade diária e consistência EAP × LOB.
+ */
+export function analyzeFloorMatrixConflicts(input: {
+  allocations: LobFloorAllocationItem[];
+  floors: LobFloorDefinition[];
+  servicePackages: FloorMatrixServicePackage[];
+  workTeams: FloorMatrixWorkTeam[];
+  stageLoads: EapStageFloorLoad[];
+  holidaySet: Set<string>;
+}): FloorMatrixAnalysisResult {
+  const conflicts: FloorMatrixConflictItem[] = [];
+  const conflictCellKeySet = new Set<string>();
+  const teamMap = new Map(input.workTeams.map((t) => [t.teamCode.toUpperCase(), t]));
+  const pkgMap = new Map(input.servicePackages.map((p) => [p.packageNumber, p]));
+  const floorMap = new Map(input.floors.map((f) => [f.floorId, f]));
+
+  let minDate: string | null = null;
+  let maxDate: string | null = null;
+  const uniqueWorkingDays = new Set<string>();
+
+  // 1. Agrupa por (teamCode, dateIso) para checar maxSimultaneousFronts
+  const teamDayFronts = new Map<string, LobFloorAllocationItem[]>();
+  // 2. Agrupa por (floorId, packageNumber) para checar precedência
+  const floorPkgBounds = new Map<string, { min: string; max: string }>();
+  // 3. Conta dias trabalhados por equipe
+  const teamWorkDates = new Map<string, Set<string>>();
+
+  for (const alloc of input.allocations) {
+    if (!minDate || alloc.dateIso < minDate) minDate = alloc.dateIso;
+    if (!maxDate || alloc.dateIso > maxDate) maxDate = alloc.dateIso;
+
+    if (!isNonWorkingDayUTC(parseUtcDate(alloc.dateIso), input.holidaySet) || alloc.isOvertime) {
+      uniqueWorkingDays.add(alloc.dateIso);
+    }
+
+    const tc = alloc.teamCode.toUpperCase();
+    const tdKey = `${tc}::${alloc.dateIso}`;
+    const list = teamDayFronts.get(tdKey) ?? [];
+    list.push(alloc);
+    teamDayFronts.set(tdKey, list);
+
+    const tDates = teamWorkDates.get(tc) ?? new Set<string>();
+    tDates.add(alloc.dateIso);
+    teamWorkDates.set(tc, tDates);
+
+    const fpKey = `${alloc.floorId}::${alloc.packageNumber}`;
+    const prev = floorPkgBounds.get(fpKey);
+    floorPkgBounds.set(fpKey, {
+      min: !prev || alloc.dateIso < prev.min ? alloc.dateIso : prev.min,
+      max: !prev || alloc.dateIso > prev.max ? alloc.dateIso : prev.max,
+    });
+  }
+
+  // Verifica sobrecarga de frentes simultâneas da equipe
+  for (const [tdKey, items] of teamDayFronts.entries()) {
+    const [teamCode, dateIso] = tdKey.split("::");
+    const team = teamMap.get(teamCode);
+    const maxFronts = Math.max(1, team?.maxSimultaneousFronts ?? 1);
+    const distinctFronts = new Set(items.map((i) => `${i.floorId}::${i.packageNumber}`));
+
+    if (distinctFronts.size > maxFronts) {
+      for (const item of items) {
+        conflictCellKeySet.add(`${item.floorId}::${item.dateIso}`);
+      }
+      conflicts.push({
+        type: "TEAM_OVERLOAD",
+        severity: "critical",
+        dateIso,
+        teamCode,
+        message: `Equipe ${teamCode} alocada em ${distinctFronts.size} frentes simultâneas em ${dateIso} (limite: ${maxFronts}).`,
+      });
+    }
+  }
+
+  // Verifica quebra de precedência dentro de cada pavimento
+  for (const [fpKey, bounds] of floorPkgBounds.entries()) {
+    const [floorId, pkgNumStr] = fpKey.split("::");
+    const pkgNumber = Number(pkgNumStr);
+    const pkg = pkgMap.get(pkgNumber);
+    if (!pkg) continue;
+
+    for (const predNum of pkg.predecessorNumbers) {
+      const predBounds = floorPkgBounds.get(`${floorId}::${predNum}`);
+      if (predBounds && bounds.min <= predBounds.max) {
+        conflictCellKeySet.add(`${floorId}::${bounds.min}`);
+        const floorName = floorMap.get(floorId)?.floorName || floorId;
+        conflicts.push({
+          type: "PRECEDENCE_VIOLATION",
+          severity: "critical",
+          floorId,
+          floorName,
+          dateIso: bounds.min,
+          packageNumber: pkgNumber,
+          message: `${floorName}: Pacote ${pkgNumber} (${pkg.name}) inicia em ${bounds.min} antes do término do predecessor #${predNum} (${predBounds.max}).`,
+        });
+      }
+    }
+  }
+
+  // Verifica consistência EAP × LOB (etapas com quantidade > 0 sem pacote alocado)
+  const allocatedPkgNumbers = new Set(input.allocations.map((a) => a.packageNumber));
+  const unallocatedStages: Array<{ stageCode: string; stageName: string; totalQty: number }> = [];
+
+  for (const st of input.stageLoads) {
+    const totalQty = Object.values(st.floorQuantities).reduce((s, v) => s + Math.max(0, v), 0);
+    if (totalQty <= 0) continue;
+
+    const linkedPkgs = input.servicePackages.filter((p) =>
+      p.linkedEapStageCodes.includes(st.stageCode)
+    );
+    const hasAllocation = linkedPkgs.some((p) => allocatedPkgNumbers.has(p.packageNumber));
+    if (!hasAllocation) {
+      unallocatedStages.push({
+        stageCode: st.stageCode,
+        stageName: st.stageName,
+        totalQty: Math.round(totalQty * 100) / 100,
+      });
+      conflicts.push({
+        type: "UNALLOCATED_EAP",
+        severity: "warning",
+        message: `Etapa EAP ${st.stageCode} (${st.stageName}) possui quantidade (${Math.round(totalQty * 100) / 100}) sem pacote alocado na matriz LOB.`,
+      });
+    }
+  }
+
+  const totalWorkingDays = uniqueWorkingDays.size;
+  const totalCalendarDays =
+    minDate && maxDate
+      ? Math.max(
+          1,
+          Math.round(
+            (parseUtcDate(maxDate).getTime() - parseUtcDate(minDate).getTime()) / 86_400_000
+          ) + 1
+        )
+      : 0;
+
+  const teamSummaries: FloorMatrixTeamSummary[] = input.workTeams.map((team) => {
+    const tc = team.teamCode.toUpperCase();
+    const workingDays = teamWorkDates.get(tc)?.size ?? 0;
+    const headcount = team.workers.reduce((s, w) => s + Math.max(0, Number(w.headcount) || 0), 0);
+    const dailyCost = computeTeamDailyCostEstimate(team);
+    const totalEstimatedCost = Math.round(workingDays * dailyCost * 100) / 100;
+    const occupancyPercent =
+      totalWorkingDays > 0
+        ? Math.min(100, Math.round((workingDays / totalWorkingDays) * 1000) / 10)
+        : 0;
+
+    return {
+      teamCode: tc,
+      name: team.name,
+      workingDays,
+      headcount,
+      dailyCost,
+      totalEstimatedCost,
+      occupancyPercent,
+      maxSimultaneousFronts: Math.max(1, team.maxSimultaneousFronts),
+    };
+  });
+
+  return {
+    startDate: minDate,
+    endDate: maxDate,
+    totalWorkingDays,
+    totalCalendarDays,
+    isValid: conflicts.filter((c) => c.severity === "critical").length === 0,
+    conflicts,
+    conflictCellKeys: Array.from(conflictCellKeySet),
+    teamSummaries,
+    unallocatedStages,
+  };
+}
+
+/**
+ * Nivelamento automático de conflitos na Matriz LOB:
+ * desloca blocos não-travados que violem precedência ou limite de frentes simultâneas
+ * para a próxima janela útil livre (pulando finais de semana e feriados).
+ */
+export function autoLevelFloorMatrix(input: {
+  allocations: LobFloorAllocationItem[];
+  floors: LobFloorDefinition[];
+  servicePackages: FloorMatrixServicePackage[];
+  workTeams: FloorMatrixWorkTeam[];
+  holidaySet: Set<string>;
+}): {
+  allocations: LobFloorAllocationItem[];
+  movedCount: number;
+} {
+  const pkgMap = new Map(input.servicePackages.map((p) => [p.packageNumber, p]));
+  const teamMap = new Map(input.workTeams.map((t) => [t.teamCode.toUpperCase(), t]));
+  const floorOrderMap = new Map(input.floors.map((f) => [f.floorId, f.floorOrder]));
+
+  const locked = input.allocations.filter((a) => a.isLocked);
+  const unlocked = input.allocations.filter((a) => !a.isLocked);
+
+  const occupancy = new Map<string, Set<string>>();
+  const pkgEndByFloor = new Map<string, string>();
+  const finalList: LobFloorAllocationItem[] = [...locked];
+
+  for (const item of locked) {
+    const occKey = `${item.teamCode.toUpperCase()}::${item.dateIso}`;
+    const set = occupancy.get(occKey) ?? new Set<string>();
+    set.add(`${item.floorId}::${item.packageNumber}`);
+    occupancy.set(occKey, set);
+
+    const endKey = `${item.floorId}::${item.packageNumber}`;
+    const prev = pkgEndByFloor.get(endKey);
+    if (!prev || item.dateIso > prev) pkgEndByFloor.set(endKey, item.dateIso);
+  }
+
+  // Agrupa blocos desbloqueados por (floorId, packageNumber, teamCode)
+  const blockMap = new Map<string, LobFloorAllocationItem[]>();
+  for (const item of unlocked) {
+    const bKey = `${item.floorId}::${item.packageNumber}::${item.teamCode.toUpperCase()}`;
+    const list = blockMap.get(bKey) ?? [];
+    list.push(item);
+    blockMap.set(bKey, list);
+  }
+
+  const orderedBlocks = Array.from(blockMap.values()).sort((a, b) => {
+    const pkgDiff = a[0].packageNumber - b[0].packageNumber;
+    if (pkgDiff !== 0) return pkgDiff;
+    const flDiff =
+      (floorOrderMap.get(a[0].floorId) ?? 0) - (floorOrderMap.get(b[0].floorId) ?? 0);
+    if (flDiff !== 0) return flDiff;
+    return a[0].dateIso.localeCompare(b[0].dateIso);
+  });
+
+  let movedCount = 0;
+
+  for (const block of orderedBlocks) {
+    const sorted = [...block].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
+    const sample = sorted[0];
+    const teamCode = sample.teamCode.toUpperCase();
+    const maxFronts = Math.max(1, teamMap.get(teamCode)?.maxSimultaneousFronts ?? 1);
+    const pkg = pkgMap.get(sample.packageNumber);
+
+    let minAllowedDate = sorted[0].dateIso;
+    if (pkg) {
+      for (const predNum of pkg.predecessorNumbers) {
+        const predEnd = pkgEndByFloor.get(`${sample.floorId}::${predNum}`);
+        if (predEnd) {
+          const nextWorking = stepWorkingDayUTC(predEnd, 1, input.holidaySet);
+          if (nextWorking > minAllowedDate) minAllowedDate = nextWorking;
+        }
+      }
+    }
+
+    let candidateStart = stepWorkingDayUTC(minAllowedDate, 0, input.holidaySet);
+    const duration = sorted.length;
+    let chosenDates: string[] = [];
+    let guard = 0;
+
+    while (guard < 500) {
+      const windowDates: string[] = [];
+      let cursor = candidateStart;
+      let ok = true;
+
+      for (let i = 0; i < duration; i++) {
+        const occKey = `${teamCode}::${cursor}`;
+        const used = occupancy.get(occKey)?.size ?? 0;
+        if (used >= maxFronts) {
+          ok = false;
+          break;
+        }
+        windowDates.push(cursor);
+        cursor = stepWorkingDayUTC(cursor, 1, input.holidaySet);
+      }
+
+      if (ok) {
+        chosenDates = windowDates;
+        break;
+      }
+      candidateStart = stepWorkingDayUTC(candidateStart, 1, input.holidaySet);
+      guard += 1;
+    }
+
+    for (let i = 0; i < sorted.length; i++) {
+      const orig = sorted[i];
+      const nextDate = chosenDates[i] ?? orig.dateIso;
+      if (nextDate !== orig.dateIso) movedCount += 1;
+
+      finalList.push({
+        ...orig,
+        teamCode,
+        dateIso: nextDate,
+      });
+
+      const occKey = `${teamCode}::${nextDate}`;
+      const set = occupancy.get(occKey) ?? new Set<string>();
+      set.add(`${orig.floorId}::${orig.packageNumber}`);
+      occupancy.set(occKey, set);
+
+      const endKey = `${orig.floorId}::${orig.packageNumber}`;
+      const prev = pkgEndByFloor.get(endKey);
+      if (!prev || nextDate > prev) pkgEndByFloor.set(endKey, nextDate);
+    }
+  }
+
+  return {
+    allocations: finalList,
+    movedCount,
+  };
+}

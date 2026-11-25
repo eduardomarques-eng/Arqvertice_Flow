@@ -288,19 +288,19 @@ export function FinanceHubView({
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Topo Executivo & Seletor de Empreendimento */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-slate-200/80 dark:border-white/10 pb-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b apple-hairline pb-5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-slate-900 dark:bg-[#EDE5D8] dark:text-[#18181B] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+            <span className="apple-micro-label">
               Módulo Financeiro Central
             </span>
             <RealtimeSyncBadge status={syncStatus} errorMessage={inlineError} />
           </div>
-          <h1 className="mt-1.5 text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            💰 Gestão Financeira & Cronograma de Pagamentos
+          <h1 className="apple-page-title mt-1.5">
+            Gestão Financeira & Parcelas
           </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Controle de fluxo contratual, parcelas, liquidações em 1 clique e cobrança Pix {studioPixKeyType} ({studioPixKey}).
+          <p className="apple-body mt-1 text-zinc-600 dark:text-zinc-400">
+            Fluxo contratual, liquidações e cobrança Pix {studioPixKeyType} ({studioPixKey}).
           </p>
         </div>
 

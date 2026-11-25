@@ -1,9 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { isClientRole, requireProjectAccess } from "@/server/auth";
+import { NextRequest } from "next/server";
+import { currentUser, isClientRole, requireProjectAccess } from "@/server/auth";
+import { DomainError } from "@/server/errors";
 import {
   loadExecutiveReportFromDb,
   type ReportAudience,
 } from "@/server/eap/executive-report";
+import {
+  handleEapRouteError,
+  jsonNoStore,
+  uuidParamSchema,
+} from "@/server/eap/route-error";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,7 +19,12 @@ export async function GET(
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const { projectId } = await context.params;
+    const caller = await currentUser();
+    if (!caller) {
+      throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
+    }
+    const rawParams = await context.params;
+    const projectId = uuidParamSchema.parse(rawParams.projectId);
     const user = await requireProjectAccess(projectId);
     const clientUser = isClientRole(user.role);
 
@@ -25,27 +36,21 @@ export async function GET(
 
     const report = await loadExecutiveReportFromDb(projectId, audience);
     if (!report) {
-      return NextResponse.json(
+      return jsonNoStore(
         { ok: false, error: "Relatório EAP ainda não disponível para este projeto." },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
+        404
       );
     }
 
     if (clientUser && !report.meta.isPublishedToClient) {
-      return NextResponse.json(
+      return jsonNoStore(
         { ok: false, error: "O relatório executivo da EAP ainda não foi publicado para o cliente." },
-        { status: 403, headers: { "Cache-Control": "no-store" } }
+        403
       );
     }
 
-    return NextResponse.json(
-      { ok: true, report },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    return jsonNoStore({ ok: true, report });
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Erro ao carregar relatório." },
-      { status: 401, headers: { "Cache-Control": "no-store" } }
-    );
+    return handleEapRouteError(err, "Erro ao carregar relatório executivo.");
   }
 }

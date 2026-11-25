@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -43,6 +43,7 @@ export function EapExecutiveReportView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [refreshingAi, setRefreshingAi] = useState(false);
   const [publishFeedback, setPublishFeedback] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
@@ -90,6 +91,27 @@ export function EapExecutiveReportView({
       }
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleRefreshAiSummary() {
+    setRefreshingAi(true);
+    setPublishFeedback(null);
+    try {
+      const res = await fetch(`/api/eap/projects/${projectId}/executive-summary`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (res.ok && json.ok && json.analytics) {
+        setReport((prev) =>
+          prev ? { ...prev, comparativeAnalytics: json.analytics } : prev
+        );
+        setPublishFeedback("Diagnóstico de desvios e gargalos atualizado.");
+      } else {
+        setPublishFeedback(json.error || "Não foi possível atualizar a análise IA.");
+      }
+    } finally {
+      setRefreshingAi(false);
     }
   }
 
@@ -152,22 +174,20 @@ export function EapExecutiveReportView({
                   <button
                     type="button"
                     onClick={() => setAudience("CLIENT")}
-                    className={`rounded-lg px-3 py-1 text-[11px] font-semibold cursor-pointer ${
-                      audience === "CLIENT"
-                        ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                        : "text-slate-600 dark:text-zinc-300"
-                    }`}
+                    className={`rounded-lg px-3 py-1 text-[11px] font-semibold cursor-pointer ${audience === "CLIENT"
+                      ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                      : "text-slate-600 dark:text-zinc-300"
+                      }`}
                   >
                     Modo Apresentação Cliente
                   </button>
                   <button
                     type="button"
                     onClick={() => setAudience("INTERNAL")}
-                    className={`rounded-lg px-3 py-1 text-[11px] font-semibold cursor-pointer ${
-                      audience === "INTERNAL"
-                        ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                        : "text-slate-600 dark:text-zinc-300"
-                    }`}
+                    className={`rounded-lg px-3 py-1 text-[11px] font-semibold cursor-pointer ${audience === "INTERNAL"
+                      ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                      : "text-slate-600 dark:text-zinc-300"
+                      }`}
                   >
                     Modo Detalhado Escritório
                   </button>
@@ -181,7 +201,7 @@ export function EapExecutiveReportView({
                   type="button"
                   onClick={handlePublishToClient}
                   disabled={publishing}
-                  className="h-9 rounded-xl bg-emerald-600 px-3.5 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
+                  className="h-9 rounded-xl bg-emerald-600 px-3.5 text-xs font-semibold text-white shadow-[0_2px_10px_-2px_rgba(5,150,105,0.28)] transition-all duration-150 active:scale-[0.985] hover:bg-emerald-700 cursor-pointer"
                 >
                   {publishing ? "Publicando..." : "Publicar no Portal do Cliente"}
                 </button>
@@ -189,13 +209,13 @@ export function EapExecutiveReportView({
               <button
                 type="button"
                 onClick={() => setIsFullscreen((v) => !v)}
-                className="h-9 rounded-xl border border-slate-300 px-3.5 text-xs font-semibold text-slate-800 cursor-pointer dark:border-zinc-700 dark:text-zinc-200"
+                className="apple-glass-btn h-9 px-3.5 py-0 text-xs font-semibold cursor-pointer"
               >
                 {isFullscreen ? "✕ Sair Tela Cheia" : "⛶ Modo Tela Cheia (Reunião)"}
               </button>
               <a
                 href={pdfHref}
-                className="inline-flex h-9 items-center rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-amber-500 dark:text-zinc-950"
+                className="apple-primary-btn h-9 px-4 py-0 text-xs font-semibold"
               >
                 ↓ Exportar PDF Executivo
               </a>
@@ -214,13 +234,26 @@ export function EapExecutiveReportView({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-300">
-                ArqVértice Studio · Dossiê Executivo de Obra
+                ArqVértice OS · Dossiê Executivo Integral de Obra
               </p>
               <h2 className="mt-1 text-2xl font-bold tracking-tight">{report.meta.projectName}</h2>
               <p className="mt-1 text-xs text-slate-300">
                 Cliente: {report.meta.clientName} · Praça: {report.meta.cityLabel} · Área:{" "}
                 {report.meta.builtAreaM2} m² · {report.meta.baselineLabel}
               </p>
+              {report.comparativeAnalytics &&
+                report.comparativeAnalytics.activeVersions.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {report.comparativeAnalytics.activeVersions.map((v) => (
+                      <span
+                        key={`${v.discipline}-${v.versionCode}`}
+                        className="rounded-lg border border-white/15 bg-white/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-200"
+                      >
+                        {v.discipline}: {v.versionCode}
+                      </span>
+                    ))}
+                  </div>
+                )}
             </div>
             <div className="text-right">
               <p className="text-[11px] uppercase tracking-wider text-slate-400">
@@ -299,6 +332,273 @@ export function EapExecutiveReportView({
             </div>
           </div>
         </Card>
+
+        {/* BLOCO 1B — DIAGNÓSTICO IA DE DESVIOS & GARGALOS + COMPARATIVOS CURTO PRAZO */}
+        {report.comparativeAnalytics && (
+          <>
+            <Card className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 shadow-xs backdrop-blur-md space-y-4 dark:border-zinc-800 dark:bg-[#16161D]/90">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                    Resumo de Desvios e Gargalos com IA
+                  </h3>
+                  <Badge
+                    tone={
+                      report.comparativeAnalytics.aiSummary.healthStatus === "SAUDAVEL"
+                        ? "green"
+                        : report.comparativeAnalytics.aiSummary.healthStatus === "ATENCAO"
+                          ? "amber"
+                          : "red"
+                    }
+                  >
+                    {report.comparativeAnalytics.aiSummary.healthStatus}
+                  </Badge>
+                  <Badge tone="neutral">
+                    {report.comparativeAnalytics.aiSummary.source === "AI"
+                      ? "Enriquecido via IA"
+                      : "Motor Determinístico"}
+                  </Badge>
+                </div>
+
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshAiSummary()}
+                    disabled={refreshingAi}
+                    className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  >
+                    {refreshingAi ? "Analisando..." : "↻ Atualizar Análise IA"}
+                  </button>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/70">
+                <p className="text-xs font-bold text-slate-950 dark:text-zinc-100">
+                  {report.comparativeAnalytics.aiSummary.headline}
+                </p>
+                <p className="mt-1 text-xs text-slate-700 dark:text-zinc-300">
+                  {report.comparativeAnalytics.aiSummary.executiveOverview}
+                </p>
+              </div>
+
+              {report.comparativeAnalytics.aiSummary.topBottlenecks.length > 0 && (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {report.comparativeAnalytics.aiSummary.topBottlenecks.map((b, idx) => (
+                    <div
+                      key={`${b.axis}-${idx}`}
+                      className="rounded-2xl border border-slate-200/90 bg-white p-3 dark:border-zinc-800 dark:bg-[#1A1A24] space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge
+                          tone={
+                            b.severity === "ALTA"
+                              ? "red"
+                              : b.severity === "MEDIA"
+                                ? "amber"
+                                : "neutral"
+                          }
+                        >
+                          {b.axis} · {b.severity}
+                        </Badge>
+                        <span className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
+                          {b.targetRef}
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-slate-950 dark:text-zinc-100">
+                        {b.title}
+                      </p>
+                      <p className="text-[11px] text-slate-600 dark:text-zinc-400">{b.impact}</p>
+                      <p className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-400">
+                        Ação: {b.action}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {report.comparativeAnalytics.aiSummary.actionPlan.length > 0 && (
+                <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
+                    Plano de Ação Priorizado (Curto Prazo — {report.comparativeAnalytics.shortTerm.windowDays} dias)
+                  </p>
+                  <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-emerald-950 dark:text-emerald-200">
+                    {report.comparativeAnalytics.aiSummary.actionPlan.map((act) => (
+                      <li key={act}>{act}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Card>
+
+            {/* BLOCO 2B — COMPARATIVO CUSTOS × PREVISÕES × FATURAMENTO */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+              <Card className="rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 shadow-xs dark:border-zinc-800 dark:bg-[#16161D]/90">
+                <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-zinc-400">
+                  Orçado EAP
+                </p>
+                <p className="mt-1 font-mono text-sm font-bold text-slate-950 dark:text-zinc-100">
+                  {fmtBRL(report.comparativeAnalytics.financial.budgetedEapTotal)}
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 shadow-xs dark:border-zinc-800 dark:bg-[#16161D]/90">
+                <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-zinc-400">
+                  Previsto LOB
+                </p>
+                <p className="mt-1 font-mono text-sm font-bold text-indigo-700 dark:text-indigo-400">
+                  {fmtBRL(report.comparativeAnalytics.financial.plannedLobCumulative)}
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 shadow-xs dark:border-zinc-800 dark:bg-[#16161D]/90">
+                <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-zinc-400">
+                  Medido Canteiro
+                </p>
+                <p className="mt-1 font-mono text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                  {fmtBRL(report.comparativeAnalytics.financial.measuredFieldCumulative)}
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 shadow-xs dark:border-zinc-800 dark:bg-[#16161D]/90">
+                <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-zinc-400">
+                  Faturado / Recebido
+                </p>
+                <p className="mt-1 font-mono text-xs font-bold text-amber-700 dark:text-amber-300">
+                  {fmtBRL(report.comparativeAnalytics.financial.billedInstallmentsTotal)}
+                </p>
+                <p className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
+                  Rec.: {fmtBRL(report.comparativeAnalytics.financial.receivedInstallmentsTotal)}
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 shadow-xs dark:border-zinc-800 dark:bg-[#16161D]/90">
+                <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-zinc-400">
+                  SPI / CPI
+                </p>
+                <p className="mt-1 font-mono text-sm font-bold text-slate-950 dark:text-zinc-100">
+                  {report.comparativeAnalytics.financial.spi.toFixed(2)} /{" "}
+                  {report.comparativeAnalytics.financial.cpi.toFixed(2)}
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 shadow-xs dark:border-zinc-800 dark:bg-[#16161D]/90">
+                <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-zinc-400">
+                  Saldo de Caixa
+                </p>
+                <p
+                  className={`mt-1 font-mono text-sm font-bold ${report.comparativeAnalytics.financial.cashBalanceBilledMinusMeasured >= 0
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-rose-700 dark:text-rose-400"
+                    }`}
+                >
+                  {fmtBRL(report.comparativeAnalytics.financial.cashBalanceBilledMinusMeasured)}
+                </p>
+              </Card>
+            </div>
+
+            {report.comparativeAnalytics.monthlyComparative.length > 0 && (
+              <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                  Comparativo Acumulado — Previsto LOB × Medido Canteiro × Faturado
+                </h3>
+                <div className="mt-4 h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={report.comparativeAnalytics.monthlyComparative}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                      <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(v) => fmtBRL(Number(v) || 0)} />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="plannedCumulative"
+                        name="Previsto LOB"
+                        stroke="#4f46e5"
+                        fill="#4f46e5"
+                        fillOpacity={0.12}
+                      />
+                      <Bar
+                        dataKey="measuredCumulative"
+                        name="Medido Canteiro"
+                        fill="#10b981"
+                        radius={[6, 6, 0, 0]}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="billedCumulative"
+                        name="Faturado (Parcelas)"
+                        stroke="#f59e0b"
+                        strokeWidth={2.5}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            )}
+
+            {/* Comparativo por Pavimento & Equipes A/B/C */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-3">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                  Avanço por Pavimento (Orçado × Medido %)
+                </h3>
+                <div className="space-y-2.5">
+                  {report.comparativeAnalytics.floorComparison.map((fl) => (
+                    <div key={fl.floorId} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-slate-900 dark:text-zinc-100">
+                          {fl.floorName}
+                        </span>
+                        <span className="font-mono text-slate-600 dark:text-zinc-300">
+                          {fmtBRL(fl.measuredAmount)} / {fmtBRL(fl.plannedAmount)} (
+                          {fl.progressPct.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-800">
+                        <div
+                          style={{ width: `${Math.min(100, fl.progressPct)}%` }}
+                          className="h-full bg-emerald-600"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-3">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                  Alocação e Custo das Equipes (A, B, C...) &amp; Boletins
+                </h3>
+                <div className="space-y-2">
+                  {report.comparativeAnalytics.shortTerm.teamUtilization.map((t) => (
+                    <div
+                      key={t.teamCode}
+                      className="flex items-center justify-between rounded-xl border border-slate-200/80 px-3 py-2 text-xs dark:border-zinc-800"
+                    >
+                      <div>
+                        <strong className="font-mono text-slate-950 dark:text-zinc-100">
+                          Eq. {t.teamCode}
+                        </strong>{" "}
+                        <span className="text-slate-600 dark:text-zinc-400">
+                          · {t.workingDays} d.u. · {t.headcount} trab.
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                        {typeof t.totalEstimatedCost === "number"
+                          ? `${fmtBRL(t.totalEstimatedCost)} (${t.occupancyPercent.toFixed(0)}%)`
+                          : `${t.occupancyPercent.toFixed(0)}% ocup.`}
+                      </span>
+                    </div>
+                  ))}
+                  {report.comparativeAnalytics.bulletinsSummary.length > 0 && (
+                    <div className="pt-2 text-[11px] text-slate-600 dark:text-zinc-400">
+                      Últimos boletins:{" "}
+                      {report.comparativeAnalytics.bulletinsSummary
+                        .slice(0, 4)
+                        .map((b) => `${b.bulletinCode} (${b.physicalProgressPct.toFixed(0)}%)`)
+                        .join(" · ")}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+          </>
+        )}
 
         {/* BLOCO 2 — PAINEL GRÁFICO: MACRO-ETAPAS + DONUT COMPOSIÇÃO + CURVA ABC */}
         <div className="grid gap-6 lg:grid-cols-3">
@@ -488,11 +788,11 @@ export function EapExecutiveReportView({
           </Card>
         </div>
 
-        {/* TIMELINE DE ONDAS CONSTRUTIVAS */}
+        {/* TIMELINE DE FASES CONSTRUTIVAS */}
         {report.schedule.waves.length > 0 && (
           <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-3">
             <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-              Timeline Executiva por Ondas Construtivas
+              Timeline Executiva por Fases Construtivas
             </h3>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {report.schedule.waves.map((w) => {
@@ -504,7 +804,7 @@ export function EapExecutiveReportView({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-xs font-bold text-slate-900 dark:text-zinc-100">
-                        {w.waveName}
+                        {w.waveName.replace(/Onda/gi, "Fase")}
                       </span>
                       <Badge tone="neutral">{w.packagesCount} pct</Badge>
                     </div>
@@ -528,68 +828,68 @@ export function EapExecutiveReportView({
         {/* BLOCO 4 — GALERIA DO PROJETO & PLANTAS DO ACERVO MANAGER */}
         {(report.acervoVisuals.technicalSheets.length > 0 ||
           report.acervoVisuals.galleryImages.length > 0) && (
-          <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
-            <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-              Contextualização Visual — Plantas Oficiais (Acervo Manager) & Imagens
-            </h3>
+            <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
+              <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                Contextualização Visual — Plantas Oficiais (Acervo Manager) & Imagens
+              </h3>
 
-            {report.acervoVisuals.galleryImages.length > 0 && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {report.acervoVisuals.galleryImages.map((img) => (
-                  <a
-                    key={img.id}
-                    href={img.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition hover:border-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-amber-400"
-                  >
-                    <div className="aspect-video w-full overflow-hidden bg-slate-200 dark:bg-zinc-800">
-                      <img
-                        src={img.fileUrl}
-                        alt={img.title}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <p className="truncate text-xs font-bold text-slate-900 dark:text-zinc-100">
-                        {img.title}
-                      </p>
-                      <p className="text-[10px] text-slate-500 dark:text-zinc-400">
-                        {img.discipline} · {img.version}
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            )}
+              {report.acervoVisuals.galleryImages.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {report.acervoVisuals.galleryImages.map((img) => (
+                    <a
+                      key={img.id}
+                      href={img.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition hover:border-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-amber-400"
+                    >
+                      <div className="aspect-video w-full overflow-hidden bg-slate-200 dark:bg-zinc-800">
+                        <img
+                          src={img.fileUrl}
+                          alt={img.title}
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                      <div className="p-3">
+                        <p className="truncate text-xs font-bold text-slate-900 dark:text-zinc-100">
+                          {img.title}
+                        </p>
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          {img.discipline} · {img.version}
+                        </p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
 
-            {report.acervoVisuals.technicalSheets.length > 0 && (
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                {report.acervoVisuals.technicalSheets.map((sheet) => (
-                  <a
-                    key={sheet.id}
-                    href={sheet.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between rounded-2xl border border-slate-200 p-3 hover:border-blue-400 transition dark:border-zinc-800 dark:hover:border-amber-400"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate font-mono text-xs font-bold text-slate-900 dark:text-zinc-100">
-                        {sheet.code} · {sheet.revisionNumber}
+              {report.acervoVisuals.technicalSheets.length > 0 && (
+                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {report.acervoVisuals.technicalSheets.map((sheet) => (
+                    <a
+                      key={sheet.id}
+                      href={sheet.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 p-3 hover:border-blue-400 transition dark:border-zinc-800 dark:hover:border-amber-400"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-mono text-xs font-bold text-slate-900 dark:text-zinc-100">
+                          {sheet.code} · {sheet.revisionNumber}
+                        </div>
+                        <div className="truncate text-[11px] text-slate-600 dark:text-zinc-400">
+                          {sheet.title}
+                        </div>
                       </div>
-                      <div className="truncate text-[11px] text-slate-600 dark:text-zinc-400">
-                        {sheet.title}
-                      </div>
-                    </div>
-                    <Badge tone={sheet.status === "BOM_PARA_OBRA" ? "green" : "neutral"}>
-                      {sheet.discipline}
-                    </Badge>
-                  </a>
-                ))}
-              </div>
-            )}
-          </Card>
-        )}
+                      <Badge tone={sheet.status === "BOM_PARA_OBRA" ? "green" : "neutral"}>
+                        {sheet.discipline}
+                      </Badge>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
 
         {/* BLOCO 5 — TABELA EAP EXECUTIVA COM DRILL-DOWN */}
         <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">

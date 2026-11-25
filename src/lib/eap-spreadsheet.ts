@@ -322,3 +322,80 @@ export function recomputeTreeTotals<T extends SpreadsheetTreeShape>(tree: T): T 
     },
   };
 }
+
+/**
+ * Converte texto copiado do Excel / Google Sheets (\t e \n) em matriz de células.
+ */
+export function parseClipboardMatrix(text: string): string[][] {
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return lines.map((line) => line.split("\t"));
+}
+
+/**
+ * Reordena um item dentro de um grupo (para cima ou para baixo) e renumera orderIndex 1..N.
+ */
+export function reorderItemsInList<T extends { id: string; orderIndex: number }>(
+  items: T[],
+  itemId: string,
+  direction: "up" | "down"
+): T[] {
+  const idx = items.findIndex((it) => it.id === itemId);
+  if (idx < 0) return items;
+  const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (targetIdx < 0 || targetIdx >= items.length) return items;
+
+  const copy = [...items];
+  const [moved] = copy.splice(idx, 1);
+  copy.splice(targetIdx, 0, moved);
+  return copy.map((it, i) => ({ ...it, orderIndex: i + 1 }));
+}
+
+/**
+ * Gera payload de duplicação preservando unidade, composição e preço unitário,
+ * mas com quantidades zeradas para agilizar o lançamento de serviços semelhantes.
+ */
+export function createDuplicateItemPayload(
+  item: Pick<
+    ComputedEapItemDTO,
+    | "groupId"
+    | "stageCode"
+    | "materialCatalogId"
+    | "laborRoleId"
+    | "code"
+    | "description"
+    | "unit"
+    | "lossPercent"
+    | "materialUnitCost"
+    | "laborUnitCost"
+    | "thirdPartyUnitCost"
+    | "markupMultiplier"
+    | "teamsCount"
+  >
+) {
+  return {
+    stageCode: item.stageCode,
+    groupId: item.groupId,
+    materialCatalogId: item.materialCatalogId,
+    laborRoleId: item.laborRoleId,
+    code: item.code,
+    description: `${item.description} (Cópia)`,
+    unit: item.unit,
+    zoneQuantities: {
+      FUND_TERREO: 0,
+      PAV_SUPERIOR: 0,
+      COBERTURA: 0,
+      EXTERNO: 0,
+    },
+    lossPercent: item.lossPercent,
+    materialUnitCost: item.materialUnitCost,
+    laborUnitCost: item.laborUnitCost,
+    thirdPartyUnitCost: item.thirdPartyUnitCost,
+    markupMultiplier: item.markupMultiplier,
+    teamsCount: item.teamsCount,
+  };
+}
+

@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
 import { buildEapTreePayload } from "@/server/eap/workbench";
 import { computeScheduleAnalytics, evaluateScheduleAudit } from "@/server/eap/scheduler";
+import { ensureDefaultTeamsAndPackages } from "@/server/eap/teams-and-packages";
+import { evaluateConstraintRisks } from "@/server/eap/constraints-lookahead";
+import { DEFAULT_LOB_FLOORS } from "@/lib/eap-lob-grid";
+import { handleEapRouteError, jsonNoStore, uuidParamSchema } from "@/server/eap/route-error";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,7 +17,18 @@ export async function GET(
 ) {
   try {
     await requireRole("ADMIN");
-    const { projectId } = await context.params;
+    const rawParams = await context.params;
+    const projectId = uuidParamSchema.parse(rawParams.projectId);
+
+    const existingIdRow = await prisma.eapProject.findUnique({
+      where: { projectId },
+      select: { id: true },
+    });
+    if (!existingIdRow) {
+      return jsonNoStore({ ok: false, error: "EAP não inicializada." }, 404);
+    }
+
+    await ensureDefaultTeamsAndPackages(existingIdRow.id);
 
     const eap = await prisma.eapProject.findUnique({
       where: { projectId },
@@ -24,6 +39,17 @@ export async function GET(
         zones: { orderBy: { orderIndex: "asc" } },
         conflictLogs: { select: { id: true, status: true } },
         baselineSnapshots: { orderBy: { approvedAt: "desc" }, take: 5 },
+        servicePackages: { orderBy: { packageNumber: "asc" } },
+        workTeams: {
+          orderBy: { teamCode: "asc" },
+          include: { workers: { orderBy: { createdAt: "asc" } } },
+        },
+        lobFloorAllocations: {
+          orderBy: [{ floorOrder: "asc" }, { dateIso: "asc" }],
+        },
+        constraints: {
+          orderBy: { neededByDate: "asc" },
+        },
         stages: {
           orderBy: { orderIndex: "asc" },
           include: {
@@ -44,10 +70,7 @@ export async function GET(
     });
 
     if (!eap) {
-      return NextResponse.json(
-        { ok: false, error: "EAP não inicializada." },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
-      );
+      return jsonNoStore({ ok: false, error: "EAP não inicializada." }, 404);
     }
 
     const tree = buildEapTreePayload({
@@ -136,32 +159,74 @@ export async function GET(
       weeklyHistogram: analytics.weeklyHistogram,
     });
 
-    return NextResponse.json(
-      {
-        ok: true,
-        eapStatus: eap.status,
-        cityLabel: `${eap.city.name}/${eap.city.state}`,
-        plannedStartDate: tree.plannedStartDate,
-        zones: eap.zones,
-        holidays,
-        packages,
-        analytics,
-        audit,
-        baselines: eap.baselineSnapshots.map((b) => ({
-          id: b.id,
-          versionLabel: b.versionLabel,
-          totalDirectCost: b.totalDirectCost,
-          totalCommercialPrice: b.totalCommercialPrice,
-          costPerM2: b.costPerM2,
-          approvedAt: b.approvedAt.toISOString(),
-        })),
-      },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    const parsedFloors = Array.isArray(eap.lobFloorsJson) && eap.lobFloorsJson.length > 0
+      ? eap.lobFloorsJson
+      : DEFAULT_LOB_FLOORS;
+
+    const eapStageFloorLoads = tree.stages.map((st) => {
+      let fundacao = 0;
+      let terreo = 0;
+      let superior = 0;
+      let coberta = 0;
+      let externo = 0;
+      const isInfraStage = ["01", "02", "03"].includes(st.code);
+
+      for (const grp of st.groups) {
+        for (const item of grp.items) {
+          const zq = item.zoneQuantities;
+          if (isInfraStage) {
+            fundacao += zq.FUND_TERREO || 0;
+          } else {
+            terreo += zq.FUND_TERREO || 0;
+          }
+          superior += zq.PAV_SUPERIOR || 0;
+          coberta += zq.COBERTURA || 0;
+          externo += zq.EXTERNO || 0;
+        }
+      }
+
+      return {
+        stageCode: st.code,
+        stageName: st.name,
+        floorQuantities: {
+          FUNDACAO: Math.round(fundacao * 100) / 100,
+          TERREO: Math.round(terreo * 100) / 100,
+          PAV_SUPERIOR: Math.round(superior * 100) / 100,
+          COBERTA: Math.round(coberta * 100) / 100,
+          AREA_EXTERNA: Math.round(externo * 100) / 100,
+        },
+      };
+    });
+
+    const constraintEval = evaluateConstraintRisks(eap.constraints);
+
+    return jsonNoStore({
+      ok: true,
+      eapStatus: eap.status,
+      cityLabel: `${eap.city.name}/${eap.city.state}`,
+      plannedStartDate: tree.plannedStartDate,
+      zones: eap.zones,
+      holidays,
+      packages,
+      servicePackages: eap.servicePackages,
+      workTeams: eap.workTeams,
+      lobFloors: parsedFloors,
+      lobAllocations: eap.lobFloorAllocations,
+      eapStageFloorLoads,
+      constraintBlocks: constraintEval.lobBlockMap,
+      constraintsMetrics: constraintEval.metrics,
+      analytics,
+      audit,
+      baselines: eap.baselineSnapshots.map((b) => ({
+        id: b.id,
+        versionLabel: b.versionLabel,
+        totalDirectCost: b.totalDirectCost,
+        totalCommercialPrice: b.totalCommercialPrice,
+        costPerM2: b.costPerM2,
+        approvedAt: b.approvedAt.toISOString(),
+      })),
+    });
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Erro ao carregar planejamento." },
-      { status: 400, headers: { "Cache-Control": "no-store" } }
-    );
+    return handleEapRouteError(err, "Erro ao carregar planejamento.");
   }
 }

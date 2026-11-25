@@ -114,19 +114,19 @@ export default async function AdminDashboardPage() {
       <div className="space-y-8">
         <header className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
-              ArqVértice OS / Command Center
+            <p className="apple-micro-label">
+              ArqVértice OS · Command Center
             </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
+            <h1 className="apple-page-title mt-1.5">
               {greeting}, {user.name}.
             </h1>
-            <p className="mt-2 max-w-xl text-sm font-light leading-6 text-neutral-600">
+            <p className="apple-body mt-1.5 max-w-xl text-zinc-600 dark:text-zinc-400">
               {canViewFinancial
-                ? "Panorama operacional e comercial consolidado do estúdio ArqVértice."
-                : "Panorama técnico, operacional e entregas executivas em andamento."}
+                ? "Panorama operacional e financeiro do estúdio."
+                : "Entregas e cronograma técnico em andamento."}
             </p>
             {pendingAlerts > 0 && canViewSchedule ? (
-              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800">
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200/80 bg-amber-50/90 px-3 py-1 text-xs font-medium text-amber-800 tabular-nums dark:border-amber-800/60 dark:bg-amber-950/50 dark:text-amber-200">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
                 {pendingAlerts} pendência(s) exigem atenção
               </div>
@@ -137,7 +137,7 @@ export default async function AdminDashboardPage() {
             {canViewProjects && (
               <Link
                 href="/admin/briefing"
-                className="rounded-xl border border-neutral-200/70 bg-white/80 px-4 py-2.5 text-sm font-medium text-neutral-700 shadow-sm transition hover:-translate-y-0.5 hover:text-neutral-950"
+                className="apple-glass-btn"
               >
                 Novo Briefing
               </Link>
@@ -145,7 +145,7 @@ export default async function AdminDashboardPage() {
             {canViewSchedule && (
               <Link
                 href="/admin/cronograma"
-                className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-800"
+                className="apple-primary-btn"
               >
                 Ver Cronograma Geral <Arrow />
               </Link>
@@ -579,7 +579,7 @@ export default async function AdminDashboardPage() {
           )}
         </div>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200/70 pt-5 text-xs font-light text-neutral-400">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t apple-hairline pt-5 text-xs text-zinc-500 dark:text-zinc-400">
           <span>
             Atualizado em{" "}
             {today.toLocaleDateString("pt-BR", {
@@ -609,21 +609,21 @@ function Kpi({
   tone: "emerald" | "sky" | "indigo" | "pink" | "amber" | "neutral";
 }) {
   const styles = {
-    emerald: "bg-emerald-50 text-emerald-600",
-    sky: "bg-sky-50 text-sky-600",
-    indigo: "bg-indigo-50 text-indigo-600",
-    pink: "bg-pink-50 text-pink-600",
-    amber: "bg-amber-50 text-amber-600",
-    neutral: "bg-neutral-100 text-neutral-700",
+    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300",
+    sky: "bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-300",
+    indigo: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300",
+    pink: "bg-pink-50 text-pink-600 dark:bg-pink-950/60 dark:text-pink-300",
+    amber: "bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300",
+    neutral: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
   }[tone];
   return (
     <Card className="relative overflow-hidden">
       <div className={`mb-4 flex h-9 w-9 items-center justify-center rounded-xl text-lg ${styles}`}>
         {icon}
       </div>
-      <p className="text-xs font-medium uppercase tracking-[0.12em] text-neutral-400">{label}</p>
-      <p className="mt-2 text-2xl font-extrabold tracking-tight text-neutral-900">{value}</p>
-      <p className="mt-1 min-h-8 text-xs font-light leading-4 text-neutral-500">{detail}</p>
+      <p className="apple-micro-label">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-zinc-950 dark:text-zinc-50">{value}</p>
+      <p className="mt-1 min-h-8 text-xs leading-4 text-zinc-500 dark:text-zinc-400">{detail}</p>
     </Card>
   );
 }
@@ -642,10 +642,10 @@ function PanelHeader({
   return (
     <div className="flex items-start justify-between gap-3 px-5 pt-5">
       <div>
-        <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
-        <p className="mt-1 text-xs font-light text-neutral-500">{description}</p>
+        <h2 className="apple-section-title">{title}</h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>
       </div>
-      <Link href={href} className="shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+      <Link href={href} className="shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
         {action} <Arrow />
       </Link>
     </div>
@@ -654,10 +654,10 @@ function PanelHeader({
 
 function MetricTile({ label, value, detail }: { label: string; value: number; detail: string }) {
   return (
-    <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/70 p-4">
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-neutral-900">{value}</p>
-      <p className="mt-1 text-[11px] font-light text-neutral-400">{detail}</p>
+    <div className="rounded-xl border apple-hairline bg-zinc-50/70 p-4 dark:bg-zinc-900/60">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{value}</p>
+      <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">{detail}</p>
     </div>
   );
 }

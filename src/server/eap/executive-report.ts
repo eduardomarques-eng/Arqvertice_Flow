@@ -3,6 +3,10 @@ import { PdfWriter } from "@/lib/pdf/pdf-writer";
 import { round2 } from "./calculator";
 import { buildEapTreePayload, type ComputedEapItemDTO } from "./workbench";
 import { computeScheduleAnalytics, type MonthlyCashflowPoint } from "./scheduler";
+import {
+  buildComparativeProjectAnalytics,
+  type ComparativeProjectAnalytics,
+} from "./executive-analytics-ai";
 
 export type ReportAudience = "INTERNAL" | "CLIENT";
 export type AbcClass = "A" | "B" | "C";
@@ -139,6 +143,7 @@ export interface ExecutiveReportPayload {
   };
   premises: string[];
   exclusions: string[];
+  comparativeAnalytics?: ComparativeProjectAnalytics | null;
 }
 
 const PUBLISHED_STATUSES = new Set(["BASELINE_APROVADA", "EM_EXECUCAO", "CONCLUIDA"]);
@@ -241,6 +246,7 @@ export function buildExecutiveReportPayload(input: {
     spi: number;
     cpi: number;
   } | null;
+  comparativeAnalytics?: ComparativeProjectAnalytics | null;
 }): ExecutiveReportPayload {
   const isInternal = input.audience === "INTERNAL";
   const { tree, analytics } = input;
@@ -370,6 +376,53 @@ export function buildExecutiveReportPayload(input: {
     kpis.directCostPerM2 = tree.indicators.directCostPerM2;
   }
 
+  const safeMonthlySeries = isInternal
+    ? analytics.monthlySeries
+    : analytics.monthlySeries.map((pt) => {
+      const directSum = pt.materialCost + pt.laborCost + pt.thirdPartyCost;
+      const factor = directSum > 0 ? pt.commercialCost / directSum : 0;
+      return {
+        ...pt,
+        directCost: 0,
+        materialCost: round2(pt.materialCost * factor),
+        laborCost: round2(pt.laborCost * factor),
+        thirdPartyCost: round2(pt.thirdPartyCost * factor),
+      };
+    });
+
+  const safeComparativeAnalytics: ComparativeProjectAnalytics | null = input.comparativeAnalytics
+    ? isInternal
+      ? input.comparativeAnalytics
+      : {
+        ...input.comparativeAnalytics,
+        shortTerm: {
+          ...input.comparativeAnalytics.shortTerm,
+          teamUtilization: input.comparativeAnalytics.shortTerm.teamUtilization.map(
+            ({ dailyCost: _d, totalEstimatedCost: _t, ...rest }) => rest
+          ),
+        },
+        activeVersions: input.comparativeAnalytics.activeVersions.map((v) => ({
+          discipline: v.discipline,
+          fileName: "",
+          versionCode: v.versionCode,
+        })),
+        bulletinsSummary: input.comparativeAnalytics.bulletinsSummary.filter(
+          (b) => b.status === "APROVADO"
+        ),
+        aiSummary: {
+          ...input.comparativeAnalytics.aiSummary,
+          topBottlenecks: input.comparativeAnalytics.aiSummary.topBottlenecks.map((b) =>
+            b.axis === "SUPRIMENTOS" || b.axis === "EQUIPES"
+              ? {
+                ...b,
+                impact: "Ponto monitorado pela engenharia do ArqVértice OS.",
+              }
+              : b
+          ),
+        },
+      }
+    : null;
+
   return {
     audience: input.audience,
     meta,
@@ -378,7 +431,7 @@ export function buildExecutiveReportPayload(input: {
     abcCurve,
     schedule: {
       waves,
-      monthlySeries: analytics.monthlySeries,
+      monthlySeries: safeMonthlySeries,
       procurementMilestones,
     },
     acervoVisuals: {
@@ -387,6 +440,7 @@ export function buildExecutiveReportPayload(input: {
     },
     premises: tree.premises,
     exclusions: tree.exclusions,
+    comparativeAnalytics: safeComparativeAnalytics,
   };
 }
 
@@ -447,14 +501,20 @@ export async function loadExecutiveReportFromDb(
         title: true,
         discipline: true,
         revisions: {
-          where: { isCurrent: true },
+          where: {
+            isCurrent: true,
+            ...(audience === "CLIENT" ? { status: "BOM_PARA_OBRA" } : {}),
+          },
           take: 1,
           select: { revisionNumber: true, status: true, fileUrl: true, fileName: true },
         },
       },
     }),
     prisma.projectDeliverable.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(audience === "CLIENT" ? { isClientView: true } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: 12,
       select: { id: true, title: true, discipline: true, fileUrl: true, version: true, category: true },
@@ -547,16 +607,16 @@ export async function loadExecutiveReportFromDb(
     actualPhysicalPercent > 0;
   const executionSummary = hasExecution
     ? {
-        actualPhysicalPercent,
-        plannedPhysicalPercent,
-        spi:
-          plannedPhysicalPercent > 0
-            ? round2(actualPhysicalPercent / plannedPhysicalPercent)
-            : actualPhysicalPercent > 0
-              ? 1
-              : 0,
-        cpi: realizedCostTotal > 0 ? round2(earnedValue / realizedCostTotal) : 0,
-      }
+      actualPhysicalPercent,
+      plannedPhysicalPercent,
+      spi:
+        plannedPhysicalPercent > 0
+          ? round2(actualPhysicalPercent / plannedPhysicalPercent)
+          : actualPhysicalPercent > 0
+            ? 1
+            : 0,
+      cpi: realizedCostTotal > 0 ? round2(earnedValue / realizedCostTotal) : 0,
+    }
     : null;
 
   const analytics = computeScheduleAnalytics({
@@ -603,6 +663,10 @@ export async function loadExecutiveReportFromDb(
       version: d.version,
     }));
 
+  const comparativeAnalytics = await buildComparativeProjectAnalytics(projectId, {
+    allowExternalLlm: false,
+  });
+
   return buildExecutiveReportPayload({
     audience,
     projectName: project.name,
@@ -615,6 +679,7 @@ export async function loadExecutiveReportFromDb(
     galleryImages,
     embodiedCarbonKgCo2,
     executionSummary,
+    comparativeAnalytics,
   });
 }
 
@@ -627,16 +692,16 @@ function fmtBRL(v: number): string {
  */
 export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8Array {
   const pdf = new PdfWriter({
-    title: `Relatorio Executivo EAP - ${payload.meta.projectName}`,
-    author: "ArqVertice Studio",
-    subject: `EAP, Orcamento Regional e Cronograma (${payload.meta.baselineLabel})`,
+    title: `Relatorio Executivo Integral - ${payload.meta.projectName}`,
+    author: "ArqVertice OS",
+    subject: `ArqVertice OS: EAP, Comparativos, Desvios IA e Cronograma (${payload.meta.baselineLabel})`,
   });
 
-  // 1. CAPA CORPORATIVA
+  // 1. CAPA CORPORATIVA ARQVERTICE OS
   pdf.rect(0, 0, pdf.width, 130, { fill: "0.09 0.09 0.11" });
-  pdf.drawText("ARQVERTICE STUDIO", pdf.margin, 46, { size: 11, bold: true, color: "0.93 0.90 0.85" });
-  pdf.drawText("DOSSIE EXECUTIVO — EAP, ORCAMENTO & CRONOGRAMA", pdf.margin, 72, {
-    size: 16,
+  pdf.drawText("ARQVERTICE OS", pdf.margin, 46, { size: 11, bold: true, color: "0.93 0.90 0.85" });
+  pdf.drawText("DOSSIE EXECUTIVO INTEGRAL — EAP, COMPARATIVOS & IA", pdf.margin, 72, {
+    size: 15,
     bold: true,
     color: "1 1 1",
   });
@@ -652,6 +717,15 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
   );
 
   pdf.y = 152;
+
+  const comp = payload.comparativeAnalytics;
+
+  if (comp && comp.activeVersions.length > 0) {
+    pdf.flowText(
+      `Versoes Vigentes: ${comp.activeVersions.map((v) => `${v.discipline} (${v.versionCode})`).join(" · ")}`,
+      { size: 8.5, bold: true, gapAfter: 8 }
+    );
+  }
 
   // 2. RESUMO EXECUTIVO & KPIs
   pdf.flowText("1. RESUMO EXECUTIVO & INDICADORES DE ENGENHARIA", { size: 12, bold: true, gapAfter: 8 });
@@ -674,16 +748,144 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
     { size: 9, gapAfter: 4 }
   );
   pdf.flowText(
-    `Engenharia: Taxa de Aco ${payload.kpis.steelRateKgPerM3} kg/m3 · Concreto ${payload.kpis.concreteM3PerM2} m3/m2 · Alvenaria ${payload.kpis.masonryM2PerM2} m2/m2${
-      payload.kpis.embodiedCarbonKgCo2 ? ` · Carbono Embutido: ${payload.kpis.embodiedCarbonKgCo2.toFixed(0)} kgCO2` : ""
+    `Engenharia: Taxa de Aco ${payload.kpis.steelRateKgPerM3} kg/m3 · Concreto ${payload.kpis.concreteM3PerM2} m3/m2 · Alvenaria ${payload.kpis.masonryM2PerM2} m2/m2${payload.kpis.embodiedCarbonKgCo2 ? ` · Carbono Embutido: ${payload.kpis.embodiedCarbonKgCo2.toFixed(0)} kgCO2` : ""
     }`,
-    { size: 9, gapAfter: payload.kpis.actualPhysicalPercent !== undefined ? 4 : 12 }
+    { size: 9, gapAfter: 8 }
   );
-  if (payload.kpis.actualPhysicalPercent !== undefined) {
+
+  // 2A. COMPARATIVO CUSTOS x PREVISOES x FATURAMENTO + GRAFICO VETORIAL + DIAGNOSTICO IA
+  if (comp) {
+    const fin = comp.financial;
+    pdf.ensure(155);
+    pdf.flowText("1B. COMPARATIVO CUSTOS x PREVISOES x FATURAMENTO", {
+      size: 11,
+      bold: true,
+      gapAfter: 6,
+    });
+    pdf.flowText(
+      `SPI: ${fin.spi.toFixed(2)}  |  CPI: ${fin.cpi.toFixed(2)}  |  Desvio Fisico: ${fin.physicalDeviationPct >= 0 ? "+" : ""}${fin.physicalDeviationPct.toFixed(1)} p.p.  |  Saldo Caixa (Fat.-Med.): ${fmtBRL(fin.cashBalanceBilledMinusMeasured)}`,
+      { size: 8.5, bold: true, gapAfter: 6 }
+    );
+
+    const compBars: Array<{ label: string; value: number; fill: string }> = [
+      { label: "Orcado EAP", value: fin.budgetedEapTotal, fill: "0.15 0.39 0.92" },
+      { label: "Previsto LOB", value: fin.plannedLobCumulative, fill: "0.39 0.40 0.95" },
+      { label: "Medido Canteiro", value: fin.measuredFieldCumulative, fill: "0.06 0.65 0.45" },
+      { label: "Faturado (Parcelas)", value: fin.billedInstallmentsTotal, fill: "0.85 0.47 0.02" },
+      { label: "Recebido (Pago)", value: fin.receivedInstallmentsTotal, fill: "0.05 0.50 0.40" },
+    ];
+    const maxComp = Math.max(...compBars.map((b) => b.value), 1);
+    const labelW = 140;
+    const valueW = 95;
+    const barMaxW = pdf.contentWidth - labelW - valueW - 10;
+
+    for (const bar of compBars) {
+      const yRow = pdf.y;
+      const ratio = Math.max(0.02, bar.value / maxComp);
+      pdf.drawText(bar.label, pdf.margin, yRow + 10, { size: 8, color: "0.15 0.18 0.24" });
+      pdf.rect(pdf.margin + labelW, yRow + 2, barMaxW, 10, { fill: "0.93 0.95 0.98" });
+      pdf.rect(pdf.margin + labelW, yRow + 2, barMaxW * ratio, 10, { fill: bar.fill });
+      pdf.drawText(fmtBRL(bar.value), pdf.margin + pdf.contentWidth, yRow + 10, {
+        size: 7.5,
+        bold: true,
+        align: "right",
+        color: "0.09 0.11 0.16",
+      });
+      pdf.y += 16;
+    }
+    pdf.y += 8;
+
+    // Diagnostico de Desvios e Gargalos (IA / Deterministico)
+    const ai = comp.aiSummary;
+    pdf.ensure(90);
+    pdf.flowText(
+      `1C. RESUMO DE DESVIOS & GARGALOS (SEMAFORO: ${ai.healthStatus})`,
+      { size: 11, bold: true, gapAfter: 4 }
+    );
+    pdf.flowText(ai.headline, { size: 9.5, bold: true, gapAfter: 3 });
+    pdf.flowText(ai.executiveOverview, { size: 8.5, gapAfter: 6 });
+
+    for (const b of ai.topBottlenecks.slice(0, 5)) {
+      pdf.flowText(
+        `• [${b.axis} / ${b.severity}] ${b.title} — Impacto: ${b.impact} | Acao: ${b.action}`,
+        { size: 8, indent: 6, gapAfter: 2 }
+      );
+    }
+    if (ai.actionPlan.length > 0) {
+      pdf.y += 3;
+      pdf.flowText("Plano de Acao Priorizado (Curto Prazo):", { size: 8.5, bold: true, gapAfter: 2 });
+      for (const act of ai.actionPlan.slice(0, 4)) {
+        pdf.flowText(`- ${act}`, { size: 8, indent: 8, gapAfter: 2 });
+      }
+    }
+    pdf.y += 8;
+
+    // Avanco Fisico por Pavimento (Feito x Pendente)
+    if (comp.floorComparison.length > 0) {
+      pdf.heading("1D. AVANCO FISICO POR PAVIMENTO (FEITO x PENDENTE)");
+      pdf.table({
+        columns: [
+          { title: "Pavimento", weight: 2.2 },
+          { title: "Avanco", weight: 1.5 },
+          { title: "Orcado R$", weight: 1.4 },
+          { title: "Medido R$", weight: 1.4 },
+        ],
+        rows: comp.floorComparison.map((f) => [
+          f.floorName,
+          `${f.progressPct.toFixed(1)}%`,
+          fmtBRL(f.plannedAmount),
+          fmtBRL(f.measuredAmount),
+        ]),
+        progressColumn: 1,
+        progressValues: comp.floorComparison.map((f) => Math.round(f.progressPct)),
+      });
+      pdf.y += 8;
+    }
+
+    // Equipes A/B/C & Fases
+    if (comp.shortTerm.teamUtilization.length > 0) {
+      pdf.flowText("1E. ALOCACAO DE EQUIPES (A, B, C...)", { size: 10.5, bold: true, gapAfter: 4 });
+      for (const tu of comp.shortTerm.teamUtilization) {
+        const costSuffix =
+          payload.audience === "INTERNAL" && typeof tu.totalEstimatedCost === "number"
+            ? ` · Custo Est. ${fmtBRL(tu.totalEstimatedCost)}`
+            : "";
+        pdf.flowText(
+          `• Equipe ${tu.teamCode} (${tu.name}): ${tu.workingDays} d.u. · ${tu.headcount} trab. · Ocupacao ${tu.occupancyPercent.toFixed(1)}%${costSuffix}`,
+          { size: 8.5, gapAfter: 2 }
+        );
+      }
+      pdf.y += 6;
+    }
+
+    if (comp.bulletinsSummary.length > 0) {
+      pdf.flowText("1F. BOLETINS DE MEDICAO NO CANTEIRO", { size: 10.5, bold: true, gapAfter: 4 });
+      for (const bm of comp.bulletinsSummary.slice(0, 8)) {
+        pdf.flowText(
+          `• ${bm.bulletinCode} (${bm.referenceDate} · ${bm.status}): ${bm.physicalProgressPct.toFixed(1)}% · Medido ${fmtBRL(bm.totalMeasuredValue)}`,
+          { size: 8.5, gapAfter: 2 }
+        );
+      }
+      pdf.y += 6;
+    }
+  } else if (payload.kpis.actualPhysicalPercent !== undefined) {
     pdf.flowText(
       `Andamento Fisico: ${payload.kpis.actualPhysicalPercent.toFixed(1)}% realizado (Prev. ${(payload.kpis.plannedPhysicalPercent ?? 0).toFixed(1)}%) · SPI ${(payload.kpis.spi ?? 0).toFixed(2)} · CPI ${(payload.kpis.cpi ?? 0).toFixed(2)}`,
       { size: 9, bold: true, gapAfter: 12 }
     );
+  }
+
+  // Cronograma por Fases (sem termo "Onda")
+  if (payload.schedule.waves.length > 0) {
+    pdf.flowText("1G. FASES CONSTRUTIVAS DO CRONOGRAMA", { size: 10.5, bold: true, gapAfter: 4 });
+    for (const w of payload.schedule.waves) {
+      const faseLabel = w.waveName.replace(/Onda/gi, "Fase");
+      pdf.flowText(
+        `• ${faseLabel} (${w.packagesCount} pct · ${w.totalWorkingDays} d.u.): ${w.startDate || "—"} a ${w.endDate || "—"}`,
+        { size: 8.5, gapAfter: 2 }
+      );
+    }
+    pdf.y += 6;
   }
 
   // 2B. GRAFICO VETORIAL — TOP MACRO-ETAPAS (BARRAS HORIZONTAIS PROPORCIONAIS)

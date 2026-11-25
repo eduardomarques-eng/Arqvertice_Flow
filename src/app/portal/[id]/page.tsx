@@ -222,18 +222,18 @@ export default async function ClientPortalPage({
         )}
 
         {(portalContracts.length > 0 || portalInstallments.length > 0) && (
-          <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
-              <h2 className="text-sm font-bold text-slate-900">Contratos &amp; Assinaturas</h2>
+          <section className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl border apple-hairline bg-white p-5 sm:p-6 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] dark:bg-[#141419]">
+              <h2 className="apple-section-title">Contratos &amp; Assinaturas</h2>
               {portalContracts.length === 0 ? (
-                <p className="text-xs text-slate-500">Nenhum contrato emitido até o momento.</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Nenhum contrato emitido até o momento.</p>
               ) : (
                 <div className="space-y-2.5">
                   {portalContracts.map((c) => (
-                    <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+                    <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border apple-hairline bg-zinc-50/70 p-3 text-xs dark:bg-zinc-900/60">
                       <div>
-                        <p className="font-bold text-slate-900">{c.title}</p>
-                        <p className="text-slate-500">
+                        <p className="font-semibold text-zinc-900 dark:text-zinc-100">{c.title}</p>
+                        <p className="text-zinc-500 dark:text-zinc-400 tabular-nums">
                           Status: {c.status} · Assinatura: {c.signature?.status ?? "Pendente"}
                           {c.addendums.length > 0 ? ` · ${c.addendums.length} Aditivo(s)` : ""}
                         </p>
@@ -242,7 +242,7 @@ export default async function ClientPortalPage({
                         href={`/api/contracts/${c.id}/pdf`}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-xl bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800"
+                        className="apple-primary-btn h-8 px-3 py-0 text-xs"
                       >
                         Baixar PDF
                       </a>
@@ -252,21 +252,21 @@ export default async function ClientPortalPage({
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
-              <h2 className="text-sm font-bold text-slate-900">Parcelas &amp; Investimento</h2>
+            <div className="rounded-2xl border apple-hairline bg-white p-5 sm:p-6 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] dark:bg-[#141419]">
+              <h2 className="apple-section-title">Parcelas &amp; Investimento</h2>
               {portalInstallments.length === 0 ? (
-                <p className="text-xs text-slate-500">Nenhuma parcela financeira lançada ainda.</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Nenhuma parcela financeira lançada ainda.</p>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
                   {portalInstallments.map((inst) => (
-                    <div key={inst.id} className="flex items-center justify-between gap-2 py-2 text-xs">
+                    <div key={inst.id} className="flex items-center justify-between gap-2 py-2.5 text-xs">
                       <div>
-                        <p className="font-semibold text-slate-800">{inst.description}</p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="font-semibold text-zinc-800 dark:text-zinc-200">{inst.description}</p>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
                           Venc.: {new Date(inst.dueDate).toLocaleDateString("pt-BR")} · {inst.status}
                         </p>
                       </div>
-                      <strong className="text-slate-900">{formatCurrencyBRL(Number(inst.amount ?? 0))}</strong>
+                      <strong className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{formatCurrencyBRL(Number(inst.amount ?? 0))}</strong>
                     </div>
                   ))}
                 </div>

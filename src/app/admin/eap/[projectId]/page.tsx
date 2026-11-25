@@ -111,19 +111,19 @@ export default async function EapProjectPage({
     <AppShell eyebrow="EAP & Planejamento" role={admin.role}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <SectionHeading
-          title={`EAP da Obra — ${project.name}`}
-          description={`Cliente: ${project.client?.name || "—"} · Upload de quantitativos por disciplina (PDF/HTML TQS & Revit), orçamento regional e planejamento executivo.`}
+          title={`EAP — ${project.name}`}
+          description={`Cliente: ${project.client?.name || "—"} · Quantitativos, orçamento regional e planejamento LOB.`}
         />
         <div className="flex items-center gap-2">
           <Link
             href="/admin/eap"
-            className="inline-flex h-9 items-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            className="apple-glass-btn text-xs h-9"
           >
             ← Obras EAP
           </Link>
           <Link
             href="/admin/eap/catalogo"
-            className="inline-flex h-9 items-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            className="apple-glass-btn text-xs h-9"
           >
             Catálogo Regional
           </Link>

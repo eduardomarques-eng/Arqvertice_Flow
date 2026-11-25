@@ -1901,7 +1901,14 @@ model EapProject {
   baselineSnapshots EapBaselineSnapshot[]
   schedulePackages  SchedulePackage[]
   measurements      WorkMeasurement[]
-  createdAt         DateTime              @default(now())
+  servicePackages     EapServicePackage[]
+  workTeams           EapWorkTeam[]
+  lobFloorsJson             Json                          @default("[]")
+  lobFloorAllocations       EapLobFloorAllocation[]
+  constraints               EapConstraint[]
+  fieldMeasurementBulletins EapFieldMeasurementBulletin[]
+  fieldMeasurementEntries   EapFieldMeasurementEntry[]
+  createdAt                 DateTime                      @default(now())
   updatedAt         DateTime              @updatedAt
 
   @@index([cityId])
@@ -2098,4 +2105,155 @@ model WorkMeasurement {
   createdAt               DateTime   @default(now())
 
   @@index([eapProjectId, referenceDate])
+}
+
+model EapServicePackage {
+  id                  String     @id @default(uuid()) @db.Uuid
+  eapProjectId        String     @db.Uuid
+  packageNumber       Int
+  name                String
+  discipline          String
+  corHex              String
+  textHex             String
+  predecessorNumbers  Int[]      @default([])
+  productivityPerDay  Float      @default(1)
+  productivityUnit    String     @default("un/dia")
+  linkedEapStageCodes String[]   @default([])
+  isActive            Boolean    @default(true)
+  eapProject          EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@unique([eapProjectId, packageNumber])
+  @@index([eapProjectId, isActive])
+}
+
+model EapWorkTeam {
+  id                    String          @id @default(uuid()) @db.Uuid
+  eapProjectId          String          @db.Uuid
+  teamCode              String
+  name                  String
+  specialty             String
+  maxDailyHours         Float           @default(8.0)
+  maxSimultaneousFronts Int             @default(1)
+  isActive              Boolean         @default(true)
+  eapProject            EapProject      @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  workers               EapTeamWorker[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@unique([eapProjectId, teamCode])
+  @@index([eapProjectId, isActive])
+}
+
+model EapTeamWorker {
+  id               String      @id @default(uuid()) @db.Uuid
+  teamId           String      @db.Uuid
+  roleName         String
+  headcount        Int         @default(1)
+  dailyRate        Float
+  hourlyRate       Float
+  socialChargesPct Float       @default(0)
+  maxDailyOutput   Float?
+  team             EapWorkTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([teamId])
+}
+
+model EapLobFloorAllocation {
+  id            String     @id @default(uuid()) @db.Uuid
+  eapProjectId  String     @db.Uuid
+  floorId       String
+  floorName     String
+  floorOrder    Int        @default(0)
+  dateIso       String
+  teamCode      String
+  packageNumber Int
+  isOvertime    Boolean    @default(false)
+  eapProject    EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([eapProjectId, floorId, dateIso, teamCode, packageNumber])
+  @@index([eapProjectId, floorOrder, dateIso])
+}
+
+model EapConstraint {
+  id                String     @id @default(uuid()) @db.Uuid
+  eapProjectId      String     @db.Uuid
+  title             String
+  description       String?
+  category          String     @default("COMPRAS_SUPRIMENTOS") // COMPRAS_SUPRIMENTOS | PROJETO_DEFINICAO | MAO_DE_OBRA | EQUIPAMENTOS | LICENCAS_APROVACOES | LOGISTICA_CANTEIRO
+  status            String     @default("IDENTIFICADA") // IDENTIFICADA | EM_COTACAO_ANALISE | PEDIDO_EMITIDO | LIBERADA | BLOQUEADA
+  priority          String     @default("MEDIA") // BAIXA | MEDIA | ALTA | CRITICA
+  floorId           String?
+  floorName         String?
+  packageNumber     Int?
+  teamCode          String?
+  linkedEapItemId   String?    @db.Uuid
+  neededByDate      DateTime
+  leadTimeDays      Int        @default(7)
+  orderDeadlineDate DateTime?
+  estimatedCost     Float?
+  supplierName      String?
+  responsibleName   String?
+  resolvedAt        DateTime?
+  eapProject        EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([eapProjectId, status])
+  @@index([eapProjectId, neededByDate])
+}
+
+model EapFieldMeasurementBulletin {
+  id                  String                     @id @default(uuid()) @db.Uuid
+  eapProjectId        String                     @db.Uuid
+  bulletinNumber      Int
+  referenceDate       DateTime
+  periodStart         DateTime?
+  periodEnd           DateTime?
+  status              String                     @default("RASCUNHO") // RASCUNHO | APROVADO
+  inspectorName       String?
+  weatherCondition    String?                    // SOL | NUBLADO | CHUVA_PARCIAL | CHUVA_INTENSA
+  generalNotes        String?
+  totalMeasuredValue  Float                      @default(0)
+  physicalProgressPct Float                      @default(0)
+  eapProject          EapProject                 @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  entries             EapFieldMeasurementEntry[]
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  @@unique([eapProjectId, bulletinNumber])
+  @@index([eapProjectId, referenceDate])
+}
+
+model EapFieldMeasurementEntry {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  bulletinId          String                      @db.Uuid
+  eapProjectId        String                      @db.Uuid
+  floorId             String
+  floorName           String
+  packageNumber       Int?
+  teamCode            String?
+  eapItemId           String?                     @db.Uuid
+  serviceLabel        String
+  unit                String
+  plannedQty          Float
+  previousExecutedQty Float                       @default(0)
+  currentExecutedQty  Float                       @default(0)
+  accumulatedPct      Float                       @default(0)
+  unitPrice           Float                       @default(0)
+  measuredAmount      Float                       @default(0)
+  status              String                      @default("PENDENTE") // PENDENTE | EM_ANDAMENTO | CONCLUIDO | IMPEDIDO
+  fieldNote           String?
+  bulletin            EapFieldMeasurementBulletin @relation(fields: [bulletinId], references: [id], onDelete: Cascade)
+  eapProject          EapProject                  @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+
+  @@index([bulletinId, floorId])
+  @@index([eapProjectId, floorId])
 }

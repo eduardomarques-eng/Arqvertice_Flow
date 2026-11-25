@@ -77,7 +77,15 @@ export async function POST(
     let hasTqsSource = false;
     let totalCarbonKgCo2: number | null = null;
     let zeroSteelAlert: ZeroSteelAlert | null = null;
-    const processedFiles: Array<{ id: string; status: string; count: number; error?: string }> = [];
+    const processedFiles: Array<{
+      id: string;
+      fileName: string;
+      discipline: string;
+      versionCode: string;
+      status: string;
+      count: number;
+      error?: string;
+    }> = [];
 
     for (const src of eap.sourceFiles) {
       try {
@@ -141,7 +149,14 @@ export async function POST(
             ),
           },
         });
-        processedFiles.push({ id: src.id, status: "PROCESSADO", count: parsed.candidates.length });
+        processedFiles.push({
+          id: src.id,
+          fileName: src.fileName,
+          discipline: src.discipline,
+          versionCode: src.versionCode || src.revisionLabel || "R00",
+          status: "PROCESSADO",
+          count: parsed.candidates.length,
+        });
       } catch (fileErr) {
         const message = fileErr instanceof Error ? fileErr.message : "Erro ao processar arquivo";
         await prisma.eapSourceFile.update({
@@ -151,7 +166,15 @@ export async function POST(
             extractedSummaryJson: { error: message },
           },
         });
-        processedFiles.push({ id: src.id, status: "ERRO", count: 0, error: message });
+        processedFiles.push({
+          id: src.id,
+          fileName: src.fileName,
+          discipline: src.discipline,
+          versionCode: src.versionCode || src.revisionLabel || "R00",
+          status: "ERRO",
+          count: 0,
+          error: message,
+        });
       }
     }
 
