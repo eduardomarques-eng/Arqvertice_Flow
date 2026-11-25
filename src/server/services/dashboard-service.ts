@@ -133,18 +133,25 @@ export type ExecutiveDashboardData = {
   briefings: { id: string; projectId: string; projectName: string; clientName: string; status: string }[];
 };
 
-export async function executiveDashboardData(): Promise<ExecutiveDashboardData> {
-  const user = await currentUser();
+export async function executiveDashboardData(
+  callerUser?: {
+    id: string;
+    role: string;
+    name?: string | null;
+    permissions?: string[];
+  } | null
+): Promise<ExecutiveDashboardData> {
+  const user = callerUser || (await currentUser());
   if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
-
-  if (!hasModulePermission(user, "dashboard")) {
-    throw new DomainError("Você não tem permissão para acessar o dashboard.", "NOT_FOUND");
-  }
 
   const effectivePermissions = getEffectivePermissions({
     role: user.role,
     permissions: user.permissions,
   });
+
+  if (user.role !== "ADMIN" && !effectivePermissions.includes("dashboard")) {
+    throw new DomainError("Você não tem permissão para acessar o dashboard.", "NOT_FOUND");
+  }
 
   const canViewFinancial =
     user.role === "ADMIN" || effectivePermissions.includes("financeiro");
@@ -187,50 +194,70 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
     safeCount(() => prisma.scheduleStage.count({ where: { status: { not: "COMPLETED" }, designer: null } })),
   ]);
 
-  const projects = await projectSnapshots(8).catch(() => []);
+  const projects = await projectSnapshots(8, user).catch(() => []);
 
-  const deliveries = await prisma.scheduleStage.findMany({
-    where: { dueDate: { not: null, lte: horizon }, status: { not: "COMPLETED" } },
-    orderBy: { dueDate: "asc" },
-    take: 12,
-    select: {
-      id: true, name: true, projectId: true, dueDate: true, completion: true, status: true, designer: true,
-      project: { select: { name: true } },
-    },
-  });
+  const deliveries = await prisma.scheduleStage
+    .findMany({
+      where: { dueDate: { not: null, lte: horizon }, status: { not: "COMPLETED" } },
+      orderBy: { dueDate: "asc" },
+      take: 12,
+      select: {
+        id: true,
+        name: true,
+        projectId: true,
+        dueDate: true,
+        completion: true,
+        status: true,
+        designer: true,
+        project: { select: { name: true } },
+      },
+    })
+    .catch(() => []);
 
-  const installments = await prisma.projectInstallment.findMany({ select: { amount: true, status: true } });
+  const installments = await prisma.projectInstallment
+    .findMany({ select: { amount: true, status: true } })
+    .catch(() => []);
 
-  const briefings = await prisma.briefing.findMany({
-    select: {
-      id: true, projectId: true, status: true,
-      project: { select: { name: true, client: { select: { name: true } } } },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 8,
-  });
+  const briefings = await prisma.briefing
+    .findMany({
+      select: {
+        id: true,
+        projectId: true,
+        status: true,
+        project: { select: { name: true, client: { select: { name: true } } } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 8,
+    })
+    .catch(() => []);
 
-  const users = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "OPERADOR"] } },
-    select: { name: true, role: true },
-  });
+  const users = await prisma.user
+    .findMany({
+      where: { role: { in: ["ADMIN", "OPERADOR"] } },
+      select: { name: true, role: true },
+    })
+    .catch(() => []);
 
-  const stages = await prisma.scheduleStage.findMany({
-    select: { designer: true, completion: true, status: true },
-  });
+  const stages = await prisma.scheduleStage
+    .findMany({
+      select: { designer: true, completion: true, status: true },
+    })
+    .catch(() => []);
 
   const funnel = await Promise.all([
-    prisma.proposal.count({ where: { status: { in: ["DRAFT", "IN_REVIEW", "NEGOTIATING"] } } }),
-    prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED"] } } }),
-    prisma.proposal.count({ where: { status: "APPROVED" } }),
-    prisma.proposal.count({ where: { status: "CONVERTED" } }),
+    prisma.proposal.count({ where: { status: { in: ["DRAFT", "IN_REVIEW", "NEGOTIATING"] } } }).catch(() => 0),
+    prisma.proposal.count({ where: { status: { in: ["READY", "SENT", "VIEWED"] } } }).catch(() => 0),
+    prisma.proposal.count({ where: { status: "APPROVED" } }).catch(() => 0),
+    prisma.proposal.count({ where: { status: "CONVERTED" } }).catch(() => 0),
   ]);
 
-  const clients = await prisma.client.findMany({
-    where: { status: "ACTIVE" },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const clients = await prisma.client
+    .findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    })
+    .catch(() => []);
   const contractedTotal = installments.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   const installmentsReceived = installments
     .filter((item) => item.status === "PAID")
@@ -253,11 +280,13 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
   const averageProgress = totalStages
     ? Math.round(stages.reduce((sum, stage) => sum + stageCompletion(stage), 0) / totalStages * 10) / 10
     : 0;
-  const nextInstallment = await prisma.projectInstallment.findFirst({
-    where: { status: { not: "PAID" } },
-    orderBy: { dueDate: "asc" },
-    select: { amount: true, dueDate: true },
-  });
+  const nextInstallment = await prisma.projectInstallment
+    .findFirst({
+      where: { status: { not: "PAID" } },
+      orderBy: { dueDate: "asc" },
+      select: { amount: true, dueDate: true },
+    })
+    .catch(() => null);
 
   const metrics: DashboardMetrics & {
     contractedTotal: number;
@@ -300,13 +329,22 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
   return {
     metrics,
     projects,
-    deliveries: deliveries
-      .filter((stage): stage is typeof stage & { dueDate: Date } => stage.dueDate !== null)
-      .map((stage) => ({
-        ...stage,
-        projectName: stage.project?.name ?? "Sem projeto",
-        overdue: stage.dueDate < now,
-      })),
+    deliveries: deliveries.flatMap((stage) => {
+      if (!stage.dueDate) return [];
+      return [
+        {
+          id: stage.id,
+          name: stage.name,
+          projectId: stage.projectId,
+          projectName: stage.project?.name ?? "Sem projeto",
+          dueDate: stage.dueDate,
+          completion: stage.completion,
+          status: stage.status,
+          designer: stage.designer,
+          overdue: stage.dueDate < now,
+        },
+      ];
+    }),
     team,
     proposalFunnel: [
       { label: "Em preparação", value: funnel?.[0] ?? 0, tone: "neutral" },
@@ -326,26 +364,35 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
 }
 
 /** Projetos com progresso e etapa atual, para o painel e para o cronograma. */
-export async function projectSnapshots(limit = 6): Promise<ProjectSnapshot[]> {
-  const user = await currentUser();
-  if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
+export async function projectSnapshots(
+  limit = 6,
+  callerUser?: { id: string; role: string; permissions?: string[] } | null
+): Promise<ProjectSnapshot[]> {
+  const user = callerUser || (await currentUser());
+  if (!user) return [];
   const effectivePermissions = getEffectivePermissions({
     role: user.role,
     permissions: user.permissions,
   });
-  if (!effectivePermissions.includes("dashboard") && !effectivePermissions.includes("projetos")) {
-    throw new DomainError("Você não tem permissão para acessar os projetos.", "NOT_FOUND");
+  if (
+    user.role !== "ADMIN" &&
+    !effectivePermissions.includes("dashboard") &&
+    !effectivePermissions.includes("projetos")
+  ) {
+    return [];
   }
   const now = new Date();
 
-  const projects = await prisma.project.findMany({
-    orderBy: { updatedAt: "desc" },
-    take: limit,
-    include: {
-      client: { select: { name: true } },
-      stages: { orderBy: { order: "asc" } },
-    },
-  });
+  const projects = await prisma.project
+    .findMany({
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+      include: {
+        client: { select: { name: true } },
+        stages: { orderBy: { order: "asc" } },
+      },
+    })
+    .catch(() => []);
 
   return projects.map((project) => {
     const stages = project.stages;

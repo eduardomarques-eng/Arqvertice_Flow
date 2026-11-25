@@ -834,6 +834,38 @@ export const DEFAULT_LOB_FLOORS: LobFloorDefinition[] = [
 ];
 
 /**
+ * Normaliza qualquer variante de ID de pavimento (números '1'..'5', nomes com acento ou slug)
+ * para o ID canônico de 5 zonas da Linha de Balanço.
+ */
+export function normalizeLobFloorId(raw: string | number | null | undefined): string {
+  const s = String(raw || "").trim().toUpperCase();
+  if (s === "1" || s === "FUND" || s === "FUNDACAO" || s === "INFRA" || s.includes("FUNDA")) return "FUNDACAO";
+  if (s === "2" || s === "TERREO" || s === "TÉRREO" || s.includes("TERREO")) return "TERREO";
+  if (s === "3" || s === "SUPERIOR" || s === "PAV_SUPERIOR" || s === "PAVIMENTO SUPERIOR" || s.includes("SUPERIOR")) return "PAV_SUPERIOR";
+  if (s === "4" || s === "COBERTA" || s === "COBERTURA" || s.includes("COBERT")) return "COBERTA";
+  if (s === "5" || s === "EXTERNO" || s === "AREA_EXTERNA" || s === "ÁREA EXTERNA" || s.includes("EXTERN")) return "AREA_EXTERNA";
+  return s;
+}
+
+/**
+ * Duração mínima cumulativa em dias úteis a contar do início da obra para início de cada fase.
+ */
+export function getCumulativePhaseMinWorkingDays(phaseOrder: number): number {
+  switch (phaseOrder) {
+    case 1: return 0;
+    case 2: return 5;
+    case 3: return 20;
+    case 4: return 35;
+    case 5: return 48;
+    case 6: return 55;
+    case 7: return 65;
+    case 8: return 85;
+    case 9: return 110;
+    default: return 0;
+  }
+}
+
+/**
  * Faz o parsing inteligente de entradas como "a1", "A1", "B4, C12", "A5 B15" ou "3" (usando equipe ativa).
  */
 export function parseLobCellInput(raw: string, activeTeamCode = "A"): LobCellToken[] {
@@ -1480,7 +1512,8 @@ export function summarizeLobAllocationsByPackage(
 
 /**
  * Detecta matrizes legadas ou incoerentes (ex.: acabamentos/revestimentos na semana 1
- * junto ao Canteiro, ou pacotes de fundação alocados em Pavimento Superior / Área Externa).
+ * junto ao Canteiro, ou pacotes de fundação alocados em Pavimento Superior / Área Externa,
+ * ou violações de precedência lógica entre fases físicas).
  */
 export function hasBrokenPhysicalSequence(
   allocations: LobFloorAllocationItem[],
@@ -1488,36 +1521,111 @@ export function hasBrokenPhysicalSequence(
 ): boolean {
   if (allocations.length === 0) return false;
 
-  let minDate: string | null = null;
-  for (const a of allocations) {
-    if (!minDate || a.dateIso < minDate) minDate = a.dateIso;
-  }
-  if (!minDate) return false;
-
-  const week1Cutoff = stepWorkingDayUTC(minDate, 4, new Set());
-  const pkgMap = new Map(servicePackages.map((p) => [p.packageNumber, p]));
+  const pkgMinDate = new Map<number, string>();
+  const pkgMaxDate = new Map<number, string>();
+  const phaseMinDate = new Map<number, string>();
+  const phaseMaxDate = new Map<number, string>();
+  let globalMinDate: string | null = null;
 
   for (const a of allocations) {
+    const fid = normalizeLobFloorId(a.floorId);
     const canonical = CANONICAL_LOB_PACKAGE_RULES[a.packageNumber];
+    const phaseOrder = canonical?.phaseOrder ?? 4;
+
+    if (!globalMinDate || a.dateIso < globalMinDate) globalMinDate = a.dateIso;
+
+    const curMin = pkgMinDate.get(a.packageNumber);
+    if (!curMin || a.dateIso < curMin) pkgMinDate.set(a.packageNumber, a.dateIso);
+    const curMax = pkgMaxDate.get(a.packageNumber);
+    if (!curMax || a.dateIso > curMax) pkgMaxDate.set(a.packageNumber, a.dateIso);
+
+    const curPhMin = phaseMinDate.get(phaseOrder);
+    if (!curPhMin || a.dateIso < curPhMin) phaseMinDate.set(phaseOrder, a.dateIso);
+    const curPhMax = phaseMaxDate.get(phaseOrder);
+    if (!curPhMax || a.dateIso > curPhMax) phaseMaxDate.set(phaseOrder, a.dateIso);
+
+    // 1. Violação de pavimento permitido por pacote
     if (canonical) {
-      const fid = a.floorId.toUpperCase();
+      const allowedNormalized = canonical.allowedFloors.map(normalizeLobFloorId);
       if (
         ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA", "AREA_EXTERNA"].includes(fid) &&
-        !canonical.allowedFloors.includes(fid)
+        !allowedNormalized.includes(fid)
       ) {
         return true;
       }
-      if (canonical.phaseOrder >= 4 && a.dateIso <= week1Cutoff) {
+    }
+  }
+
+  if (!globalMinDate) return false;
+
+  // 2. Trava de dia 1 / semana 1:
+  // No início da obra (primeiros 5 dias úteis a contar da primeira alocação global),
+  // APENAS serviços preliminares e fundações (Pacotes 1 a 4, Fase 1 e 2) podem existir na Fundação.
+  // Nenhum revestimento (19..23), acabamento (24..38) ou supraestrutura (7..9) pode estar na semana 1!
+  const week1Cutoff = stepWorkingDayUTC(globalMinDate, 4, new Set());
+  for (const a of allocations) {
+    const canonical = CANONICAL_LOB_PACKAGE_RULES[a.packageNumber];
+    const fid = normalizeLobFloorId(a.floorId);
+    if (a.dateIso <= week1Cutoff) {
+      if (fid !== "FUNDACAO" && a.packageNumber > 2) {
         return true;
       }
-      continue;
-    }
-
-    const pkg = pkgMap.get(a.packageNumber);
-    if (pkg) {
-      const rule = resolveConstructionRuleForPackage(pkg);
-      if (rule.phaseOrder >= 4 && a.dateIso <= week1Cutoff) {
+      if (canonical && canonical.phaseOrder >= 3) {
         return true;
+      }
+      if (a.packageNumber >= 7) {
+        return true;
+      }
+    }
+  }
+
+  // 3. Violação de precedência temporal entre fases:
+  // - Fase 3 (Supraestrutura: 7..9) não pode começar antes ou junto da Fase 1/2
+  const ph1Max = phaseMaxDate.get(1);
+  const ph2Max = phaseMaxDate.get(2);
+  const ph3Min = phaseMinDate.get(3);
+  if (ph3Min && ph1Max && ph3Min <= ph1Max) return true;
+  if (ph3Min && ph2Max && ph3Min <= ph2Max) return true;
+
+  // - Fase 4 (Alvenaria: 10..12) não pode começar antes da Supraestrutura
+  const ph4Min = phaseMinDate.get(4);
+  if (ph4Min && ph3Min && ph4Min < ph3Min) return true;
+
+  // - Fase 7 (Chapisco e Reboco: Pct 19) NÃO pode começar antes de Canteiro (1) e Supraestrutura Térreo (7)
+  const pkg19Min = pkgMinDate.get(19);
+  const pkg01Max = pkgMaxDate.get(1);
+  const pkg07Max = pkgMaxDate.get(7);
+  if (pkg19Min) {
+    if (pkg01Max && pkg19Min <= pkg01Max) return true;
+    if (pkg07Max && pkg19Min <= pkg07Max) return true;
+  }
+
+  // 4. Predecessoras no mesmo pavimento (ou predecessoras de fundação/infraestrutura global)
+  const floorPkgMaxDate = new Map<string, string>();
+  for (const a of allocations) {
+    const fid = normalizeLobFloorId(a.floorId);
+    const fpKey = `${fid}::${a.packageNumber}`;
+    const cur = floorPkgMaxDate.get(fpKey);
+    if (!cur || a.dateIso > cur) floorPkgMaxDate.set(fpKey, a.dateIso);
+  }
+
+  for (const a of allocations) {
+    const fid = normalizeLobFloorId(a.floorId);
+    const canonical = CANONICAL_LOB_PACKAGE_RULES[a.packageNumber];
+    if (canonical && canonical.predecessorNumbers.length > 0) {
+      for (const predNum of canonical.predecessorNumbers) {
+        // Predecessora no mesmo pavimento: filho não pode iniciar antes da predecessora terminar no pavimento
+        const predFloorMax = floorPkgMaxDate.get(`${fid}::${predNum}`);
+        if (predFloorMax && a.dateIso <= predFloorMax) {
+          return true;
+        }
+        // Predecessora de infraestrutura (1..6): nada acima do solo inicia antes da fundação terminar
+        if (predNum <= 6 && fid !== "FUNDACAO") {
+          const infraMax = pkgMaxDate.get(predNum);
+          if (infraMax && a.dateIso <= infraMax) {
+            return true;
+          }
+        }
       }
     }
   }
@@ -1530,19 +1638,21 @@ export function isPackageAllowedOnFloor(
   floor: LobFloorDefinition,
   canonicalRule?: CanonicalLobPackageRule | null
 ): boolean {
-  const fid = floor.floorId.toUpperCase();
+  const fid = normalizeLobFloorId(floor.floorId);
   const knownCanonical = ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA", "AREA_EXTERNA"];
   if (canonicalRule) {
     if (!knownCanonical.includes(fid)) {
       return canonicalRule.phaseOrder >= 3;
     }
-    return canonicalRule.allowedFloors.includes(fid);
+    const allowed = canonicalRule.allowedFloors.map(normalizeLobFloorId);
+    return allowed.includes(fid);
   }
   if (!knownCanonical.includes(fid)) {
     // Pavimentos customizados (ex.: Subsolo, Mezanino) aceitam fases construtivas gerais
     return rule.phaseOrder >= 2;
   }
-  return rule.allowedFloors.includes(fid);
+  const allowed = rule.allowedFloors.map(normalizeLobFloorId);
+  return allowed.includes(fid);
 }
 
 export function inferDefaultTeamCodeForPackage(
@@ -1639,57 +1749,126 @@ function computeEarliestPhysicalStart(input: {
     if (target > earliest) earliest = target;
   };
 
-  // 1. Predecessoras explícitas (no mesmo pavimento ou cross-floor quando a predecessora vive em outro pavimento)
+  const pOrder = input.rule.phaseOrder;
+  const fid = normalizeLobFloorId(input.floor.floorId);
+
+  // 1. Trava rígida de fase cumulativa:
+  // Uma fase P NUNCA pode começar antes do término das fases anteriores (1..P-1)
+  // que existam no escopo do projeto.
+  for (let prevP = 1; prevP < pOrder; prevP++) {
+    const prevGlEnd = input.phaseMaxEndGlobal.get(prevP);
+    const projectHasPrevPhase = Array.from(input.pkgRuleMap.values()).some(
+      (r) => r.phaseOrder === prevP
+    );
+    if (prevGlEnd) {
+      const cureLag = prevP === 2 ? 2 : prevP === 3 ? 2 : prevP === 7 ? 2 : 0;
+      advanceAfter(prevGlEnd, cureLag);
+    } else if (projectHasPrevPhase) {
+      const minDaysOffset = getCumulativePhaseMinWorkingDays(prevP);
+      const minDateForPhase = stepWorkingDayUTC(input.baseStart, minDaysOffset, input.holidaySet);
+      if (minDateForPhase > earliest) {
+        earliest = minDateForPhase;
+      }
+    }
+  }
+
+  // 2. Predecessoras explícitas (no mesmo pavimento ou cross-floor)
   for (const predNum of input.pkg.predecessorNumbers) {
     const predEnd =
       input.pkgEndByFloor.get(`${input.floor.floorId}::${predNum}`) ??
+      input.pkgEndByFloor.get(`${fid}::${predNum}`) ??
       input.pkgMaxEndGlobal.get(predNum);
     const predCanonical = CANONICAL_LOB_PACKAGE_RULES[predNum];
     const predLag =
       predCanonical?.cureLagWorkingDays ?? input.pkgRuleMap.get(predNum)?.cureLagWorkingDays ?? 0;
-    advanceAfter(predEnd, predLag);
+    if (predEnd) {
+      advanceAfter(predEnd, predLag);
+    } else if (predCanonical && input.pkgRuleMap.has(predNum)) {
+      const predMinDays = getCumulativePhaseMinWorkingDays(predCanonical.phaseOrder);
+      const minPredDate = stepWorkingDayUTC(
+        input.baseStart,
+        predMinDays + predCanonical.defaultDurationDays + predLag,
+        input.holidaySet
+      );
+      if (minPredDate > earliest) {
+        earliest = minPredDate;
+      }
+    }
   }
 
-  const pOrder = input.rule.phaseOrder;
-  const fid = input.floor.floorId;
-
-  // 2. Trava global de Preparação (Fase 1) e Fundação (Fase 2)
-  if (pOrder >= 2) {
-    advanceAfter(input.phaseMaxEndGlobal.get(1), 0);
-  }
-  if (pOrder >= 3) {
-    advanceAfter(input.phaseMaxEndGlobal.get(2), 2);
-  }
-  if (pOrder >= 4 && !input.phaseMaxEndGlobal.get(2) && !input.phaseMaxEndGlobal.get(3)) {
-    advanceAfter(input.phaseMaxEndGlobal.get(1) ?? input.baseStart, 5);
-  }
-
-  // 3. Trava vertical de Supraestrutura (Fase 3)
+  // 3. Trava vertical de Supraestrutura (Fase 3):
+  // Pavimento inferior deve concluir e curar antes do superior
   if (pOrder === 3) {
-    const myIdx = input.orderedFloors.findIndex((f) => f.floorId === fid);
+    const myIdx = input.orderedFloors.findIndex(
+      (f) => normalizeLobFloorId(f.floorId) === fid
+    );
     for (let i = 0; i < myIdx; i++) {
       const lowerFloor = input.orderedFloors[i];
-      advanceAfter(input.phaseEndByFloor.get(`${lowerFloor.floorId}::3`), 2);
+      const lowerFid = normalizeLobFloorId(lowerFloor.floorId);
+      advanceAfter(
+        input.phaseEndByFloor.get(`${lowerFloor.floorId}::3`) ??
+          input.phaseEndByFloor.get(`${lowerFid}::3`),
+        2
+      );
     }
   }
 
   // 4. Cadeia física intra-pavimento + proteção global para fases posteriores
   if (pOrder === 4) {
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::3`), 0);
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::3`) ??
+        input.phaseEndByFloor.get(`${fid}::3`) ??
+        input.phaseMaxEndGlobal.get(3),
+      0
+    );
   } else if (pOrder === 5) {
     advanceAfter(input.phaseMaxEndGlobal.get(3), 0);
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`), 0);
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::4`) ??
+        input.phaseEndByFloor.get(`${fid}::4`),
+      0
+    );
   } else if (pOrder === 6) {
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`) ?? input.phaseMaxEndGlobal.get(4), 0);
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::4`) ??
+        input.phaseEndByFloor.get(`${fid}::4`) ??
+        input.phaseMaxEndGlobal.get(4),
+      0
+    );
   } else if (pOrder === 7) {
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::3`) ?? input.phaseMaxEndGlobal.get(3), 0);
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`) ?? input.phaseMaxEndGlobal.get(4), 0);
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::6`) ?? input.phaseMaxEndGlobal.get(6), 0);
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::3`) ??
+        input.phaseEndByFloor.get(`${fid}::3`) ??
+        input.phaseMaxEndGlobal.get(3),
+      0
+    );
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::4`) ??
+        input.phaseEndByFloor.get(`${fid}::4`) ??
+        input.phaseMaxEndGlobal.get(4),
+      0
+    );
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::6`) ??
+        input.phaseEndByFloor.get(`${fid}::6`) ??
+        input.phaseMaxEndGlobal.get(6),
+      0
+    );
   } else if (pOrder === 8) {
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::7`) ?? input.phaseMaxEndGlobal.get(7), 2);
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::7`) ??
+        input.phaseEndByFloor.get(`${fid}::7`) ??
+        input.phaseMaxEndGlobal.get(7),
+      2
+    );
     advanceAfter(input.phaseMaxEndGlobal.get(5), 0);
   } else if (pOrder === 9) {
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::8`) ?? input.phaseMaxEndGlobal.get(8), 0);
+    advanceAfter(
+      input.phaseEndByFloor.get(`${input.floor.floorId}::8`) ??
+        input.phaseEndByFloor.get(`${fid}::8`) ??
+        input.phaseMaxEndGlobal.get(8),
+      0
+    );
     if (/LIMPEZA|ENTREGA/.test(input.pkg.name.toUpperCase())) {
       advanceAfter(input.phaseMaxEndGlobal.get(8), 0);
     }
@@ -2346,8 +2525,10 @@ export function autoLevelFloorMatrix(input: {
 
     let minAllowedDate = sorted[0].dateIso;
     if (pkg && rule) {
+      const globalProjectStart =
+        input.allocations.map((a) => a.dateIso).sort()[0] || sorted[0].dateIso;
       const physicalMin = computeEarliestPhysicalStart({
-        baseStart: sorted[0].dateIso,
+        baseStart: globalProjectStart,
         floor: floorObj,
         orderedFloors,
         pkg,

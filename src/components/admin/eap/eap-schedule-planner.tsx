@@ -674,6 +674,9 @@ export function EapSchedulePlanner({
                             <span className="font-mono text-xs font-bold tabular-nums text-slate-900 dark:text-zinc-100">
                               {summary.workingDaysCount} d.u.
                             </span>
+                            <span className="rounded bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-zinc-400">
+                              {summary.workingDaysCount} {summary.workingDaysCount === 1 ? "célula" : "células"}
+                            </span>
                             {summary.startDate && summary.endDate && (
                               <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
                                 {summary.startDate} → {summary.endDate}
@@ -681,7 +684,9 @@ export function EapSchedulePlanner({
                             )}
                           </div>
                         ) : (
-                          <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">0 d.u.</span>
+                          <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">
+                            0 d.u. (0 células)
+                          </span>
                         )}
                       </td>
                     </tr>

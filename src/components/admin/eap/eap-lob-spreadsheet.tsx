@@ -364,7 +364,7 @@ export function EapLobSpreadsheet({
       const defaultTeam =
         summary?.teamCodes[0] ?? rule?.defaultTeam ?? "A";
       const durationDays =
-        summary?.workingDaysCount ?? rule?.defaultDurationDays ?? 0;
+        summary ? summary.workingDaysCount : 0;
 
       const existing = groups.get(phaseOrder) ?? {
         phaseOrder,
