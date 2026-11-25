@@ -321,6 +321,50 @@ export function EapLobSpreadsheet({
     return map;
   }, [matrix.allocations]);
 
+  // Sub-faixas (pistas de frentes) por pavimento: empacota tokens (Equipe+Pacote) não-sobrepostos em 1..4 pistas
+  const floorLanesMap = useMemo(() => {
+    const map = new Map<string, Array<Set<string>>>();
+    for (const floor of matrix.floors) {
+      const floorAllocs = matrix.allocations.filter((a) => a.floorId === floor.floorId);
+      const tokenBounds = new Map<string, { min: string; max: string }>();
+      for (const a of floorAllocs) {
+        const tk = `${a.teamCode}${a.packageNumber}`;
+        const prev = tokenBounds.get(tk);
+        tokenBounds.set(tk, {
+          min: !prev || a.dateIso < prev.min ? a.dateIso : prev.min,
+          max: !prev || a.dateIso > prev.max ? a.dateIso : prev.max,
+        });
+      }
+      const orderedTokens = Array.from(tokenBounds.entries()).sort((a, b) =>
+        a[1].min.localeCompare(b[1].min) || a[0].localeCompare(b[0])
+      );
+      const laneBounds: Array<{ max: string; tokens: Set<string> }> = [];
+      for (const [tk, b] of orderedTokens) {
+        let placed = false;
+        for (const lane of laneBounds) {
+          if (b.min > lane.max) {
+            lane.max = b.max;
+            lane.tokens.add(tk);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          if (laneBounds.length < 4) {
+            laneBounds.push({ max: b.max, tokens: new Set([tk]) });
+          } else {
+            laneBounds[laneBounds.length - 1].tokens.add(tk);
+          }
+        }
+      }
+      map.set(
+        floor.floorId,
+        laneBounds.length > 0 ? laneBounds.map((l) => l.tokens) : [new Set<string>()]
+      );
+    }
+    return map;
+  }, [matrix.floors, matrix.allocations]);
+
   const resolvePackageVisual = useCallback(
     (packageNumber: number) => {
       const live = packageRegistry.get(packageNumber);
@@ -1248,227 +1292,246 @@ export function EapLobSpreadsheet({
           </thead>
 
           <tbody className="divide-y divide-slate-200/80 dark:divide-zinc-800">
-            {matrix.floors.map((floor, floorIndex) => (
-              <tr key={floor.floorId} className="group">
-                <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 dark:border-zinc-800 dark:bg-[#171720] dark:text-zinc-100">
-                  {editingFloorId === floor.floorId ? (
-                    <input
-                      autoFocus
-                      value={editingFloorDraft}
-                      onChange={(e) => setEditingFloorDraft(e.target.value)}
-                      onBlur={() => handleRenameFloor(floor.floorId)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRenameFloor(floor.floorId);
-                        if (e.key === "Escape") setEditingFloorId(null);
-                      }}
-                      className="h-7 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                    />
-                  ) : (
-                    <div
-                      onDoubleClick={() => {
-                        setEditingFloorId(floor.floorId);
-                        setEditingFloorDraft(floor.floorName);
-                      }}
-                      title="Duplo clique para renomear pavimento"
-                      className="flex items-center justify-between gap-2 cursor-text"
-                    >
-                      <span>{floor.floorName}</span>
-                      <Badge tone="neutral">{floorIndex + 1}</Badge>
-                    </div>
-                  )}
-                </td>
-
-                {timeline.columns.map((col, colIndex) => {
-                  const isSelected =
-                    selectedCell?.floorIndex === floorIndex &&
-                    selectedCell?.colIndex === colIndex;
-                  const isEditing =
-                    editingCell?.floorIndex === floorIndex &&
-                    editingCell?.colIndex === colIndex;
-                  const isDragHighlighted =
-                    dragFillStart !== null &&
-                    dragFillStart.floorIndex === floorIndex &&
-                    dragFillHoverCol !== null &&
-                    colIndex >= dragFillStart.colIndex &&
-                    colIndex <= dragFillHoverCol;
-
-                  const cellItems = getCellDisplayItems(floor.floorId, col.allDatesIso);
-                  const hasOvertime = cellItems.some((i) => i.isOvertime);
-                  const cellConstraintAlerts = cellItems
-                    .map((i) => constraintBlocks[`${floor.floorId}::${i.packageNumber}`])
-                    .filter(Boolean);
-                  const hasConstraintBlock = cellConstraintAlerts.length > 0;
-                  const hasCriticalBlock = cellConstraintAlerts.some((b) => b.criticalCount > 0);
-                  const hasConflict = col.allDatesIso.some((d) =>
-                    conflictCellSet.has(`${floor.floorId}::${d}`)
-                  );
-
-                  const tooltipText =
-                    cellItems.length > 0
-                      ? cellItems
-                          .map((i) => {
-                            const pkg = resolvePackageVisual(i.packageNumber);
-                            const team = teamByCode.get(i.teamCode.toUpperCase());
-                            const workersStr = team
-                              ? team.workers.map((w) => `${w.headcount} ${w.roleName}`).join(", ")
-                              : `Equipe ${i.teamCode}`;
-                            return `${floor.floorName} • ${col.label} • Equipe ${i.teamCode} (${workersStr}) • Pacote ${pkg.packageNumber} (${pkg.name} — ${pkg.discipline})${i.isOvertime ? " [HORA EXTRA]" : ""}`;
-                          })
-                          .join("\n")
-                      : `${floor.floorName} • ${col.label}${col.holidayName ? ` • Feriado: ${col.holidayName}` : col.isWeekend ? " • Fim de semana (clique direito para Hora Extra)" : ""}`;
-
-                  return (
+            {matrix.floors.map((floor, floorIndex) => {
+              const lanes = floorLanesMap.get(floor.floorId) ?? [new Set<string>()];
+              return lanes.map((laneTokens, laneIdx) => (
+                <tr key={`${floor.floorId}-lane-${laneIdx}`} className="group">
+                  {laneIdx === 0 && (
                     <td
-                      key={`${floor.floorId}-${col.key}`}
-                      title={tooltipText}
-                      onClick={() => {
-                        setSelectedCell({ floorIndex, colIndex });
-                        setEditingCell(null);
-                      }}
-                      onDoubleClick={() => {
-                        setSelectedCell({ floorIndex, colIndex });
-                        setEditingCell({ floorIndex, colIndex });
-                        setEditingText(
-                          cellItems.map((i) => `${i.teamCode}${i.packageNumber}`).join(", ")
-                        );
-                      }}
-                      onContextMenu={(e: MouseEvent<HTMLTableCellElement>) => {
-                        if (col.isNonWorking) {
-                          e.preventDefault();
-                          toggleOvertimeOnCell(floorIndex, colIndex);
-                        }
-                      }}
-                      onMouseEnter={() => {
-                        if (dragFillStart && dragFillStart.floorIndex === floorIndex) {
-                          setDragFillHoverCol(colIndex);
-                        }
-                      }}
-                      className={`relative border-r border-slate-200/80 p-0.5 text-center align-middle transition select-none dark:border-zinc-800 ${
-                        LOB_DENSITY_CELL[density]
-                      } ${
-                        col.isHoliday
-                          ? "bg-slate-300/80 dark:bg-zinc-700/85"
-                          : col.isWeekend
-                            ? "bg-stone-200/65 dark:bg-zinc-800/75"
-                            : "bg-white dark:bg-[#14141B]"
-                      } ${
-                        hasConflict
-                          ? "ring-2 ring-inset ring-rose-500 bg-rose-50/70 dark:bg-rose-950/30"
-                          : isSelected
-                            ? "ring-2 ring-inset ring-blue-600 dark:ring-amber-400"
-                            : ""
-                      } ${
-                        isDragHighlighted
-                          ? "bg-blue-100/70 dark:bg-amber-950/40"
-                          : ""
-                      }`}
+                      rowSpan={lanes.length}
+                      className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 align-middle dark:border-zinc-800 dark:bg-[#171720] dark:text-zinc-100"
                     >
-                      {isEditing ? (
+                      {editingFloorId === floor.floorId ? (
                         <input
-                          ref={inputRef}
-                          value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
-                          onBlur={() => commitCellText(floorIndex, colIndex, editingText)}
+                          autoFocus
+                          value={editingFloorDraft}
+                          onChange={(e) => setEditingFloorDraft(e.target.value)}
+                          onBlur={() => handleRenameFloor(floor.floorId)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              commitCellText(floorIndex, colIndex, editingText);
-                              setSelectedCell({
-                                floorIndex,
-                                colIndex: Math.min(timeline.columns.length - 1, colIndex + 1),
-                              });
-                            } else if (e.key === "Tab") {
-                              e.preventDefault();
-                              commitCellText(floorIndex, colIndex, editingText);
-                              setSelectedCell({
-                                floorIndex,
-                                colIndex: Math.min(timeline.columns.length - 1, colIndex + 1),
-                              });
-                            } else if (e.key === "Escape") {
-                              e.preventDefault();
-                              setEditingCell(null);
-                            }
+                            if (e.key === "Enter") handleRenameFloor(floor.floorId);
+                            if (e.key === "Escape") setEditingFloorId(null);
                           }}
-                          className="h-full w-full rounded bg-white px-1 text-center font-mono text-[10px] font-bold uppercase text-slate-950 outline-none dark:bg-zinc-900 dark:text-zinc-100"
+                          className="h-7 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                         />
-                      ) : cellItems.length > 0 ? (
-                        <div className="flex flex-wrap items-center justify-center gap-0.5">
-                          {cellItems.map((it) => {
-                            const pkg = resolvePackageVisual(it.packageNumber);
-                            const blk = constraintBlocks[`${floor.floorId}::${it.packageNumber}`];
-                            return (
-                              <span
-                                key={`${it.teamCode}-${it.packageNumber}`}
-                                style={{ backgroundColor: pkg.corHex, color: pkg.textHex }}
-                                title={
-                                  blk
-                                    ? `Restrições pendentes: ${blk.titles.join(" | ")}`
-                                    : undefined
-                                }
-                                className={`inline-flex items-center justify-center gap-0.5 rounded px-1 py-0.5 font-mono text-[9px] font-extrabold leading-none shadow-2xs ${
-                                  blk?.criticalCount ? "ring-1 ring-rose-400" : ""
-                                }`}
-                              >
-                                {it.teamCode}
-                                {it.packageNumber}
-                                {blk ? (
-                                  <span
-                                    className={
-                                      blk.criticalCount > 0
-                                        ? "text-rose-200"
-                                        : "text-amber-200"
-                                    }
-                                  >
-                                    ⚠
-                                  </span>
-                                ) : null}
+                      ) : (
+                        <div
+                          onDoubleClick={() => {
+                            setEditingFloorId(floor.floorId);
+                            setEditingFloorDraft(floor.floorName);
+                          }}
+                          title="Duplo clique para renomear pavimento"
+                          className="flex items-center justify-between gap-2 cursor-text"
+                        >
+                          <span>{floor.floorName}</span>
+                          <div className="flex items-center gap-1">
+                            {lanes.length > 1 && (
+                              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[9px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                                {lanes.length} pistas
                               </span>
-                            );
-                          })}
-                          {hasConstraintBlock && hasCriticalBlock && (
-                            <span className="sr-only">Restrição crítica pendente</span>
-                          )}
-                          {hasOvertime && (
-                            <span
-                              title="Hora extra autorizada"
-                              className="text-[8px] font-bold text-amber-600 dark:text-amber-300"
-                            >
-                              ★
-                            </span>
-                          )}
+                            )}
+                            <Badge tone="neutral">{floorIndex + 1}</Badge>
+                          </div>
                         </div>
-                      ) : col.isNonWorking ? (
-                        <span className="text-[9px] text-slate-400 dark:text-zinc-500">·</span>
-                      ) : null}
-
-                      {isSelected && !isEditing && (
-                        <button
-                          type="button"
-                          aria-label="Arrastar para preencher dias úteis"
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            setDragFillStart({ floorIndex, colIndex });
-                            setDragFillHoverCol(colIndex);
-                          }}
-                          className="absolute right-0 bottom-0 h-2 w-2 cursor-crosshair bg-blue-600 dark:bg-amber-400"
-                        />
                       )}
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                  )}
+
+                  {timeline.columns.map((col, colIndex) => {
+                    const isSelected =
+                      selectedCell?.floorIndex === floorIndex &&
+                      selectedCell?.colIndex === colIndex;
+                    const isEditing =
+                      editingCell?.floorIndex === floorIndex &&
+                      editingCell?.colIndex === colIndex;
+                    const isDragHighlighted =
+                      dragFillStart !== null &&
+                      dragFillStart.floorIndex === floorIndex &&
+                      dragFillHoverCol !== null &&
+                      colIndex >= dragFillStart.colIndex &&
+                      colIndex <= dragFillHoverCol;
+
+                    const allFloorCellItems = getCellDisplayItems(floor.floorId, col.allDatesIso);
+                    const cellItems =
+                      lanes.length === 1
+                        ? allFloorCellItems
+                        : allFloorCellItems.filter((it) =>
+                            laneTokens.has(`${it.teamCode}${it.packageNumber}`)
+                          );
+                    const hasOvertime = cellItems.some((i) => i.isOvertime);
+                    const cellConstraintAlerts = cellItems
+                      .map((i) => constraintBlocks[`${floor.floorId}::${i.packageNumber}`])
+                      .filter(Boolean);
+                    const hasConstraintBlock = cellConstraintAlerts.length > 0;
+                    const hasCriticalBlock = cellConstraintAlerts.some((b) => b.criticalCount > 0);
+                    const hasConflict = col.allDatesIso.some((d) =>
+                      conflictCellSet.has(`${floor.floorId}::${d}`)
+                    );
+
+                    const tooltipText =
+                      cellItems.length > 0
+                        ? cellItems
+                            .map((i) => {
+                              const pkg = resolvePackageVisual(i.packageNumber);
+                              const team = teamByCode.get(i.teamCode.toUpperCase());
+                              const workersStr = team
+                                ? team.workers.map((w) => `${w.headcount} ${w.roleName}`).join(", ")
+                                : `Equipe ${i.teamCode}`;
+                              return `${floor.floorName} • ${col.label} • Equipe ${i.teamCode} (${workersStr}) • Pacote ${pkg.packageNumber} (${pkg.name} — ${pkg.discipline})${i.isOvertime ? " [HORA EXTRA]" : ""}`;
+                            })
+                            .join("\n")
+                        : `${floor.floorName} • ${col.label}${col.holidayName ? ` • Feriado: ${col.holidayName}` : col.isWeekend ? " • Fim de semana (clique direito para Hora Extra)" : ""}`;
+
+                    return (
+                      <td
+                        key={`${floor.floorId}-${laneIdx}-${col.key}`}
+                        title={tooltipText}
+                        onClick={() => {
+                          setSelectedCell({ floorIndex, colIndex });
+                          setEditingCell(null);
+                        }}
+                        onDoubleClick={() => {
+                          setSelectedCell({ floorIndex, colIndex });
+                          setEditingCell({ floorIndex, colIndex });
+                          setEditingText(
+                            allFloorCellItems.map((i) => `${i.teamCode}${i.packageNumber}`).join(", ")
+                          );
+                        }}
+                        onContextMenu={(e: MouseEvent<HTMLTableCellElement>) => {
+                          if (col.isNonWorking) {
+                            e.preventDefault();
+                            toggleOvertimeOnCell(floorIndex, colIndex);
+                          }
+                        }}
+                        onMouseEnter={() => {
+                          if (dragFillStart && dragFillStart.floorIndex === floorIndex) {
+                            setDragFillHoverCol(colIndex);
+                          }
+                        }}
+                        className={`relative border-r border-slate-200/80 p-0.5 text-center align-middle transition select-none dark:border-zinc-800 ${
+                          LOB_DENSITY_CELL[density]
+                        } ${
+                          col.isHoliday
+                            ? "bg-zinc-500/85 text-white dark:bg-zinc-700/90"
+                            : col.isWeekend
+                              ? "bg-stone-200/75 dark:bg-zinc-800/75"
+                              : "bg-white dark:bg-[#14141B]"
+                        } ${
+                          hasConflict
+                            ? "ring-2 ring-inset ring-rose-500 bg-rose-50/70 dark:bg-rose-950/30"
+                            : isSelected && laneIdx === 0
+                              ? "ring-2 ring-inset ring-blue-600 dark:ring-amber-400"
+                              : ""
+                        } ${
+                          isDragHighlighted && laneIdx === 0
+                            ? "bg-blue-100/70 dark:bg-amber-950/40"
+                            : ""
+                        }`}
+                      >
+                        {isEditing && laneIdx === 0 ? (
+                          <input
+                            ref={inputRef}
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onBlur={() => commitCellText(floorIndex, colIndex, editingText)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab") {
+                                e.preventDefault();
+                                commitCellText(floorIndex, colIndex, editingText);
+                                setSelectedCell({
+                                  floorIndex,
+                                  colIndex: Math.min(timeline.columns.length - 1, colIndex + 1),
+                                });
+                              } else if (e.key === "Escape") {
+                                e.preventDefault();
+                                setEditingCell(null);
+                              }
+                            }}
+                            className="h-full w-full rounded bg-white px-1 text-center font-mono text-[10px] font-bold uppercase text-slate-950 outline-none dark:bg-zinc-900 dark:text-zinc-100"
+                          />
+                        ) : cellItems.length > 0 ? (
+                          <div className="flex flex-wrap items-center justify-center gap-0.5">
+                            {cellItems.map((it) => {
+                              const pkg = resolvePackageVisual(it.packageNumber);
+                              const blk = constraintBlocks[`${floor.floorId}::${it.packageNumber}`];
+                              return (
+                                <span
+                                  key={`${it.teamCode}-${it.packageNumber}`}
+                                  style={{ backgroundColor: pkg.corHex, color: pkg.textHex }}
+                                  title={
+                                    blk
+                                      ? `Restrições pendentes: ${blk.titles.join(" | ")}`
+                                      : undefined
+                                  }
+                                  className={`inline-flex items-center justify-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[9px] font-extrabold leading-none shadow-2xs ${
+                                    blk?.criticalCount ? "ring-1 ring-rose-400" : ""
+                                  }`}
+                                >
+                                  {it.teamCode}
+                                  {it.packageNumber}
+                                  {blk ? (
+                                    <span
+                                      className={
+                                        blk.criticalCount > 0
+                                          ? "text-rose-200"
+                                          : "text-amber-200"
+                                      }
+                                    >
+                                      ⚠
+                                    </span>
+                                  ) : null}
+                                </span>
+                              );
+                            })}
+                            {hasConstraintBlock && hasCriticalBlock && (
+                              <span className="sr-only">Restrição crítica pendente</span>
+                            )}
+                            {hasOvertime && (
+                              <span
+                                title="Hora extra autorizada"
+                                className="text-[8px] font-bold text-amber-600 dark:text-amber-300"
+                              >
+                                ★
+                              </span>
+                            )}
+                          </div>
+                        ) : col.isHoliday ? (
+                          <span className="font-mono text-[10px] font-bold text-white/90">-</span>
+                        ) : col.isWeekend ? (
+                          <span className="text-[9px] text-slate-400 dark:text-zinc-500">·</span>
+                        ) : null}
+
+                        {isSelected && laneIdx === 0 && !isEditing && (
+                          <button
+                            type="button"
+                            aria-label="Arrastar para preencher dias úteis"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              setDragFillStart({ floorIndex, colIndex });
+                              setDragFillHoverCol(colIndex);
+                            }}
+                            className="absolute right-0 bottom-0 h-2 w-2 cursor-crosshair bg-blue-600 dark:bg-amber-400"
+                          />
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ));
+            })}
           </tbody>
 
           {/* Rodapé Calendário Espelhado */}
           <tfoot className="sticky bottom-0 z-20 bg-slate-950 text-white">
             <tr>
-              <th className="sticky left-0 z-30 border-t border-r border-slate-800 bg-slate-950 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-300">
-                Rodapé Calendário
+              <th
+                rowSpan={3}
+                className="sticky left-0 z-30 border-t border-r border-slate-800 bg-slate-950 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-300"
+              >
+                Calendário Espelhado
               </th>
               {timeline.columns.map((col) => (
                 <th
-                  key={`ft-${col.key}`}
+                  key={`ft-dt-${col.key}`}
                   className={`border-t border-r border-slate-800 px-1 py-1 text-center font-mono text-[9px] ${
                     col.isHoliday
                       ? "bg-slate-700 text-amber-200"
@@ -1478,6 +1541,35 @@ export function EapLobSpreadsheet({
                   }`}
                 >
                   {col.dateShort}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {timeline.columns.map((col) => (
+                <th
+                  key={`ft-dow-${col.key}`}
+                  className={`border-t border-r border-slate-800 px-1 py-0.5 text-center text-[9px] font-bold ${
+                    col.isHoliday
+                      ? "bg-slate-700 text-amber-300"
+                      : col.weekdayInitial === "D"
+                        ? "bg-rose-950/70 text-rose-300"
+                        : col.isWeekend
+                          ? "bg-stone-700/80 text-stone-200"
+                          : "bg-slate-900 text-slate-300"
+                  }`}
+                >
+                  {col.weekdayInitial}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {timeline.topGroups.map((grp) => (
+                <th
+                  key={`ft-grp-${grp.key}`}
+                  colSpan={grp.count}
+                  className="border-t border-r border-slate-800 px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-200"
+                >
+                  {grp.label}
                 </th>
               ))}
             </tr>

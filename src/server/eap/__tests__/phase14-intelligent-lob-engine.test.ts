@@ -86,7 +86,7 @@ describe("Fase 10 — Motor Inteligente LOB × EAP × Equipes A/B/C & Nivelament
       .map((a) => a.dateIso);
     expect(pkg4Days).toEqual(["2026-04-03", "2026-04-07"]);
 
-    // Pacote 7 (Térreo 60 / 30 = 2d, Pav Superior 30 / 30 = 1d), mesma Equipe A (maxSimultaneousFronts = 1)
+    // Pacote 7 (Supraestrutura: Térreo 60 / 30 = 2d, Pav Superior 30 / 30 = 1d) respeitando 2 d.u. de cura pós-Fundação (08, 09) e cura vertical (14, 15)
     const pkg7Terreo = generated.allocations
       .filter((a) => a.packageNumber === 7 && a.floorId === "TERREO")
       .map((a) => a.dateIso);
@@ -94,8 +94,8 @@ describe("Fase 10 — Motor Inteligente LOB × EAP × Equipes A/B/C & Nivelament
       .filter((a) => a.packageNumber === 7 && a.floorId === "PAV_SUPERIOR")
       .map((a) => a.dateIso);
 
-    expect(pkg7Terreo).toEqual(["2026-04-08", "2026-04-09"]);
-    expect(pkg7Sup).toEqual(["2026-04-10"]);
+    expect(pkg7Terreo).toEqual(["2026-04-10", "2026-04-13"]);
+    expect(pkg7Sup).toEqual(["2026-04-16"]);
   });
 
   it("detecta sobrecarga de frentes simultâneas e quebra de precedência e nivela preservando travadas", () => {

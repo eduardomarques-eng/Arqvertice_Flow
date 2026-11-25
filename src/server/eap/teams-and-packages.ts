@@ -145,10 +145,10 @@ const DEFAULT_WORK_TEAMS: Array<{
 }> = [
   {
     teamCode: "A",
-    name: "Equipe A — Estrutura & Alvenaria",
-    specialty: "Fundações, Supraestrutura & Alvenaria de Vedação",
+    name: "Equipe A — Estrutura, Infra & Cobertura",
+    specialty: "Preparação, Fundações, Supraestrutura, Alvenaria & Cobertura",
     maxDailyHours: 8,
-    maxSimultaneousFronts: 2,
+    maxSimultaneousFronts: 1,
     workers: [
       { roleName: "Pedreiro", headcount: 2, dailyRate: 180, socialChargesPct: 20, maxDailyOutput: 18 },
       { roleName: "Servente", headcount: 3, dailyRate: 110, socialChargesPct: 20, maxDailyOutput: null },
@@ -157,26 +157,26 @@ const DEFAULT_WORK_TEAMS: Array<{
   },
   {
     teamCode: "B",
-    name: "Equipe B — Instalações Prediais",
-    specialty: "Elétrica, Automação, Hidrossanitária & Climatização",
+    name: "Equipe B — Revestimentos & Acabamentos",
+    specialty: "Chapisco/Reboco, Contrapiso, Forro, Pisos, Esquadrias & Pintura",
     maxDailyHours: 8,
-    maxSimultaneousFronts: 2,
-    workers: [
-      { roleName: "Eletricista", headcount: 1, dailyRate: 210, socialChargesPct: 20, maxDailyOutput: 25 },
-      { roleName: "Encanador", headcount: 1, dailyRate: 200, socialChargesPct: 20, maxDailyOutput: 20 },
-      { roleName: "Ajudante Técnico", headcount: 1, dailyRate: 125, socialChargesPct: 20, maxDailyOutput: null },
-    ],
-  },
-  {
-    teamCode: "C",
-    name: "Equipe C — Revestimentos & Acabamentos",
-    specialty: "Revestimentos, Pisos, Forros, Esquadrias & Pintura",
-    maxDailyHours: 8,
-    maxSimultaneousFronts: 2,
+    maxSimultaneousFronts: 1,
     workers: [
       { roleName: "Azulejista / Revestidor", headcount: 2, dailyRate: 195, socialChargesPct: 20, maxDailyOutput: 22 },
       { roleName: "Pintor", headcount: 2, dailyRate: 175, socialChargesPct: 20, maxDailyOutput: 35 },
       { roleName: "Servente", headcount: 1, dailyRate: 110, socialChargesPct: 20, maxDailyOutput: null },
+    ],
+  },
+  {
+    teamCode: "C",
+    name: "Equipe C — Instalações Prediais (MEP)",
+    specialty: "Embutidos Hidrossanitários, Eletrodutos, Enfiação & Luminotécnica",
+    maxDailyHours: 8,
+    maxSimultaneousFronts: 1,
+    workers: [
+      { roleName: "Eletricista", headcount: 1, dailyRate: 210, socialChargesPct: 20, maxDailyOutput: 25 },
+      { roleName: "Encanador", headcount: 1, dailyRate: 200, socialChargesPct: 20, maxDailyOutput: 20 },
+      { roleName: "Ajudante Técnico", headcount: 1, dailyRate: 125, socialChargesPct: 20, maxDailyOutput: null },
     ],
   },
 ];

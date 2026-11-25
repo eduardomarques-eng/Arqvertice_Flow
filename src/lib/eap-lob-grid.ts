@@ -1209,21 +1209,156 @@ export interface FloorMatrixAnalysisResult {
   unallocatedStages: Array<{ stageCode: string; stageName: string; totalQty: number }>;
 }
 
+export interface ConstructionSequenceRule {
+  phaseOrder: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  phaseLabel: string;
+  defaultTeam: "A" | "B" | "C";
+  cureLagWorkingDays: number;
+  allowedFloors: string[];
+  verticalOrder: "BOTTOM_UP" | "TOP_DOWN";
+  stageCodes: string[];
+  keywords: RegExp;
+}
+
+export const CONSTRUCTION_SEQUENCE_RULES: ReadonlyArray<ConstructionSequenceRule> = [
+  {
+    phaseOrder: 1,
+    phaseLabel: "Fase 1 — Preparação",
+    defaultTeam: "A",
+    cureLagWorkingDays: 0,
+    allowedFloors: ["FUNDACAO", "TERREO", "AREA_EXTERNA"],
+    verticalOrder: "BOTTOM_UP",
+    stageCodes: ["01"],
+    keywords: /CANTEIRO|MOBILIZ|TAPUME|LOCACAO|GABARITO|PRELIM/,
+  },
+  {
+    phaseOrder: 2,
+    phaseLabel: "Fase 2 — Infraestrutura",
+    defaultTeam: "A",
+    cureLagWorkingDays: 2,
+    allowedFloors: ["FUNDACAO"],
+    verticalOrder: "BOTTOM_UP",
+    stageCodes: ["02", "03"],
+    keywords: /TERRA|ESCAV|FUNDAC|SAPATA|BALDRAM|ESTACA|REATERRO|INFRA/,
+  },
+  {
+    phaseOrder: 3,
+    phaseLabel: "Fase 3 — Supraestrutura",
+    defaultTeam: "A",
+    cureLagWorkingDays: 2,
+    allowedFloors: ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA"],
+    verticalOrder: "BOTTOM_UP",
+    stageCodes: ["04"],
+    keywords: /SUPRA|PILAR|VIGA|LAJE|ESTRUTURA/,
+  },
+  {
+    phaseOrder: 4,
+    phaseLabel: "Fase 4 — Vedação",
+    defaultTeam: "A",
+    cureLagWorkingDays: 0,
+    allowedFloors: ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA"],
+    verticalOrder: "BOTTOM_UP",
+    stageCodes: ["05"],
+    keywords: /ALVENARIA|VEDAC|VERGA|CONTRAVERGA|DRYWALL/,
+  },
+  {
+    phaseOrder: 5,
+    phaseLabel: "Fase 5 — Cobertura & Estanqueidade",
+    defaultTeam: "A",
+    cureLagWorkingDays: 0,
+    allowedFloors: ["COBERTA", "PAV_SUPERIOR", "TERREO", "FUNDACAO"],
+    verticalOrder: "TOP_DOWN",
+    stageCodes: ["06", "07", "11"],
+    keywords: /COBERT|TELHAD|CALHA|IMPERMEAB|ESTANQUE/,
+  },
+  {
+    phaseOrder: 6,
+    phaseLabel: "Fase 6 — Embutidos (MEP)",
+    defaultTeam: "C",
+    cureLagWorkingDays: 0,
+    allowedFloors: ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA"],
+    verticalOrder: "BOTTOM_UP",
+    stageCodes: ["08", "09", "10"],
+    keywords: /HIDRO|AGUA|ESGOTO|DRENAG|ELETRODUT|CAIXA.*ELETR|EMBUTID|TUBULAC|CLIMATIZ/,
+  },
+  {
+    phaseOrder: 7,
+    phaseLabel: "Fase 7 — Revestimentos Brutos",
+    defaultTeam: "B",
+    cureLagWorkingDays: 2,
+    allowedFloors: ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA", "AREA_EXTERNA"],
+    verticalOrder: "BOTTOM_UP",
+    stageCodes: ["12"],
+    keywords: /CHAPISC|REBOC|EMBOCO|CONTRAPIS|REGULARIZ|MASSA UNICA/,
+  },
+  {
+    phaseOrder: 8,
+    phaseLabel: "Fase 8 — Acabamentos",
+    defaultTeam: "B",
+    cureLagWorkingDays: 0,
+    allowedFloors: ["PAV_SUPERIOR", "TERREO", "FUNDACAO", "AREA_EXTERNA"],
+    verticalOrder: "TOP_DOWN",
+    stageCodes: ["13", "14", "15", "16", "17"],
+    keywords: /GESSO|FORRO|PISO|PORCELANATO|CERAMIC|AZULEJ|ESQUADRIA|MARMOR|BANCADA|PINTUR|REVEST/,
+  },
+  {
+    phaseOrder: 9,
+    phaseLabel: "Fase 9 — Finais & Entrega",
+    defaultTeam: "C",
+    cureLagWorkingDays: 0,
+    allowedFloors: ["PAV_SUPERIOR", "TERREO", "FUNDACAO", "AREA_EXTERNA"],
+    verticalOrder: "TOP_DOWN",
+    stageCodes: ["18", "19", "20", "21", "22", "23", "24", "25", "26"],
+    keywords: /ENFIAC|QUADRO|LUMINOT|LUMINAR|LOUCA|METAIS|PAISAG|LIMPEZA|ENTREGA/,
+  },
+];
+
+export function resolveConstructionRuleForPackage(
+  pkg: Pick<FloorMatrixServicePackage, "name" | "discipline" | "linkedEapStageCodes">
+): ConstructionSequenceRule {
+  const text = `${pkg.name} ${pkg.discipline}`.toUpperCase();
+  const stages = pkg.linkedEapStageCodes.map((s) => s.trim());
+
+  // Verifica palavras-chave específicas primeiro (evita ambiguidade de "Chapisco/Reboco" ou "Pintura")
+  for (const rule of CONSTRUCTION_SEQUENCE_RULES) {
+    if (rule.keywords.test(text)) {
+      return rule;
+    }
+  }
+  for (const rule of CONSTRUCTION_SEQUENCE_RULES) {
+    if (stages.some((sc) => rule.stageCodes.includes(sc))) {
+      return rule;
+    }
+  }
+  return CONSTRUCTION_SEQUENCE_RULES[3]; // Fallback seguro: Vedação (Fase 4)
+}
+
+export function isPackageAllowedOnFloor(
+  rule: ConstructionSequenceRule,
+  floor: LobFloorDefinition
+): boolean {
+  const fid = floor.floorId.toUpperCase();
+  const knownCanonical = ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA", "AREA_EXTERNA"];
+  if (!knownCanonical.includes(fid)) {
+    // Pavimentos customizados (ex.: Subsolo, Mezanino) aceitam fases construtivas gerais
+    return rule.phaseOrder >= 2;
+  }
+  return rule.allowedFloors.includes(fid);
+}
+
 export function inferDefaultTeamCodeForPackage(
-  pkg: Pick<FloorMatrixServicePackage, "linkedEapStageCodes" | "discipline">,
+  pkg: Pick<FloorMatrixServicePackage, "linkedEapStageCodes" | "discipline"> & { name?: string },
   workTeams: FloorMatrixWorkTeam[]
 ): string {
   const available = new Set(workTeams.map((t) => t.teamCode.toUpperCase()));
-  const stages = pkg.linkedEapStageCodes;
+  const rule = resolveConstructionRuleForPackage({
+    name: pkg.name ?? "",
+    discipline: pkg.discipline,
+    linkedEapStageCodes: pkg.linkedEapStageCodes,
+  });
 
-  if (stages.some((c) => ["08", "09", "10"].includes(c)) && available.has("B")) {
-    return "B";
-  }
-  if (
-    stages.some((c) => Number(c) >= 11 && Number(c) <= 26) &&
-    available.has("C")
-  ) {
-    return "C";
+  if (available.has(rule.defaultTeam)) {
+    return rule.defaultTeam;
   }
   if (available.has("A")) {
     return "A";
@@ -1266,8 +1401,92 @@ export function computeTeamDailyCostEstimate(team: FloorMatrixWorkTeam): number 
 }
 
 /**
- * Gera automaticamente a matriz LOB (Pavimentos × Datas) cruzando quantitativos da EAP,
- * produtividade dos pacotes e limites diários das equipes A, B, C...
+ * Calcula a data mínima de liberação física para um nó (pavimento, pacote),
+ * garantindo:
+ * 1. Predecessoras explícitas do pacote no mesmo pavimento;
+ * 2. Trava global da Fase 2 (Fundação) + cura antes de qualquer estrutura/vedação/acabamento;
+ * 3. Trava vertical da Fase 3 (Supraestrutura): FUNDACAO -> TERREO -> PAV_SUPERIOR -> COBERTA (+ cura);
+ * 4. Cadeia física intra-pavimento: Supraestrutura -> Alvenaria -> MEP Embutido -> Chapisco/Reboco -> Acabamentos -> Finais;
+ * 5. Trava de estanqueidade (Fase 5 Cobertura/Impermeabilização) antes de Acabamentos (Fase 8).
+ */
+function computeEarliestPhysicalStart(input: {
+  baseStart: string;
+  floor: LobFloorDefinition;
+  orderedFloors: LobFloorDefinition[];
+  pkg: FloorMatrixServicePackage;
+  rule: ConstructionSequenceRule;
+  pkgEndByFloor: Map<string, string>;
+  phaseEndByFloor: Map<string, string>;
+  phaseMaxEndGlobal: Map<number, string>;
+  pkgRuleMap: Map<number, ConstructionSequenceRule>;
+  holidaySet: Set<string>;
+}): string {
+  let earliest = input.baseStart;
+
+  const advanceAfter = (endIso: string | undefined, lagWorkingDays: number) => {
+    if (!endIso) return;
+    const target = stepWorkingDayUTC(endIso, 1 + Math.max(0, lagWorkingDays), input.holidaySet);
+    if (target > earliest) earliest = target;
+  };
+
+  // 1. Predecessoras explícitas no mesmo pavimento
+  for (const predNum of input.pkg.predecessorNumbers) {
+    const predEnd = input.pkgEndByFloor.get(`${input.floor.floorId}::${predNum}`);
+    const predLag = input.pkgRuleMap.get(predNum)?.cureLagWorkingDays ?? 0;
+    advanceAfter(predEnd, predLag);
+  }
+
+  const pOrder = input.rule.phaseOrder;
+  const fid = input.floor.floorId;
+
+  // 2. Trava global de Fundação (Fase 2) antes de qualquer Fase >= 3
+  if (pOrder >= 3) {
+    advanceAfter(input.phaseMaxEndGlobal.get(2), 2);
+  }
+
+  // 3. Trava vertical de Supraestrutura (Fase 3)
+  if (pOrder === 3) {
+    const myIdx = input.orderedFloors.findIndex((f) => f.floorId === fid);
+    for (let i = 0; i < myIdx; i++) {
+      const lowerFloor = input.orderedFloors[i];
+      advanceAfter(input.phaseEndByFloor.get(`${lowerFloor.floorId}::3`), 2);
+    }
+  }
+
+  // 4. Cadeia física intra-pavimento
+  if (pOrder === 4) {
+    // Vedação/Alvenaria só após Supraestrutura do mesmo pavimento
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::3`), 0);
+  } else if (pOrder === 5) {
+    // Cobertura & Estanqueidade após Supraestrutura/Alvenaria do topo (ou do pavimento)
+    advanceAfter(input.phaseMaxEndGlobal.get(3), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`), 0);
+  } else if (pOrder === 6) {
+    // Embutidos MEP só após Alvenaria do mesmo pavimento
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`), 0);
+  } else if (pOrder === 7) {
+    // Revestimentos Brutos (Chapisco/Reboco) só após Alvenaria + Embutidos MEP do mesmo pavimento
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::3`), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::6`), 0);
+  } else if (pOrder === 8) {
+    // Acabamentos após Chapisco/Reboco (+ cura 2 d.u.) + Cobertura/Estanqueidade
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::7`), 2);
+    advanceAfter(input.phaseMaxEndGlobal.get(5), 0);
+  } else if (pOrder === 9) {
+    // Finais & Entrega após Acabamentos do mesmo pavimento (ou globais)
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::8`), 0);
+    if (/LIMPEZA|ENTREGA/.test(input.pkg.name.toUpperCase())) {
+      advanceAfter(input.phaseMaxEndGlobal.get(8), 0);
+    }
+  }
+
+  return earliest;
+}
+
+/**
+ * Gera automaticamente a matriz LOB (Pavimentos × Datas) com ordenação topológica rigorosa,
+ * respeito à cadeia construtiva real (Fases 1..9 + cura), escalonamento vertical e sem conflitos de equipe.
  * Quando a EAP ainda está vazia/zerada, aplica Estimativa Paramétrica Inteligente por área (fallback 180 m²).
  */
 export function generateIntelligentFloorLobMatrix(input: {
@@ -1294,6 +1513,10 @@ export function generateIntelligentFloorLobMatrix(input: {
 
   const stageLoadMap = new Map(input.stageLoads.map((s) => [s.stageCode, s]));
   const teamMap = new Map(input.workTeams.map((t) => [t.teamCode.toUpperCase(), t]));
+  const pkgRuleMap = new Map<number, ConstructionSequenceRule>();
+  for (const pkg of activePackages) {
+    pkgRuleMap.set(pkg.packageNumber, resolveConstructionRuleForPackage(pkg));
+  }
 
   const hasAnyEapQuantity = input.stageLoads.some((st) =>
     Object.values(st.floorQuantities).some((v) => Math.max(0, Number(v) || 0) > 0)
@@ -1307,9 +1530,24 @@ export function generateIntelligentFloorLobMatrix(input: {
     : [];
 
   const resultMap = new Map<string, LobFloorAllocationItem>();
-  const teamOccupancy = new Map<string, Set<string>>(); // "teamCode::dateIso" -> Set<"floorId::pkg">
-  const pkgEndByFloor = new Map<string, string>(); // "floorId::pkgNumber" -> maxDateIso
-  const lockedFloorDate = new Set<string>(); // "floorId::dateIso"
+  const teamOccupancy = new Map<string, Set<string>>();
+  const pkgEndByFloor = new Map<string, string>();
+  const phaseEndByFloor = new Map<string, string>();
+  const phaseMaxEndGlobal = new Map<number, string>();
+  const lockedFloorDate = new Set<string>();
+
+  const recordEndDate = (floorId: string, pkgNumber: number, rule: ConstructionSequenceRule, dateIso: string) => {
+    const endKey = `${floorId}::${pkgNumber}`;
+    const prevEnd = pkgEndByFloor.get(endKey);
+    if (!prevEnd || dateIso > prevEnd) pkgEndByFloor.set(endKey, dateIso);
+
+    const pfKey = `${floorId}::${rule.phaseOrder}`;
+    const prevPf = phaseEndByFloor.get(pfKey);
+    if (!prevPf || dateIso > prevPf) phaseEndByFloor.set(pfKey, dateIso);
+
+    const prevGl = phaseMaxEndGlobal.get(rule.phaseOrder);
+    if (!prevGl || dateIso > prevGl) phaseMaxEndGlobal.set(rule.phaseOrder, dateIso);
+  };
 
   for (const alloc of lockedAllocations) {
     const key = `${alloc.floorId}::${alloc.dateIso}::${alloc.teamCode}::${alloc.packageNumber}`;
@@ -1321,52 +1559,37 @@ export function generateIntelligentFloorLobMatrix(input: {
     occSet.add(`${alloc.floorId}::${alloc.packageNumber}`);
     teamOccupancy.set(occKey, occSet);
 
-    const endKey = `${alloc.floorId}::${alloc.packageNumber}`;
-    const prevEnd = pkgEndByFloor.get(endKey);
-    if (!prevEnd || alloc.dateIso > prevEnd) {
-      pkgEndByFloor.set(endKey, alloc.dateIso);
-    }
+    const rule = pkgRuleMap.get(alloc.packageNumber);
+    if (rule) recordEndDate(alloc.floorId, alloc.packageNumber, rule, alloc.dateIso);
   }
 
   const baseStart = stepWorkingDayUTC(input.startDate.slice(0, 10), 0, input.holidaySet);
-  const skippedNoLoadPackages: number[] = [];
-  let scheduledPackagesCount = 0;
-  let maxEndDate = baseStart;
+  const packagesToSchedule = hasAnyEapQuantity ? activePackages : activePackages.slice(0, 14);
 
-  const packageAppliesToFloorParametric = (
-    pkg: FloorMatrixServicePackage,
-    floor: LobFloorDefinition
-  ): boolean => {
-    const text = `${pkg.name} ${pkg.discipline}`.toUpperCase();
-    const fid = floor.floorId.toUpperCase();
-    if (fid === "FUNDACAO" || fid.includes("FUND")) {
-      return (
-        pkg.packageNumber <= 3 ||
-        /PRELIM|CANTEIRO|FUND|INFRA|TERRA|ESTAC|BALDRAM/.test(text)
-      );
-    }
-    if (fid === "COBERTA" || fid.includes("COBERT")) {
-      return /COBERT|TELHAD|IMPERMEAB|ESTRUT|LAJE/.test(text) || pkg.packageNumber === 2;
-    }
-    if (fid === "AREA_EXTERNA" || fid.includes("EXTERN")) {
-      return /EXTERN|PAISAG|MURO|CALCAD|PINTUR|DRENAG/.test(text);
-    }
-    return true;
-  };
+  interface ScheduledNode {
+    pkg: FloorMatrixServicePackage;
+    rule: ConstructionSequenceRule;
+    floor: LobFloorDefinition;
+    floorIdx: number;
+    teamCode: string;
+    maxFronts: number;
+    workingDaysNeeded: number;
+  }
 
-  const packagesToSchedule = hasAnyEapQuantity
-    ? activePackages
-    : activePackages.slice(0, 12);
+  const nodes: ScheduledNode[] = [];
+  const packagesWithNodes = new Set<number>();
 
   for (const pkg of packagesToSchedule) {
+    const rule = pkgRuleMap.get(pkg.packageNumber) ?? resolveConstructionRuleForPackage(pkg);
     const teamCode = inferDefaultTeamCodeForPackage(pkg, input.workTeams);
     const team = teamMap.get(teamCode);
     const maxFronts = Math.max(1, team?.maxSimultaneousFronts ?? 1);
     const effectiveCap = computeEffectiveDailyCapacity(pkg, team);
 
-    let pkgHasAnyLoad = false;
+    for (let floorIdx = 0; floorIdx < orderedFloors.length; floorIdx++) {
+      const floor = orderedFloors[floorIdx];
+      if (!isPackageAllowedOnFloor(rule, floor)) continue;
 
-    for (const floor of orderedFloors) {
       let floorQty = 0;
       for (const stageCode of pkg.linkedEapStageCodes) {
         const load = stageLoadMap.get(stageCode);
@@ -1380,99 +1603,119 @@ export function generateIntelligentFloorLobMatrix(input: {
         if (floorQty <= 0) continue;
         workingDaysNeeded = Math.max(1, Math.ceil(floorQty / effectiveCap));
       } else {
-        if (!packageAppliesToFloorParametric(pkg, floor)) continue;
         const speedRatio = Math.max(
           0.5,
           Math.min(2, effectiveCap / Math.max(1, pkg.productivityPerDay || 1))
         );
-        workingDaysNeeded = Math.max(2, Math.min(10, Math.round((3 * areaFactor) / speedRatio)));
+        workingDaysNeeded = Math.max(2, Math.min(8, Math.round((2.6 * areaFactor) / speedRatio)));
       }
 
-      pkgHasAnyLoad = true;
-
-      // Respeita predecessores no mesmo pavimento
-      let earliestStart = baseStart;
-      for (const predNum of pkg.predecessorNumbers) {
-        const predEnd = pkgEndByFloor.get(`${floor.floorId}::${predNum}`);
-        if (predEnd) {
-          const nextAfterPred = stepWorkingDayUTC(predEnd, 1, input.holidaySet);
-          if (nextAfterPred > earliestStart) {
-            earliestStart = nextAfterPred;
-          }
-        }
-      }
-
-      // Encontra a primeira janela contínua livre respeitando maxSimultaneousFronts da equipe
-      let candidateStart = earliestStart;
-      let allocatedDates: string[] = [];
-      let guard = 0;
-
-      while (guard < 500) {
-        const windowDates: string[] = [];
-        let cursor = candidateStart;
-        let validWindow = true;
-
-        for (let d = 0; d < workingDaysNeeded; d++) {
-          const occKey = `${teamCode}::${cursor}`;
-          const usedFronts = teamOccupancy.get(occKey)?.size ?? 0;
-          if (usedFronts >= maxFronts) {
-            validWindow = false;
-            break;
-          }
-          windowDates.push(cursor);
-          cursor = stepWorkingDayUTC(cursor, 1, input.holidaySet);
-        }
-
-        if (validWindow) {
-          allocatedDates = windowDates;
-          break;
-        }
-        candidateStart = stepWorkingDayUTC(candidateStart, 1, input.holidaySet);
-        guard += 1;
-      }
-
-      for (const dateIso of allocatedDates) {
-        if (input.preserveLocked && lockedFloorDate.has(`${floor.floorId}::${dateIso}`)) {
-          continue;
-        }
-        const key = `${floor.floorId}::${dateIso}::${teamCode}::${pkg.packageNumber}`;
-        resultMap.set(key, {
-          floorId: floor.floorId,
-          floorName: floor.floorName,
-          floorOrder: floor.floorOrder,
-          dateIso,
-          teamCode,
-          packageNumber: pkg.packageNumber,
-          isOvertime: false,
-          isLocked: false,
-        });
-
-        const occKey = `${teamCode}::${dateIso}`;
-        const occSet = teamOccupancy.get(occKey) ?? new Set<string>();
-        occSet.add(`${floor.floorId}::${pkg.packageNumber}`);
-        teamOccupancy.set(occKey, occSet);
-
-        const endKey = `${floor.floorId}::${pkg.packageNumber}`;
-        const prevEnd = pkgEndByFloor.get(endKey);
-        if (!prevEnd || dateIso > prevEnd) {
-          pkgEndByFloor.set(endKey, dateIso);
-        }
-        if (dateIso > maxEndDate) {
-          maxEndDate = dateIso;
-        }
-      }
-    }
-
-    if (pkgHasAnyLoad) {
-      scheduledPackagesCount += 1;
-    } else {
-      skippedNoLoadPackages.push(pkg.packageNumber);
+      packagesWithNodes.add(pkg.packageNumber);
+      nodes.push({
+        pkg,
+        rule,
+        floor,
+        floorIdx,
+        teamCode,
+        maxFronts,
+        workingDaysNeeded,
+      });
     }
   }
 
+  // Ordenação Topológica Rigorosa: Fase (1..9) -> Pacote -> Hierarquia Vertical
+  nodes.sort((a, b) => {
+    if (a.rule.phaseOrder !== b.rule.phaseOrder) {
+      return a.rule.phaseOrder - b.rule.phaseOrder;
+    }
+    if (a.pkg.packageNumber !== b.pkg.packageNumber) {
+      return a.pkg.packageNumber - b.pkg.packageNumber;
+    }
+    if (a.rule.verticalOrder === "TOP_DOWN") {
+      return b.floorIdx - a.floorIdx;
+    }
+    return a.floorIdx - b.floorIdx;
+  });
+
+  let maxEndDate = baseStart;
+
+  for (const node of nodes) {
+    const earliestStart = computeEarliestPhysicalStart({
+      baseStart,
+      floor: node.floor,
+      orderedFloors,
+      pkg: node.pkg,
+      rule: node.rule,
+      pkgEndByFloor,
+      phaseEndByFloor,
+      phaseMaxEndGlobal,
+      pkgRuleMap,
+      holidaySet: input.holidaySet,
+    });
+
+    let candidateStart = earliestStart;
+    let allocatedDates: string[] = [];
+    let guard = 0;
+
+    while (guard < 700) {
+      const windowDates: string[] = [];
+      let cursor = candidateStart;
+      let validWindow = true;
+
+      for (let d = 0; d < node.workingDaysNeeded; d++) {
+        const occKey = `${node.teamCode}::${cursor}`;
+        const usedFronts = teamOccupancy.get(occKey)?.size ?? 0;
+        if (usedFronts >= node.maxFronts) {
+          validWindow = false;
+          break;
+        }
+        windowDates.push(cursor);
+        cursor = stepWorkingDayUTC(cursor, 1, input.holidaySet);
+      }
+
+      if (validWindow) {
+        allocatedDates = windowDates;
+        break;
+      }
+      candidateStart = stepWorkingDayUTC(candidateStart, 1, input.holidaySet);
+      guard += 1;
+    }
+
+    for (const dateIso of allocatedDates) {
+      if (input.preserveLocked && lockedFloorDate.has(`${node.floor.floorId}::${dateIso}`)) {
+        continue;
+      }
+      const key = `${node.floor.floorId}::${dateIso}::${node.teamCode}::${node.pkg.packageNumber}`;
+      resultMap.set(key, {
+        floorId: node.floor.floorId,
+        floorName: node.floor.floorName,
+        floorOrder: node.floor.floorOrder,
+        dateIso,
+        teamCode: node.teamCode,
+        packageNumber: node.pkg.packageNumber,
+        isOvertime: false,
+        isLocked: false,
+      });
+
+      const occKey = `${node.teamCode}::${dateIso}`;
+      const occSet = teamOccupancy.get(occKey) ?? new Set<string>();
+      occSet.add(`${node.floor.floorId}::${node.pkg.packageNumber}`);
+      teamOccupancy.set(occKey, occSet);
+
+      recordEndDate(node.floor.floorId, node.pkg.packageNumber, node.rule, dateIso);
+      if (dateIso > maxEndDate) {
+        maxEndDate = dateIso;
+      }
+    }
+  }
+
+  const skippedNoLoadPackages = packagesToSchedule
+    .filter((p) => !packagesWithNodes.has(p.packageNumber))
+    .map((p) => p.packageNumber);
+
   return {
     allocations: Array.from(resultMap.values()),
-    scheduledPackagesCount,
+    scheduledPackagesCount: packagesWithNodes.size,
     skippedNoLoadPackages,
     endDate: maxEndDate,
     usedParametricFallback: !hasAnyEapQuantity,
@@ -1555,18 +1798,43 @@ export function analyzeFloorMatrixConflicts(input: {
     }
   }
 
-  // Verifica quebra de precedência dentro de cada pavimento
+  // Verifica quebra de precedência explícita e física (Fases 1..9 + Trava Global Fundação + Vertical)
+  const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
+  const phaseBoundsByFloor = new Map<string, { min: string; max: string }>();
+  const phaseMaxGlobal = new Map<number, string>();
+  const pkgRuleMap = new Map<number, ConstructionSequenceRule>();
+  for (const p of input.servicePackages) {
+    pkgRuleMap.set(p.packageNumber, resolveConstructionRuleForPackage(p));
+  }
+
+  for (const [fpKey, bounds] of floorPkgBounds.entries()) {
+    const [floorId, pkgNumStr] = fpKey.split("::");
+    const pkgNumber = Number(pkgNumStr);
+    const rule = pkgRuleMap.get(pkgNumber);
+    if (!rule) continue;
+    const pfKey = `${floorId}::${rule.phaseOrder}`;
+    const prevPf = phaseBoundsByFloor.get(pfKey);
+    phaseBoundsByFloor.set(pfKey, {
+      min: !prevPf || bounds.min < prevPf.min ? bounds.min : prevPf.min,
+      max: !prevPf || bounds.max > prevPf.max ? bounds.max : prevPf.max,
+    });
+    const prevGl = phaseMaxGlobal.get(rule.phaseOrder);
+    if (!prevGl || bounds.max > prevGl) phaseMaxGlobal.set(rule.phaseOrder, bounds.max);
+  }
+
   for (const [fpKey, bounds] of floorPkgBounds.entries()) {
     const [floorId, pkgNumStr] = fpKey.split("::");
     const pkgNumber = Number(pkgNumStr);
     const pkg = pkgMap.get(pkgNumber);
     if (!pkg) continue;
+    const rule = pkgRuleMap.get(pkgNumber);
+    const floorName = floorMap.get(floorId)?.floorName || floorId;
 
+    // 2A. Predecessores explícitos no pavimento
     for (const predNum of pkg.predecessorNumbers) {
       const predBounds = floorPkgBounds.get(`${floorId}::${predNum}`);
       if (predBounds && bounds.min <= predBounds.max) {
         conflictCellKeySet.add(`${floorId}::${bounds.min}`);
-        const floorName = floorMap.get(floorId)?.floorName || floorId;
         conflicts.push({
           type: "PRECEDENCE_VIOLATION",
           severity: "critical",
@@ -1576,6 +1844,61 @@ export function analyzeFloorMatrixConflicts(input: {
           packageNumber: pkgNumber,
           message: `${floorName}: Pacote ${pkgNumber} (${pkg.name}) inicia em ${bounds.min} antes do término do predecessor #${predNum} (${predBounds.max}).`,
         });
+      }
+    }
+
+    // 2B. Validação da Cadeia Construtiva Física
+    if (rule) {
+      const fundMaxEnd = phaseMaxGlobal.get(2);
+      if (rule.phaseOrder >= 3 && fundMaxEnd && bounds.min <= fundMaxEnd) {
+        conflictCellKeySet.add(`${floorId}::${bounds.min}`);
+        conflicts.push({
+          type: "PRECEDENCE_VIOLATION",
+          severity: "critical",
+          floorId,
+          floorName,
+          dateIso: bounds.min,
+          packageNumber: pkgNumber,
+          message: `${floorName}: ${pkg.name} (${rule.phaseLabel}) inicia em ${bounds.min} antes da conclusão da Fundação (${fundMaxEnd}).`,
+        });
+      }
+
+      if (rule.phaseOrder === 3) {
+        const myIdx = orderedFloors.findIndex((f) => f.floorId === floorId);
+        for (let i = 0; i < myIdx; i++) {
+          const lower = orderedFloors[i];
+          const lowerStruct = phaseBoundsByFloor.get(`${lower.floorId}::3`);
+          if (lowerStruct && bounds.min <= lowerStruct.max) {
+            conflictCellKeySet.add(`${floorId}::${bounds.min}`);
+            conflicts.push({
+              type: "PRECEDENCE_VIOLATION",
+              severity: "critical",
+              floorId,
+              floorName,
+              dateIso: bounds.min,
+              packageNumber: pkgNumber,
+              message: `${floorName}: Supraestrutura inicia em ${bounds.min} antes da conclusão da estrutura em ${lower.floorName} (${lowerStruct.max}).`,
+            });
+          }
+        }
+      }
+
+      if (rule.phaseOrder === 7) {
+        for (const reqPhase of [4, 6]) {
+          const reqBounds = phaseBoundsByFloor.get(`${floorId}::${reqPhase}`);
+          if (reqBounds && bounds.min <= reqBounds.max) {
+            conflictCellKeySet.add(`${floorId}::${bounds.min}`);
+            conflicts.push({
+              type: "PRECEDENCE_VIOLATION",
+              severity: "critical",
+              floorId,
+              floorName,
+              dateIso: bounds.min,
+              packageNumber: pkgNumber,
+              message: `${floorName}: ${pkg.name} inicia em ${bounds.min} antes de concluir ${reqPhase === 4 ? "Alvenaria" : "Instalações Embutidas"} (${reqBounds.max}).`,
+            });
+          }
+        }
       }
     }
   }
@@ -1672,22 +1995,44 @@ export function autoLevelFloorMatrix(input: {
   const teamMap = new Map(input.workTeams.map((t) => [t.teamCode.toUpperCase(), t]));
   const floorOrderMap = new Map(input.floors.map((f) => [f.floorId, f.floorOrder]));
 
+  const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
+  const floorMap = new Map(input.floors.map((f) => [f.floorId, f]));
+  const pkgRuleMap = new Map<number, ConstructionSequenceRule>();
+  for (const p of input.servicePackages) {
+    pkgRuleMap.set(p.packageNumber, resolveConstructionRuleForPackage(p));
+  }
+
   const locked = input.allocations.filter((a) => a.isLocked);
   const unlocked = input.allocations.filter((a) => !a.isLocked);
 
   const occupancy = new Map<string, Set<string>>();
   const pkgEndByFloor = new Map<string, string>();
+  const phaseEndByFloor = new Map<string, string>();
+  const phaseMaxEndGlobal = new Map<number, string>();
   const finalList: LobFloorAllocationItem[] = [...locked];
+
+  const recordBlockEnd = (floorId: string, pkgNumber: number, dateIso: string) => {
+    const endKey = `${floorId}::${pkgNumber}`;
+    const prev = pkgEndByFloor.get(endKey);
+    if (!prev || dateIso > prev) pkgEndByFloor.set(endKey, dateIso);
+
+    const rule = pkgRuleMap.get(pkgNumber);
+    if (rule) {
+      const pfKey = `${floorId}::${rule.phaseOrder}`;
+      const prevPf = phaseEndByFloor.get(pfKey);
+      if (!prevPf || dateIso > prevPf) phaseEndByFloor.set(pfKey, dateIso);
+
+      const prevGl = phaseMaxEndGlobal.get(rule.phaseOrder);
+      if (!prevGl || dateIso > prevGl) phaseMaxEndGlobal.set(rule.phaseOrder, dateIso);
+    }
+  };
 
   for (const item of locked) {
     const occKey = `${item.teamCode.toUpperCase()}::${item.dateIso}`;
     const set = occupancy.get(occKey) ?? new Set<string>();
     set.add(`${item.floorId}::${item.packageNumber}`);
     occupancy.set(occKey, set);
-
-    const endKey = `${item.floorId}::${item.packageNumber}`;
-    const prev = pkgEndByFloor.get(endKey);
-    if (!prev || item.dateIso > prev) pkgEndByFloor.set(endKey, item.dateIso);
+    recordBlockEnd(item.floorId, item.packageNumber, item.dateIso);
   }
 
   // Agrupa blocos desbloqueados por (floorId, packageNumber, teamCode)
@@ -1700,6 +2045,9 @@ export function autoLevelFloorMatrix(input: {
   }
 
   const orderedBlocks = Array.from(blockMap.values()).sort((a, b) => {
+    const rA = pkgRuleMap.get(a[0].packageNumber)?.phaseOrder ?? 4;
+    const rB = pkgRuleMap.get(b[0].packageNumber)?.phaseOrder ?? 4;
+    if (rA !== rB) return rA - rB;
     const pkgDiff = a[0].packageNumber - b[0].packageNumber;
     if (pkgDiff !== 0) return pkgDiff;
     const flDiff =
@@ -1716,16 +2064,28 @@ export function autoLevelFloorMatrix(input: {
     const teamCode = sample.teamCode.toUpperCase();
     const maxFronts = Math.max(1, teamMap.get(teamCode)?.maxSimultaneousFronts ?? 1);
     const pkg = pkgMap.get(sample.packageNumber);
+    const rule = pkgRuleMap.get(sample.packageNumber);
+    const floorObj = floorMap.get(sample.floorId) ?? {
+      floorId: sample.floorId,
+      floorName: sample.floorName,
+      floorOrder: sample.floorOrder,
+    };
 
     let minAllowedDate = sorted[0].dateIso;
-    if (pkg) {
-      for (const predNum of pkg.predecessorNumbers) {
-        const predEnd = pkgEndByFloor.get(`${sample.floorId}::${predNum}`);
-        if (predEnd) {
-          const nextWorking = stepWorkingDayUTC(predEnd, 1, input.holidaySet);
-          if (nextWorking > minAllowedDate) minAllowedDate = nextWorking;
-        }
-      }
+    if (pkg && rule) {
+      const physicalMin = computeEarliestPhysicalStart({
+        baseStart: sorted[0].dateIso,
+        floor: floorObj,
+        orderedFloors,
+        pkg,
+        rule,
+        pkgEndByFloor,
+        phaseEndByFloor,
+        phaseMaxEndGlobal,
+        pkgRuleMap,
+        holidaySet: input.holidaySet,
+      });
+      if (physicalMin > minAllowedDate) minAllowedDate = physicalMin;
     }
 
     let candidateStart = stepWorkingDayUTC(minAllowedDate, 0, input.holidaySet);
@@ -1733,7 +2093,7 @@ export function autoLevelFloorMatrix(input: {
     let chosenDates: string[] = [];
     let guard = 0;
 
-    while (guard < 500) {
+    while (guard < 700) {
       const windowDates: string[] = [];
       let cursor = candidateStart;
       let ok = true;
@@ -1773,9 +2133,7 @@ export function autoLevelFloorMatrix(input: {
       set.add(`${orig.floorId}::${orig.packageNumber}`);
       occupancy.set(occKey, set);
 
-      const endKey = `${orig.floorId}::${orig.packageNumber}`;
-      const prev = pkgEndByFloor.get(endKey);
-      if (!prev || nextDate > prev) pkgEndByFloor.set(endKey, nextDate);
+      recordBlockEnd(orig.floorId, orig.packageNumber, nextDate);
     }
   }
 
