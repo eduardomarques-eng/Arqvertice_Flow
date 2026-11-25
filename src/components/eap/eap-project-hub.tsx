@@ -186,6 +186,34 @@ export function EapProjectHub({
     preservedManualCount: number;
     warningsCount: number;
   } | null>(null);
+
+  // Fluxo de 2 passos: mineração → conferência → confirmação
+  const [extractionStep, setExtractionStep] = useState<"idle" | "preview" | "confirming">("idle");
+  const [extractionResults, setExtractionResults] = useState<{
+    processedFiles: Array<{ id: string; fileName: string; discipline: string; versionCode: string; status: string; count: number }>;
+    acceptedItems: Array<{
+      description: string;
+      unit: string;
+      zoneQuantities: Record<string, number>;
+      eapStageCode: string;
+      rawCategory: string;
+      materialCatalogId: string | null;
+      laborRoleId: string | null;
+      code: string | null;
+      materialUnitCost: number;
+      laborUnitCost: number;
+      thirdPartyUnitCost: number;
+      sourceSoftware: string;
+      sourceFileId: string | null;
+      sourcePage: number;
+      sanityFlag: string | null;
+    }>;
+    conflictsCount: number;
+    sanityWarnings: string[];
+    carbonKgCo2: number | null;
+  } | null>(null);
+  const [stagingChecked, setStagingChecked] = useState<Set<string>>(new Set());
+  const [stagingEditedQuantities, setStagingEditedQuantities] = useState<Map<string, Record<string, number>>>(new Map());
   const [sources, setSources] = useState<SourceFileDTO[]>(initialEap?.sourceFiles ?? []);
   const [activeTab, setActiveTab] = useState<
     "sources" | "conference" | "costReport" | "planning" | "field" | "report"
@@ -385,32 +413,80 @@ export function EapProjectHub({
     setBusy("mine");
     setFeedback(null);
     setMiningSummary(null);
+    setExtractionStep("preview");
+    setStagingChecked(new Set());
+    setStagingEditedQuantities(new Map());
     try {
-      const res = await fetch(`/api/eap/projects/${projectId}/mine`, { method: "POST" });
+      const res = await fetch(`/api/eap/projects/${projectId}/mine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ previewOnly: true }),
+      });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setFeedback({ type: "error", text: json.error || "Falha na mineração." });
+        setFeedback({ type: "error", text: json.error || "Falha na extração de quantitativos." });
+        setExtractionStep("idle");
         return;
       }
-      const versions = Array.isArray(json.processedFiles)
-        ? json.processedFiles
-            .filter((f: { status: string }) => f.status === "PROCESSADO")
-            .map(
-              (f: { discipline: string; versionCode?: string }) =>
-                `${f.discipline} ${f.versionCode || "R00"}`
-            )
-        : [];
+      setExtractionResults({
+        processedFiles: json.processedFiles ?? [],
+        acceptedItems: json.acceptedItems ?? [],
+        conflictsCount: Number(json.conflictsCount || 0),
+        sanityWarnings: Array.isArray(json.sanityWarnings) ? json.sanityWarnings : [],
+        carbonKgCo2: json.carbonKgCo2 ?? null,
+      });
+      // Marca todos como selecionados por padrão
+      const allChecked = new Set<string>(
+        (json.acceptedItems ?? []).map((it: { description: string }) => it.description)
+      );
+      setStagingChecked(allChecked);
+    } catch {
+      setFeedback({ type: "error", text: "Falha de conexão ao extrair quantitativos." });
+      setExtractionStep("idle");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleConfirmMining() {
+    setBusy("confirming");
+    setExtractionStep("confirming");
+    setFeedback(null);
+    try {
+      const approvedItems = Array.from(stagingChecked).map((description) => ({
+        description,
+        include: true,
+        zoneQuantities: stagingEditedQuantities.get(description) || undefined,
+      }));
+      const res = await fetch(`/api/eap/projects/${projectId}/mine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ previewOnly: false, approvedItems }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setFeedback({ type: "error", text: json.error || "Falha ao aplicar quantitativos na EAP." });
+        setExtractionStep("preview");
+        return;
+      }
       setMiningSummary({
-        versions,
+        versions: [],
         acceptedItemsCount: Number(json.acceptedItemsCount || 0),
         preservedManualCount: Number(json.preservedManualCount || 0),
         warningsCount: Array.isArray(json.sanityWarnings) ? json.sanityWarnings.length : 0,
       });
       setFeedback({
         type: "success",
-        text: `Mineração concluída: ${json.acceptedItemsCount} item(ns) pré-preenchido(s) na Planilha EAP.`,
+        text: `Quantitativos aplicados: ${json.acceptedItemsCount} item(ns) importado(s) na Planilha EAP.`,
       });
+      setExtractionStep("idle");
+      setExtractionResults(null);
+      setStagingChecked(new Set());
+      setStagingEditedQuantities(new Map());
       router.refresh();
+    } catch {
+      setFeedback({ type: "error", text: "Falha de conexão ao aplicar quantitativos." });
+      setExtractionStep("preview");
     } finally {
       setBusy(null);
     }
@@ -642,10 +718,16 @@ export function EapProjectHub({
               <button
                 type="button"
                 onClick={handleMineAll}
-                disabled={busy === "mine" || activeSources.length === 0}
+                disabled={busy === "mine" || busy === "confirming" || activeSources.length === 0}
                 className="h-10 rounded-xl bg-slate-900 px-5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
               >
-                {busy === "mine" ? "Minerando Quantitativos..." : "⚡ Minerar & Pré-Preencher EAP"}
+                {extractionStep === "confirming"
+                  ? "Confirmando Importação..."
+                  : extractionStep === "preview"
+                    ? "Extração Pronta — Confira os Dados"
+                    : busy === "mine"
+                      ? "Extraindo Quantitativos..."
+                      : "⚡ Minerar & Pré-Preencher EAP"}
               </button>
             </div>
 
@@ -1010,6 +1092,215 @@ export function EapProjectHub({
                 sandbox={isHtmlFileName(previewSource.fileName) ? "" : undefined}
                 className="h-full w-full border-0 bg-white"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Conferência dos Quantitativos Extraídos (Passo 2) */}
+      {extractionStep === "preview" && extractionResults && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/40 bg-white/95 shadow-2xl backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/95">
+            <div className="shrink-0 border-b border-slate-200 px-5 py-3.5 dark:border-zinc-800">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                    Conferência dos Quantitativos Extraídos
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    Revise e edite os itens antes de gravar na Planilha EAP. Itens já editados manualmente serão preservados.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExtractionStep("idle")}
+                    className="h-8 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy === "confirming" || stagingChecked.size === 0}
+                    onClick={handleConfirmMining}
+                    className="h-8 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer dark:bg-emerald-500 dark:text-zinc-950"
+                  >
+                    {busy === "confirming" ? "Aplicando..." : "✅ Confirmar e Aplicar na Planilha EAP"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-4">
+                {extractionResults.processedFiles.map((pf) => (
+                  <div
+                    key={pf.id}
+                    className="rounded-xl border border-slate-200/90 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950/70"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-semibold text-slate-700 dark:text-zinc-300 truncate">
+                        {pf.discipline}
+                      </span>
+                      <Badge tone={pf.status === "PROCESSADO" ? "green" : "amber"}>
+                        {pf.status === "PROCESSADO" ? "OK" : "ERRO"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl font-bold text-slate-900 dark:text-zinc-100">{pf.count}</span>
+                      <span className="text-xs text-slate-500 dark:text-zinc-400">itens</span>
+                    </div>
+                    <p className="mt-1 text-[10px] text-slate-500 dark:text-zinc-400 truncate">
+                      {pf.fileName} · {pf.versionCode || "R00"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {extractionResults.sanityWarnings.length > 0 && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+                  <div className="flex items-start gap-2 mb-2">
+                    <span className="text-amber-900 dark:text-amber-200">⚠</span>
+                    <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                      Alertas de Sanidade ({extractionResults.sanityWarnings.length})
+                    </span>
+                  </div>
+                  <ul className="text-[10px] text-amber-800 dark:text-amber-300 space-y-1 list-disc pl-4">
+                    {extractionResults.sanityWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-slate-200/90 bg-white dark:border-zinc-700 dark:bg-zinc-950/70 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-600 dark:bg-zinc-900 dark:text-zinc-400">
+                      <tr>
+                        <th className="px-3 py-2.5 w-10">
+                          <input
+                            type="checkbox"
+                            checked={
+                              stagingChecked.size === extractionResults.acceptedItems.length &&
+                              extractionResults.acceptedItems.length > 0
+                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const all = new Set(extractionResults.acceptedItems.map((i) => i.description));
+                                setStagingChecked(all);
+                              } else {
+                                setStagingChecked(new Set());
+                              }
+                            }}
+                            className="rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                          />
+                        </th>
+                        <th className="px-3 py-2.5">Disciplina / Arquivo</th>
+                        <th className="px-3 py-2.5">Pavimento</th>
+                        <th className="px-3 py-2.5">Macro-Etapa EAP</th>
+                        <th className="px-3 py-2.5">Descrição Extraída</th>
+                        <th className="px-3 py-2.5 w-16">Unidade</th>
+                        <th className="px-3 py-2.5 w-20 text-right">Qtd. Extraída</th>
+                        <th className="px-3 py-2.5 w-24 text-right">Qtd. Editar</th>
+                        <th className="px-3 py-2.5 w-32">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
+                      {extractionResults.acceptedItems.map((item) => {
+                        const isChecked = stagingChecked.has(item.description);
+                        const zoneQty = Object.values(item.zoneQuantities).reduce((a, b) => a + b, 0);
+                        const editedQty = stagingEditedQuantities.get(item.description);
+                        const displayQty = editedQty
+                          ? Object.values(editedQty).reduce((a, b) => a + b, 0)
+                          : zoneQty;
+                        const isNew = item.sourceSoftware === "TEMPLATE" || item.code === null;
+                        return (
+                          <tr
+                            key={`${item.description}-${item.eapStageCode}`}
+                            className="text-[11px] hover:bg-slate-50/50 dark:hover:bg-zinc-900/30 group"
+                          >
+                            <td className="px-3 py-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const next = new Set(stagingChecked);
+                                  if (e.target.checked) next.add(item.description);
+                                  else next.delete(item.description);
+                                  setStagingChecked(next);
+                                }}
+                                className="rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 font-medium text-slate-700 dark:text-zinc-300 truncate">
+                              {item.rawCategory} · {item.sourceSoftware}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-600 dark:text-zinc-400 font-mono">
+                              {Object.entries(item.zoneQuantities)
+                                .filter(([, v]) => v > 0)
+                                .map(([zone]) => zone)
+                                .join(", ") || "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-600 dark:text-zinc-400 font-mono text-[10px]">
+                              {item.eapStageCode}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-900 dark:text-zinc-100 truncate max-w-xs">
+                              {item.description}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-600 dark:text-zinc-400 font-mono text-[10px]">
+                              {item.unit}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-900 dark:text-zinc-100">
+                              {displayQty.toFixed(2)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              {isChecked && (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editedQty ? Object.values(editedQty).reduce((a, b) => a + b, 0) : zoneQty}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value) || 0;
+                                    const zones = { ...item.zoneQuantities };
+                                    const firstZone = Object.keys(zones)[0] || "FUND_TERREO";
+                                    zones[firstZone] = val;
+                                    setStagingEditedQuantities((prev) => {
+                                      const next = new Map(prev);
+                                      next.set(item.description, zones);
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-20 h-7 rounded border border-slate-300 bg-white px-1.5 text-[10px] text-right focus:border-slate-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                                />
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge
+                                tone={isNew ? "blue" : isChecked ? "green" : "neutral"}
+                                className="text-[10px] px-2 py-1"
+                              >
+                                {isNew ? "Novo Item" : isChecked ? "Substituirá Preliminar" : "Protegido (Manual)"}
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-3 py-2 border-t border-slate-200/80 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950/50">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 dark:text-zinc-400">
+                      {stagingChecked.size} de {extractionResults.acceptedItems.length} item(ns) selecionado(s)
+                    </span>
+                    <span className="font-semibold text-slate-900 dark:text-zinc-100">
+                      {extractionResults.conflictsCount} conflito(s) de sobreposição detectado(s)
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

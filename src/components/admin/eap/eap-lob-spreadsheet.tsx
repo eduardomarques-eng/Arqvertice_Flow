@@ -95,9 +95,9 @@ const SCALE_LABELS: Record<LobTimeScale, string> = {
 };
 
 const LOB_DENSITY_CELL: Record<LobDensity, string> = {
-  COMPACTO: "h-7 min-w-[28px] text-[9px]",
-  PADRAO: "h-9 min-w-[36px] text-[10px]",
-  CONFORTAVEL: "h-11 min-w-[44px] text-[11px]",
+  COMPACTO: "h-8 min-w-[38px] text-[11px] font-semibold",
+  PADRAO: "h-9 min-w-[46px] text-xs font-bold tracking-tight",
+  CONFORTAVEL: "h-11 min-w-[56px] text-[13px] font-bold tracking-tight",
 };
 
 const LOB_DENSITY_LABELS: Record<LobDensity, string> = {
@@ -1156,8 +1156,14 @@ export function EapLobSpreadsheet({
           </div>
         </div>
 
-        {/* Painel de Legenda Funcional de Pacotes (Agrupado por Fase) */}
-        <div className="space-y-2 border-t border-slate-200/80 pt-2.5 pb-1 dark:border-zinc-800">
+        {/* Painel de Legenda Funcional de Pacotes (Agrupado por Fase) — flutuante sobreposto em tela cheia */}
+        <div
+          className={`space-y-2 pt-2.5 pb-1 dark:border-zinc-800 ${
+            fullMode
+              ? "absolute top-12 left-4 right-4 z-40 max-h-[55dvh] overflow-y-auto shadow-2xl backdrop-blur-xl rounded-2xl border border-white/40 bg-white/95 p-2 dark:border-zinc-800 dark:bg-zinc-900/90"
+              : "border-t border-slate-200/80"
+          }`}
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-300">
@@ -1190,6 +1196,15 @@ export function EapLobSpreadsheet({
                 ? "Modo Compacto"
                 : `Expandir Todas (${legendPhaseGroups.length} fases)`}
             </button>
+            {fullMode && (
+              <button
+                type="button"
+                onClick={() => setLegendExpanded(false)}
+                className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Fechar (Esc)
+              </button>
+            )}
           </div>
 
           <div

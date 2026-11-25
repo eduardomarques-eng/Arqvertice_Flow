@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
 import { ensureBaseEapItems, planMiningMerge } from "@/server/eap/base-items";
@@ -12,13 +13,61 @@ import { reconcileMinedCandidates } from "@/server/eap/reconciler";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const mineBodySchema = z.object({
+  previewOnly: z.boolean().optional(),
+  approvedItems: z
+    .array(
+      z.object({
+        elementKey: z.string().optional(),
+        description: z.string().optional(),
+        unit: z.string().optional(),
+        zoneQuantities: z
+          .object({
+            FUND_TERREO: z.number().min(0).default(0),
+            PAV_SUPERIOR: z.number().min(0).default(0),
+            COBERTURA: z.number().min(0).default(0),
+            EXTERNO: z.number().min(0).default(0),
+          })
+          .optional(),
+        include: z.boolean().optional(),
+      })
+    )
+    .optional(),
+});
+
+function decodeHtmlBuffer(rawBytes: Buffer): string {
+  const utf8Bom = Buffer.from([0xef, 0xbb, 0xbf]);
+  if (rawBytes.subarray(0, 3).equals(utf8Bom)) {
+    return rawBytes.subarray(3).toString("utf8");
+  }
+
+  const utf8Text = rawBytes.toString("utf8");
+  const replacementCount = (utf8Text.match(/\uFFFD/g) || []).length;
+  const latin1Text = rawBytes.toString("latin1");
+
+  const mojibakeLatin1 = /Ã|Â|Õ|É|Ç|Í|Ó|Ú|º|ª/.test(latin1Text);
+  const hasUtf8Replacement = replacementCount > 0;
+
+  if (hasUtf8Replacement && mojibakeLatin1) {
+    return latin1Text;
+  }
+  if (hasUtf8Replacement && !mojibakeLatin1) {
+    return latin1Text;
+  }
+  return utf8Text;
+}
+
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
     await requireRole("ADMIN");
     const { projectId } = await context.params;
+
+    const body = await request.json();
+    const parsedBody = mineBodySchema.parse(body);
+    const { previewOnly, approvedItems } = parsedBody;
 
     const eap = await prisma.eapProject.findUnique({
       where: { projectId },
@@ -111,11 +160,7 @@ export async function POST(
         let parsed;
 
         if (isHtml) {
-          const htmlText = rawBytes.toString("latin1").includes("Ã")
-            ? rawBytes.toString("utf8")
-            : rawBytes.toString("utf8").includes("\uFFFD")
-              ? rawBytes.toString("latin1")
-              : rawBytes.toString("utf8");
+          const htmlText = decodeHtmlBuffer(rawBytes);
           parsed = isTqs
             ? parseTqsHtml(htmlText, src.id)
             : parseRevitHtml(htmlText, { discipline: src.discipline, sourceFileId: src.id });
@@ -192,6 +237,25 @@ export async function POST(
       cityLabor,
     });
 
+    // Modo pré-visualização: apenas retorna dados, não grava na EAP
+    if (previewOnly === true) {
+      return NextResponse.json(
+        {
+          ok: true,
+          previewOnly: true,
+          processedFiles,
+          acceptedItems: reconciled.acceptedItems,
+          acceptedItemsCount: reconciled.acceptedItems.length,
+          conflictsCount: reconciled.conflicts.length,
+          sanityWarnings: reconciled.sanityWarnings,
+          steelRateKgPerM3: reconciled.steelRateKgPerM3,
+          carbonKgCo2: totalCarbonKgCo2,
+          zeroSteelAlert,
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
     const stageGroupMap = new Map<string, string>();
     for (const stage of eap.stages) {
       const firstGroup = stage.groups[0];
@@ -203,6 +267,24 @@ export async function POST(
 
     const markupMultiplier = 1 + (eap.bdiPercent || 0) / 100;
     let preservedManualCount = 0;
+    let appliedCount = 0;
+
+    const approved = approvedItems ?? [];
+    const acceptedItems = reconciled.acceptedItems;
+    const approvedDescriptions = new Set<string>();
+    const approvedZoneQuantities = new Map<string, Record<string, number>>();
+    for (const ap of approved) {
+      if (!ap.include) continue;
+      if (ap.description) approvedDescriptions.add(ap.description);
+      if (ap.zoneQuantities) {
+        approvedZoneQuantities.set(ap.description ?? ap.elementKey ?? "", ap.zoneQuantities);
+      }
+    }
+
+    const itemsToApply =
+      approvedDescriptions.size > 0
+        ? acceptedItems.filter((it) => approvedDescriptions.has(it.description))
+        : acceptedItems;
 
     await prisma.$transaction(async (tx) => {
       // Garante a estrutura-base pré-carregada por disciplina antes do preenchimento
@@ -239,7 +321,7 @@ export async function POST(
       if (fallbackGroupId) {
         const mergePlan = planMiningMerge({
           existingItems,
-          acceptedItems: reconciled.acceptedItems,
+          acceptedItems: itemsToApply,
           groupByStageCode: stageGroupMap,
           fallbackGroupId,
           defaultMarkup: markupMultiplier,
@@ -247,6 +329,7 @@ export async function POST(
         preservedManualCount = mergePlan.preservedManualCount;
 
         for (const upd of mergePlan.updates) {
+          const zq = approvedZoneQuantities.get(upd.description) ?? upd.zoneQuantities;
           await tx.eapItem.update({
             where: { id: upd.id },
             data: {
@@ -255,7 +338,7 @@ export async function POST(
               code: upd.code,
               description: upd.description,
               unit: upd.unit,
-              zoneQuantitiesJson: upd.zoneQuantities,
+              zoneQuantitiesJson: zq,
               lossPercent: upd.lossPercent,
               materialUnitCost: upd.materialUnitCost,
               laborUnitCost: upd.laborUnitCost,
@@ -267,6 +350,7 @@ export async function POST(
               dataOrigin: "QUANTITATIVO_IMPORTADO",
             },
           });
+          appliedCount += 1;
         }
 
         if (mergePlan.resetTemplateIds.length > 0) {
@@ -296,29 +380,33 @@ export async function POST(
 
         if (mergePlan.creates.length > 0) {
           await tx.eapItem.createMany({
-            data: mergePlan.creates.map((c) => ({
-              groupId: c.groupId,
-              materialCatalogId: c.materialCatalogId,
-              laborRoleId: c.laborRoleId,
-              code: c.code,
-              description: c.description,
-              unit: c.unit,
-              zoneQuantitiesJson: c.zoneQuantities,
-              lossPercent: c.lossPercent,
-              materialUnitCost: c.materialUnitCost,
-              laborUnitCost: c.laborUnitCost,
-              thirdPartyUnitCost: c.thirdPartyUnitCost,
-              markupMultiplier: c.markupMultiplier,
-              teamsCount: 1,
-              sourceSoftware: c.sourceSoftware,
-              sourceFileId: c.sourceFileId,
-              sourcePage: c.sourcePage,
-              sanityFlag: c.sanityFlag,
-              revisionTag: "ORIGINAL",
-              dataOrigin: "QUANTITATIVO_IMPORTADO",
-              orderIndex: c.orderIndex,
-            })),
+            data: mergePlan.creates.map((c) => {
+              const zq = approvedZoneQuantities.get(c.description) ?? c.zoneQuantities;
+              return {
+                groupId: c.groupId,
+                materialCatalogId: c.materialCatalogId,
+                laborRoleId: c.laborRoleId,
+                code: c.code,
+                description: c.description,
+                unit: c.unit,
+                zoneQuantitiesJson: zq,
+                lossPercent: c.lossPercent,
+                materialUnitCost: c.materialUnitCost,
+                laborUnitCost: c.laborUnitCost,
+                thirdPartyUnitCost: c.thirdPartyUnitCost,
+                markupMultiplier: c.markupMultiplier,
+                teamsCount: 1,
+                sourceSoftware: c.sourceSoftware,
+                sourceFileId: c.sourceFileId,
+                sourcePage: c.sourcePage,
+                sanityFlag: c.sanityFlag,
+                revisionTag: "ORIGINAL",
+                dataOrigin: "QUANTITATIVO_IMPORTADO",
+                orderIndex: c.orderIndex,
+              };
+            }),
           });
+          appliedCount += mergePlan.creates.length;
         }
       }
 
@@ -354,7 +442,7 @@ export async function POST(
       {
         ok: true,
         processedFiles,
-        acceptedItemsCount: reconciled.acceptedItems.length,
+        acceptedItemsCount: appliedCount,
         preservedManualCount,
         conflictsCount: reconciled.conflicts.length,
         sanityWarnings: reconciled.sanityWarnings,
