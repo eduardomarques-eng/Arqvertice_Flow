@@ -186,7 +186,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             {k.workingDaysTotal} d.u.
           </p>
           <p className="mt-1 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
-            {k.calendarDaysTotal} d.c. (~{k.monthsEstimated} meses)
+            {k.calendarDaysTotal} d.c. (~{k.monthsEstimated} meses) · -{k.daysSavedByParallelism}d paralel.
           </p>
         </Card>
 
@@ -241,48 +241,162 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
               Cronograma Gantt por Fase &amp; Pacote (Timeline Visual Colorida)
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-              Barras escalonadas de início, duração em dias úteis e término dos pacotes na sequência construtiva.
+              Agrupamento por fase construtiva, janelas de cura (tracejado âmbar) e paralelismo real entre equipes ({k.daysSavedByParallelism} d.u. economizados).
             </p>
           </div>
-          <Badge tone="neutral">{report.packages.length} pacotes sequenciados</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="green">Cura &amp; Fast-Tracking</Badge>
+            <Badge tone="neutral">{report.packages.length} pacotes sequenciados</Badge>
+          </div>
         </div>
 
-        <div className="space-y-2 overflow-x-auto">
-          <div className="min-w-[680px] space-y-1.5">
-            {report.packages.map((pkg) => (
-              <div
-                key={pkg.packageNumber}
-                className="grid grid-cols-[240px_1fr_72px] items-center gap-3 rounded-xl px-2 py-1 hover:bg-slate-50 dark:hover:bg-zinc-900/60"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold text-slate-900 dark:text-zinc-100">
-                    <span className="font-mono text-slate-500 dark:text-zinc-400">
-                      PCT {String(pkg.packageNumber).padStart(2, "0")}
-                    </span>{" "}
-                    · {pkg.packageName}
-                  </p>
-                  <p className="truncate text-[10px] text-slate-500 dark:text-zinc-400">
-                    {pkg.phaseName} · Eq. {pkg.teamCodes.join(", ")}
-                  </p>
-                </div>
-
-                <div className="relative h-5 w-full rounded-md bg-slate-100 dark:bg-zinc-800/80">
-                  <div
-                    className="absolute top-0.5 bottom-0.5 rounded-md shadow-xs transition-all"
-                    style={{
-                      left: `${(pkg.startRatio * 100).toFixed(2)}%`,
-                      width: `${Math.max(1.5, pkg.widthRatio * 100).toFixed(2)}%`,
-                      backgroundColor: pkg.corHex,
-                    }}
-                    title={`${pkg.packageName}: ${fmtDateBR(pkg.startDate)} → ${fmtDateBR(pkg.endDate)} (${pkg.workingDays} d.u.)`}
-                  />
-                </div>
-
-                <div className="text-right font-mono text-[11px] font-bold tabular-nums text-slate-700 dark:text-zinc-300">
-                  {pkg.workingDays} d.u.
-                </div>
+        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-zinc-800">
+          <div className="min-w-[880px]">
+            {/* Cabeçalho de Meses */}
+            <div className="grid grid-cols-[320px_1fr_92px] items-center border-b border-slate-200 bg-slate-900 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white dark:border-zinc-800 dark:bg-zinc-950">
+              <span>Pacote / Equipe</span>
+              <div className="relative h-4">
+                {report.monthlyHistogram.map((m, idx, arr) => {
+                  const leftPct = arr.length <= 1 ? 0 : (idx / arr.length) * 100;
+                  return (
+                    <span
+                      key={m.monthKey}
+                      style={{ left: `${leftPct.toFixed(1)}%` }}
+                      className="absolute top-0 text-[10px] font-semibold text-slate-300"
+                    >
+                      {m.monthLabel}
+                    </span>
+                  );
+                })}
               </div>
-            ))}
+              <span className="text-right">Duração</span>
+            </div>
+
+            {/* Grupos por Fase Construtiva */}
+            {Array.from(
+              report.packages.reduce((acc, pkg) => {
+                const list = acc.get(pkg.phaseGroupKey) ?? [];
+                list.push(pkg);
+                acc.set(pkg.phaseGroupKey, list);
+                return acc;
+              }, new Map<string, typeof report.packages>())
+            ).map(([groupKey, groupPkgs]) => {
+              const first = groupPkgs[0];
+              const groupDays = groupPkgs.reduce((s, p) => s + p.workingDays, 0);
+              return (
+                <div key={groupKey} className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+                  {/* Faixa de Cabeçalho da Fase */}
+                  <div
+                    className="flex items-center justify-between px-3 py-1.5 text-[11px] font-extrabold tracking-wide bg-slate-100/90 dark:bg-zinc-900/90"
+                    style={{ borderLeft: `4px solid ${first.phaseGroupColorHex}` }}
+                  >
+                    <span style={{ color: first.phaseGroupColorHex }}>
+                      {first.phaseGroupTitle}
+                    </span>
+                    <span className="font-mono text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                      {groupPkgs.length} pct · {groupDays} d.u. acumulados
+                    </span>
+                  </div>
+
+                  {groupPkgs.map((pkg, rowIdx) => {
+                    const leftPct = pkg.startRatio * 100;
+                    const widthPct = Math.max(1.8, pkg.widthRatio * 100);
+                    const curePct = pkg.cureWidthRatio * 100;
+                    const teamTag = `Eq. ${pkg.teamCodes.join(",")}`;
+                    const predsText =
+                      pkg.predecessorNumbers.length > 0
+                        ? pkg.predecessorNumbers.map((n) => `PCT ${String(n).padStart(2, "0")}`).join(", ")
+                        : "Nenhuma";
+
+                    return (
+                      <div
+                        key={pkg.packageNumber}
+                        className={`grid grid-cols-[320px_1fr_92px] items-center gap-3 px-3 py-1.5 transition hover:bg-blue-50/40 dark:hover:bg-zinc-900/70 ${
+                          rowIdx % 2 === 1 ? "bg-zinc-50/60 dark:bg-zinc-900/30" : "bg-white dark:bg-transparent"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-slate-900 dark:text-zinc-100">
+                              <span className="font-mono text-[11px] text-slate-500 dark:text-zinc-400">
+                                PCT {String(pkg.packageNumber).padStart(2, "0")}
+                              </span>{" "}
+                              · {pkg.packageName}
+                            </p>
+                            <p className="truncate text-[10px] text-slate-500 dark:text-zinc-400">
+                              {pkg.floorsLabel}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                            {teamTag}
+                          </span>
+                        </div>
+
+                        <div
+                          className="relative h-6 w-full rounded-md bg-slate-100/90 dark:bg-zinc-800/70"
+                          title={[
+                            `PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.packageName}`,
+                            `Início: ${fmtDateBR(pkg.startDate)} · Término: ${fmtDateBR(pkg.endDate)}`,
+                            `Pavimentos: ${pkg.floorsLabel}`,
+                            `Equipe: ${teamTag} · Duração: ${pkg.workingDays} d.u.`,
+                            `Predecessoras: ${predsText}`,
+                            pkg.cureLagWorkingDays > 0
+                              ? `Janela de Cura: ${pkg.cureLagWorkingDays} d.u.`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join("\n")}
+                        >
+                          {/* Linhas guia verticais por mês */}
+                          {report.monthlyHistogram.map((m, mIdx, arr) => {
+                            const mLeft = arr.length <= 1 ? 0 : (mIdx / arr.length) * 100;
+                            return (
+                              <span
+                                key={m.monthKey}
+                                style={{ left: `${mLeft.toFixed(2)}%` }}
+                                className="pointer-events-none absolute top-0 bottom-0 w-px bg-slate-200/70 dark:bg-zinc-700/50"
+                              />
+                            );
+                          })}
+
+                          {/* Barra principal colorida por fase */}
+                          <div
+                            className="absolute top-1 bottom-1 flex items-center overflow-hidden rounded-md px-1.5 shadow-xs"
+                            style={{
+                              left: `${leftPct.toFixed(2)}%`,
+                              width: `${widthPct.toFixed(2)}%`,
+                              backgroundColor: pkg.phaseGroupColorHex,
+                            }}
+                          >
+                            {widthPct >= 9 && (
+                              <span className="truncate font-mono text-[9px] font-bold text-white">
+                                {teamTag} · {pkg.workingDays}d
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Marcador sutil de Cura / Lag */}
+                          {curePct > 0 && (
+                            <div
+                              className="absolute top-2 bottom-2 rounded-r border border-dashed border-amber-500 bg-amber-200/70 dark:border-amber-400 dark:bg-amber-900/50"
+                              style={{
+                                left: `${Math.min(99, leftPct + widthPct).toFixed(2)}%`,
+                                width: `${Math.min(100 - (leftPct + widthPct), curePct).toFixed(2)}%`,
+                              }}
+                              title={`Cura técnica obrigatória: ${pkg.cureLagWorkingDays} d.u.`}
+                            />
+                          )}
+                        </div>
+
+                        <div className="text-right font-mono text-[11px] font-bold tabular-nums text-slate-700 dark:text-zinc-300">
+                          {pkg.workingDays} d.u.
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </Card>

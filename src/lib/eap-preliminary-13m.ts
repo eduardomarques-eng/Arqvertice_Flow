@@ -319,8 +319,8 @@ export function generatePreliminary13MonthLobMatrix(input: {
   });
 
   const currentDays = countUniqueWorkingDays(baseRun.allocations);
-  // Se já estiver dentro ou próximo da faixa de 13 meses (240..290 d.u.), retorna direto
-  if (currentDays >= 240 && currentDays <= 290) {
+  // Se já estiver dentro da faixa otimizada abaixo de 13 meses (210..245 d.u.), retorna direto
+  if (currentDays >= 210 && currentDays <= 245) {
     return {
       allocations: baseRun.allocations.map((a) => ({
         ...a,
@@ -332,8 +332,8 @@ export function generatePreliminary13MonthLobMatrix(input: {
     };
   }
 
-  // Ajusta dinamicamente o fator de escala paramétrica (sem depender de EAP vazia) para atingir ~268 d.u. (13 meses)
-  const targetDays = 268;
+  // Ajusta dinamicamente o fator de escala paramétrica (sem depender de EAP vazia) para fechar em ~11 meses (232 d.u. < 13 meses)
+  const targetDays = 232;
   const scaleRatio = currentDays > 0 ? targetDays / currentDays : 1;
   const tunedPackages = input.servicePackages.map((sp) => {
     const baseProd = sp.productivityPerDay > 0 ? sp.productivityPerDay : 1;

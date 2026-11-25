@@ -1387,22 +1387,22 @@ export const CANONICAL_LOB_PACKAGE_RULES: Record<number, CanonicalLobPackageRule
   4: { packageNumber: 4, phaseOrder: 2, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["FUNDACAO"], predecessorNumbers: [3], defaultDurationDays: 6, matchHint: /FUNDAC|SAPATA|BLOCO/ },
   5: { packageNumber: 5, phaseOrder: 2, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["FUNDACAO"], predecessorNumbers: [4], defaultDurationDays: 5, matchHint: /BALDRAM|IMPERMEAB.*BASE/ },
   6: { packageNumber: 6, phaseOrder: 2, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["FUNDACAO"], predecessorNumbers: [5], defaultDurationDays: 4, matchHint: /ATERRO|LASTRO|ENTERRAD/ },
-  7: { packageNumber: 7, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["TERREO"], predecessorNumbers: [6], defaultDurationDays: 7, matchHint: /SUPRA.*TERREO/ },
-  8: { packageNumber: 8, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["PAV_SUPERIOR"], predecessorNumbers: [7], defaultDurationDays: 7, matchHint: /SUPRA.*SUPERIOR/ },
-  9: { packageNumber: 9, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["COBERTA"], predecessorNumbers: [8], defaultDurationDays: 5, matchHint: /SUPRA.*COBERT|PLATIBAND/ },
-  10: { packageNumber: 10, phaseOrder: 4, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["TERREO"], predecessorNumbers: [7], defaultDurationDays: 5, matchHint: /ALVENARIA.*TERREO/ },
-  11: { packageNumber: 11, phaseOrder: 4, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["PAV_SUPERIOR"], predecessorNumbers: [8, 10], defaultDurationDays: 5, matchHint: /ALVENARIA.*SUPERIOR/ },
-  12: { packageNumber: 12, phaseOrder: 4, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [11], defaultDurationDays: 3, matchHint: /VERGA|CONTRAVERGA|ENCUNH/ },
+  7: { packageNumber: 7, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 3, allowedFloors: ["TERREO"], predecessorNumbers: [6], defaultDurationDays: 7, matchHint: /SUPRA.*TERREO/ },
+  8: { packageNumber: 8, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 3, allowedFloors: ["PAV_SUPERIOR"], predecessorNumbers: [7], defaultDurationDays: 7, matchHint: /SUPRA.*SUPERIOR/ },
+  9: { packageNumber: 9, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 3, allowedFloors: ["COBERTA"], predecessorNumbers: [8], defaultDurationDays: 5, matchHint: /SUPRA.*COBERT|PLATIBAND/ },
+  10: { packageNumber: 10, phaseOrder: 4, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO"], predecessorNumbers: [7], defaultDurationDays: 5, matchHint: /ALVENARIA.*TERREO/ },
+  11: { packageNumber: 11, phaseOrder: 4, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["PAV_SUPERIOR"], predecessorNumbers: [8, 10], defaultDurationDays: 5, matchHint: /ALVENARIA.*SUPERIOR/ },
+  12: { packageNumber: 12, phaseOrder: 4, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [11], defaultDurationDays: 3, matchHint: /VERGA|CONTRAVERGA|ENCUNH/ },
   13: { packageNumber: 13, phaseOrder: 5, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["COBERTA"], predecessorNumbers: [9], defaultDurationDays: 5, matchHint: /COBERT|TELHA|CALHA/ },
   14: { packageNumber: 14, phaseOrder: 5, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["COBERTA", "PAV_SUPERIOR", "TERREO"], predecessorNumbers: [9, 12], defaultDurationDays: 4, matchHint: /IMPERMEAB.*LAJE|SACADA/ },
-  15: { packageNumber: 15, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [12], defaultDurationDays: 5, matchHint: /ELETRIC.*INFRA|RASGO|ELETRODUT/ },
+  15: { packageNumber: 15, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [10], defaultDurationDays: 5, matchHint: /ELETRIC.*INFRA|RASGO|ELETRODUT/ },
   16: { packageNumber: 16, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["COBERTA"], predecessorNumbers: [9, 14], defaultDurationDays: 3, matchHint: /RESERVATORIO|BARRILETE/ },
-  17: { packageNumber: 17, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [12, 16], defaultDurationDays: 5, matchHint: /HIDROSSANIT|PRUMADA|RAMAI/ },
-  18: { packageNumber: 18, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [12], defaultDurationDays: 4, matchHint: /CLIMATIZ|AR-COND|GAS/ },
-  19: { packageNumber: 19, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 2, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [15, 17, 18], defaultDurationDays: 6, matchHint: /CHAPISC.*INTERN|EMBOCO.*INTERN/ },
+  17: { packageNumber: 17, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [10, 16], defaultDurationDays: 5, matchHint: /HIDROSSANIT|PRUMADA|RAMAI/ },
+  18: { packageNumber: 18, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [10], defaultDurationDays: 4, matchHint: /CLIMATIZ|AR-COND|GAS/ },
+  19: { packageNumber: 19, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 3, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [15, 17, 18], defaultDurationDays: 6, matchHint: /CHAPISC.*INTERN|EMBOCO.*INTERN/ },
   20: { packageNumber: 20, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 1, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19], defaultDurationDays: 5, matchHint: /GESSO LISO|REBOCO.*GESSO/ },
-  21: { packageNumber: 21, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 2, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [13, 14], defaultDurationDays: 6, matchHint: /CHAPISC.*EXTERN|FACHADA/ },
-  22: { packageNumber: 22, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19, 21], defaultDurationDays: 3, matchHint: /CONTRAMARCO/ },
+  21: { packageNumber: 21, phaseOrder: 7, defaultTeam: "A", cureLagWorkingDays: 3, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [13, 14], defaultDurationDays: 6, matchHint: /CHAPISC.*EXTERN|FACHADA/ },
+  22: { packageNumber: 22, phaseOrder: 7, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19, 21], defaultDurationDays: 3, matchHint: /CONTRAMARCO/ },
   23: { packageNumber: 23, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 2, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19], defaultDurationDays: 4, matchHint: /CONTRAPISO|REGULARIZ/ },
   24: { packageNumber: 24, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19, 23], defaultDurationDays: 5, matchHint: /CERAMIC|PORCELANATO.*PAREDE/ },
   25: { packageNumber: 25, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [23, 24], defaultDurationDays: 6, matchHint: /ASSENTAMENTO.*PISO|RODAPE/ },
@@ -1411,7 +1411,7 @@ export const CANONICAL_LOB_PACKAGE_RULES: Record<number, CanonicalLobPackageRule
   28: { packageNumber: 28, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [25], defaultDurationDays: 4, matchHint: /MARMORARIA|BANCADA|SOLEIRA/ },
   29: { packageNumber: 29, phaseOrder: 9, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [26], defaultDurationDays: 5, matchHint: /ENFIAC|QUADRO|AUTOMAC/ },
   30: { packageNumber: 30, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [26, 28], defaultDurationDays: 5, matchHint: /PINTURA.*INTERNA.*1/ },
-  31: { packageNumber: 31, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [21, 22], defaultDurationDays: 5, matchHint: /PINTURA.*EXTERNA|TEXTURA/ },
+  31: { packageNumber: 31, phaseOrder: 8, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [21, 22], defaultDurationDays: 5, matchHint: /PINTURA.*EXTERNA|TEXTURA/ },
   32: { packageNumber: 32, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [22, 30, 31], defaultDurationDays: 4, matchHint: /ESQUADRIA.*ALUMIN|VIDRO/ },
   33: { packageNumber: 33, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [30, 32], defaultDurationDays: 3, matchHint: /PORTA.*MADEIRA|FERRAG/ },
   34: { packageNumber: 34, phaseOrder: 9, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [28, 29, 32], defaultDurationDays: 4, matchHint: /LOUCA|METAI|LUMINAR/ },
@@ -1752,27 +1752,31 @@ function computeEarliestPhysicalStart(input: {
   const pOrder = input.rule.phaseOrder;
   const fid = normalizeLobFloorId(input.floor.floorId);
 
-  // 1. Trava rígida de fase cumulativa:
-  // Uma fase P NUNCA pode começar antes do término das fases anteriores (1..P-1)
-  // que existam no escopo do projeto.
-  for (let prevP = 1; prevP < pOrder; prevP++) {
-    const prevGlEnd = input.phaseMaxEndGlobal.get(prevP);
-    const projectHasPrevPhase = Array.from(input.pkgRuleMap.values()).some(
-      (r) => r.phaseOrder === prevP
-    );
-    if (prevGlEnd) {
-      const cureLag = prevP === 2 ? 2 : prevP === 3 ? 2 : prevP === 7 ? 2 : 0;
-      advanceAfter(prevGlEnd, cureLag);
-    } else if (projectHasPrevPhase) {
-      const minDaysOffset = getCumulativePhaseMinWorkingDays(prevP);
-      const minDateForPhase = stepWorkingDayUTC(input.baseStart, minDaysOffset, input.holidaySet);
-      if (minDateForPhase > earliest) {
-        earliest = minDateForPhase;
-      }
+  // 1. Travas físicas globais essenciais (Fase 1 -> Fase 2 Fundação -> Fases 3+ acima do solo):
+  // Permite fast-tracking entre pavimentos (ex.: Alvenaria Térreo em paralelo à Supraestrutura Superior/Coberta)
+  // mantendo rigorosamente a Fundação concluída + cura antes de qualquer serviço elevado.
+  if (pOrder >= 2) {
+    const p1End = input.phaseMaxEndGlobal.get(1);
+    const hasP1 = Array.from(input.pkgRuleMap.values()).some((r) => r.phaseOrder === 1);
+    if (p1End) {
+      advanceAfter(p1End, 0);
+    } else if (hasP1) {
+      const minDate = stepWorkingDayUTC(input.baseStart, getCumulativePhaseMinWorkingDays(1), input.holidaySet);
+      if (minDate > earliest) earliest = minDate;
+    }
+  }
+  if (pOrder >= 3) {
+    const p2End = input.phaseMaxEndGlobal.get(2);
+    const hasP2 = Array.from(input.pkgRuleMap.values()).some((r) => r.phaseOrder === 2);
+    if (p2End) {
+      advanceAfter(p2End, 2); // 2 d.u. de cura da fundação/baldrames
+    } else if (hasP2) {
+      const minDate = stepWorkingDayUTC(input.baseStart, getCumulativePhaseMinWorkingDays(2), input.holidaySet);
+      if (minDate > earliest) earliest = minDate;
     }
   }
 
-  // 2. Predecessoras explícitas (no mesmo pavimento ou cross-floor)
+  // 2. Predecessoras explícitas (no mesmo pavimento ou cross-floor, respeitando janela de cura)
   for (const predNum of input.pkg.predecessorNumbers) {
     const predEnd =
       input.pkgEndByFloor.get(`${input.floor.floorId}::${predNum}`) ??
@@ -1797,38 +1801,36 @@ function computeEarliestPhysicalStart(input: {
   }
 
   // 3. Trava vertical de Supraestrutura (Fase 3):
-  // Pavimento inferior deve concluir e curar antes do superior
+  // Pavimento inferior deve concluir e curar (conforme cureLagWorkingDays da regra: 3 d.u. canônico) antes do superior
   if (pOrder === 3) {
     const myIdx = input.orderedFloors.findIndex(
       (f) => normalizeLobFloorId(f.floorId) === fid
     );
+    const verticalCureLag = Math.max(2, input.rule.cureLagWorkingDays ?? 3);
     for (let i = 0; i < myIdx; i++) {
       const lowerFloor = input.orderedFloors[i];
       const lowerFid = normalizeLobFloorId(lowerFloor.floorId);
       advanceAfter(
         input.phaseEndByFloor.get(`${lowerFloor.floorId}::3`) ??
           input.phaseEndByFloor.get(`${lowerFid}::3`),
-        2
+        verticalCureLag
       );
     }
   }
 
-  // 4. Cadeia física intra-pavimento + proteção global para fases posteriores
+  // 4. Cadeia física intra-pavimento com fast-tracking e janelas de cura:
   if (pOrder === 4) {
+    // Alvenaria do pavimento inicia após cura de 3 d.u. da Supraestrutura do MESMO pavimento
     advanceAfter(
       input.phaseEndByFloor.get(`${input.floor.floorId}::3`) ??
-        input.phaseEndByFloor.get(`${fid}::3`) ??
-        input.phaseMaxEndGlobal.get(3),
-      0
+        input.phaseEndByFloor.get(`${fid}::3`),
+      3
     );
   } else if (pOrder === 5) {
-    advanceAfter(input.phaseMaxEndGlobal.get(3), 0);
-    advanceAfter(
-      input.phaseEndByFloor.get(`${input.floor.floorId}::4`) ??
-        input.phaseEndByFloor.get(`${fid}::4`),
-      0
-    );
+    // Cobertura/Impermeabilização inicia após Supraestrutura da Coberta / Superior + cura
+    advanceAfter(input.phaseMaxEndGlobal.get(3), 3);
   } else if (pOrder === 6) {
+    // MEP embutido do pavimento inicia após Alvenaria do MESMO pavimento
     advanceAfter(
       input.phaseEndByFloor.get(`${input.floor.floorId}::4`) ??
         input.phaseEndByFloor.get(`${fid}::4`) ??
@@ -1836,37 +1838,31 @@ function computeEarliestPhysicalStart(input: {
       0
     );
   } else if (pOrder === 7) {
-    advanceAfter(
-      input.phaseEndByFloor.get(`${input.floor.floorId}::3`) ??
-        input.phaseEndByFloor.get(`${fid}::3`) ??
-        input.phaseMaxEndGlobal.get(3),
-      0
-    );
+    // Revestimentos Brutos (Chapisco/Emboço) do pavimento exigem Alvenaria + MEP do pavimento
     advanceAfter(
       input.phaseEndByFloor.get(`${input.floor.floorId}::4`) ??
-        input.phaseEndByFloor.get(`${fid}::4`) ??
-        input.phaseMaxEndGlobal.get(4),
+        input.phaseEndByFloor.get(`${fid}::4`),
       0
     );
     advanceAfter(
       input.phaseEndByFloor.get(`${input.floor.floorId}::6`) ??
-        input.phaseEndByFloor.get(`${fid}::6`) ??
-        input.phaseMaxEndGlobal.get(6),
+        input.phaseEndByFloor.get(`${fid}::6`),
       0
     );
   } else if (pOrder === 8) {
-    advanceAfter(
-      input.phaseEndByFloor.get(`${input.floor.floorId}::7`) ??
-        input.phaseEndByFloor.get(`${fid}::7`) ??
-        input.phaseMaxEndGlobal.get(7),
-      2
-    );
-    advanceAfter(input.phaseMaxEndGlobal.get(5), 0);
+    if (input.pkg.packageNumber !== 27) {
+      // Acabamentos internos aguardam Chapisco/Reboco do MESMO pavimento + 3 d.u. de cura
+      advanceAfter(
+        input.phaseEndByFloor.get(`${input.floor.floorId}::7`) ??
+          input.phaseEndByFloor.get(`${fid}::7`),
+        3
+      );
+      advanceAfter(input.phaseMaxEndGlobal.get(5), 0);
+    }
   } else if (pOrder === 9) {
     advanceAfter(
       input.phaseEndByFloor.get(`${input.floor.floorId}::8`) ??
-        input.phaseEndByFloor.get(`${fid}::8`) ??
-        input.phaseMaxEndGlobal.get(8),
+        input.phaseEndByFloor.get(`${fid}::8`),
       0
     );
     if (/LIMPEZA|ENTREGA/.test(input.pkg.name.toUpperCase())) {
@@ -1899,6 +1895,7 @@ export function generateIntelligentFloorLobMatrix(input: {
   skippedNoLoadPackages: number[];
   endDate: string;
   usedParametricFallback: boolean;
+  daysSavedByParallelism: number;
 } {
   const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
   const activePackages = [...input.servicePackages]
@@ -2126,12 +2123,18 @@ export function generateIntelligentFloorLobMatrix(input: {
     .filter((p) => !packagesWithNodes.has(p.packageNumber))
     .map((p) => p.packageNumber);
 
+  const allocations = Array.from(resultMap.values());
+  const sequentialSumDays = allocations.length;
+  const actualSpanDays = new Set(allocations.map((a) => a.dateIso)).size;
+  const daysSavedByParallelism = Math.max(0, sequentialSumDays - actualSpanDays);
+
   return {
-    allocations: Array.from(resultMap.values()),
+    allocations,
     scheduledPackagesCount: packagesWithNodes.size,
     skippedNoLoadPackages,
     endDate: maxEndDate,
     usedParametricFallback: !hasAnyEapQuantity,
+    daysSavedByParallelism,
   };
 }
 

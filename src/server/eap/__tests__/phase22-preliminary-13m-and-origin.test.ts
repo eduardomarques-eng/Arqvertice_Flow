@@ -100,8 +100,8 @@ describe("Phase 22 — Preliminary 13-Month Fill & Data Origin Tracking", () => 
       holidaySet: new Set<string>(),
     });
 
-    expect(result.workingDaysSpan).toBeGreaterThanOrEqual(240);
-    expect(result.workingDaysSpan).toBeLessThanOrEqual(290);
+    expect(result.workingDaysSpan).toBeGreaterThanOrEqual(210);
+    expect(result.workingDaysSpan).toBeLessThanOrEqual(250);
     expect(result.scheduledPackagesCount).toBe(38);
     expect(result.allocations.length).toBeGreaterThan(250);
     expect(result.allocations.every((a) => a.dataOrigin === "PRELIMINAR_PADRAO")).toBe(true);

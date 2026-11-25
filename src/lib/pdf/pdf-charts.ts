@@ -521,8 +521,11 @@ export function drawPdfGanttTimeline(
     bars: Array<{
       codeLabel: string;
       phaseLabel: string;
+      phaseGroupTitle?: string;
+      phaseGroupColorHex?: string;
       startRatio: number;
       widthRatio: number;
+      cureWidthRatio?: number;
       colorHex: string;
       durationLabel: string;
     }>;
@@ -530,7 +533,7 @@ export function drawPdfGanttTimeline(
 ): void {
   if (opts.bars.length === 0) return;
 
-  pdf.ensure(44);
+  pdf.ensure(64);
   pdf.drawText(opts.title, pdf.margin, pdf.y + 10, {
     size: 9.5,
     bold: true,
@@ -538,8 +541,8 @@ export function drawPdfGanttTimeline(
   });
   pdf.y += 16;
 
-  const labelW = 148;
-  const rightW = 48;
+  const labelW = 195;
+  const rightW = 54;
   const chartW = Math.max(120, pdf.contentWidth - labelW - rightW - 8);
   const trackX = pdf.margin + labelW;
 
@@ -547,7 +550,7 @@ export function drawPdfGanttTimeline(
     pdf.rect(pdf.margin, pdf.y, pdf.contentWidth, 16, {
       fill: hexToPdfRgb("#0F172A"),
     });
-    pdf.drawText("Pacote / Fase", pdf.margin + 6, pdf.y + 11, {
+    pdf.drawText("Pacote / Fase Construtiva", pdf.margin + 6, pdf.y + 11, {
       size: 7.5,
       bold: true,
       color: hexToPdfRgb("#FFFFFF"),
@@ -560,7 +563,7 @@ export function drawPdfGanttTimeline(
         color: hexToPdfRgb("#CBD5E1"),
       });
     }
-    pdf.drawText("Duracao", pdf.margin + pdf.contentWidth - 4, pdf.y + 11, {
+    pdf.drawText("Eq. / D.U.", pdf.margin + pdf.contentWidth - 4, pdf.y + 11, {
       size: 7.5,
       bold: true,
       align: "right",
@@ -572,12 +575,37 @@ export function drawPdfGanttTimeline(
   drawHeader();
 
   const rowH = 14;
+  const groupHeaderH = 15;
+  let lastGroupTitle = "";
+
   for (let i = 0; i < opts.bars.length; i++) {
-    if (pdf.y + rowH > pdf.height - pdf.margin) {
+    const bar = opts.bars[i];
+    const hasNewGroup = Boolean(bar.phaseGroupTitle && bar.phaseGroupTitle !== lastGroupTitle);
+    const neededH = rowH + (hasNewGroup ? groupHeaderH : 0);
+
+    if (pdf.y + neededH > pdf.height - pdf.margin) {
       pdf.newPage();
       drawHeader();
+      lastGroupTitle = "";
     }
-    const bar = opts.bars[i];
+
+    if (bar.phaseGroupTitle && bar.phaseGroupTitle !== lastGroupTitle) {
+      lastGroupTitle = bar.phaseGroupTitle;
+      const gColor = bar.phaseGroupColorHex ?? bar.colorHex;
+      pdf.rect(pdf.margin, pdf.y, pdf.contentWidth, groupHeaderH, {
+        fill: hexToPdfRgb("#F1F5F9"),
+      });
+      pdf.rect(pdf.margin, pdf.y, 4, groupHeaderH, {
+        fill: hexToPdfRgb(gColor),
+      });
+      pdf.drawText(bar.phaseGroupTitle, pdf.margin + 9, pdf.y + 10.5, {
+        size: 7.5,
+        bold: true,
+        color: hexToPdfRgb(gColor),
+      });
+      pdf.y += groupHeaderH;
+    }
+
     const y0 = pdf.y;
 
     if (i % 2 === 1) {
@@ -587,11 +615,11 @@ export function drawPdfGanttTimeline(
     }
 
     const txt =
-      bar.codeLabel.length > 26
-        ? `${bar.codeLabel.slice(0, 24)}..`
+      bar.codeLabel.length > 38
+        ? `${bar.codeLabel.slice(0, 36)}..`
         : bar.codeLabel;
     pdf.drawText(txt, pdf.margin + 4, y0 + 10, {
-      size: 7,
+      size: 6.8,
       color: hexToPdfRgb("#1E293B"),
     });
 
@@ -605,8 +633,21 @@ export function drawPdfGanttTimeline(
     const bw = Math.max(4, Math.min(chartW - (bx - trackX), bar.widthRatio * chartW));
     pdf.rect(bx, y0 + 3, bw, rowH - 6, { fill: hexToPdfRgb(bar.colorHex) });
 
+    // Marcador sutil de janela de cura / lag após a barra
+    if (bar.cureWidthRatio && bar.cureWidthRatio > 0) {
+      const cx = bx + bw;
+      const cw = Math.max(2, Math.min(chartW - (cx - trackX), bar.cureWidthRatio * chartW));
+      if (cw > 1.5) {
+        pdf.rect(cx, y0 + 5, cw, rowH - 10, {
+          fill: hexToPdfRgb("#FEF3C7"),
+          stroke: hexToPdfRgb("#D97706"),
+          lineWidth: 0.4,
+        });
+      }
+    }
+
     pdf.drawText(bar.durationLabel, pdf.margin + pdf.contentWidth - 4, y0 + 10, {
-      size: 7,
+      size: 6.8,
       bold: true,
       align: "right",
       color: hexToPdfRgb("#334155"),

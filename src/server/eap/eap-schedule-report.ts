@@ -24,15 +24,21 @@ export interface EapScheduleReportPackageDTO {
   packageName: string;
   phaseOrder: number;
   phaseName: string;
+  phaseGroupKey: string;
+  phaseGroupTitle: string;
+  phaseGroupColorHex: string;
   discipline: string;
   corHex: string;
   floorsLabel: string;
   teamCodes: string[];
+  predecessorNumbers: number[];
+  cureLagWorkingDays: number;
   startDate: string;
   endDate: string;
   workingDays: number;
   startRatio: number;
   widthRatio: number;
+  cureWidthRatio: number;
   status: string;
 }
 
@@ -79,6 +85,7 @@ export interface EapScheduleReportPayload {
     totalAllocatedCells: number;
     teamOverloads: number;
     precedenceViolations: number;
+    daysSavedByParallelism: number;
     healthLabel: string;
   };
   packages: EapScheduleReportPackageDTO[];
@@ -125,6 +132,53 @@ const PHASE_LABELS: Record<number, string> = {
   8: "Revestimentos, Esquadrias & Pintura",
   9: "Acabamentos Finais & Entrega",
 };
+
+function resolveGanttPhaseGroup(phaseOrder: number): {
+  key: string;
+  title: string;
+  colorHex: string;
+} {
+  if (phaseOrder <= 2) {
+    return {
+      key: "G1",
+      title: "FASE 1 — IMPLANTAÇÃO & FUNDAÇÃO",
+      colorHex: "#0E7490",
+    };
+  }
+  if (phaseOrder <= 4) {
+    return {
+      key: "G2",
+      title: "FASE 2 — SUPRAESTRUTURA & VEDAÇÃO",
+      colorHex: "#4338CA",
+    };
+  }
+  if (phaseOrder <= 6) {
+    return {
+      key: "G3",
+      title: "FASE 3 — COBERTURA & INSTALAÇÕES",
+      colorHex: "#0F766E",
+    };
+  }
+  if (phaseOrder === 7) {
+    return {
+      key: "G4",
+      title: "FASE 4 — REVESTIMENTOS & CURA",
+      colorHex: "#C2410C",
+    };
+  }
+  if (phaseOrder === 8) {
+    return {
+      key: "G5",
+      title: "FASE 5 — ACABAMENTOS",
+      colorHex: "#047857",
+    };
+  }
+  return {
+    key: "G6",
+    title: "FASE 6 — FINAIS & ENTREGA",
+    colorHex: "#475569",
+  };
+}
 
 function sanitizeNoOnda(raw: string): string {
   return raw.replace(/\bOnda\b/gi, "Fase");
@@ -228,21 +282,34 @@ export function buildEapScheduleReportPayload(input: {
     const teamCodes = Array.from(new Set(items.map((i) => i.teamCode))).sort();
     const phaseOrder = rule?.phaseOrder ?? 5;
     const rawPhase = PHASE_LABELS[phaseOrder] ?? `Etapa ${phaseOrder}`;
+    const phaseGroup = resolveGanttPhaseGroup(phaseOrder);
+    const cureLagWorkingDays = rule?.cureLagWorkingDays ?? 0;
+    const totalSpanDays = Math.max(1, (endMs - startMs) / 86_400_000 + 1);
+    const cureWidthRatio =
+      cureLagWorkingDays > 0
+        ? Math.min(0.06, Math.max(0.01, (cureLagWorkingDays * 1.4) / totalSpanDays))
+        : 0;
 
     packages.push({
       packageNumber: pkgNum,
       packageName: sanitizeNoOnda(pkgInfo?.name ?? `Pacote ${pkgNum}`),
       phaseOrder,
       phaseName: sanitizeNoOnda(`Fase ${phaseOrder} — ${rawPhase}`),
+      phaseGroupKey: phaseGroup.key,
+      phaseGroupTitle: phaseGroup.title,
+      phaseGroupColorHex: phaseGroup.colorHex,
       discipline: sanitizeNoOnda(pkgInfo?.discipline ?? "Execução"),
-      corHex: pkgInfo?.corHex ?? PDF_PALETTE[pkgNum % PDF_PALETTE.length],
+      corHex: phaseGroup.colorHex,
       floorsLabel: floorNames.join(", "),
       teamCodes,
+      predecessorNumbers: rule?.predecessorNumbers ?? pkgInfo?.predecessorNumbers ?? [],
+      cureLagWorkingDays,
       startDate: pStart,
       endDate: pEnd,
       workingDays: items.length,
       startRatio,
       widthRatio,
+      cureWidthRatio,
       status: "Programado",
     });
   }
@@ -310,6 +377,7 @@ export function buildEapScheduleReportPayload(input: {
       totalAllocatedCells: sortedAllocs.length,
       teamOverloads,
       precedenceViolations,
+      daysSavedByParallelism: Math.max(0, sortedAllocs.length - uniqueWorkingDays),
       healthLabel:
         totalCritical === 0
           ? "0 conflitos (100% Coerente)"
@@ -473,6 +541,7 @@ export function renderEapScheduleReportPdf(
   ]);
 
   // 1. Timeline Gantt Colorida por Fase & Pacote
+  pdf.ensure(95);
   pdf.heading("1. Cronograma Gantt por Fase & Pacote (Linha de Balanco)");
   const totalMonths = payload.monthlyHistogram.length || 1;
   const monthMarkers = payload.monthlyHistogram
@@ -483,20 +552,24 @@ export function renderEapScheduleReportPdf(
     }));
 
   drawPdfGanttTimeline(pdf, {
-    title: "Sequenciamento Fisico dos Pacotes de Servico (PCT 01 a PCT 38)",
+    title: "Sequenciamento Fisico dos Pacotes de Servico (Cura + Paralelismo)",
     totalSpanDays: payload.kpis.calendarDaysTotal,
     monthMarkers,
     bars: payload.packages.map((pkg) => ({
       codeLabel: `PCT ${String(pkg.packageNumber).padStart(2, "0")} · ${pkg.packageName}`,
       phaseLabel: pkg.phaseName,
+      phaseGroupTitle: pkg.phaseGroupTitle,
+      phaseGroupColorHex: pkg.phaseGroupColorHex,
       startRatio: pkg.startRatio,
       widthRatio: pkg.widthRatio,
-      colorHex: pkg.corHex,
-      durationLabel: `${pkg.workingDays} d.u.`,
+      cureWidthRatio: pkg.cureWidthRatio,
+      colorHex: pkg.phaseGroupColorHex,
+      durationLabel: `Eq.${pkg.teamCodes.join(",")} · ${pkg.workingDays}d`,
     })),
   });
 
   // 2. Histograma de Carga Mensal de Equipes
+  pdf.ensure(160);
   pdf.heading("2. Histograma Mensal de Carga das Equipes");
   const teamColors = ["#2563EB", "#059669", "#D97706", "#7C3AED", "#DC2626"];
   drawPdfMonthlyHistogram(pdf, {
@@ -514,6 +587,7 @@ export function renderEapScheduleReportPdf(
   });
 
   // 3. Distribuição por Pavimento
+  pdf.ensure(120);
   pdf.heading("3. Distribuicao de Dias Uteis por Pavimento");
   drawPdfHorizontalBarChart(pdf, {
     title: "Alocacao de Frentes por Pavimento / Setor",
@@ -527,6 +601,7 @@ export function renderEapScheduleReportPdf(
   });
 
   // 4. Tabela Executiva do Cronograma
+  pdf.ensure(95);
   pdf.heading("4. Tabela Executiva do Cronograma por Pacote");
   pdf.table({
     columns: [
