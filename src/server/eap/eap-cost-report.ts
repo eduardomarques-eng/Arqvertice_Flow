@@ -2,8 +2,11 @@ import { prisma } from "@/server/db";
 import { PdfWriter } from "@/lib/pdf/pdf-writer";
 import {
   drawPdfBrandedHeader,
+  drawPdfDonutChart,
+  drawPdfGroupedBarChart,
   drawPdfHorizontalBarChart,
   drawPdfKpiCardsRow,
+  drawPdfParetoAbcChart,
   drawPdfStackedDistributionBar,
   PDF_PALETTE,
 } from "@/lib/pdf/pdf-charts";
@@ -783,6 +786,37 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
   ]);
 
   pdf.heading("1. Composicao de Custos & Quantidades-Chave");
+  drawPdfDonutChart(pdf, {
+    title: "Composicao Global do Orcamento (Material x Mao de Obra x Terceiros x BDI)",
+    centerLabel: fmtBRL(payload.kpis.totalCommercialPrice),
+    centerSubLabel: `${fmtBRL(payload.kpis.costPerM2)}/m2`,
+    segments: [
+      {
+        label: "Materiais",
+        value: payload.kpis.totalMaterialCost,
+        formattedValue: fmtBRL(payload.kpis.totalMaterialCost),
+        colorHex: "#2563EB",
+      },
+      {
+        label: "Mao de Obra",
+        value: payload.kpis.totalLaborCost,
+        formattedValue: fmtBRL(payload.kpis.totalLaborCost),
+        colorHex: "#059669",
+      },
+      {
+        label: "Terceiros / Equip.",
+        value: payload.kpis.totalThirdPartyCost,
+        formattedValue: fmtBRL(payload.kpis.totalThirdPartyCost),
+        colorHex: "#D97706",
+      },
+      {
+        label: `BDI (${payload.kpis.bdiPercent}%)`,
+        value: payload.kpis.bdiValue,
+        formattedValue: fmtBRL(payload.kpis.bdiValue),
+        colorHex: "#7C3AED",
+      },
+    ],
+  });
   drawPdfStackedDistributionBar(pdf, {
     title: "Composicao Direta (Material x Mao de Obra x Terceiros)",
     segments: [
@@ -797,8 +831,20 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     { size: 8.5, bold: true, color: "#334155", gapAfter: 8 }
   );
 
-  // 2. Custos por Pavimento (Gráfico Vetorial Colorido + Tabela)
+  // 2. Custos por Pavimento (Gráfico Agrupado Material x MO + Tabela)
   pdf.heading("2. Distribuicao de Custos por Pavimento / Zona");
+  drawPdfGroupedBarChart(pdf, {
+    title: "Material x Mao de Obra por Pavimento / Zona",
+    seriesA: { label: "Materiais", colorHex: "#2563EB" },
+    seriesB: { label: "Mao de Obra", colorHex: "#059669" },
+    items: payload.byFloor.map((f) => ({
+      label: f.label,
+      valueA: f.materialCost,
+      valueB: f.laborCost,
+      formattedA: fmtBRL(f.materialCost),
+      formattedB: fmtBRL(f.laborCost),
+    })),
+  });
   drawPdfHorizontalBarChart(pdf, {
     title: "Grafico de Custos por Pavimento (Total c/ BDI)",
     items: payload.byFloor.map((f, idx) => ({
@@ -921,8 +967,18 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
 
   pdf.y += 10;
 
-  // 6. Curva ABC (Top 15)
-  pdf.heading("6. Curva ABC de Insumos & Servicos (Top 15)");
+  // 6. Curva ABC (Pareto Top 10 + Tabela Top 15)
+  pdf.heading("6. Curva ABC de Insumos & Servicos (Pareto 80/20)");
+  drawPdfParetoAbcChart(pdf, {
+    title: "Curva ABC — Top 10 Itens de Maior Impacto (Linha Vermelha = 80% Classe A)",
+    items: payload.abcCurve.items.slice(0, 10).map((item) => ({
+      label: `${item.stageCode} · ${item.description}`,
+      formattedValue: fmtBRL(item.totalCommercialPrice),
+      value: item.totalCommercialPrice,
+      cumulativePercent: item.cumulativePercent,
+      abcClass: item.abcClass,
+    })),
+  });
   pdf.flowText(
     `Classe A: ${payload.abcCurve.summaryByClass.A.count} itens (${payload.abcCurve.summaryByClass.A.sharePercent.toFixed(1)}%) · Classe B: ${payload.abcCurve.summaryByClass.B.count} itens (${payload.abcCurve.summaryByClass.B.sharePercent.toFixed(1)}%) · Classe C: ${payload.abcCurve.summaryByClass.C.count} itens (${payload.abcCurve.summaryByClass.C.sharePercent.toFixed(1)}%)`,
     { size: 8.5, bold: true, color: "#334155", gapAfter: 5 }

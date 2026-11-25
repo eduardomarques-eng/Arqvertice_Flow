@@ -62,7 +62,7 @@ export function EapFullscreenShell({
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-[100] flex h-screen w-screen flex-col overflow-hidden bg-[#FAF9F7] text-slate-900 dark:bg-[#111116] dark:text-zinc-100"
+      className="fixed inset-0 z-50 flex h-dvh w-screen flex-col bg-white text-slate-900 dark:bg-zinc-950 dark:text-zinc-100"
     >
       {/* Cabeçalho compacto com efeito vidro no topo do modo tela cheia */}
       <header className="shrink-0 border-b border-slate-200/80 bg-white/85 px-4 py-2.5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/85">

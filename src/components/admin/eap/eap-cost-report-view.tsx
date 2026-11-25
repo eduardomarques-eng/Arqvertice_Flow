@@ -6,6 +6,12 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
+  Legend,
+  Line,
+  Pie,
+  PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -168,54 +174,78 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
         )}
       </Card>
 
-      {/* KPIs de Custo */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
+      {/* KPIs de Custo (Hierarquia 6 Cards Apple HIG) */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-            Total Geral (c/ BDI)
+            Investimento Total
           </p>
-          <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-slate-950 dark:text-zinc-100">
+          <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-slate-950 dark:text-zinc-100">
             {fmtBRL(k.totalCommercialPrice)}
           </p>
-          <p className="mt-1 font-mono text-xs text-emerald-700 dark:text-emerald-400">
-            {fmtBRL(k.costPerM2)} / m²
+          <p className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">
+            C/ BDI ({k.bdiPercent}%)
           </p>
         </Card>
 
-        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
+        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-            Custo Direto + BDI ({k.bdiPercent}%)
+            Custo Direto
           </p>
-          <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-slate-950 dark:text-zinc-100">
+          <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-slate-950 dark:text-zinc-100">
             {fmtBRL(k.totalDirectCost)}
           </p>
-          <p className="mt-1 font-mono text-xs text-slate-600 dark:text-zinc-400">
-            BDI: {fmtBRL(k.bdiValue)} ({fmtBRL(k.directCostPerM2)}/m²)
+          <p className="mt-1 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
+            {fmtBRL(k.directCostPerM2)} / m²
           </p>
         </Card>
 
-        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
+        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
             Materiais ({k.materialSharePercent.toFixed(1)}%)
           </p>
-          <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-blue-700 dark:text-blue-400">
+          <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-blue-700 dark:text-blue-400">
             {fmtBRL(k.totalMaterialCost)}
           </p>
-          <p className="mt-1 font-mono text-xs text-slate-600 dark:text-zinc-400">
-            Terceiros ({k.thirdPartySharePercent.toFixed(1)}%): {fmtBRL(k.totalThirdPartyCost)}
+          <p className="mt-1 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
+            Terceiros: {fmtBRL(k.totalThirdPartyCost)}
           </p>
         </Card>
 
-        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
+        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
             Mão de Obra ({k.laborSharePercent.toFixed(1)}%)
           </p>
-          <p className="mt-1.5 font-mono text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-400">
+          <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
             {fmtBRL(k.totalLaborCost)}
           </p>
-          <p className="mt-1 text-xs text-slate-600 dark:text-zinc-400">
-            <span className="font-mono font-semibold">{k.totalItemsCount}</span> serviços na planilha ·{" "}
+          <p className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">
+            <span className="font-mono font-semibold">{k.totalItemsCount}</span> serviços ·{" "}
             <span className="font-mono font-semibold">{report.teams.length}</span> equipes
+          </p>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+            BDI ({k.bdiPercent}%)
+          </p>
+          <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-violet-700 dark:text-violet-400">
+            {fmtBRL(k.bdiValue)}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">
+            Benefícios e Desp. Indiretas
+          </p>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+            Custo Unitário (R$/m²)
+          </p>
+          <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-amber-700 dark:text-amber-400">
+            {fmtBRL(k.costPerM2)}
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
+            Área: {report.meta.builtAreaM2} m²
           </p>
         </Card>
       </div>
@@ -236,33 +266,187 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
         </div>
       </Card>
 
-      {/* Gráficos: Custos por Pavimento & Disciplina */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
-          <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-            Composição de Custos por Pavimento / Zona
-          </h3>
-          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-            Distribuição proporcional pelas quantidades alocadas em Infraestrutura, Térreo, Superior, Coberta e Externa.
-          </p>
-          <div className="mt-4 h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={report.byFloor} layout="vertical" margin={{ left: 20, right: 16 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis type="number" tickFormatter={fmtCompactBRL} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value) => fmtBRL(Number(value ?? 0))} />
-                <Bar dataKey="commercialPrice" name="Total c/ BDI" radius={[0, 6, 6, 0]}>
-                  {report.byFloor.map((_, idx) => (
-                    <Cell key={idx} fill={CHART_PALETTE[idx % CHART_PALETTE.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
+      {/* Gráficos 1: Rosca de Composição + Material x Mão de Obra por Pavimento */}
+      {(() => {
+        const donutData = [
+          { name: "Materiais", value: k.totalMaterialCost, color: "#2563EB" },
+          { name: "Mão de Obra", value: k.totalLaborCost, color: "#059669" },
+          { name: "Terceiros / Equip.", value: k.totalThirdPartyCost, color: "#D97706" },
+          { name: `BDI (${k.bdiPercent}%)`, value: k.bdiValue, color: "#7C3AED" },
+        ].filter((d) => d.value > 0);
+        const donutTotal = donutData.reduce((s, d) => s + d.value, 0) || 1;
 
-        <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D]">
+        const topStages = [...report.stages]
+          .filter((s) => s.commercialPrice > 0)
+          .sort((a, b) => b.commercialPrice - a.commercialPrice)
+          .slice(0, 10);
+        const stageTotal = report.stages.reduce((s, x) => s + x.commercialPrice, 0) || 1;
+        let runningPct = 0;
+        const paretoData = topStages.map((s) => {
+          const share = (s.commercialPrice / stageTotal) * 100;
+          runningPct = Math.min(100, runningPct + share);
+          return {
+            code: s.code,
+            name: `${s.code} · ${s.name.length > 20 ? `${s.name.slice(0, 18)}..` : s.name}`,
+            commercialPrice: s.commercialPrice,
+            cumulativePercent: Number(runningPct.toFixed(1)),
+            isClassA: runningPct <= 82,
+          };
+        });
+
+        return (
+          <>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Gráfico Donut / Rosca Colorido */}
+              <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                  Composição Global do Orçamento
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Participação de Materiais, Mão de Obra, Terceiros e BDI no Investimento Total.
+                </p>
+                <div className="mt-4 grid items-center gap-4 sm:grid-cols-[210px_1fr]">
+                  <div className="h-52 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={donutData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={52}
+                          outerRadius={82}
+                          paddingAngle={2}
+                        >
+                          {donutData.map((entry, idx) => (
+                            <Cell key={idx} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => fmtBRL(Number(value ?? 0))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-2.5">
+                    {donutData.map((d) => {
+                      const pct = ((d.value / donutTotal) * 100).toFixed(1);
+                      return (
+                        <div
+                          key={d.name}
+                          className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-900/60"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: d.color }}
+                            />
+                            <span className="font-semibold text-slate-800 dark:text-zinc-200">
+                              {d.name}
+                            </span>
+                          </div>
+                          <div className="text-right font-mono tabular-nums">
+                            <span className="font-bold text-slate-950 dark:text-zinc-100">
+                              {fmtBRL(d.value)}
+                            </span>
+                            <span className="ml-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
+                              ({pct}%)
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Barras Agrupadas por Pavimento: Material x Mão de Obra */}
+              <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                  Material × Mão de Obra por Pavimento
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Comparativo direto entre insumos e mão de obra em cada setor da edificação.
+                </p>
+                <div className="mt-4 h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={report.byFloor} margin={{ left: 8, right: 12, top: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                      <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                      <YAxis tickFormatter={fmtCompactBRL} tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(value) => fmtBRL(Number(value ?? 0))} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="materialCost" name="Material" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="laborCost" name="Mão de Obra" fill="#059669" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </div>
+
+            {/* Gráfico Pareto Curva ABC (Top 10 Macro-Etapas 80/20) */}
+            <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                    Curva ABC — Pareto 80/20 das Top 10 Macro-Etapas
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    Etapas em esmeralda compõem a Classe A (até 80% do orçamento acumulado).
+                  </p>
+                </div>
+                <Badge tone="green">Pareto Classe A (80%)</Badge>
+              </div>
+              <div className="mt-4 h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={paretoData} margin={{ left: 12, right: 16, top: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis dataKey="code" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="left" tickFormatter={fmtCompactBRL} tick={{ fontSize: 10 }} />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      domain={[0, 100]}
+                      tickFormatter={(v) => `${v}%`}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <Tooltip
+                      formatter={(value, name) =>
+                        name === "% Acumulado" ? `${value}%` : fmtBRL(Number(value ?? 0))
+                      }
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <ReferenceLine
+                      yAxisId="right"
+                      y={80}
+                      stroke="#DC2626"
+                      strokeDasharray="4 4"
+                      label={{ value: "80% Classe A", position: "insideTopRight", fontSize: 10, fill: "#DC2626" }}
+                    />
+                    <Bar yAxisId="left" dataKey="commercialPrice" name="Total c/ BDI" radius={[6, 6, 0, 0]}>
+                      {paretoData.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.isClassA ? "#059669" : "#D97706"} />
+                      ))}
+                    </Bar>
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="cumulativePercent"
+                      name="% Acumulado"
+                      stroke="#0F172A"
+                      strokeWidth={2.5}
+                      dot={{ r: 3.5, fill: "#0F172A" }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </>
+        );
+      })()}
+
+      {/* Gráficos 2: Custo por Disciplina & Custo por Fase Construtiva */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
           <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
             Custos por Disciplina Técnica
           </h3>
@@ -276,7 +460,35 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
                 <XAxis type="number" tickFormatter={fmtCompactBRL} tick={{ fontSize: 10 }} />
                 <YAxis type="category" dataKey="discipline" width={155} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(value) => fmtBRL(Number(value ?? 0))} />
-                <Bar dataKey="commercialPrice" name="Total c/ BDI" fill="#1d4ed8" radius={[0, 6, 6, 0]} />
+                <Bar dataKey="commercialPrice" name="Total c/ BDI" radius={[0, 6, 6, 0]}>
+                  {report.byDiscipline.map((_, idx) => (
+                    <Cell key={idx} fill={CHART_PALETTE[idx % CHART_PALETTE.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
+          <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+            Custos por Fase Construtiva (Fases 1–9)
+          </h3>
+          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+            Distribuição financeira ao longo das fases de execução da obra (c/ BDI).
+          </p>
+          <div className="mt-4 h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={report.byPhase} layout="vertical" margin={{ left: 20, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis type="number" tickFormatter={fmtCompactBRL} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="phaseName" width={155} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(value) => fmtBRL(Number(value ?? 0))} />
+                <Bar dataKey="commercialPrice" name="Total c/ BDI" radius={[0, 6, 6, 0]}>
+                  {report.byPhase.map((_, idx) => (
+                    <Cell key={idx} fill={CHART_PALETTE[(idx + 2) % CHART_PALETTE.length]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

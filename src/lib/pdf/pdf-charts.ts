@@ -231,3 +231,478 @@ export function drawPdfStackedDistributionBar(
 
   pdf.y = Math.max(legY + 16, pdf.y + 14);
 }
+
+/**
+ * Gráfico Donut / Rosca vetorial colorido com legenda lateral detalhada.
+ */
+export function drawPdfDonutChart(
+  pdf: PdfWriter,
+  opts: {
+    title: string;
+    centerLabel: string;
+    centerSubLabel?: string;
+    segments: Array<{
+      label: string;
+      value: number;
+      formattedValue: string;
+      colorHex: string;
+    }>;
+  }
+): void {
+  const total = opts.segments.reduce((s, seg) => s + Math.max(0, seg.value), 0);
+  if (total <= 0) return;
+
+  const boxH = Math.max(122, 28 + opts.segments.length * 20);
+  pdf.ensure(boxH + 14);
+
+  pdf.drawText(opts.title, pdf.margin, pdf.y + 10, {
+    size: 9.5,
+    bold: true,
+    color: hexToPdfRgb("#0F172A"),
+  });
+  pdf.y += 16;
+
+  const startY = pdf.y;
+  pdf.rect(pdf.margin, startY, pdf.contentWidth, boxH, {
+    fill: hexToPdfRgb("#F8FAFC"),
+    stroke: hexToPdfRgb("#E2E8F0"),
+    lineWidth: 0.6,
+  });
+
+  const cx = pdf.margin + 72;
+  const cy = startY + boxH / 2;
+  const rOuter = 44;
+  const rInner = 25;
+
+  let currentAngle = -Math.PI / 2;
+  for (const seg of opts.segments) {
+    const val = Math.max(0, seg.value);
+    if (val <= 0) continue;
+    const sweep = (val / total) * Math.PI * 2;
+    const steps = Math.max(8, Math.ceil((sweep / (Math.PI * 2)) * 72));
+    const pts: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i <= steps; i++) {
+      const a = currentAngle + (sweep * i) / steps;
+      pts.push({ x: cx + Math.cos(a) * rOuter, y: cy + Math.sin(a) * rOuter });
+    }
+    for (let i = steps; i >= 0; i--) {
+      const a = currentAngle + (sweep * i) / steps;
+      pts.push({ x: cx + Math.cos(a) * rInner, y: cy + Math.sin(a) * rInner });
+    }
+    pdf.polygon(pts, { fill: hexToPdfRgb(seg.colorHex), stroke: hexToPdfRgb("#FFFFFF"), lineWidth: 0.7 });
+    currentAngle += sweep;
+  }
+
+  // Centro do Donut
+  pdf.drawText(opts.centerLabel, cx, cy - 1, {
+    size: 7.5,
+    bold: true,
+    align: "center",
+    color: hexToPdfRgb("#0F172A"),
+  });
+  if (opts.centerSubLabel) {
+    pdf.drawText(opts.centerSubLabel, cx, cy + 9, {
+      size: 6.5,
+      align: "center",
+      color: hexToPdfRgb("#64748B"),
+    });
+  }
+
+  // Legenda lateral
+  const legX = pdf.margin + 148;
+  const legW = pdf.contentWidth - 160;
+  let legY = startY + 18;
+  for (const seg of opts.segments) {
+    const pct = ((Math.max(0, seg.value) / total) * 100).toFixed(1);
+    pdf.rect(legX, legY - 7, 9, 9, { fill: hexToPdfRgb(seg.colorHex) });
+    pdf.drawText(seg.label, legX + 14, legY, {
+      size: 8.5,
+      bold: true,
+      color: hexToPdfRgb("#1E293B"),
+    });
+    pdf.drawText(`${seg.formattedValue} (${pct}%)`, legX + legW, legY, {
+      size: 8,
+      bold: true,
+      align: "right",
+      color: hexToPdfRgb("#334155"),
+    });
+    legY += 20;
+  }
+
+  pdf.y = startY + boxH + 10;
+}
+
+/**
+ * Gráfico de barras agrupadas (2 séries comparativas, ex.: Material x Mão de Obra).
+ */
+export function drawPdfGroupedBarChart(
+  pdf: PdfWriter,
+  opts: {
+    title: string;
+    seriesA: { label: string; colorHex: string };
+    seriesB: { label: string; colorHex: string };
+    items: Array<{
+      label: string;
+      valueA: number;
+      valueB: number;
+      formattedA: string;
+      formattedB: string;
+    }>;
+  }
+): void {
+  if (opts.items.length === 0) return;
+
+  const rowH = 26;
+  const headerH = 22;
+  const totalH = headerH + opts.items.length * rowH + 10;
+  pdf.ensure(totalH + 10);
+
+  pdf.drawText(opts.title, pdf.margin, pdf.y + 10, {
+    size: 9.5,
+    bold: true,
+    color: hexToPdfRgb("#0F172A"),
+  });
+
+  // Legenda topo direito
+  const legX = pdf.margin + pdf.contentWidth - 180;
+  pdf.rect(legX, pdf.y + 3, 8, 8, { fill: hexToPdfRgb(opts.seriesA.colorHex) });
+  pdf.drawText(opts.seriesA.label, legX + 11, pdf.y + 10, {
+    size: 7.5,
+    color: hexToPdfRgb("#334155"),
+  });
+  pdf.rect(legX + 85, pdf.y + 3, 8, 8, { fill: hexToPdfRgb(opts.seriesB.colorHex) });
+  pdf.drawText(opts.seriesB.label, legX + 96, pdf.y + 10, {
+    size: 7.5,
+    color: hexToPdfRgb("#334155"),
+  });
+
+  pdf.y += 18;
+
+  const labelW = 128;
+  const valueW = 92;
+  const barAreaW = Math.max(80, pdf.contentWidth - labelW - valueW - 12);
+  const maxVal = Math.max(
+    1,
+    ...opts.items.flatMap((i) => [i.valueA, i.valueB])
+  );
+
+  for (const item of opts.items) {
+    pdf.ensure(rowH);
+    const y0 = pdf.y;
+
+    pdf.drawText(
+      item.label.length > 24 ? `${item.label.slice(0, 22)}..` : item.label,
+      pdf.margin,
+      y0 + 13,
+      { size: 8, bold: true, color: hexToPdfRgb("#1E293B") }
+    );
+
+    const trackX = pdf.margin + labelW;
+    const wA = Math.max(2, (Math.max(0, item.valueA) / maxVal) * barAreaW);
+    const wB = Math.max(2, (Math.max(0, item.valueB) / maxVal) * barAreaW);
+
+    pdf.rect(trackX, y0 + 2, barAreaW, 8, { fill: hexToPdfRgb("#F1F5F9") });
+    pdf.rect(trackX, y0 + 2, wA, 8, { fill: hexToPdfRgb(opts.seriesA.colorHex) });
+
+    pdf.rect(trackX, y0 + 12, barAreaW, 8, { fill: hexToPdfRgb("#F1F5F9") });
+    pdf.rect(trackX, y0 + 12, wB, 8, { fill: hexToPdfRgb(opts.seriesB.colorHex) });
+
+    const valX = pdf.margin + pdf.contentWidth;
+    pdf.drawText(item.formattedA, valX, y0 + 9, {
+      size: 7,
+      align: "right",
+      color: hexToPdfRgb(opts.seriesA.colorHex),
+    });
+    pdf.drawText(item.formattedB, valX, y0 + 19, {
+      size: 7,
+      align: "right",
+      color: hexToPdfRgb(opts.seriesB.colorHex),
+    });
+
+    pdf.y += rowH;
+  }
+
+  pdf.y += 6;
+}
+
+/**
+ * Gráfico Pareto / Curva ABC (Top 10 etapas ou itens + barra de % acumulado 80/20).
+ */
+export function drawPdfParetoAbcChart(
+  pdf: PdfWriter,
+  opts: {
+    title: string;
+    items: Array<{
+      label: string;
+      formattedValue: string;
+      value: number;
+      cumulativePercent: number;
+      abcClass: "A" | "B" | "C";
+    }>;
+  }
+): void {
+  if (opts.items.length === 0) return;
+
+  const slice = opts.items.slice(0, 10);
+  const rowH = 19;
+  pdf.ensure(26 + slice.length * rowH + 10);
+
+  pdf.drawText(opts.title, pdf.margin, pdf.y + 10, {
+    size: 9.5,
+    bold: true,
+    color: hexToPdfRgb("#0F172A"),
+  });
+  pdf.y += 16;
+
+  const labelW = 165;
+  const valW = 110;
+  const barAreaW = Math.max(80, pdf.contentWidth - labelW - valW - 10);
+  const maxVal = Math.max(1, ...slice.map((i) => i.value));
+
+  for (const item of slice) {
+    pdf.ensure(rowH);
+    const y0 = pdf.y;
+    const colorHex =
+      item.abcClass === "A"
+        ? "#059669"
+        : item.abcClass === "B"
+          ? "#D97706"
+          : "#64748B";
+
+    pdf.rect(pdf.margin, y0 + 3, 12, 10, { fill: hexToPdfRgb(colorHex) });
+    pdf.drawText(item.abcClass, pdf.margin + 6, y0 + 10.5, {
+      size: 7,
+      bold: true,
+      align: "center",
+      color: hexToPdfRgb("#FFFFFF"),
+    });
+
+    const cleanLabel = item.label.length > 29 ? `${item.label.slice(0, 27)}..` : item.label;
+    pdf.drawText(cleanLabel, pdf.margin + 16, y0 + 11, {
+      size: 7.5,
+      color: hexToPdfRgb("#1E293B"),
+    });
+
+    const trackX = pdf.margin + labelW;
+    pdf.rect(trackX, y0 + 4, barAreaW, 9, { fill: hexToPdfRgb("#F1F5F9") });
+    const barW = Math.max(3, (Math.max(0, item.value) / maxVal) * barAreaW);
+    pdf.rect(trackX, y0 + 4, barW, 9, { fill: hexToPdfRgb(colorHex) });
+
+    // Marcador de 80% Pareto
+    const x80 = trackX + barAreaW * 0.8;
+    pdf.line(x80, y0 + 2, x80, y0 + 15, { stroke: "#DC2626", lineWidth: 0.6 });
+
+    // Ponto do acumulado
+    const cumX = trackX + Math.min(1, Math.max(0, item.cumulativePercent / 100)) * barAreaW;
+    pdf.rect(cumX - 2, y0 + 6, 4, 5, { fill: hexToPdfRgb("#0F172A") });
+
+    pdf.drawText(
+      `${item.formattedValue} (${item.cumulativePercent.toFixed(0)}%)`,
+      pdf.margin + pdf.contentWidth,
+      y0 + 11,
+      { size: 7, bold: true, align: "right", color: hexToPdfRgb("#334155") }
+    );
+
+    pdf.y += rowH;
+  }
+
+  pdf.y += 6;
+}
+
+/**
+ * Gráfico Gantt vetorial colorido para cronograma de pacotes por fase.
+ */
+export function drawPdfGanttTimeline(
+  pdf: PdfWriter,
+  opts: {
+    title: string;
+    totalSpanDays: number;
+    monthMarkers: Array<{ label: string; offsetRatio: number }>;
+    bars: Array<{
+      codeLabel: string;
+      phaseLabel: string;
+      startRatio: number;
+      widthRatio: number;
+      colorHex: string;
+      durationLabel: string;
+    }>;
+  }
+): void {
+  if (opts.bars.length === 0) return;
+
+  pdf.ensure(44);
+  pdf.drawText(opts.title, pdf.margin, pdf.y + 10, {
+    size: 9.5,
+    bold: true,
+    color: hexToPdfRgb("#0F172A"),
+  });
+  pdf.y += 16;
+
+  const labelW = 148;
+  const rightW = 48;
+  const chartW = Math.max(120, pdf.contentWidth - labelW - rightW - 8);
+  const trackX = pdf.margin + labelW;
+
+  const drawHeader = () => {
+    pdf.rect(pdf.margin, pdf.y, pdf.contentWidth, 16, {
+      fill: hexToPdfRgb("#0F172A"),
+    });
+    pdf.drawText("Pacote / Fase", pdf.margin + 6, pdf.y + 11, {
+      size: 7.5,
+      bold: true,
+      color: hexToPdfRgb("#FFFFFF"),
+    });
+    for (const m of opts.monthMarkers) {
+      const mx = trackX + Math.min(0.95, Math.max(0, m.offsetRatio)) * chartW;
+      pdf.drawText(m.label, mx, pdf.y + 11, {
+        size: 6.5,
+        bold: true,
+        color: hexToPdfRgb("#CBD5E1"),
+      });
+    }
+    pdf.drawText("Duracao", pdf.margin + pdf.contentWidth - 4, pdf.y + 11, {
+      size: 7.5,
+      bold: true,
+      align: "right",
+      color: hexToPdfRgb("#FFFFFF"),
+    });
+    pdf.y += 17;
+  };
+
+  drawHeader();
+
+  const rowH = 14;
+  for (let i = 0; i < opts.bars.length; i++) {
+    if (pdf.y + rowH > pdf.height - pdf.margin) {
+      pdf.newPage();
+      drawHeader();
+    }
+    const bar = opts.bars[i];
+    const y0 = pdf.y;
+
+    if (i % 2 === 1) {
+      pdf.rect(pdf.margin, y0, pdf.contentWidth, rowH, {
+        fill: hexToPdfRgb("#F8FAFC"),
+      });
+    }
+
+    const txt =
+      bar.codeLabel.length > 26
+        ? `${bar.codeLabel.slice(0, 24)}..`
+        : bar.codeLabel;
+    pdf.drawText(txt, pdf.margin + 4, y0 + 10, {
+      size: 7,
+      color: hexToPdfRgb("#1E293B"),
+    });
+
+    // Linhas verticais suaves de mês
+    for (const m of opts.monthMarkers) {
+      const mx = trackX + Math.min(1, Math.max(0, m.offsetRatio)) * chartW;
+      pdf.line(mx, y0, mx, y0 + rowH, { stroke: "#E2E8F0", lineWidth: 0.4 });
+    }
+
+    const bx = trackX + Math.min(0.98, Math.max(0, bar.startRatio)) * chartW;
+    const bw = Math.max(4, Math.min(chartW - (bx - trackX), bar.widthRatio * chartW));
+    pdf.rect(bx, y0 + 3, bw, rowH - 6, { fill: hexToPdfRgb(bar.colorHex) });
+
+    pdf.drawText(bar.durationLabel, pdf.margin + pdf.contentWidth - 4, y0 + 10, {
+      size: 7,
+      bold: true,
+      align: "right",
+      color: hexToPdfRgb("#334155"),
+    });
+
+    pdf.y += rowH;
+  }
+
+  pdf.y += 8;
+}
+
+/**
+ * Histograma vertical de carga mensal de equipes.
+ */
+export function drawPdfMonthlyHistogram(
+  pdf: PdfWriter,
+  opts: {
+    title: string;
+    teamSeries: Array<{ teamCode: string; label: string; colorHex: string }>;
+    months: Array<{
+      monthLabel: string;
+      teamDays: Record<string, number>;
+      totalDays: number;
+    }>;
+  }
+): void {
+  if (opts.months.length === 0) return;
+
+  const boxH = 128;
+  pdf.ensure(boxH + 28);
+
+  pdf.drawText(opts.title, pdf.margin, pdf.y + 10, {
+    size: 9.5,
+    bold: true,
+    color: hexToPdfRgb("#0F172A"),
+  });
+
+  // Legenda equipes
+  let lx = pdf.margin + pdf.contentWidth - opts.teamSeries.length * 68;
+  for (const ts of opts.teamSeries) {
+    pdf.rect(lx, pdf.y + 3, 8, 8, { fill: hexToPdfRgb(ts.colorHex) });
+    pdf.drawText(ts.label, lx + 11, pdf.y + 10, {
+      size: 7.5,
+      color: hexToPdfRgb("#334155"),
+    });
+    lx += 68;
+  }
+
+  pdf.y += 18;
+  const startY = pdf.y;
+
+  pdf.rect(pdf.margin, startY, pdf.contentWidth, boxH, {
+    fill: hexToPdfRgb("#F8FAFC"),
+    stroke: hexToPdfRgb("#E2E8F0"),
+    lineWidth: 0.6,
+  });
+
+  const padX = 18;
+  const plotW = pdf.contentWidth - padX * 2;
+  const plotTop = startY + 14;
+  const plotH = boxH - 36;
+  const maxDays = Math.max(1, ...opts.months.map((m) => m.totalDays));
+
+  const colSlotW = plotW / opts.months.length;
+  const barW = Math.min(24, Math.max(8, colSlotW * 0.58));
+
+  opts.months.forEach((m, idx) => {
+    const cx = pdf.margin + padX + colSlotW * idx + colSlotW / 2;
+    const bx = cx - barW / 2;
+    let currentBottom = plotTop + plotH;
+
+    for (const ts of opts.teamSeries) {
+      const val = Math.max(0, m.teamDays[ts.teamCode] ?? 0);
+      if (val <= 0) continue;
+      const segH = (val / maxDays) * plotH;
+      pdf.rect(bx, currentBottom - segH, barW, segH, {
+        fill: hexToPdfRgb(ts.colorHex),
+      });
+      currentBottom -= segH;
+    }
+
+    if (m.totalDays > 0) {
+      pdf.drawText(String(m.totalDays), cx, currentBottom - 3, {
+        size: 6.5,
+        bold: true,
+        align: "center",
+        color: hexToPdfRgb("#334155"),
+      });
+    }
+
+    pdf.drawText(m.monthLabel, cx, plotTop + plotH + 12, {
+      size: 6.5,
+      align: "center",
+      color: hexToPdfRgb("#475569"),
+    });
+  });
+
+  pdf.y = startY + boxH + 10;
+}

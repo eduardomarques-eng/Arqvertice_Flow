@@ -40,6 +40,7 @@ import {
   normalizeDataOrigin,
   type EapDataOrigin,
 } from "@/lib/eap-preliminary-13m";
+import { clearLobAllocationsByMode, type EapClearMode } from "@/lib/eap-clear-helpers";
 
 interface ZoneDTO {
   id: string;
@@ -95,9 +96,15 @@ const SCALE_LABELS: Record<LobTimeScale, string> = {
 };
 
 const LOB_DENSITY_CELL: Record<LobDensity, string> = {
-  COMPACTO: "h-8 min-w-[38px] text-[11px] font-semibold",
-  PADRAO: "h-9 min-w-[46px] text-xs font-bold tracking-tight",
-  CONFORTAVEL: "h-11 min-w-[56px] text-[13px] font-bold tracking-tight",
+  COMPACTO: "h-8 min-w-[44px] text-[11px] font-bold whitespace-nowrap",
+  PADRAO: "h-9 min-w-[52px] text-xs font-bold tracking-tight whitespace-nowrap",
+  CONFORTAVEL: "h-11 min-w-[62px] text-[13px] font-bold tracking-tight whitespace-nowrap",
+};
+
+const LOB_DENSITY_HEADER_WIDTH: Record<LobDensity, string> = {
+  COMPACTO: "min-w-[44px] whitespace-nowrap",
+  PADRAO: "min-w-[52px] whitespace-nowrap",
+  CONFORTAVEL: "min-w-[62px] whitespace-nowrap",
 };
 
 const LOB_DENSITY_LABELS: Record<LobDensity, string> = {
@@ -139,6 +146,9 @@ export function EapLobSpreadsheet({
   const [density, setDensity] = useState<LobDensity>("PADRAO");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [legendExpanded, setLegendExpanded] = useState(false);
+  const [legendOpenFullscreen, setLegendOpenFullscreen] = useState(false);
+  const [showClearMenu, setShowClearMenu] = useState(false);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [legendSearch, setLegendSearch] = useState("");
   const [originFilter, setOriginFilter] = useState<"ALL" | EapDataOrigin>("ALL");
   const [fillingPreliminary, setFillingPreliminary] = useState(false);
@@ -981,16 +991,83 @@ export function EapLobSpreadsheet({
     ]
   );
 
+  const handleClearLob = useCallback(
+    (mode: EapClearMode) => {
+      const selectedKeys = new Set<string>();
+      if (mode === "SELECTED") {
+        if (selectedCell) {
+          const floor = matrix.floors[selectedCell.floorIndex];
+          const col = timeline.columns[selectedCell.colIndex];
+          if (floor && col) {
+            for (const d of col.allDatesIso) {
+              selectedKeys.add(`${floor.floorId}::${d}`);
+            }
+          }
+        }
+        if (dragFillStart && dragFillHoverCol !== null) {
+          const floor = matrix.floors[dragFillStart.floorIndex];
+          if (floor) {
+            for (let ci = dragFillStart.colIndex; ci <= dragFillHoverCol; ci++) {
+              const col = timeline.columns[ci];
+              if (!col) continue;
+              for (const d of col.allDatesIso) {
+                selectedKeys.add(`${floor.floorId}::${d}`);
+              }
+            }
+          }
+        }
+        if (selectedKeys.size === 0) {
+          setFeedback({
+            type: "error",
+            text: "Clique em uma célula da matriz antes de limpar a seleção.",
+          });
+          setShowClearMenu(false);
+          return;
+        }
+      }
+
+      const { nextAllocations, removedCount } = clearLobAllocationsByMode(
+        matrix.allocations,
+        mode,
+        selectedKeys
+      );
+
+      setShowClearMenu(false);
+      setConfirmClearAll(false);
+
+      if (removedCount === 0) {
+        setFeedback({
+          type: "success",
+          text: "Nenhuma alocação correspondente para limpar.",
+        });
+        return;
+      }
+
+      pushMatrix({
+        floors: matrix.floors,
+        allocations: nextAllocations,
+      });
+      setDirty(true);
+      setFeedback({
+        type: "success",
+        text: `${removedCount} alocação(ões) limpa(s). Use Desfazer (Ctrl+Z) para reverter.`,
+      });
+    },
+    [selectedCell, dragFillStart, dragFillHoverCol, matrix, timeline.columns, pushMatrix]
+  );
+
   const renderMatrixContent = (fullMode: boolean) => (
     <div
       tabIndex={0}
       onKeyDown={handleGlobalKeyDown}
-      className={`flex flex-col gap-3 outline-none ${
-        fullMode ? "h-full overflow-hidden p-4" : ""
+      className={`outline-none ${
+        fullMode
+          ? "relative flex flex-1 min-h-0 flex-col gap-2.5 p-2"
+          : "flex flex-col gap-3"
       }`}
     >
       {/* Faixa Superior: Controles + Equipe Ativa + Pacotes 1..N */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-xs backdrop-blur-md space-y-2.5 dark:border-zinc-800 dark:bg-[#16161D]/95">
+      <div className="shrink-0 rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-xs backdrop-blur-md space-y-2.5 dark:border-zinc-800 dark:bg-[#16161D]/95">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
@@ -1060,6 +1137,76 @@ export function EapLobSpreadsheet({
             >
               ↷
             </button>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowClearMenu((v) => !v)}
+                title="Limpar células, preliminares ou grade LOB (reversível com Ctrl+Z)"
+                className="inline-flex h-8 items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-2.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 cursor-pointer dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
+              >
+                🧹 Limpar
+              </button>
+              {showClearMenu && (
+                <div className="absolute right-0 top-9 z-50 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => handleClearLob("SELECTED")}
+                    className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 cursor-pointer dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    Limpar Células Selecionadas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleClearLob("PRELIMINARY")}
+                    className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-amber-800 hover:bg-amber-50 cursor-pointer dark:text-amber-300 dark:hover:bg-amber-950/40"
+                  >
+                    Limpar Somente Preliminares (Est.)
+                  </button>
+                  {!confirmClearAll ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClearAll(true)}
+                      className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50 cursor-pointer dark:text-rose-400 dark:hover:bg-rose-950/40"
+                    >
+                      Limpar Toda a Grade LOB
+                    </button>
+                  ) : (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-2 dark:border-rose-900/60 dark:bg-rose-950/40 space-y-1.5">
+                      <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-200">
+                        Esvaziar todas as alocações do calendário? (Reversível com Ctrl+Z)
+                      </p>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleClearLob("ALL")}
+                          className="flex-1 rounded-lg bg-rose-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-rose-700 cursor-pointer"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmClearAll(false)}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {fullMode && (
+              <button
+                type="button"
+                onClick={() => setLegendOpenFullscreen((v) => !v)}
+                className="inline-flex h-8 items-center gap-1 rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              >
+                🎨 {legendOpenFullscreen ? "Fechar Legenda" : `Legenda (${packageChips.length})`}
+              </button>
+            )}
 
             <div className="inline-flex items-center gap-1 rounded-xl border border-zinc-200/80 bg-white/75 px-2 py-1 backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/70">
               <span className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">
@@ -1156,11 +1303,12 @@ export function EapLobSpreadsheet({
           </div>
         </div>
 
-        {/* Painel de Legenda Funcional de Pacotes (Agrupado por Fase) — flutuante sobreposto em tela cheia */}
+        {/* Painel de Legenda Funcional de Pacotes (Agrupado por Fase) — flutuante sobreposto em tela cheia quando aberto */}
+        {(!fullMode || legendOpenFullscreen) && (
         <div
           className={`space-y-2 pt-2.5 pb-1 dark:border-zinc-800 ${
             fullMode
-              ? "absolute top-12 left-4 right-4 z-40 max-h-[55dvh] overflow-y-auto shadow-2xl backdrop-blur-xl rounded-2xl border border-white/40 bg-white/95 p-2 dark:border-zinc-800 dark:bg-zinc-900/90"
+              ? "absolute top-14 left-4 right-4 z-40 max-h-[55dvh] overflow-y-auto shadow-2xl backdrop-blur-xl rounded-2xl border border-slate-200/90 bg-white/95 p-3 dark:border-zinc-700 dark:bg-zinc-900/95"
               : "border-t border-slate-200/80"
           }`}
         >
@@ -1199,10 +1347,10 @@ export function EapLobSpreadsheet({
             {fullMode && (
               <button
                 type="button"
-                onClick={() => setLegendExpanded(false)}
+                onClick={() => setLegendOpenFullscreen(false)}
                 className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
               >
-                Fechar (Esc)
+                Fechar
               </button>
             )}
           </div>
@@ -1267,6 +1415,7 @@ export function EapLobSpreadsheet({
             ))}
           </div>
         </div>
+        )}
 
         {/* Painel Sincronizado Fase 10: Prazos, Validação, Nivelamento & Equipes */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-2 dark:border-zinc-800">
@@ -1470,8 +1619,8 @@ export function EapLobSpreadsheet({
 
       {/* Grade Matricial Pavimentos × Datas Contínuas */}
       <div
-        className={`relative overflow-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#14141B] ${
-          fullMode ? "flex-1" : "max-h-[620px]"
+        className={`relative w-full overflow-x-auto overflow-y-auto overscroll-contain rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#14141B] ${
+          fullMode ? "flex-1 min-h-0" : "max-h-[620px]"
         }`}
       >
         <table className="border-collapse text-left">
@@ -1479,7 +1628,7 @@ export function EapLobSpreadsheet({
             <tr>
               <th
                 rowSpan={3}
-                className="sticky left-0 z-30 min-w-[210px] border-b border-r border-slate-800 bg-slate-950 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider"
+                className="sticky left-0 z-40 w-[220px] min-w-[220px] max-w-[220px] border-b border-r border-slate-800 bg-slate-950 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider shadow-[4px_0_12px_-4px_rgba(0,0,0,0.35)]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span>Pavimento / Setor</span>
@@ -1523,7 +1672,7 @@ export function EapLobSpreadsheet({
               {timeline.columns.map((col) => (
                 <th
                   key={`dow-${col.key}`}
-                  className={`border-b border-r border-slate-800 px-1 py-0.5 text-center text-[9px] font-bold ${
+                  className={`border-b border-r border-slate-800 px-1 py-0.5 text-center text-[9px] font-bold ${LOB_DENSITY_HEADER_WIDTH[density]} ${
                     col.isHoliday
                       ? "bg-slate-700 text-amber-300"
                       : col.isWeekend
@@ -1540,7 +1689,7 @@ export function EapLobSpreadsheet({
                 <th
                   key={`dt-${col.key}`}
                   title={col.holidayName || (col.isWeekend ? "Fim de semana (sem trabalho)" : col.startIso)}
-                  className={`border-b border-r border-slate-800 px-1 py-1 text-center font-mono text-[9px] font-semibold ${
+                  className={`border-b border-r border-slate-800 px-1 py-1 text-center font-mono text-[9px] font-semibold tabular-nums ${LOB_DENSITY_HEADER_WIDTH[density]} ${
                     col.isHoliday
                       ? "bg-slate-700 text-amber-200"
                       : col.isWeekend
@@ -1562,7 +1711,7 @@ export function EapLobSpreadsheet({
                   {laneIdx === 0 && (
                     <td
                       rowSpan={lanes.length}
-                      className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 align-middle dark:border-zinc-800 dark:bg-[#171720] dark:text-zinc-100"
+                      className="sticky left-0 z-30 w-[220px] min-w-[220px] max-w-[220px] border-r border-slate-200 bg-zinc-50 px-3 py-2 text-xs font-bold text-slate-900 align-middle shadow-[4px_0_12px_-4px_rgba(0,0,0,0.12)] dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                     >
                       {editingFloorId === floor.floorId ? (
                         <input
@@ -1809,7 +1958,7 @@ export function EapLobSpreadsheet({
             <tr>
               <th
                 rowSpan={3}
-                className="sticky left-0 z-30 border-t border-r border-slate-800 bg-slate-950 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-300"
+                className="sticky left-0 z-40 w-[220px] min-w-[220px] max-w-[220px] border-t border-r border-slate-800 bg-slate-950 px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-300 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.35)]"
               >
                 Calendário Espelhado
               </th>

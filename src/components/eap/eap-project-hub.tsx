@@ -10,6 +10,7 @@ import { EapFieldMeasurement } from "@/components/admin/eap/eap-field-measuremen
 import { EapExecutiveReportView } from "@/components/eap/eap-executive-report-view";
 import { EapExecutionTracker } from "@/components/eap/eap-execution-tracker";
 import { EapCostReportView } from "@/components/admin/eap/eap-cost-report-view";
+import { EapScheduleReportView } from "@/components/admin/eap/eap-schedule-report-view";
 
 export type EapDisciplineCode =
   | "ARQUITETONICO"
@@ -216,7 +217,7 @@ export function EapProjectHub({
   const [stagingEditedQuantities, setStagingEditedQuantities] = useState<Map<string, Record<string, number>>>(new Map());
   const [sources, setSources] = useState<SourceFileDTO[]>(initialEap?.sourceFiles ?? []);
   const [activeTab, setActiveTab] = useState<
-    "sources" | "conference" | "costReport" | "planning" | "field" | "report"
+    "sources" | "conference" | "costReport" | "planning" | "scheduleReport" | "field" | "report"
   >(
     initialEap && initialEap.status !== "RASCUNHO" ? "conference" : "sources"
   );
@@ -605,8 +606,9 @@ export function EapProjectHub({
             { id: "conference", label: "2. Planilha EAP & Custos (Conferência)" },
             { id: "costReport", label: "3. Relatório da EAP (Custos)" },
             { id: "planning", label: "4. Planejamento (LOB & Cronograma)" },
-            { id: "field", label: "5. Medição no Canteiro" },
-            { id: "report", label: "6. Relatório Executivo & Medições" },
+            { id: "scheduleReport", label: "5. Relatório do Planejamento" },
+            { id: "field", label: "6. Medição no Canteiro" },
+            { id: "report", label: "7. Relatório Executivo & Medições" },
           ] as const
         ).map((tab) => (
           <button
@@ -639,7 +641,12 @@ export function EapProjectHub({
         <EapSchedulePlanner
           projectId={projectId}
           onBaselineApproved={() => router.refresh()}
+          onOpenScheduleReport={() => setActiveTab("scheduleReport")}
         />
+      )}
+
+      {activeTab === "scheduleReport" && (
+        <EapScheduleReportView projectId={projectId} />
       )}
 
       {activeTab === "field" && (

@@ -17,6 +17,7 @@ import {
   DATA_ORIGIN_META,
   normalizeDataOrigin,
 } from "@/lib/eap-preliminary-13m";
+import { clearEapItemsValues, type EapClearMode } from "@/lib/eap-clear-helpers";
 import {
   applyCommercialUnitPrice,
   createDuplicateItemPayload,
@@ -289,6 +290,8 @@ export function EapConferenceWorkbench({
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [activeRowItemId, setActiveRowItemId] = useState<string | null>(null);
   const [needsPlanningSync, setNeedsPlanningSync] = useState(false);
+  const [showClearMenu, setShowClearMenu] = useState(false);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
   const history = useHistoryStack<EapTreeResponse>(40);
 
   // Menu de contexto discreto na linha (⋮)
@@ -889,6 +892,75 @@ export function EapConferenceWorkbench({
     [projectId, selectedItemIds, loadTree]
   );
 
+  const handleClearEap = useCallback(
+    async (mode: EapClearMode) => {
+      const current = treeRef.current;
+      if (!current) return;
+      if (mode === "SELECTED" && selectedItemIds.length === 0 && !activeRowItemId) {
+        setFeedback({
+          type: "error",
+          text: "Selecione ao menos uma linha ou célula antes de limpar a seleção.",
+        });
+        setShowClearMenu(false);
+        return;
+      }
+
+      const targetIds = new Set(
+        selectedItemIds.length > 0
+          ? selectedItemIds
+          : activeRowItemId
+            ? [activeRowItemId]
+            : []
+      );
+
+      history.record(current);
+      const changedIds: string[] = [];
+
+      const nextStages = current.stages.map((st) => ({
+        ...st,
+        groups: st.groups.map((grp) => {
+          const { nextItems, changedIds: ids } = clearEapItemsValues(
+            grp.items,
+            mode,
+            targetIds
+          );
+          changedIds.push(...ids);
+          return { ...grp, items: nextItems };
+        }),
+      }));
+
+      if (changedIds.length === 0) {
+        setShowClearMenu(false);
+        setConfirmClearAll(false);
+        setFeedback({
+          type: "success",
+          text: "Nenhum item compatível com o filtro de limpeza selecionado.",
+        });
+        return;
+      }
+
+      const recomputed = recomputeTreeTotals({
+        ...current,
+        stages: nextStages,
+      });
+      for (const id of changedIds) {
+        dirtySetRef.current.add(id);
+      }
+      treeRef.current = recomputed;
+      setTree(recomputed);
+      setDirtyIds(Array.from(dirtySetRef.current));
+      setNeedsPlanningSync(true);
+      setShowClearMenu(false);
+      setConfirmClearAll(false);
+      setFeedback({
+        type: "success",
+        text: `${changedIds.length} linha(s) limpa(s). Use Desfazer (Ctrl+Z) para reverter.`,
+      });
+      await flushDirtyItems(false);
+    },
+    [selectedItemIds, activeRowItemId, history, flushDirtyItems]
+  );
+
   const handlePasteMatrix = useCallback(
     (startRow: number, startCol: number, matrix: string[][]) => {
       const currentTree = treeRef.current;
@@ -1166,6 +1238,65 @@ export function EapConferenceWorkbench({
       >
         ↷
       </button>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowClearMenu((v) => !v)}
+          title="Limpar células, preliminares ou planilha (reversível com Ctrl+Z)"
+          className="h-7 rounded-lg px-2 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 cursor-pointer dark:text-rose-300 dark:hover:bg-rose-950/50"
+        >
+          🧹 Limpar
+        </button>
+        {showClearMenu && (
+          <div className="absolute right-0 top-9 z-50 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 space-y-1">
+            <button
+              type="button"
+              onClick={() => void handleClearEap("SELECTED")}
+              className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 cursor-pointer dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              Limpar Células / Linhas Selecionadas
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleClearEap("PRELIMINARY")}
+              className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-amber-800 hover:bg-amber-50 cursor-pointer dark:text-amber-300 dark:hover:bg-amber-950/40"
+            >
+              Limpar Somente Preliminares (Est.)
+            </button>
+            {!confirmClearAll ? (
+              <button
+                type="button"
+                onClick={() => setConfirmClearAll(true)}
+                className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50 cursor-pointer dark:text-rose-400 dark:hover:bg-rose-950/40"
+              >
+                Limpar Toda a Planilha EAP
+              </button>
+            ) : (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-2 dark:border-rose-900/60 dark:bg-rose-950/40 space-y-1.5">
+                <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-200">
+                  Zerar todas as quantidades e custos? (Reversível com Ctrl+Z)
+                </p>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void handleClearEap("ALL")}
+                    className="flex-1 rounded-lg bg-rose-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-rose-700 cursor-pointer"
+                  >
+                    Confirmar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClearAll(false)}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 

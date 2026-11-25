@@ -124,9 +124,11 @@ function getWaveColorClass(waveName: string): string {
 export function EapSchedulePlanner({
   projectId,
   onBaselineApproved,
+  onOpenScheduleReport,
 }: {
   projectId: string;
   onBaselineApproved?: () => void;
+  onOpenScheduleReport?: () => void;
 }) {
   const [data, setData] = useState<ScheduleApiPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -443,6 +445,15 @@ export function EapSchedulePlanner({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {onOpenScheduleReport && (
+              <button
+                type="button"
+                onClick={onOpenScheduleReport}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 cursor-pointer dark:border-emerald-700/60 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/60"
+              >
+                📊 Relatório do Planejamento
+              </button>
+            )}
             <EapTeamsAndPackagesManager
               projectId={projectId}
               buttonClassName="inline-flex h-9 items-center gap-1.5 rounded-xl border border-indigo-300/80 bg-indigo-50/90 px-3.5 text-xs font-semibold text-indigo-900 shadow-xs transition hover:bg-indigo-100 cursor-pointer dark:border-indigo-500/40 dark:bg-indigo-950/60 dark:text-indigo-200 dark:hover:bg-indigo-900/70"
