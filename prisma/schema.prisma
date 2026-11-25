@@ -1784,13 +1784,15 @@ model WhatsAppMessage {
 // ============================================================================
 
 model CityCatalog {
-  id                String              @id @default(uuid()) @db.Uuid
-  name              String
-  state             String              @db.VarChar(2)
-  isDefault         Boolean             @default(false)
-  active            Boolean             @default(true)
-  defaultBdiPercent Float               @default(22.0)
-  holidays          CityHoliday[]
+  id                     String              @id @default(uuid()) @db.Uuid
+  name                   String
+  state                  String              @db.VarChar(2)
+  isDefault              Boolean             @default(false)
+  active                 Boolean             @default(true)
+  defaultBdiPercent      Float               @default(22.0)
+  regionalLaborFactor    Float               @default(1.0)
+  regionalMaterialFactor Float               @default(1.0)
+  holidays               CityHoliday[]
   materialPrices    CityMaterialPrice[]
   laborPrices       CityLaborPrice[]
   eapProjects       EapProject[]
@@ -1839,6 +1841,13 @@ model CityMaterialPrice {
   materialId         String              @db.Uuid
   materialUnitCost   Float               @default(0)
   thirdPartyUnitCost Float               @default(0)
+  lowMaterialCost    Float               @default(0)
+  lowLaborCost       Float               @default(0)
+  midMaterialCost    Float               @default(0)
+  midLaborCost       Float               @default(0)
+  highMaterialCost   Float               @default(0)
+  highLaborCost      Float               @default(0)
+  sensitivityTier    String              @default("ESTRUTURAL_BRUTO") // ESTRUTURAL_BRUTO | REVESTIMENTO_BRUTO | ACABAMENTO_NOBRE
   validFrom          DateTime            @default(now())
   note               String?
   city               CityCatalog         @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -1886,8 +1895,13 @@ model EapProject {
   cityId            String                @db.Uuid
   title             String
   builtAreaM2       Float                 @default(0)
-  bdiPercent        Float                 @default(22.0)
-  plannedStartDate  DateTime?
+  bdiPercent             Float                 @default(22.0)
+  constructionStandard   String                @default("MEDIO_PADRAO") // BAIXO_PADRAO | MEDIO_PADRAO | ALTO_PADRAO
+  cityName               String                @default("Fortaleza")
+  stateCode              String                @default("CE")
+  regionalLaborFactor    Float                 @default(1.0)
+  regionalMaterialFactor Float                 @default(1.0)
+  plannedStartDate       DateTime?
   status            String                @default("RASCUNHO") // RASCUNHO | EM_CONFERENCIA | BASELINE_APROVADA | EM_EXECUCAO | CONCLUIDA
   currentRevision   Int                   @default(1)
   premisesJson      Json                  @default("[]")

@@ -1,4 +1,9 @@
 import { PrismaClient } from "@prisma/client";
+import {
+  computeMultiStandardItemPrices,
+  getStageSensitivityRule,
+  REGIONAL_CITY_MULTIPLIERS,
+} from "../src/server/eap/regional-standards-catalog";
 
 const prisma = new PrismaClient();
 
@@ -164,18 +169,89 @@ export async function seedEapFortaleza() {
       },
     });
 
+    const rule = getStageSensitivityRule(mat.eapStageCode);
+    const baseLabor = mat.eapStageCode === "14" ? 52 : mat.eapStageCode === "15" ? 40 : mat.eapStageCode === "18" ? 210 : Math.round(mat.materialUnitCost * 0.42 * 100) / 100;
+    const lowP = computeMultiStandardItemPrices({
+      stageCode: mat.eapStageCode,
+      unit: mat.unit,
+      materialUnitCost: mat.materialUnitCost,
+      laborUnitCost: baseLabor,
+      thirdPartyUnitCost: mat.thirdPartyUnitCost,
+      currentStandard: "MEDIO_PADRAO",
+      targetStandard: "BAIXO_PADRAO",
+      currentMaterialFactor: 1.0,
+      currentLaborFactor: 1.0,
+      targetMaterialFactor: 1.0,
+      targetLaborFactor: 1.0,
+    });
+    const highP = computeMultiStandardItemPrices({
+      stageCode: mat.eapStageCode,
+      unit: mat.unit,
+      materialUnitCost: mat.materialUnitCost,
+      laborUnitCost: baseLabor,
+      thirdPartyUnitCost: mat.thirdPartyUnitCost,
+      currentStandard: "MEDIO_PADRAO",
+      targetStandard: "ALTO_PADRAO",
+      currentMaterialFactor: 1.0,
+      currentLaborFactor: 1.0,
+      targetMaterialFactor: 1.0,
+      targetLaborFactor: 1.0,
+    });
+
     await prisma.cityMaterialPrice.upsert({
       where: { cityId_materialId: { cityId: city.id, materialId: item.id } },
       update: {
         materialUnitCost: mat.materialUnitCost,
         thirdPartyUnitCost: mat.thirdPartyUnitCost,
+        lowMaterialCost: lowP.materialUnitCost,
+        lowLaborCost: lowP.laborUnitCost,
+        midMaterialCost: mat.materialUnitCost,
+        midLaborCost: baseLabor,
+        highMaterialCost: highP.materialUnitCost,
+        highLaborCost: highP.laborUnitCost,
+        sensitivityTier: rule.tier,
       },
       create: {
         cityId: city.id,
         materialId: item.id,
         materialUnitCost: mat.materialUnitCost,
         thirdPartyUnitCost: mat.thirdPartyUnitCost,
+        lowMaterialCost: lowP.materialUnitCost,
+        lowLaborCost: lowP.laborUnitCost,
+        midMaterialCost: mat.materialUnitCost,
+        midLaborCost: baseLabor,
+        highMaterialCost: highP.materialUnitCost,
+        highLaborCost: highP.laborUnitCost,
+        sensitivityTier: rule.tier,
         note: "Base referencial Fortaleza/CE",
+      },
+    });
+  }
+
+  // Garante praças regionais configuradas com multiplicadores de Mão de Obra e Material
+  for (const regCity of REGIONAL_CITY_MULTIPLIERS) {
+    if (regCity.cityName === "Fortaleza" && regCity.stateCode === "CE") {
+      await prisma.cityCatalog.update({
+        where: { id: city.id },
+        data: { regionalLaborFactor: 1.0, regionalMaterialFactor: 1.0 },
+      });
+      continue;
+    }
+    await prisma.cityCatalog.upsert({
+      where: { name_state: { name: regCity.cityName, state: regCity.stateCode } },
+      update: {
+        regionalLaborFactor: regCity.regionalLaborFactor,
+        regionalMaterialFactor: regCity.regionalMaterialFactor,
+        defaultBdiPercent: regCity.defaultBdiPercent,
+      },
+      create: {
+        name: regCity.cityName,
+        state: regCity.stateCode,
+        isDefault: false,
+        active: true,
+        defaultBdiPercent: regCity.defaultBdiPercent,
+        regionalLaborFactor: regCity.regionalLaborFactor,
+        regionalMaterialFactor: regCity.regionalMaterialFactor,
       },
     });
   }

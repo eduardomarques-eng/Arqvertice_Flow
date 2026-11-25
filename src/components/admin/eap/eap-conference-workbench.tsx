@@ -12,6 +12,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapFullscreenShell } from "@/components/admin/eap/eap-fullscreen-shell";
+import { EapStandardTriageBar } from "@/components/admin/eap/eap-standard-triage-bar";
 import { useHistoryStack } from "@/lib/history-stack";
 import {
   DATA_ORIGIN_META,
@@ -44,6 +45,11 @@ interface EapTreeResponse {
   title: string;
   builtAreaM2: number;
   bdiPercent: number;
+  constructionStandard?: string;
+  cityName?: string;
+  stateCode?: string;
+  regionalLaborFactor?: number;
+  regionalMaterialFactor?: number;
   plannedStartDate: string | null;
   status: string;
   currentRevision: number;
@@ -1946,6 +1952,17 @@ export function EapConferenceWorkbench({
           </div>
         </Card>
       </div>
+
+      {/* Seletor Inteligente de Padrão Construtivo (Baixo / Médio / Alto) & Praça Regional */}
+      <EapStandardTriageBar
+        projectId={projectId}
+        initialStandard={tree.constructionStandard}
+        initialCityName={tree.cityName}
+        initialStateCode={tree.stateCode}
+        initialLaborFactor={tree.regionalLaborFactor}
+        initialMaterialFactor={tree.regionalMaterialFactor}
+        onApplied={loadTree}
+      />
 
       {/* Barra de Ferramentas, Filtros & Auto-Save */}
       <Card className="rounded-3xl border border-white/50 bg-white/80 p-4 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80 space-y-3">

@@ -83,7 +83,20 @@ export async function GET(
       conflicts: eap.conflictLogs,
     });
 
-    return NextResponse.json({ ok: true, tree }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      {
+        ok: true,
+        tree: {
+          ...tree,
+          constructionStandard: eap.constructionStandard,
+          cityName: eap.cityName,
+          stateCode: eap.stateCode,
+          regionalLaborFactor: eap.regionalLaborFactor,
+          regionalMaterialFactor: eap.regionalMaterialFactor,
+        },
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Erro ao carregar árvore da EAP." },

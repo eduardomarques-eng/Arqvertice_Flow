@@ -30,6 +30,13 @@ const updateMaterialSchema = z.object({
   eapStageCode: z.string().min(2).max(4).optional(),
   materialUnitCost: z.number().min(0).optional(),
   thirdPartyUnitCost: z.number().min(0).optional(),
+  lowMaterialCost: z.number().min(0).optional(),
+  lowLaborCost: z.number().min(0).optional(),
+  midMaterialCost: z.number().min(0).optional(),
+  midLaborCost: z.number().min(0).optional(),
+  highMaterialCost: z.number().min(0).optional(),
+  highLaborCost: z.number().min(0).optional(),
+  sensitivityTier: z.enum(["ESTRUTURAL_BRUTO", "REVESTIMENTO_BRUTO", "ACABAMENTO_NOBRE"]).optional(),
   note: z.string().max(300).nullable().optional(),
 });
 
@@ -58,6 +65,13 @@ export async function GET(request: NextRequest) {
         sourceSoftwareHint: m.sourceSoftwareHint,
         materialUnitCost: price?.materialUnitCost ?? 0,
         thirdPartyUnitCost: price?.thirdPartyUnitCost ?? 0,
+        lowMaterialCost: price?.lowMaterialCost ?? 0,
+        lowLaborCost: price?.lowLaborCost ?? 0,
+        midMaterialCost: price?.midMaterialCost ?? price?.materialUnitCost ?? 0,
+        midLaborCost: price?.midLaborCost ?? 0,
+        highMaterialCost: price?.highMaterialCost ?? 0,
+        highLaborCost: price?.highLaborCost ?? 0,
+        sensitivityTier: price?.sensitivityTier ?? "ESTRUTURAL_BRUTO",
         note: price?.note ?? null,
       };
     });
@@ -139,19 +153,44 @@ export async function PUT(request: NextRequest) {
         });
       }
 
-      if (parsed.materialUnitCost !== undefined || parsed.thirdPartyUnitCost !== undefined || parsed.note !== undefined) {
+      if (
+        parsed.materialUnitCost !== undefined ||
+        parsed.thirdPartyUnitCost !== undefined ||
+        parsed.lowMaterialCost !== undefined ||
+        parsed.lowLaborCost !== undefined ||
+        parsed.midMaterialCost !== undefined ||
+        parsed.midLaborCost !== undefined ||
+        parsed.highMaterialCost !== undefined ||
+        parsed.highLaborCost !== undefined ||
+        parsed.sensitivityTier !== undefined ||
+        parsed.note !== undefined
+      ) {
         await tx.cityMaterialPrice.upsert({
           where: { cityId_materialId: { cityId: parsed.cityId, materialId: parsed.materialId } },
           update: {
             ...(parsed.materialUnitCost !== undefined ? { materialUnitCost: parsed.materialUnitCost } : {}),
             ...(parsed.thirdPartyUnitCost !== undefined ? { thirdPartyUnitCost: parsed.thirdPartyUnitCost } : {}),
+            ...(parsed.lowMaterialCost !== undefined ? { lowMaterialCost: parsed.lowMaterialCost } : {}),
+            ...(parsed.lowLaborCost !== undefined ? { lowLaborCost: parsed.lowLaborCost } : {}),
+            ...(parsed.midMaterialCost !== undefined ? { midMaterialCost: parsed.midMaterialCost } : {}),
+            ...(parsed.midLaborCost !== undefined ? { midLaborCost: parsed.midLaborCost } : {}),
+            ...(parsed.highMaterialCost !== undefined ? { highMaterialCost: parsed.highMaterialCost } : {}),
+            ...(parsed.highLaborCost !== undefined ? { highLaborCost: parsed.highLaborCost } : {}),
+            ...(parsed.sensitivityTier !== undefined ? { sensitivityTier: parsed.sensitivityTier } : {}),
             ...(parsed.note !== undefined ? { note: parsed.note } : {}),
           },
           create: {
             cityId: parsed.cityId,
             materialId: parsed.materialId,
-            materialUnitCost: parsed.materialUnitCost ?? 0,
+            materialUnitCost: parsed.materialUnitCost ?? parsed.midMaterialCost ?? 0,
             thirdPartyUnitCost: parsed.thirdPartyUnitCost ?? 0,
+            lowMaterialCost: parsed.lowMaterialCost ?? 0,
+            lowLaborCost: parsed.lowLaborCost ?? 0,
+            midMaterialCost: parsed.midMaterialCost ?? parsed.materialUnitCost ?? 0,
+            midLaborCost: parsed.midLaborCost ?? 0,
+            highMaterialCost: parsed.highMaterialCost ?? 0,
+            highLaborCost: parsed.highLaborCost ?? 0,
+            sensitivityTier: parsed.sensitivityTier ?? "ESTRUTURAL_BRUTO",
             note: parsed.note ?? null,
           },
         });

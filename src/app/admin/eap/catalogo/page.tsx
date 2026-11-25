@@ -66,6 +66,8 @@ export default async function EapCatalogoPage() {
     isDefault: c.isDefault,
     active: c.active,
     defaultBdiPercent: c.defaultBdiPercent,
+    regionalLaborFactor: c.regionalLaborFactor,
+    regionalMaterialFactor: c.regionalMaterialFactor,
     holidaysCount: c._count.holidays,
     materialPricesCount: c._count.materialPrices,
     laborPricesCount: c._count.laborPrices,
@@ -82,6 +84,13 @@ export default async function EapCatalogoPage() {
     sourceSoftwareHint: m.sourceSoftwareHint,
     materialUnitCost: m.cityPrices[0]?.materialUnitCost ?? 0,
     thirdPartyUnitCost: m.cityPrices[0]?.thirdPartyUnitCost ?? 0,
+    lowMaterialCost: m.cityPrices[0]?.lowMaterialCost ?? 0,
+    lowLaborCost: m.cityPrices[0]?.lowLaborCost ?? 0,
+    midMaterialCost: m.cityPrices[0]?.midMaterialCost ?? m.cityPrices[0]?.materialUnitCost ?? 0,
+    midLaborCost: m.cityPrices[0]?.midLaborCost ?? 0,
+    highMaterialCost: m.cityPrices[0]?.highMaterialCost ?? 0,
+    highLaborCost: m.cityPrices[0]?.highLaborCost ?? 0,
+    sensitivityTier: m.cityPrices[0]?.sensitivityTier ?? "ESTRUTURAL_BRUTO",
     note: m.cityPrices[0]?.note ?? null,
   }));
 

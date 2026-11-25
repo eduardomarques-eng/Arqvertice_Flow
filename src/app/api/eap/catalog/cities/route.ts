@@ -20,6 +20,8 @@ const updateCitySchema = z.object({
   name: z.string().min(2).max(120).optional(),
   state: z.string().length(2).optional(),
   defaultBdiPercent: z.number().min(0).max(100).optional(),
+  regionalLaborFactor: z.number().min(0.5).max(3.0).optional(),
+  regionalMaterialFactor: z.number().min(0.5).max(3.0).optional(),
   isDefault: z.boolean().optional(),
   active: z.boolean().optional(),
 });
@@ -145,6 +147,8 @@ export async function PUT(request: NextRequest) {
           ...(parsed.name ? { name: parsed.name.trim() } : {}),
           ...(parsed.state ? { state: parsed.state.toUpperCase() } : {}),
           ...(parsed.defaultBdiPercent !== undefined ? { defaultBdiPercent: parsed.defaultBdiPercent } : {}),
+          ...(parsed.regionalLaborFactor !== undefined ? { regionalLaborFactor: parsed.regionalLaborFactor } : {}),
+          ...(parsed.regionalMaterialFactor !== undefined ? { regionalMaterialFactor: parsed.regionalMaterialFactor } : {}),
           ...(parsed.isDefault !== undefined ? { isDefault: parsed.isDefault } : {}),
           ...(parsed.active !== undefined ? { active: parsed.active } : {}),
         },

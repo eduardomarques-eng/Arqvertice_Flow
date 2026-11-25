@@ -15,6 +15,8 @@ export interface CityCatalogDTO {
   isDefault: boolean;
   active: boolean;
   defaultBdiPercent: number;
+  regionalLaborFactor?: number;
+  regionalMaterialFactor?: number;
   holidaysCount: number;
   materialPricesCount: number;
   laborPricesCount: number;
@@ -31,6 +33,13 @@ export interface MaterialCatalogDTO {
   sourceSoftwareHint: string;
   materialUnitCost: number;
   thirdPartyUnitCost: number;
+  lowMaterialCost?: number;
+  lowLaborCost?: number;
+  midMaterialCost?: number;
+  midLaborCost?: number;
+  highMaterialCost?: number;
+  highLaborCost?: number;
+  sensitivityTier?: string;
   note: string | null;
 }
 
@@ -242,8 +251,14 @@ export function EapCatalogHub({
           materialId: item.id,
           cityId: activeCityId,
           defaultLossPercent: Number(item.defaultLossPercent) || 0,
-          materialUnitCost: Number(item.materialUnitCost) || 0,
+          materialUnitCost: Number(item.midMaterialCost ?? item.materialUnitCost) || 0,
           thirdPartyUnitCost: Number(item.thirdPartyUnitCost) || 0,
+          lowMaterialCost: Number(item.lowMaterialCost) || 0,
+          lowLaborCost: Number(item.lowLaborCost) || 0,
+          midMaterialCost: Number(item.midMaterialCost ?? item.materialUnitCost) || 0,
+          midLaborCost: Number(item.midLaborCost) || 0,
+          highMaterialCost: Number(item.highMaterialCost) || 0,
+          highLaborCost: Number(item.highLaborCost) || 0,
         }),
       });
       const json = await res.json();
@@ -515,7 +530,9 @@ export function EapCatalogHub({
                   <th className="px-3 py-2.5">Descrição</th>
                   <th className="px-3 py-2.5">Un.</th>
                   <th className="px-3 py-2.5">Perda (%)</th>
-                  <th className="px-3 py-2.5">Material (R$)</th>
+                  <th className="px-3 py-2.5 text-center">Baixo Padrão (Mat / MO)</th>
+                  <th className="px-3 py-2.5 text-center">Médio Padrão (Mat / MO)</th>
+                  <th className="px-3 py-2.5 text-center">Alto Padrão (Mat / MO)</th>
                   <th className="px-3 py-2.5">Terceiros (R$)</th>
                   <th className="px-3 py-2.5 text-right">Ação</th>
                 </tr>
@@ -529,9 +546,11 @@ export function EapCatalogHub({
                         Etapa {item.eapStageCode} · {item.sourceSoftwareHint}
                       </div>
                     </td>
-                    <td className="px-3 py-2 min-w-[240px]">
+                    <td className="px-3 py-2 min-w-[210px]">
                       <div className="font-medium">{item.name}</div>
-                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">{item.category}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">
+                        {item.category} · {item.sensitivityTier ?? "ESTRUTURAL_BRUTO"}
+                      </div>
                     </td>
                     <td className="px-3 py-2 font-mono">{item.unit}</td>
                     <td className="px-3 py-2">
@@ -546,23 +565,110 @@ export function EapCatalogHub({
                             )
                           )
                         }
-                        className={`${INPUT_CLASS} w-20 text-right font-mono`}
+                        className={`${INPUT_CLASS} w-16 text-right font-mono`}
                       />
                     </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={item.materialUnitCost}
-                        onChange={(e) =>
-                          setMaterials((prev) =>
-                            prev.map((m) =>
-                              m.id === item.id ? { ...m, materialUnitCost: Number(e.target.value) } : m
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          title="Baixo Padrão — Material"
+                          value={item.lowMaterialCost ?? 0}
+                          onChange={(e) =>
+                            setMaterials((prev) =>
+                              prev.map((m) =>
+                                m.id === item.id ? { ...m, lowMaterialCost: Number(e.target.value) } : m
+                              )
                             )
-                          )
-                        }
-                        className={`${INPUT_CLASS} w-28 text-right font-mono`}
-                      />
+                          }
+                          className={`${INPUT_CLASS} w-20 text-right font-mono`}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          title="Baixo Padrão — Mão de Obra"
+                          value={item.lowLaborCost ?? 0}
+                          onChange={(e) =>
+                            setMaterials((prev) =>
+                              prev.map((m) =>
+                                m.id === item.id ? { ...m, lowLaborCost: Number(e.target.value) } : m
+                              )
+                            )
+                          }
+                          className={`${INPUT_CLASS} w-20 text-right font-mono`}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          title="Médio Padrão — Material"
+                          value={item.midMaterialCost ?? item.materialUnitCost}
+                          onChange={(e) =>
+                            setMaterials((prev) =>
+                              prev.map((m) =>
+                                m.id === item.id
+                                  ? {
+                                      ...m,
+                                      midMaterialCost: Number(e.target.value),
+                                      materialUnitCost: Number(e.target.value),
+                                    }
+                                  : m
+                              )
+                            )
+                          }
+                          className={`${INPUT_CLASS} w-20 text-right font-mono`}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          title="Médio Padrão — Mão de Obra"
+                          value={item.midLaborCost ?? 0}
+                          onChange={(e) =>
+                            setMaterials((prev) =>
+                              prev.map((m) =>
+                                m.id === item.id ? { ...m, midLaborCost: Number(e.target.value) } : m
+                              )
+                            )
+                          }
+                          className={`${INPUT_CLASS} w-20 text-right font-mono`}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          title="Alto Padrão — Material"
+                          value={item.highMaterialCost ?? 0}
+                          onChange={(e) =>
+                            setMaterials((prev) =>
+                              prev.map((m) =>
+                                m.id === item.id ? { ...m, highMaterialCost: Number(e.target.value) } : m
+                              )
+                            )
+                          }
+                          className={`${INPUT_CLASS} w-20 text-right font-mono`}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          title="Alto Padrão — Mão de Obra"
+                          value={item.highLaborCost ?? 0}
+                          onChange={(e) =>
+                            setMaterials((prev) =>
+                              prev.map((m) =>
+                                m.id === item.id ? { ...m, highLaborCost: Number(e.target.value) } : m
+                              )
+                            )
+                          }
+                          className={`${INPUT_CLASS} w-20 text-right font-mono`}
+                        />
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <input
