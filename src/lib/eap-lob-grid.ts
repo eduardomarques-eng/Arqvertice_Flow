@@ -1453,7 +1453,7 @@ export function summarizeLobAllocationsByPackage(
       minDate: null,
       maxDate: null,
     };
-    entry.cellKeys.add(`${a.floorId}::${a.dateIso}`);
+    entry.cellKeys.add(`${a.floorId}::${a.dateIso}::${a.teamCode.toUpperCase()}`);
     entry.teamCodes.add(a.teamCode.toUpperCase());
     entry.floors.add(a.floorId);
     if (!entry.minDate || a.dateIso < entry.minDate) entry.minDate = a.dateIso;
@@ -1475,6 +1475,53 @@ export function summarizeLobAllocationsByPackage(
     });
   }
   return result;
+}
+
+/**
+ * Detecta matrizes legadas ou incoerentes (ex.: acabamentos/revestimentos na semana 1
+ * junto ao Canteiro, ou pacotes de fundação alocados em Pavimento Superior / Área Externa).
+ */
+export function hasBrokenPhysicalSequence(
+  allocations: LobFloorAllocationItem[],
+  servicePackages: FloorMatrixServicePackage[]
+): boolean {
+  if (allocations.length === 0) return false;
+
+  let minDate: string | null = null;
+  for (const a of allocations) {
+    if (!minDate || a.dateIso < minDate) minDate = a.dateIso;
+  }
+  if (!minDate) return false;
+
+  const week1Cutoff = stepWorkingDayUTC(minDate, 4, new Set());
+  const pkgMap = new Map(servicePackages.map((p) => [p.packageNumber, p]));
+
+  for (const a of allocations) {
+    const canonical = CANONICAL_LOB_PACKAGE_RULES[a.packageNumber];
+    if (canonical) {
+      const fid = a.floorId.toUpperCase();
+      if (
+        ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA", "AREA_EXTERNA"].includes(fid) &&
+        !canonical.allowedFloors.includes(fid)
+      ) {
+        return true;
+      }
+      if (canonical.phaseOrder >= 4 && a.dateIso <= week1Cutoff) {
+        return true;
+      }
+      continue;
+    }
+
+    const pkg = pkgMap.get(a.packageNumber);
+    if (pkg) {
+      const rule = resolveConstructionRuleForPackage(pkg);
+      if (rule.phaseOrder >= 4 && a.dateIso <= week1Cutoff) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function isPackageAllowedOnFloor(
@@ -1612,6 +1659,9 @@ function computeEarliestPhysicalStart(input: {
   if (pOrder >= 3) {
     advanceAfter(input.phaseMaxEndGlobal.get(2), 2);
   }
+  if (pOrder >= 4 && !input.phaseMaxEndGlobal.get(2) && !input.phaseMaxEndGlobal.get(3)) {
+    advanceAfter(input.phaseMaxEndGlobal.get(1) ?? input.baseStart, 5);
+  }
 
   // 3. Trava vertical de Supraestrutura (Fase 3)
   if (pOrder === 3) {
@@ -1684,12 +1734,12 @@ export function generateIntelligentFloorLobMatrix(input: {
       pkg.packageNumber,
       pkg.canonicalRule
         ? {
-            ...baseRule,
-            phaseOrder: pkg.canonicalRule.phaseOrder,
-            defaultTeam: pkg.canonicalRule.defaultTeam,
-            cureLagWorkingDays: pkg.canonicalRule.cureLagWorkingDays,
-            allowedFloors: pkg.canonicalRule.allowedFloors,
-          }
+          ...baseRule,
+          phaseOrder: pkg.canonicalRule.phaseOrder,
+          defaultTeam: pkg.canonicalRule.defaultTeam,
+          cureLagWorkingDays: pkg.canonicalRule.cureLagWorkingDays,
+          allowedFloors: pkg.canonicalRule.allowedFloors,
+        }
         : baseRule
     );
   }
@@ -1991,12 +2041,12 @@ export function analyzeFloorMatrixConflicts(input: {
       p.packageNumber,
       p.canonicalRule
         ? {
-            ...baseRule,
-            phaseOrder: p.canonicalRule.phaseOrder,
-            defaultTeam: p.canonicalRule.defaultTeam,
-            cureLagWorkingDays: p.canonicalRule.cureLagWorkingDays,
-            allowedFloors: p.canonicalRule.allowedFloors,
-          }
+          ...baseRule,
+          phaseOrder: p.canonicalRule.phaseOrder,
+          defaultTeam: p.canonicalRule.defaultTeam,
+          cureLagWorkingDays: p.canonicalRule.cureLagWorkingDays,
+          allowedFloors: p.canonicalRule.allowedFloors,
+        }
         : baseRule
     );
   }
@@ -2131,11 +2181,11 @@ export function analyzeFloorMatrixConflicts(input: {
   const totalCalendarDays =
     minDate && maxDate
       ? Math.max(
-          1,
-          Math.round(
-            (parseUtcDate(maxDate).getTime() - parseUtcDate(minDate).getTime()) / 86_400_000
-          ) + 1
-        )
+        1,
+        Math.round(
+          (parseUtcDate(maxDate).getTime() - parseUtcDate(minDate).getTime()) / 86_400_000
+        ) + 1
+      )
       : 0;
 
   const teamSummaries: FloorMatrixTeamSummary[] = input.workTeams.map((team) => {
@@ -2205,12 +2255,12 @@ export function autoLevelFloorMatrix(input: {
       p.packageNumber,
       p.canonicalRule
         ? {
-            ...baseRule,
-            phaseOrder: p.canonicalRule.phaseOrder,
-            defaultTeam: p.canonicalRule.defaultTeam,
-            cureLagWorkingDays: p.canonicalRule.cureLagWorkingDays,
-            allowedFloors: p.canonicalRule.allowedFloors,
-          }
+          ...baseRule,
+          phaseOrder: p.canonicalRule.phaseOrder,
+          defaultTeam: p.canonicalRule.defaultTeam,
+          cureLagWorkingDays: p.canonicalRule.cureLagWorkingDays,
+          allowedFloors: p.canonicalRule.allowedFloors,
+        }
         : baseRule
     );
   }

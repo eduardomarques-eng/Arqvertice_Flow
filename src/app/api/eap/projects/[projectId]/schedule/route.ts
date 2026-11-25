@@ -5,7 +5,18 @@ import { buildEapTreePayload } from "@/server/eap/workbench";
 import { computeScheduleAnalytics, evaluateScheduleAudit } from "@/server/eap/scheduler";
 import { ensureDefaultTeamsAndPackages } from "@/server/eap/teams-and-packages";
 import { evaluateConstraintRisks } from "@/server/eap/constraints-lookahead";
-import { DEFAULT_LOB_FLOORS } from "@/lib/eap-lob-grid";
+import {
+  DEFAULT_LOB_FLOORS,
+  hasBrokenPhysicalSequence,
+  type FloorMatrixServicePackage,
+  type FloorMatrixWorkTeam,
+  type LobFloorAllocationItem,
+  type LobFloorDefinition,
+} from "@/lib/eap-lob-grid";
+import {
+  buildEapStageFloorLoads,
+  regenerateAndPersistLobMatrix,
+} from "@/server/eap/lob-auto-heal";
 import { handleEapRouteError, jsonNoStore, uuidParamSchema } from "@/server/eap/route-error";
 
 export const dynamic = "force-dynamic";
@@ -159,44 +170,71 @@ export async function GET(
       weeklyHistogram: analytics.weeklyHistogram,
     });
 
-    const parsedFloors = Array.isArray(eap.lobFloorsJson) && eap.lobFloorsJson.length > 0
-      ? eap.lobFloorsJson
-      : DEFAULT_LOB_FLOORS;
+    const parsedFloors: LobFloorDefinition[] =
+      Array.isArray(eap.lobFloorsJson) && eap.lobFloorsJson.length > 0
+        ? (eap.lobFloorsJson as unknown as LobFloorDefinition[])
+        : DEFAULT_LOB_FLOORS;
 
-    const eapStageFloorLoads = tree.stages.map((st) => {
-      let fundacao = 0;
-      let terreo = 0;
-      let superior = 0;
-      let coberta = 0;
-      let externo = 0;
-      const isInfraStage = ["01", "02", "03"].includes(st.code);
+    const eapStageFloorLoads = buildEapStageFloorLoads(tree.stages);
 
-      for (const grp of st.groups) {
-        for (const item of grp.items) {
-          const zq = item.zoneQuantities;
-          if (isInfraStage) {
-            fundacao += zq.FUND_TERREO || 0;
-          } else {
-            terreo += zq.FUND_TERREO || 0;
-          }
-          superior += zq.PAV_SUPERIOR || 0;
-          coberta += zq.COBERTURA || 0;
-          externo += zq.EXTERNO || 0;
-        }
-      }
+    const matrixServicePackages: FloorMatrixServicePackage[] = eap.servicePackages.map((sp) => ({
+      packageNumber: sp.packageNumber,
+      name: sp.name,
+      discipline: sp.discipline,
+      corHex: sp.corHex,
+      textHex: sp.textHex,
+      predecessorNumbers: sp.predecessorNumbers ?? [],
+      productivityPerDay: sp.productivityPerDay,
+      productivityUnit: sp.productivityUnit,
+      linkedEapStageCodes: sp.linkedEapStageCodes ?? [],
+      isActive: sp.isActive,
+    }));
 
-      return {
-        stageCode: st.code,
-        stageName: st.name,
-        floorQuantities: {
-          FUNDACAO: Math.round(fundacao * 100) / 100,
-          TERREO: Math.round(terreo * 100) / 100,
-          PAV_SUPERIOR: Math.round(superior * 100) / 100,
-          COBERTA: Math.round(coberta * 100) / 100,
-          AREA_EXTERNA: Math.round(externo * 100) / 100,
-        },
-      };
-    });
+    const matrixWorkTeams: FloorMatrixWorkTeam[] = eap.workTeams.map((wt) => ({
+      teamCode: wt.teamCode,
+      name: wt.name,
+      specialty: wt.specialty,
+      maxDailyHours: wt.maxDailyHours,
+      maxSimultaneousFronts: wt.maxSimultaneousFronts,
+      workers: wt.workers.map((w) => ({
+        roleName: w.roleName,
+        headcount: w.headcount,
+        dailyRate: w.dailyRate,
+        socialChargesPct: w.socialChargesPct,
+        maxDailyOutput: w.maxDailyOutput,
+      })),
+    }));
+
+    let effectiveLobAllocations: LobFloorAllocationItem[] = eap.lobFloorAllocations.map((a) => ({
+      floorId: a.floorId,
+      floorName: a.floorName,
+      floorOrder: a.floorOrder,
+      dateIso: a.dateIso,
+      teamCode: a.teamCode,
+      packageNumber: a.packageNumber,
+      isOvertime: a.isOvertime,
+    }));
+
+    if (
+      matrixServicePackages.length > 0 &&
+      (effectiveLobAllocations.length === 0 ||
+        hasBrokenPhysicalSequence(effectiveLobAllocations, matrixServicePackages))
+    ) {
+      const startIso =
+        tree.plannedStartDate ||
+        effectiveLobAllocations[0]?.dateIso ||
+        new Date().toISOString().slice(0, 10);
+      effectiveLobAllocations = await regenerateAndPersistLobMatrix({
+        eapProjectId: eap.id,
+        startDate: startIso,
+        builtAreaM2: eap.builtAreaM2,
+        floors: parsedFloors,
+        servicePackages: matrixServicePackages,
+        workTeams: matrixWorkTeams,
+        stageLoads: eapStageFloorLoads,
+        holidays: holidays.map((h) => h.date),
+      });
+    }
 
     const constraintEval = evaluateConstraintRisks(eap.constraints);
 
@@ -212,7 +250,7 @@ export async function GET(
       servicePackages: eap.servicePackages,
       workTeams: eap.workTeams,
       lobFloors: parsedFloors,
-      lobAllocations: eap.lobFloorAllocations,
+      lobAllocations: effectiveLobAllocations,
       eapStageFloorLoads,
       constraintBlocks: constraintEval.lobBlockMap,
       constraintsMetrics: constraintEval.metrics,

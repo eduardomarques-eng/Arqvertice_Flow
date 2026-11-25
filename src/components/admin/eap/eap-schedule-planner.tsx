@@ -465,11 +465,10 @@ export function EapSchedulePlanner({
 
         {feedback && (
           <div
-            className={`rounded-xl border px-3 py-2 text-xs font-medium ${
-              feedback.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
-                : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
-            }`}
+            className={`rounded-xl border px-3 py-2 text-xs font-medium ${feedback.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+              : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+              }`}
           >
             {feedback.text}
           </div>
@@ -517,11 +516,10 @@ export function EapSchedulePlanner({
             key={tab.id}
             type="button"
             onClick={() => setSubView(tab.id)}
-            className={`h-8 rounded-xl px-3.5 text-xs font-semibold cursor-pointer ${
-              subView === tab.id
-                ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
-                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-            }`}
+            className={`h-8 rounded-xl px-3.5 text-xs font-semibold cursor-pointer ${subView === tab.id
+              ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+              }`}
           >
             {tab.label}
           </button>
@@ -552,7 +550,9 @@ export function EapSchedulePlanner({
             servicePackages={data.servicePackages}
             workTeams={data.workTeams}
             initialFloors={data.lobFloors}
-            initialAllocations={data.lobAllocations}
+            initialAllocations={
+              liveLobAllocations.length > 0 ? liveLobAllocations : data.lobAllocations
+            }
             stageLoads={data.eapStageFloorLoads}
             constraintBlocks={data.constraintBlocks}
             onScheduleMutated={() => loadSchedule(true)}

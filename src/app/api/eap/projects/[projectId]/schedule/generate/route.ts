@@ -4,6 +4,12 @@ import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
 import { buildEapTreePayload } from "@/server/eap/workbench";
 import { generateScheduleFromEap } from "@/server/eap/scheduler";
+import { ensureDefaultTeamsAndPackages } from "@/server/eap/teams-and-packages";
+import {
+  buildEapStageFloorLoads,
+  regenerateAndPersistLobMatrix,
+} from "@/server/eap/lob-auto-heal";
+import { DEFAULT_LOB_FLOORS, type LobFloorDefinition } from "@/lib/eap-lob-grid";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -161,6 +167,60 @@ export async function POST(
         data: { plannedStartDate: new Date(`${startDateStr}T00:00:00.000Z`) },
       });
     });
+
+    await ensureDefaultTeamsAndPackages(eap.id);
+    const refreshedTeamsAndPackages = await prisma.eapProject.findUnique({
+      where: { id: eap.id },
+      select: {
+        lobFloorsJson: true,
+        servicePackages: { orderBy: { packageNumber: "asc" } },
+        workTeams: {
+          orderBy: { teamCode: "asc" },
+          include: { workers: true },
+        },
+      },
+    });
+
+    if (refreshedTeamsAndPackages && refreshedTeamsAndPackages.servicePackages.length > 0) {
+      await regenerateAndPersistLobMatrix({
+        eapProjectId: eap.id,
+        startDate: startDateStr,
+        builtAreaM2: eap.builtAreaM2,
+        floors:
+          Array.isArray(refreshedTeamsAndPackages.lobFloorsJson) &&
+          refreshedTeamsAndPackages.lobFloorsJson.length > 0
+            ? (refreshedTeamsAndPackages.lobFloorsJson as unknown as LobFloorDefinition[])
+            : DEFAULT_LOB_FLOORS,
+        servicePackages: refreshedTeamsAndPackages.servicePackages.map((sp) => ({
+          packageNumber: sp.packageNumber,
+          name: sp.name,
+          discipline: sp.discipline,
+          corHex: sp.corHex,
+          textHex: sp.textHex,
+          predecessorNumbers: sp.predecessorNumbers ?? [],
+          productivityPerDay: sp.productivityPerDay,
+          productivityUnit: sp.productivityUnit,
+          linkedEapStageCodes: sp.linkedEapStageCodes ?? [],
+          isActive: sp.isActive,
+        })),
+        workTeams: refreshedTeamsAndPackages.workTeams.map((wt) => ({
+          teamCode: wt.teamCode,
+          name: wt.name,
+          specialty: wt.specialty,
+          maxDailyHours: wt.maxDailyHours,
+          maxSimultaneousFronts: wt.maxSimultaneousFronts,
+          workers: wt.workers.map((w) => ({
+            roleName: w.roleName,
+            headcount: w.headcount,
+            dailyRate: w.dailyRate,
+            socialChargesPct: w.socialChargesPct,
+            maxDailyOutput: w.maxDailyOutput,
+          })),
+        })),
+        stageLoads: buildEapStageFloorLoads(tree.stages),
+        holidays: eap.city.holidays.map((h) => h.date.toISOString().slice(0, 10)),
+      });
+    }
 
     return NextResponse.json(
       {

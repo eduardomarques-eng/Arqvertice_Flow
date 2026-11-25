@@ -5,6 +5,7 @@ import {
   DEFAULT_LOB_FLOORS,
   generateIntelligentFloorLobMatrix,
   getLobPackageMeta,
+  hasBrokenPhysicalSequence,
   summarizeLobAllocationsByPackage,
   type FloorMatrixServicePackage,
   type FloorMatrixWorkTeam,
@@ -121,6 +122,39 @@ describe("Fase 21 — Sequência Lógica (38 PCTs), Sync Tabela LOB e Relatório
       (c) => c.severity === "critical" && c.type === "PRECEDENCE_VIOLATION"
     );
     expect(seqErrors).toHaveLength(0);
+    expect(hasBrokenPhysicalSequence(result.allocations, servicePackages)).toBe(false);
+
+    // Detecta matriz incoerente (ex.: C19 no Térreo ou A1 no Pavimento Superior no Dia 1)
+    const brokenAllocations: LobFloorAllocationItem[] = [
+      {
+        floorId: "FUNDACAO",
+        floorName: "Infraestrutura / Fundação",
+        floorOrder: 0,
+        dateIso: "2027-02-01",
+        teamCode: "A",
+        packageNumber: 1,
+        isOvertime: false,
+      },
+      {
+        floorId: "TERREO",
+        floorName: "Térreo",
+        floorOrder: 1,
+        dateIso: "2027-02-01",
+        teamCode: "C",
+        packageNumber: 19,
+        isOvertime: false,
+      },
+      {
+        floorId: "PAV_SUPERIOR",
+        floorName: "Pavimento Superior",
+        floorOrder: 2,
+        dateIso: "2027-02-01",
+        teamCode: "A",
+        packageNumber: 1,
+        isOvertime: false,
+      },
+    ];
+    expect(hasBrokenPhysicalSequence(brokenAllocations, servicePackages)).toBe(true);
   });
 
   it("resume equipes e dias úteis em tempo real exatamente como estão alocados na matriz LOB", () => {
