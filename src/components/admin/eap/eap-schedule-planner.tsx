@@ -72,6 +72,7 @@ interface SchedulePackageDTO {
 interface ScheduleApiPayload {
   eapStatus: string;
   cityLabel: string;
+  builtAreaM2?: number;
   plannedStartDate: string | null;
   zones: Array<{ id: string; code: string; name: string; orderIndex: number }>;
   holidays: Array<{ id: string; date: string; name: string; type: string }>;
@@ -575,6 +576,7 @@ export function EapSchedulePlanner({
 
           <EapLobSpreadsheet
             projectId={projectId}
+            builtAreaM2={data.builtAreaM2}
             plannedStartDate={data.plannedStartDate}
             analyticsStartDate={an.startDate}
             analyticsEndDate={an.endDate}

@@ -1,7 +1,7 @@
 import { prisma } from "@/server/db";
 import { currentUser, requireRole } from "@/server/auth";
 import { DomainError } from "@/server/errors";
-import { getEffectivePermissions } from "@/lib/rbac";
+import { getEffectivePermissions, hasModulePermission } from "@/lib/rbac";
 import { averageCompletion, completionOf, progressByDiscipline, stageCompletion } from "@/lib/progress";
 import { stageAlert, summarizeAlerts } from "@/lib/schedule-alerts";
 
@@ -36,11 +36,7 @@ export type DashboardMetrics = {
 export async function dashboardMetrics(): Promise<DashboardMetrics> {
   const user = await currentUser();
   if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
-  const effectivePermissions = getEffectivePermissions({
-    role: user.role,
-    permissions: user.permissions,
-  });
-  if (!effectivePermissions.includes("dashboard")) {
+  if (!hasModulePermission(user, "dashboard")) {
     throw new DomainError("Você não tem permissão para acessar o dashboard.", "NOT_FOUND");
   }
 
@@ -141,14 +137,14 @@ export async function executiveDashboardData(): Promise<ExecutiveDashboardData> 
   const user = await currentUser();
   if (!user) throw new DomainError("É necessário entrar para continuar.", "NOT_FOUND");
 
+  if (!hasModulePermission(user, "dashboard")) {
+    throw new DomainError("Você não tem permissão para acessar o dashboard.", "NOT_FOUND");
+  }
+
   const effectivePermissions = getEffectivePermissions({
     role: user.role,
     permissions: user.permissions,
   });
-
-  if (!effectivePermissions.includes("dashboard")) {
-    throw new DomainError("Você não tem permissão para acessar o dashboard.", "NOT_FOUND");
-  }
 
   const canViewFinancial =
     user.role === "ADMIN" || effectivePermissions.includes("financeiro");

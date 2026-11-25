@@ -3,6 +3,8 @@ import { currentUser, isClientRole, requireProjectAccess } from "@/server/auth";
 import { DomainError } from "@/server/errors";
 import {
   loadExecutiveReportFromDb,
+  type ExecutiveParametricOverrides,
+  type ExecutiveStandardLevel,
   type ReportAudience,
 } from "@/server/eap/executive-report";
 import {
@@ -34,7 +36,30 @@ export async function GET(
         ? "INTERNAL"
         : "CLIENT";
 
-    const report = await loadExecutiveReportFromDb(projectId, audience);
+    const sp = request.nextUrl.searchParams;
+    const rawStd = (sp.get("standard") || "").toUpperCase();
+    const standardLevel: ExecutiveStandardLevel | undefined =
+      rawStd === "ECONOMICO" || rawStd === "MEDIO" || rawStd === "ALTO"
+        ? (rawStd as ExecutiveStandardLevel)
+        : undefined;
+    const areaM2 = Number(sp.get("areaM2"));
+    const bdi = Number(sp.get("bdi"));
+    const months = Number(sp.get("months"));
+    const overrides: ExecutiveParametricOverrides | undefined =
+      !clientUser &&
+      (standardLevel ||
+        (Number.isFinite(areaM2) && areaM2 > 0) ||
+        (sp.has("bdi") && Number.isFinite(bdi) && bdi >= 0) ||
+        (Number.isFinite(months) && months > 0))
+        ? {
+            ...(Number.isFinite(areaM2) && areaM2 > 0 ? { builtAreaM2: areaM2 } : {}),
+            ...(standardLevel ? { standardLevel } : {}),
+            ...(sp.has("bdi") && Number.isFinite(bdi) && bdi >= 0 ? { bdiPercent: bdi } : {}),
+            ...(Number.isFinite(months) && months > 0 ? { durationMonths: months } : {}),
+          }
+        : undefined;
+
+    const report = await loadExecutiveReportFromDb(projectId, audience, overrides);
     if (!report) {
       return jsonNoStore(
         { ok: false, error: "Relatório EAP ainda não disponível para este projeto." },

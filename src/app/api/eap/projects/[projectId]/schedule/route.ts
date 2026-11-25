@@ -204,6 +204,7 @@ export async function GET(
       ok: true,
       eapStatus: eap.status,
       cityLabel: `${eap.city.name}/${eap.city.state}`,
+      builtAreaM2: eap.builtAreaM2,
       plannedStartDate: tree.plannedStartDate,
       zones: eap.zones,
       holidays,

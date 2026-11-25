@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type {
   ExecutiveReportPayload,
+  ExecutiveStandardLevel,
   ReportAudience,
 } from "@/server/eap/executive-report";
 
@@ -47,13 +48,24 @@ export function EapExecutiveReportView({
   const [publishFeedback, setPublishFeedback] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
+  const [showParamPanel, setShowParamPanel] = useState(false);
+  const [paramAreaM2, setParamAreaM2] = useState("");
+  const [paramStandard, setParamStandard] = useState<ExecutiveStandardLevel>("MEDIO");
+  const [paramBdi, setParamBdi] = useState("22");
+  const [paramMonths, setParamMonths] = useState("");
+  const [activeParamQuery, setActiveParamQuery] = useState("");
 
-  const loadReport = useCallback(async (aud: ReportAudience) => {
+  const loadReport = useCallback(async (aud: ReportAudience, paramQuery = "") => {
     setLoading(true);
     setError(null);
     try {
+      const qs = new URLSearchParams({ audience: aud });
+      if (paramQuery) {
+        const extra = new URLSearchParams(paramQuery);
+        extra.forEach((v, k) => qs.set(k, v));
+      }
       const res = await fetch(
-        `/api/eap/projects/${projectId}/report?audience=${aud}`,
+        `/api/eap/projects/${projectId}/report?${qs.toString()}`,
         { cache: "no-store" }
       );
       const json = await res.json();
@@ -62,7 +74,16 @@ export function EapExecutiveReportView({
         setReport(null);
         return;
       }
-      setReport(json.report as ExecutiveReportPayload);
+      const loaded = json.report as ExecutiveReportPayload;
+      setReport(loaded);
+      if (!paramQuery && loaded) {
+        setParamAreaM2(String(loaded.meta.builtAreaM2 || 180));
+        setParamStandard(loaded.meta.parametricStandard || "MEDIO");
+        if (typeof loaded.meta.bdiPercent === "number") {
+          setParamBdi(String(loaded.meta.bdiPercent));
+        }
+        setParamMonths(String(loaded.meta.totalMonths || 6));
+      }
     } catch {
       setError("Erro de conexão ao buscar relatório executivo.");
     } finally {
@@ -71,8 +92,8 @@ export function EapExecutiveReportView({
   }, [projectId]);
 
   useEffect(() => {
-    void loadReport(audience);
-  }, [audience, loadReport]);
+    void loadReport(audience, activeParamQuery);
+  }, [audience, activeParamQuery, loadReport]);
 
   async function handlePublishToClient() {
     setPublishing(true);
@@ -148,7 +169,19 @@ export function EapExecutiveReportView({
     classe: i.abcClass,
   }));
 
-  const pdfHref = `/api/eap/projects/${projectId}/report/pdf?audience=${audience}`;
+  const pdfHref = `/api/eap/projects/${projectId}/report/pdf?audience=${audience}${activeParamQuery ? `&${activeParamQuery}` : ""}`;
+
+  function handleApplyParametric() {
+    const qs = new URLSearchParams();
+    const areaNum = Number(paramAreaM2);
+    const bdiNum = Number(paramBdi);
+    const monthsNum = Number(paramMonths);
+    if (Number.isFinite(areaNum) && areaNum > 0) qs.set("areaM2", String(areaNum));
+    qs.set("standard", paramStandard);
+    if (Number.isFinite(bdiNum) && bdiNum >= 0) qs.set("bdi", String(bdiNum));
+    if (Number.isFinite(monthsNum) && monthsNum > 0) qs.set("months", String(monthsNum));
+    setActiveParamQuery(qs.toString());
+  }
 
   return (
     <div
@@ -199,6 +232,15 @@ export function EapExecutiveReportView({
               {isAdmin && (
                 <button
                   type="button"
+                  onClick={() => setShowParamPanel((v) => !v)}
+                  className="apple-glass-btn h-9 px-3.5 py-0 text-xs font-semibold cursor-pointer"
+                >
+                  ⚙ Ajustar Parâmetros Padrão (IA)
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  type="button"
                   onClick={handlePublishToClient}
                   disabled={publishing}
                   className="h-9 rounded-xl bg-emerald-600 px-3.5 text-xs font-semibold text-white shadow-[0_2px_10px_-2px_rgba(5,150,105,0.28)] transition-all duration-150 active:scale-[0.985] hover:bg-emerald-700 cursor-pointer"
@@ -222,6 +264,97 @@ export function EapExecutiveReportView({
             </div>
           </div>
 
+          {isAdmin && (showParamPanel || report.meta.isParametricFallback) && (
+            <div className="mt-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/90 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/80">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                <p className="text-[11px] font-semibold text-zinc-900 dark:text-zinc-100">
+                  Parâmetros Inteligentes (IA · Base Fortaleza-CE)
+                  {report.meta.isParametricFallback && (
+                    <span className="ml-2 font-normal text-amber-700 dark:text-amber-300">
+                      — Cenário baseline automático ativo (EAP ainda sem quantitativos)
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-5 items-end">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                    Área Construída (m²)
+                  </label>
+                  <input
+                    type="number"
+                    min="10"
+                    step="1"
+                    value={paramAreaM2}
+                    onChange={(e) => setParamAreaM2(e.target.value)}
+                    className="mt-1 h-8 w-full rounded-lg border border-zinc-300 bg-white px-2.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                    Padrão Construtivo
+                  </label>
+                  <select
+                    value={paramStandard}
+                    onChange={(e) => setParamStandard(e.target.value as ExecutiveStandardLevel)}
+                    className="mt-1 h-8 w-full rounded-lg border border-zinc-300 bg-white px-2 text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  >
+                    <option value="ECONOMICO">Econômico</option>
+                    <option value="MEDIO">Médio</option>
+                    <option value="ALTO">Alto Padrão</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                    BDI (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={paramBdi}
+                    onChange={(e) => setParamBdi(e.target.value)}
+                    className="mt-1 h-8 w-full rounded-lg border border-zinc-300 bg-white px-2.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                    Prazo (meses)
+                  </label>
+                  <input
+                    type="number"
+                    min="2"
+                    max="36"
+                    step="1"
+                    value={paramMonths}
+                    onChange={(e) => setParamMonths(e.target.value)}
+                    className="mt-1 h-8 w-full rounded-lg border border-zinc-300 bg-white px-2.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  />
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleApplyParametric}
+                    className="apple-primary-btn h-8 w-full px-3 py-0 text-xs font-semibold cursor-pointer"
+                  >
+                    Recalcular
+                  </button>
+                  {activeParamQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveParamQuery("")}
+                      className="apple-glass-btn h-8 px-2.5 py-0 text-xs cursor-pointer"
+                      title="Restaurar padrão do projeto"
+                    >
+                      ↺
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {publishFeedback && (
             <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
               {publishFeedback}
@@ -229,15 +362,17 @@ export function EapExecutiveReportView({
           )}
         </Card>
 
-        {/* BLOCO 1 — HERO EXECUTIVO & KPIs */}
-        <Card className="rounded-3xl border border-slate-200/90 bg-slate-950 p-6 text-white dark:border-zinc-800">
+        {/* BLOCO 1 — HERO EXECUTIVO & KPIs (Contraste WCAG AA Light & Dark) */}
+        <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 text-zinc-950 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-50">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-300">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-300">
                 ArqVértice OS · Dossiê Executivo Integral de Obra
               </p>
-              <h2 className="mt-1 text-2xl font-bold tracking-tight">{report.meta.projectName}</h2>
-              <p className="mt-1 text-xs text-slate-300">
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {report.meta.projectName}
+              </h2>
+              <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-300">
                 Cliente: {report.meta.clientName} · Praça: {report.meta.cityLabel} · Área:{" "}
                 {report.meta.builtAreaM2} m² · {report.meta.baselineLabel}
               </p>
@@ -247,7 +382,7 @@ export function EapExecutiveReportView({
                     {report.comparativeAnalytics.activeVersions.map((v) => (
                       <span
                         key={`${v.discipline}-${v.versionCode}`}
-                        className="rounded-lg border border-white/15 bg-white/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-200"
+                        className="rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-zinc-800 dark:border-white/15 dark:bg-white/10 dark:text-amber-200"
                       >
                         {v.discipline}: {v.versionCode}
                       </span>
@@ -256,74 +391,74 @@ export function EapExecutiveReportView({
                 )}
             </div>
             <div className="text-right">
-              <p className="text-[11px] uppercase tracking-wider text-slate-400">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
                 Investimento Previsto
               </p>
-              <p className="font-mono text-2xl font-bold tabular-nums text-amber-300">
+              <p className="font-mono text-2xl font-bold tabular-nums text-zinc-950 dark:text-amber-300">
                 {fmtBRL(report.kpis.totalCommercialPrice)}
               </p>
-              <p className="font-mono text-xs tabular-nums text-slate-300">
+              <p className="font-mono text-xs tabular-nums text-zinc-700 dark:text-zinc-300">
                 {fmtBRL(report.kpis.costPerM2)} / m²
               </p>
             </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl bg-white/5 p-3.5">
-              <p className="text-[10px] uppercase text-slate-400">Prazo Previsto</p>
-              <p className="mt-1 font-mono text-sm font-bold tabular-nums">
+            <div className="rounded-2xl border border-zinc-200/75 bg-zinc-50/90 p-3.5 dark:border-white/10 dark:bg-white/5">
+              <p className="text-[10px] font-medium uppercase text-zinc-600 dark:text-zinc-300">Prazo Previsto</p>
+              <p className="mt-1 font-mono text-sm font-bold tabular-nums text-zinc-950 dark:text-zinc-50">
                 {report.meta.totalMonths} meses ({report.meta.totalWorkingDays} d.u.)
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-zinc-600 dark:text-zinc-300">
                 {report.meta.startDate || "—"} → {report.meta.endDate || "—"}
               </p>
             </div>
-            <div className="rounded-2xl bg-white/5 p-3.5">
-              <p className="text-[10px] uppercase text-slate-400">Composição da Obra</p>
-              <p className="mt-1 font-mono text-xs font-bold tabular-nums">
+            <div className="rounded-2xl border border-zinc-200/75 bg-zinc-50/90 p-3.5 dark:border-white/10 dark:bg-white/5">
+              <p className="text-[10px] font-medium uppercase text-zinc-600 dark:text-zinc-300">Composição da Obra</p>
+              <p className="mt-1 font-mono text-xs font-bold tabular-nums text-zinc-950 dark:text-zinc-50">
                 Mat {report.kpis.materialSharePercent}% · MO {report.kpis.laborSharePercent}% · Terc{" "}
                 {report.kpis.thirdPartySharePercent}%
               </p>
               {audience === "INTERNAL" && report.kpis.totalDirectCost !== undefined && (
-                <p className="text-[11px] text-amber-300 font-mono">
+                <p className="text-[11px] font-mono text-amber-700 dark:text-amber-300">
                   Direto: {fmtBRL(report.kpis.totalDirectCost)} (BDI {report.meta.bdiPercent}%)
                 </p>
               )}
             </div>
-            <div className="rounded-2xl bg-white/5 p-3.5">
-              <p className="text-[10px] uppercase text-slate-400">Indicadores Estruturais & Carbono</p>
-              <p className="mt-1 font-mono text-xs font-bold tabular-nums">
+            <div className="rounded-2xl border border-zinc-200/75 bg-zinc-50/90 p-3.5 dark:border-white/10 dark:bg-white/5">
+              <p className="text-[10px] font-medium uppercase text-zinc-600 dark:text-zinc-300">Indicadores Estruturais & Carbono</p>
+              <p className="mt-1 font-mono text-xs font-bold tabular-nums text-zinc-950 dark:text-zinc-50">
                 Aço: {report.kpis.steelRateKgPerM3} kg/m³ · Conc: {report.kpis.concreteM3PerM2} m³/m²
               </p>
-              <p className="text-[11px] text-slate-400 font-mono">
+              <p className="text-[11px] font-mono text-zinc-600 dark:text-zinc-300">
                 Alvenaria: {report.kpis.masonryM2PerM2} m²/m²
                 {(report.kpis as { embodiedCarbonKgCo2?: number }).embodiedCarbonKgCo2
                   ? ` · ${(report.kpis as { embodiedCarbonKgCo2?: number }).embodiedCarbonKgCo2!.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kgCO2`
                   : ""}
               </p>
             </div>
-            <div className="rounded-2xl bg-white/5 p-3.5">
+            <div className="rounded-2xl border border-zinc-200/75 bg-zinc-50/90 p-3.5 dark:border-white/10 dark:bg-white/5">
               {typeof (report.kpis as { actualPhysicalPercent?: number }).actualPhysicalPercent === "number" ? (
                 <>
-                  <p className="text-[10px] uppercase text-slate-400">Andamento Físico (Real × Prev.)</p>
-                  <p className="mt-1 font-mono text-xs font-bold tabular-nums text-emerald-300">
+                  <p className="text-[10px] font-medium uppercase text-zinc-600 dark:text-zinc-300">Andamento Físico (Real × Prev.)</p>
+                  <p className="mt-1 font-mono text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
                     {(report.kpis as { actualPhysicalPercent?: number }).actualPhysicalPercent!.toFixed(1)}% real
                     {" · "}
                     {((report.kpis as { plannedPhysicalPercent?: number }).plannedPhysicalPercent ?? 0).toFixed(1)}% prev.
                   </p>
-                  <p className="text-[11px] text-slate-400 font-mono">
+                  <p className="text-[11px] font-mono text-zinc-600 dark:text-zinc-300">
                     SPI {((report.kpis as { spi?: number }).spi ?? 0).toFixed(2)} · CPI{" "}
                     {((report.kpis as { cpi?: number }).cpi ?? 0).toFixed(2)}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-[10px] uppercase text-slate-400">Curva ABC (Pareto 80/20)</p>
-                  <p className="mt-1 font-mono text-xs font-bold tabular-nums">
+                  <p className="text-[10px] font-medium uppercase text-zinc-600 dark:text-zinc-300">Curva ABC (Pareto 80/20)</p>
+                  <p className="mt-1 font-mono text-xs font-bold tabular-nums text-zinc-950 dark:text-zinc-50">
                     Classe A: {report.abcCurve.summaryByClass.A.itemsCount} itens (
                     {report.abcCurve.summaryByClass.A.sharePercent}%)
                   </p>
-                  <p className="text-[11px] text-slate-400 font-mono">
+                  <p className="text-[11px] font-mono text-zinc-600 dark:text-zinc-300">
                     B: {report.abcCurve.summaryByClass.B.itemsCount} · C:{" "}
                     {report.abcCurve.summaryByClass.C.itemsCount}
                   </p>
@@ -331,7 +466,7 @@ export function EapExecutiveReportView({
               )}
             </div>
           </div>
-        </Card>
+        </section>
 
         {/* BLOCO 1B — DIAGNÓSTICO IA DE DESVIOS & GARGALOS + COMPARATIVOS CURTO PRAZO */}
         {report.comparativeAnalytics && (

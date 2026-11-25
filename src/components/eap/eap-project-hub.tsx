@@ -613,14 +613,14 @@ export function EapProjectHub({
       {activeTab === "sources" && (
         <div className="space-y-6">
           {/* Cabeçalho Resumo & Ação Principal de Mineração */}
-          <Card className="rounded-3xl border border-white/50 bg-white/80 p-5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80">
+          <Card className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-md dark:border-zinc-800 dark:bg-zinc-900/95">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge tone="blue">{initialEap.status}</Badge>
-                <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
                   Praça: {initialEap.cityLabel}
                 </span>
-                <span className="font-mono text-xs text-slate-600 dark:text-zinc-400">
+                <span className="font-mono text-xs tabular-nums text-zinc-700 dark:text-zinc-300">
                   Área: {initialEap.builtAreaM2} m² · BDI: {initialEap.bdiPercent}%
                 </span>
                 <Badge tone={activeSources.length > 0 ? "green" : "neutral"}>

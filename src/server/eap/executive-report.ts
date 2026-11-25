@@ -10,6 +10,14 @@ import {
 
 export type ReportAudience = "INTERNAL" | "CLIENT";
 export type AbcClass = "A" | "B" | "C";
+export type ExecutiveStandardLevel = "ECONOMICO" | "MEDIO" | "ALTO";
+
+export interface ExecutiveParametricOverrides {
+  builtAreaM2?: number;
+  standardLevel?: ExecutiveStandardLevel;
+  bdiPercent?: number;
+  durationMonths?: number;
+}
 
 export interface AbcCurveItemDTO {
   id: string;
@@ -103,6 +111,8 @@ export interface ExecutiveReportPayload {
     totalMonths: number;
     totalWorkingDays: number;
     isPublishedToClient: boolean;
+    isParametricFallback?: boolean;
+    parametricStandard?: ExecutiveStandardLevel;
   };
   kpis: {
     totalCommercialPrice: number;
@@ -444,9 +454,329 @@ export function buildExecutiveReportPayload(input: {
   };
 }
 
+const STANDARD_COST_PER_M2_CE: Record<ExecutiveStandardLevel, number> = {
+  ECONOMICO: 2350,
+  MEDIO: 3150,
+  ALTO: 4450,
+};
+
+/**
+ * Gera um Cenário Baseline Inteligente (Paramétrico Regional Fortaleza-CE) quando EAP, LOB
+ * ou Medições ainda não possuem quantitativos lançados — mantendo cálculos proporcionais
+ * e editáveis por Área (m²), Padrão Construtivo, BDI (%) e Prazo (meses).
+ */
+export function buildParametricExecutiveFallback(input: {
+  basePayload: ExecutiveReportPayload;
+  overrides?: ExecutiveParametricOverrides;
+}): ExecutiveReportPayload {
+  const { basePayload, overrides } = input;
+  const area =
+    overrides?.builtAreaM2 && overrides.builtAreaM2 > 0
+      ? overrides.builtAreaM2
+      : basePayload.meta.builtAreaM2 > 0
+        ? basePayload.meta.builtAreaM2
+        : 180;
+  const standard: ExecutiveStandardLevel = overrides?.standardLevel ?? "MEDIO";
+  const bdi =
+    typeof overrides?.bdiPercent === "number" && overrides.bdiPercent >= 0
+      ? overrides.bdiPercent
+      : typeof basePayload.meta.bdiPercent === "number"
+        ? basePayload.meta.bdiPercent
+        : 22;
+  const months =
+    overrides?.durationMonths && overrides.durationMonths > 0
+      ? Math.max(2, Math.min(36, Math.round(overrides.durationMonths)))
+      : Math.max(4, Math.min(24, Math.round(area / 28)));
+
+  const directCostPerM2 = STANDARD_COST_PER_M2_CE[standard];
+  const markup = 1 + bdi / 100;
+  const totalDirectCost = round2(area * directCostPerM2);
+  const totalCommercialPrice = round2(totalDirectCost * markup);
+  const commercialCostPerM2 = round2(totalCommercialPrice / area);
+  const isInternal = basePayload.audience === "INTERNAL";
+
+  const macroWeights: Array<{
+    code: string;
+    name: string;
+    weightPct: number;
+    unit: string;
+    qtyFactor: number;
+  }> = [
+    { code: "01", name: "Serviços Preliminares & Canteiro", weightPct: 5, unit: "vb", qtyFactor: 1 },
+    { code: "03", name: "Infraestrutura & Fundações", weightPct: 14, unit: "m²", qtyFactor: 0.45 },
+    { code: "04", name: "Supraestrutura (Concreto, Aço & Fôrmas)", weightPct: 24, unit: "m²", qtyFactor: 1.0 },
+    { code: "05", name: "Alvenaria, Vedações & Drywall", weightPct: 12, unit: "m²", qtyFactor: 1.55 },
+    { code: "08", name: "Instalações Elétricas & Automação", weightPct: 11, unit: "pt", qtyFactor: 0.42 },
+    { code: "09", name: "Instalações Hidrossanitárias & Drenagem", weightPct: 10, unit: "pt", qtyFactor: 0.28 },
+    { code: "11", name: "Coberta & Impermeabilização", weightPct: 8, unit: "m²", qtyFactor: 0.58 },
+    { code: "13", name: "Revestimentos, Esquadrias & Pintura", weightPct: 16, unit: "m²", qtyFactor: 1.85 },
+  ];
+
+  const stages: ExecutiveReportStageDTO[] = macroWeights.map((mw) => {
+    const stageCommercial = round2((totalCommercialPrice * mw.weightPct) / 100);
+    const stageDirect = round2((totalDirectCost * mw.weightPct) / 100);
+    const qty = mw.unit === "vb" ? 1 : round2(area * mw.qtyFactor);
+    const unitCommercial = round2(stageCommercial / Math.max(1, qty));
+    const unitDirect = round2(stageDirect / Math.max(1, qty));
+
+    const item: ExecutiveReportItemDTO = {
+      id: `param-${mw.code}`,
+      code: `PARAM-${mw.code}`,
+      description: `${mw.name} (Estimativa Paramétrica Fortaleza-CE)`,
+      unit: mw.unit,
+      totalQtyWithLoss: qty,
+      zoneQuantities: {
+        FUND_TERREO: round2(qty * 0.45),
+        PAV_SUPERIOR: round2(qty * 0.35),
+        COBERTURA: round2(qty * 0.12),
+        EXTERNO: round2(qty * 0.08),
+      },
+      unitCommercialPrice: unitCommercial,
+      totalCommercialPrice: stageCommercial,
+      weightPercent: mw.weightPct,
+      ...(isInternal
+        ? {
+            materialUnitCost: round2(unitDirect * 0.58),
+            laborUnitCost: round2(unitDirect * 0.32),
+            thirdPartyUnitCost: round2(unitDirect * 0.1),
+            unitDirectCost: unitDirect,
+            totalDirectCost: stageDirect,
+            markupMultiplier: round2(markup),
+          }
+        : {}),
+    };
+
+    return {
+      code: mw.code,
+      name: mw.name,
+      itemsCount: 1,
+      totalCommercialPrice: stageCommercial,
+      weightPercent: mw.weightPct,
+      ...(isInternal ? { totalDirectCost: stageDirect } : {}),
+      items: [item],
+    };
+  });
+
+  const abcCurve = computeAbcCurve(
+    stages.flatMap((st) =>
+      st.items.map((it) => ({
+        id: it.id,
+        code: it.code,
+        stageCode: st.code,
+        description: it.description,
+        unit: it.unit,
+        totalQtyWithLoss: it.totalQtyWithLoss,
+        totalCommercialPrice: it.totalCommercialPrice,
+      }))
+    )
+  );
+
+  // Série mensal S-curve realista em bell-curve suave ao longo de `months`
+  const baseDate = new Date();
+  const startYear = baseDate.getUTCFullYear();
+  const startMonth = baseDate.getUTCMonth();
+  const rawWeights = Array.from({ length: months }, (_, i) => {
+    const x = (i + 0.5) / months;
+    return Math.sin(Math.PI * x) + 0.25;
+  });
+  const weightSum = rawWeights.reduce((a, b) => a + b, 0);
+  let cumulativeCommercialCost = 0;
+  let cumulativePhysicalPercent = 0;
+  const monthlySeries: MonthlyCashflowPoint[] = rawWeights.map((w, idx) => {
+    const ratio = w / weightSum;
+    const isLast = idx === months - 1;
+    const mDirect = round2(totalDirectCost * ratio);
+    const mCommercial = isLast
+      ? round2(totalCommercialPrice - cumulativeCommercialCost)
+      : round2(totalCommercialPrice * ratio);
+    cumulativeCommercialCost = round2(cumulativeCommercialCost + mCommercial);
+    const periodPct = isLast
+      ? round2(100 - cumulativePhysicalPercent)
+      : round2(ratio * 100);
+    cumulativePhysicalPercent = isLast
+      ? 100
+      : round2(cumulativePhysicalPercent + periodPct);
+    const d = new Date(Date.UTC(startYear, startMonth + idx, 1));
+    const ym = d.toISOString().slice(0, 7);
+    const label = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit", timeZone: "UTC" });
+    return {
+      monthKey: ym,
+      label,
+      materialCost: round2(mDirect * 0.58),
+      laborCost: round2(mDirect * 0.32),
+      thirdPartyCost: round2(mDirect * 0.1),
+      directCost: mDirect,
+      commercialCost: mCommercial,
+      cumulativeCommercialCost,
+      physicalPercentPeriod: periodPct,
+      cumulativePhysicalPercent,
+      cumulativeFinancialPercent:
+        totalCommercialPrice > 0
+          ? round2((cumulativeCommercialCost / totalCommercialPrice) * 100)
+          : 0,
+    };
+  });
+
+  const startIso = new Date(Date.UTC(startYear, startMonth, 1)).toISOString().slice(0, 10);
+  const endIso = new Date(Date.UTC(startYear, startMonth + months, 0)).toISOString().slice(0, 10);
+  const totalWorkingDays = months * 22;
+
+  const waves: ExecutiveWaveSummaryDTO[] =
+    basePayload.schedule.waves.length > 0
+      ? basePayload.schedule.waves
+      : [
+          {
+            waveName: "Equipe A · Infraestrutura & Estrutura",
+            packagesCount: 4,
+            startDate: startIso,
+            endDate: endIso,
+            totalWorkingDays: Math.round(totalWorkingDays * 0.45),
+            progressPercent: 0,
+          },
+          {
+            waveName: "Equipe B · Alvenaria & Instalações",
+            packagesCount: 4,
+            startDate: startIso,
+            endDate: endIso,
+            totalWorkingDays: Math.round(totalWorkingDays * 0.4),
+            progressPercent: 0,
+          },
+          {
+            waveName: "Equipe C · Coberta & Acabamentos",
+            packagesCount: 4,
+            startDate: startIso,
+            endDate: endIso,
+            totalWorkingDays: Math.round(totalWorkingDays * 0.35),
+            progressPercent: 0,
+          },
+        ];
+
+  const headline = `Cenário Paramétrico Fortaleza-CE (${standard} · ${area} m²) — ${fmtBRL(totalCommercialPrice)} em ${months} meses`;
+  const overview = `Orçamento baseline gerado automaticamente pelo motor paramétrico regional para ${area} m² no padrão ${standard} (BDI ${bdi}%). As etapas de Supraestrutura (24%) e Revestimentos (16%) concentram 40% do investimento previsto, com equipes A, B e C distribuídas em ${months} meses (${totalWorkingDays} dias úteis).`;
+  const actionPlan = [
+    "Validar parâmetros regionais (área, padrão e BDI) no painel superior ou importar PDFs TQS/Revit na Etapa 1.",
+    "Confirmar sequência de equipes A, B e C na Matriz LOB (Etapa 3) e travar compras críticas no Lookahead.",
+    "Iniciar apontamento semanal na Medição no Canteiro (Etapa 4) para gerar o Boletim BM-01.",
+  ];
+
+  const comparativeAnalytics: ComparativeProjectAnalytics = basePayload.comparativeAnalytics
+    ? {
+        ...basePayload.comparativeAnalytics,
+        financial: {
+          ...basePayload.comparativeAnalytics.financial,
+          budgetedEapTotal: totalCommercialPrice,
+          plannedLobCumulative: round2(totalCommercialPrice * 0.12),
+          eacCostProjection: totalCommercialPrice,
+        },
+        monthlyComparative:
+          basePayload.comparativeAnalytics.monthlyComparative.length > 0
+            ? basePayload.comparativeAnalytics.monthlyComparative
+            : monthlySeries.slice(0, 6).map((m) => ({
+                monthKey: m.monthKey,
+                label: m.label,
+                plannedCumulative: m.cumulativeCommercialCost,
+                measuredCumulative: 0,
+                billedCumulative: 0,
+              })),
+        aiSummary: {
+          ...basePayload.comparativeAnalytics.aiSummary,
+          source: "DETERMINISTIC",
+          headline,
+          executiveOverview: overview,
+          actionPlan,
+        },
+      }
+    : {
+        referenceDate: new Date().toISOString().slice(0, 10),
+        financial: {
+          budgetedEapTotal: totalCommercialPrice,
+          plannedLobCumulative: round2(totalCommercialPrice * 0.12),
+          measuredFieldCumulative: 0,
+          billedInstallmentsTotal: 0,
+          receivedInstallmentsTotal: 0,
+          cashBalanceBilledMinusMeasured: 0,
+          physicalProgressPct: 0,
+          plannedLobPct: 0,
+          physicalDeviationPct: 0,
+          spi: 1,
+          cpi: 1,
+          eacCostProjection: totalCommercialPrice,
+        },
+        shortTerm: {
+          windowDays: 15,
+          upcomingPackagesCount: 0,
+          criticalConstraintsCount: 0,
+          attentionConstraintsCount: 0,
+          recentBulletinsCount: 0,
+          teamUtilization: [],
+        },
+        monthlyComparative: monthlySeries.slice(0, 6).map((m) => ({
+          monthKey: m.monthKey,
+          label: m.label,
+          plannedCumulative: m.cumulativeCommercialCost,
+          measuredCumulative: 0,
+          billedCumulative: 0,
+        })),
+        floorComparison: [],
+        activeVersions: [],
+        bulletinsSummary: [],
+        aiSummary: {
+          healthStatus: "SAUDAVEL",
+          source: "DETERMINISTIC",
+          generatedAt: new Date().toISOString(),
+          headline,
+          executiveOverview: overview,
+          topBottlenecks: [],
+          actionPlan,
+        },
+      };
+
+  return {
+    ...basePayload,
+    meta: {
+      ...basePayload.meta,
+      builtAreaM2: area,
+      ...(isInternal ? { bdiPercent: bdi } : {}),
+      baselineLabel: `Estimativa Paramétrica IA · ${standard} (${area} m²)`,
+      startDate: startIso,
+      endDate: endIso,
+      totalMonths: months,
+      totalWorkingDays,
+      isParametricFallback: true,
+      parametricStandard: standard,
+    },
+    kpis: {
+      ...basePayload.kpis,
+      totalCommercialPrice,
+      costPerM2: commercialCostPerM2,
+      ...(isInternal
+        ? {
+            totalDirectCost,
+            directCostPerM2: directCostPerM2,
+          }
+        : {}),
+      materialSharePercent: 58,
+      laborSharePercent: 32,
+      thirdPartySharePercent: 10,
+      steelRateKgPerM3: standard === "ALTO" ? 95 : standard === "MEDIO" ? 85 : 75,
+      concreteM3PerM2: standard === "ALTO" ? 0.34 : standard === "MEDIO" ? 0.28 : 0.23,
+      masonryM2PerM2: 1.55,
+    },
+    stages,
+    abcCurve,
+    schedule: {
+      ...basePayload.schedule,
+      waves,
+      monthlySeries,
+    },
+    comparativeAnalytics,
+  };
+}
+
 export async function loadExecutiveReportFromDb(
   projectId: string,
-  audience: ReportAudience
+  audience: ReportAudience,
+  overrides?: ExecutiveParametricOverrides
 ): Promise<ExecutiveReportPayload | null> {
   const [project, eap, acervoDocs, deliverables] = await Promise.all([
     prisma.project.findUnique({
@@ -667,7 +997,7 @@ export async function loadExecutiveReportFromDb(
     allowExternalLlm: false,
   });
 
-  return buildExecutiveReportPayload({
+  const payload = buildExecutiveReportPayload({
     audience,
     projectName: project.name,
     clientName: project.client?.name || "Cliente",
@@ -681,6 +1011,23 @@ export async function loadExecutiveReportFromDb(
     executionSummary,
     comparativeAnalytics,
   });
+
+  const hasExplicitOverrides = Boolean(
+    overrides &&
+      (overrides.builtAreaM2 ||
+        overrides.standardLevel ||
+        overrides.bdiPercent !== undefined ||
+        overrides.durationMonths)
+  );
+
+  if (payload.kpis.totalCommercialPrice <= 0 || hasExplicitOverrides) {
+    return buildParametricExecutiveFallback({
+      basePayload: payload,
+      overrides,
+    });
+  }
+
+  return payload;
 }
 
 function fmtBRL(v: number): string {

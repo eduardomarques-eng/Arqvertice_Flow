@@ -95,6 +95,39 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
     void loadSnapshot();
   }, [loadSnapshot]);
 
+  function updateRowPlannedQty(rowKey: string, nextPlannedQty: number) {
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.rowKey !== rowKey) return row;
+        const safePlanned = Math.max(0.01, round2(nextPlannedQty));
+        const accumulatedQty = round2(row.previousExecutedQty + row.currentExecutedQty);
+        const pendingQty = round2(Math.max(0, safePlanned - accumulatedQty));
+        const accumulatedPct = Math.min(100, round2((accumulatedQty / safePlanned) * 100));
+        const plannedAmount = round2(safePlanned * row.unitPrice);
+        const accumulatedAmount = round2(Math.min(safePlanned, accumulatedQty) * row.unitPrice);
+        const pendingAmount = round2(pendingQty * row.unitPrice);
+        const derivedStatus =
+          row.status === "IMPEDIDO"
+            ? "IMPEDIDO"
+            : accumulatedPct >= 100
+              ? "CONCLUIDO"
+              : accumulatedQty > 0
+                ? "EM_ANDAMENTO"
+                : "PENDENTE";
+        return {
+          ...row,
+          plannedQty: safePlanned,
+          pendingQty,
+          accumulatedPct,
+          plannedAmount,
+          accumulatedAmount,
+          pendingAmount,
+          status: derivedStatus,
+        };
+      })
+    );
+  }
+
   function updateRowCurrentQty(rowKey: string, nextCurrentQty: number, nextStatus?: string) {
     setRows((prev) =>
       prev.map((row) => {
@@ -374,16 +407,19 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
       </div>
 
       {/* Cabeçalho do Boletim + Exportação */}
-      <Card className="rounded-3xl border border-slate-200/90 bg-white/90 p-4 shadow-xs backdrop-blur-md space-y-3 dark:border-zinc-800 dark:bg-[#16161D]/90">
+      <Card className="rounded-3xl border border-zinc-200/80 bg-white p-4 shadow-xs space-y-3 dark:border-zinc-800 dark:bg-zinc-900/95">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-bold text-zinc-950 dark:text-zinc-50">
                 ArqVértice OS — Medição no Canteiro ({nextCode})
               </h3>
               <Badge tone="blue">Mobile-First</Badge>
+              {snapshot?.isParametricFallback && (
+                <Badge tone="amber">Estrutura Paramétrica Editável</Badge>
+              )}
             </div>
-            <p className="text-xs text-slate-600 dark:text-zinc-400">
+            <p className="mt-0.5 text-xs text-zinc-700 dark:text-zinc-300">
               Registre rapidamente o avanço feito em campo e gere boletins automáticos em PDF.
             </p>
           </div>
@@ -562,12 +598,20 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
 
                 <div className="grid grid-cols-4 gap-2 text-[11px]">
                   <div>
-                    <span className="block text-[10px] text-slate-500 dark:text-zinc-400">
-                      Previsto
+                    <span className="block text-[10px] text-zinc-600 dark:text-zinc-300">
+                      Previsto ({row.unit})
                     </span>
-                    <strong className="font-mono text-slate-900 dark:text-zinc-100">
-                      {row.plannedQty.toFixed(2)} {row.unit}
-                    </strong>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={row.plannedQty}
+                      onChange={(e) =>
+                        updateRowPlannedQty(row.rowKey, Number(e.target.value) || 0.01)
+                      }
+                      aria-label={`Quantidade prevista ${row.serviceLabel}`}
+                      className="mt-0.5 h-7 w-full rounded-lg border border-zinc-300 bg-white px-1.5 font-mono text-[11px] font-semibold tabular-nums text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    />
                   </div>
                   <div>
                     <span className="block text-[10px] text-slate-500 dark:text-zinc-400">

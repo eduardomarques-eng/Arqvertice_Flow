@@ -86,6 +86,7 @@ export interface FieldMeasurementSnapshot {
   referenceDate: string;
   nextBulletinNumber: number;
   nextBulletinCode: string;
+  isParametricFallback?: boolean;
   floors: LobFloorDefinition[];
   summary: {
     totalPlannedValue: number;
@@ -207,6 +208,128 @@ export function computeWeightedFieldProgress(
     plannedLobPct: clampedPlannedLobPct,
     deviationPct,
   };
+}
+
+export function buildParametricFieldMeasurementRows(input: {
+  builtAreaM2: number;
+  bdiPercent: number;
+  floors: LobFloorDefinition[];
+  approvedPrevByKey: Map<string, number>;
+  draftCurrentByKey: Map<string, { qty: number; status: string; note: string | null }>;
+}): FieldMeasurementServiceRow[] {
+  const area = input.builtAreaM2 > 0 ? input.builtAreaM2 : 180;
+  const markup = 1 + Math.max(0, input.bdiPercent || 0) / 100;
+
+  const templates: Array<{
+    floorId: string;
+    packageNumber: number;
+    teamCode: string;
+    serviceLabel: string;
+    unit: string;
+    qtyPerM2: number;
+    unitDirectCost: number;
+  }> = [
+    {
+      floorId: "FUNDACAO",
+      packageNumber: 1,
+      teamCode: "A",
+      serviceLabel: "03 · Infraestrutura, Escavação e Fundação",
+      unit: "m²",
+      qtyPerM2: 0.45,
+      unitDirectCost: 620,
+    },
+    {
+      floorId: "TERREO",
+      packageNumber: 2,
+      teamCode: "A",
+      serviceLabel: "04 · Supraestrutura Térreo (Pilares, Vigas e Lajes)",
+      unit: "m²",
+      qtyPerM2: 0.55,
+      unitDirectCost: 780,
+    },
+    {
+      floorId: "TERREO",
+      packageNumber: 4,
+      teamCode: "B",
+      serviceLabel: "05 · Alvenaria e Vedações Térreo",
+      unit: "m²",
+      qtyPerM2: 0.9,
+      unitDirectCost: 195,
+    },
+    {
+      floorId: "PAV_SUPERIOR",
+      packageNumber: 3,
+      teamCode: "A",
+      serviceLabel: "04 · Supraestrutura Pav. Superior",
+      unit: "m²",
+      qtyPerM2: 0.45,
+      unitDirectCost: 790,
+    },
+    {
+      floorId: "PAV_SUPERIOR",
+      packageNumber: 5,
+      teamCode: "B",
+      serviceLabel: "08/09 · Instalações Elétricas e Hidrossanitárias",
+      unit: "pt",
+      qtyPerM2: 0.35,
+      unitDirectCost: 340,
+    },
+    {
+      floorId: "COBERTA",
+      packageNumber: 6,
+      teamCode: "C",
+      serviceLabel: "11 · Coberta, Estrutura e Impermeabilização",
+      unit: "m²",
+      qtyPerM2: 0.55,
+      unitDirectCost: 260,
+    },
+    {
+      floorId: "AREA_EXTERNA",
+      packageNumber: 7,
+      teamCode: "C",
+      serviceLabel: "13/17 · Revestimentos, Pintura e Área Externa",
+      unit: "m²",
+      qtyPerM2: 1.1,
+      unitDirectCost: 185,
+    },
+  ];
+
+  const floorById = new Map(input.floors.map((f) => [f.floorId, f]));
+
+  return templates.map((tpl, idx) => {
+    const floorDef = floorById.get(tpl.floorId) ??
+      input.floors[Math.min(idx, input.floors.length - 1)] ?? {
+        floorId: tpl.floorId,
+        floorName: tpl.floorId,
+        floorOrder: idx + 1,
+      };
+    const plannedQty = round2(Math.max(1, area * tpl.qtyPerM2));
+    const unitPrice = round2(tpl.unitDirectCost * markup);
+    const k = `${floorDef.floorId}::${tpl.serviceLabel}`;
+    const prevQty = input.approvedPrevByKey.get(k) ?? 0;
+    const draft = input.draftCurrentByKey.get(k);
+    const line = computeFieldMeasurementLine({
+      plannedQty,
+      previousExecutedQty: prevQty,
+      currentExecutedQty: draft?.qty ?? 0,
+      unitPrice,
+      status: draft?.status,
+    });
+
+    return {
+      rowKey: `PARAM::${floorDef.floorId}::${idx + 1}`,
+      floorId: floorDef.floorId,
+      floorName: floorDef.floorName,
+      floorOrder: floorDef.floorOrder,
+      packageNumber: tpl.packageNumber,
+      teamCode: tpl.teamCode,
+      eapItemId: null,
+      serviceLabel: tpl.serviceLabel,
+      unit: tpl.unit,
+      fieldNote: draft?.note ?? null,
+      ...line,
+    };
+  });
 }
 
 export async function buildFieldMeasurementSnapshot(
@@ -360,6 +483,20 @@ export async function buildFieldMeasurementSnapshot(
     }
   }
 
+  let isParametricFallback = false;
+  if (items.length === 0) {
+    isParametricFallback = true;
+    items.push(
+      ...buildParametricFieldMeasurementRows({
+        builtAreaM2: eap.builtAreaM2,
+        bdiPercent: eap.bdiPercent,
+        floors,
+        approvedPrevByKey,
+        draftCurrentByKey,
+      })
+    );
+  }
+
   items.sort((a, b) => a.floorOrder - b.floorOrder || a.serviceLabel.localeCompare(b.serviceLabel));
 
   // Previsto LOB até refIso
@@ -428,6 +565,7 @@ export async function buildFieldMeasurementSnapshot(
     referenceDate: refIso,
     nextBulletinNumber,
     nextBulletinCode: formatBulletinCode(nextBulletinNumber),
+    isParametricFallback,
     floors,
     summary: {
       ...weighted,

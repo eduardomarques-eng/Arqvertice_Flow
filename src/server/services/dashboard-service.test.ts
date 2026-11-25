@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { progressByDiscipline, stageCompletion } from "./dashboard-service";
+import { hasModulePermission } from "@/lib/rbac";
 
 describe("regra única de progresso", () => {
   it("usa o advancement guardado na etapa", () => {
@@ -47,5 +48,10 @@ describe("regra única de progresso", () => {
 
   it("sem etapas devolve lista vazia em vez de NaN", () => {
     expect(progressByDiscipline([])).toEqual([]);
+  });
+
+  it("ADMIN sempre possui permissão no módulo dashboard mesmo com permissions customizado", () => {
+    expect(hasModulePermission({ role: "ADMIN", permissions: ["projetos"] }, "dashboard")).toBe(true);
+    expect(hasModulePermission({ role: "OPERADOR", permissions: ["projetos"] }, "dashboard")).toBe(false);
   });
 });

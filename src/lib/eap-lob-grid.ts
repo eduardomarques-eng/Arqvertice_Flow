@@ -1268,6 +1268,7 @@ export function computeTeamDailyCostEstimate(team: FloorMatrixWorkTeam): number 
 /**
  * Gera automaticamente a matriz LOB (Pavimentos × Datas) cruzando quantitativos da EAP,
  * produtividade dos pacotes e limites diários das equipes A, B, C...
+ * Quando a EAP ainda está vazia/zerada, aplica Estimativa Paramétrica Inteligente por área (fallback 180 m²).
  */
 export function generateIntelligentFloorLobMatrix(input: {
   startDate: string;
@@ -1278,11 +1279,13 @@ export function generateIntelligentFloorLobMatrix(input: {
   holidaySet: Set<string>;
   existingAllocations?: LobFloorAllocationItem[];
   preserveLocked?: boolean;
+  builtAreaM2?: number;
 }): {
   allocations: LobFloorAllocationItem[];
   scheduledPackagesCount: number;
   skippedNoLoadPackages: number[];
   endDate: string;
+  usedParametricFallback: boolean;
 } {
   const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
   const activePackages = [...input.servicePackages]
@@ -1291,6 +1294,13 @@ export function generateIntelligentFloorLobMatrix(input: {
 
   const stageLoadMap = new Map(input.stageLoads.map((s) => [s.stageCode, s]));
   const teamMap = new Map(input.workTeams.map((t) => [t.teamCode.toUpperCase(), t]));
+
+  const hasAnyEapQuantity = input.stageLoads.some((st) =>
+    Object.values(st.floorQuantities).some((v) => Math.max(0, Number(v) || 0) > 0)
+  );
+  const effectiveAreaM2 =
+    typeof input.builtAreaM2 === "number" && input.builtAreaM2 > 0 ? input.builtAreaM2 : 180;
+  const areaFactor = Math.max(0.7, Math.min(3.5, effectiveAreaM2 / 180));
 
   const lockedAllocations = input.preserveLocked
     ? (input.existingAllocations ?? []).filter((a) => a.isLocked)
@@ -1323,7 +1333,32 @@ export function generateIntelligentFloorLobMatrix(input: {
   let scheduledPackagesCount = 0;
   let maxEndDate = baseStart;
 
-  for (const pkg of activePackages) {
+  const packageAppliesToFloorParametric = (
+    pkg: FloorMatrixServicePackage,
+    floor: LobFloorDefinition
+  ): boolean => {
+    const text = `${pkg.name} ${pkg.discipline}`.toUpperCase();
+    const fid = floor.floorId.toUpperCase();
+    if (fid === "FUNDACAO" || fid.includes("FUND")) {
+      return (
+        pkg.packageNumber <= 3 ||
+        /PRELIM|CANTEIRO|FUND|INFRA|TERRA|ESTAC|BALDRAM/.test(text)
+      );
+    }
+    if (fid === "COBERTA" || fid.includes("COBERT")) {
+      return /COBERT|TELHAD|IMPERMEAB|ESTRUT|LAJE/.test(text) || pkg.packageNumber === 2;
+    }
+    if (fid === "AREA_EXTERNA" || fid.includes("EXTERN")) {
+      return /EXTERN|PAISAG|MURO|CALCAD|PINTUR|DRENAG/.test(text);
+    }
+    return true;
+  };
+
+  const packagesToSchedule = hasAnyEapQuantity
+    ? activePackages
+    : activePackages.slice(0, 12);
+
+  for (const pkg of packagesToSchedule) {
     const teamCode = inferDefaultTeamCodeForPackage(pkg, input.workTeams);
     const team = teamMap.get(teamCode);
     const maxFronts = Math.max(1, team?.maxSimultaneousFronts ?? 1);
@@ -1340,10 +1375,20 @@ export function generateIntelligentFloorLobMatrix(input: {
         }
       }
 
-      if (floorQty <= 0) continue;
-      pkgHasAnyLoad = true;
+      let workingDaysNeeded = 0;
+      if (hasAnyEapQuantity) {
+        if (floorQty <= 0) continue;
+        workingDaysNeeded = Math.max(1, Math.ceil(floorQty / effectiveCap));
+      } else {
+        if (!packageAppliesToFloorParametric(pkg, floor)) continue;
+        const speedRatio = Math.max(
+          0.5,
+          Math.min(2, effectiveCap / Math.max(1, pkg.productivityPerDay || 1))
+        );
+        workingDaysNeeded = Math.max(2, Math.min(10, Math.round((3 * areaFactor) / speedRatio)));
+      }
 
-      const workingDaysNeeded = Math.max(1, Math.ceil(floorQty / effectiveCap));
+      pkgHasAnyLoad = true;
 
       // Respeita predecessores no mesmo pavimento
       let earliestStart = baseStart;
@@ -1430,6 +1475,7 @@ export function generateIntelligentFloorLobMatrix(input: {
     scheduledPackagesCount,
     skippedNoLoadPackages,
     endDate: maxEndDate,
+    usedParametricFallback: !hasAnyEapQuantity,
   };
 }
 

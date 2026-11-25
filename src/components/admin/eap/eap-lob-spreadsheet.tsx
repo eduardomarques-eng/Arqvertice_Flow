@@ -50,6 +50,7 @@ interface HolidayDTO {
 
 interface EapLobSpreadsheetProps {
   projectId: string;
+  builtAreaM2?: number;
   plannedStartDate: string | null;
   analyticsStartDate: string | null;
   analyticsEndDate: string | null;
@@ -99,6 +100,7 @@ const LOB_DENSITY_LABELS: Record<LobDensity, string> = {
 
 export function EapLobSpreadsheet({
   projectId,
+  builtAreaM2,
   plannedStartDate,
   analyticsStartDate,
   analyticsEndDate,
@@ -192,6 +194,7 @@ export function EapLobSpreadsheet({
   const [editingFloorDraft, setEditingFloorDraft] = useState<string>("");
   const [preserveLockedOnGenerate, setPreserveLockedOnGenerate] = useState<boolean>(true);
   const [showConflictsDrawer, setShowConflictsDrawer] = useState<boolean>(false);
+  const [usedParametricBanner, setUsedParametricBanner] = useState<boolean>(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -622,14 +625,18 @@ export function EapLobSpreadsheet({
       holidaySet,
       existingAllocations: matrix.allocations,
       preserveLocked: preserveLockedOnGenerate,
+      builtAreaM2,
     });
 
     pushMatrix({ floors: matrix.floors, allocations: result.allocations });
     if (result.endDate) setTimelineEnd(result.endDate);
     setDirty(true);
+    setUsedParametricBanner(result.usedParametricFallback);
     setFeedback({
       type: "success",
-      text: `Matriz LOB gerada da EAP: ${result.scheduledPackagesCount} pacote(s) alocado(s) (${preserveLockedOnGenerate ? "preservando células travadas/manuais" : "regeração completa"}).`,
+      text: result.usedParametricFallback
+        ? `Matriz LOB gerada por Estimativa Paramétrica Inteligente (${builtAreaM2 && builtAreaM2 > 0 ? builtAreaM2 : 180} m²): ${result.scheduledPackagesCount} pacote(s) alocado(s).`
+        : `Matriz LOB gerada da EAP: ${result.scheduledPackagesCount} pacote(s) alocado(s) (${preserveLockedOnGenerate ? "preservando células travadas/manuais" : "regeração completa"}).`,
     });
   }, [
     timelineStart,
@@ -639,6 +646,7 @@ export function EapLobSpreadsheet({
     stageLoads,
     holidaySet,
     preserveLockedOnGenerate,
+    builtAreaM2,
     pushMatrix,
   ]);
 
@@ -1089,6 +1097,12 @@ export function EapLobSpreadsheet({
             </button>
           </div>
         </div>
+
+        {usedParametricBanner && (
+          <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-[11px] text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+            <strong>Estimativa Paramétrica Inteligente:</strong> A EAP ainda não possui quantitativos preenchidos. O cronograma inicial foi calculado pela área construída ({builtAreaM2 && builtAreaM2 > 0 ? builtAreaM2 : 180} m²), produtividade dos pacotes e capacidade das equipes. Edite qualquer célula livremente ou preencha a EAP para recalcular.
+          </div>
+        )}
 
         {/* Resumo por Equipe (A, B, C...) */}
         {analysis.teamSummaries.length > 0 && (
