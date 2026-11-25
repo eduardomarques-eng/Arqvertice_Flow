@@ -495,3 +495,146 @@ export async function createContractTemplate(input: {
   await recordAudit("CONTRACT_TEMPLATE_UPDATED", "ContractTemplate", template.id, user.id, { name: template.name, created: true });
   return template;
 }
+
+/**
+ * Cria um Contrato Jurídico independente a partir da Minuta Padrão de 8 Cláusulas,
+ * sem exigir proposta comercial prévia (pode vincular a um projeto existente ou criar cadastro avulso).
+ */
+export async function createStandaloneContract(input: {
+  projectId?: string | null;
+  title?: string;
+  clientName?: string;
+  clientDocument?: string;
+  totalValue?: number;
+  includeStructuralPartner?: boolean;
+  artEnabled?: boolean;
+}) {
+  const user = await requireRole("ADMIN");
+  const legalProfile = await getStudioLegalProfile();
+
+  const totalValue = Math.max(0, Number(input.totalValue) || 0);
+  const cleanTitle = input.title?.trim() || "";
+  const cleanClientName = input.clientName?.trim() || "Cliente Contratante";
+  const cleanClientDoc = input.clientDocument?.trim() || "a informar";
+
+  const created = await prisma.$transaction(async (tx) => {
+    let targetProject = input.projectId
+      ? await tx.project.findUnique({
+          where: { id: input.projectId },
+          include: { client: true, briefing: true },
+        })
+      : null;
+
+    if (!targetProject) {
+      const client = await tx.client.create({
+        data: {
+          name: cleanClientName,
+          fullName: cleanClientName,
+          document: cleanClientDoc !== "a informar" ? cleanClientDoc : null,
+          status: "ACTIVE",
+        },
+      });
+      targetProject = await tx.project.create({
+        data: {
+          clientId: client.id,
+          name: cleanTitle || `Contrato — ${cleanClientName}`,
+          type: "Arquitetura e Engenharia",
+          status: "PLANNING",
+        },
+        include: { client: true, briefing: true },
+      });
+    }
+
+    const codeSuffix = `${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const backingProposal = await tx.proposal.create({
+      data: {
+        projectId: targetProject.id,
+        code: `CTR-${codeSuffix}`,
+        status: "APPROVED",
+        currentVersion: 1,
+        approvedVersion: 1,
+        approvedAt: new Date(),
+      },
+    });
+
+    const contractTitle =
+      cleanTitle || `Contrato de Prestação de Serviços — ${targetProject.name}`;
+    const c = targetProject.client;
+    const briefingResponses = (targetProject.briefing?.responses ?? {}) as Record<string, unknown>;
+    const areaStr = String(
+      briefingResponses.area ?? briefingResponses.areaTotal ?? briefingResponses.metragem ?? "",
+    );
+
+    const structured = buildDefaultContractDocument({
+      title: contractTitle,
+      contractor: {
+        studioName: legalProfile.studioName,
+        technicalLeadName: legalProfile.technicalLeadName,
+        cnpj: legalProfile.studioCnpj,
+        cityState: legalProfile.cityState,
+        commercialAddress: legalProfile.commercialAddress,
+        email: legalProfile.institutionalEmail,
+        pixKey: legalProfile.pixKey,
+        pixKeyType: legalProfile.pixKeyType,
+        bankInstructions: legalProfile.bankInstructions,
+      },
+      includeStructuralPartner: Boolean(input.includeStructuralPartner),
+      client: {
+        name: input.projectId ? (c.fullName ?? c.name) : cleanClientName,
+        nationality: c.nationality || "brasileiro(a)",
+        maritalStatus: c.maritalStatus || "a informar",
+        profession: c.profession || "a informar",
+        rg: c.rg || "a informar",
+        cpfOrCnpj:
+          cleanClientDoc !== "a informar"
+            ? cleanClientDoc
+            : c.cpf || c.document || "a informar",
+        address: formatAddress(c.address) || "Endereço a informar",
+        city: c.city || legalProfile.cityState,
+      },
+      project: {
+        name: targetProject.name,
+        type: targetProject.type || "Arquitetura e Engenharia",
+        areaM2: areaStr ? `${areaStr} m²` : "conforme levantamento",
+        cityState: legalProfile.cityState,
+        proposalCode: backingProposal.code ?? "Minuta Avulsa",
+      },
+      scopeLines: [
+        "Elaboração de Projeto Executivo e Compatibilização Técnica conforme escopo contratado.",
+      ],
+      businessDays: 45,
+      totalValue,
+      artFee: { enabled: Boolean(input.artEnabled), amount: 108.39 },
+      contractDate: new Date(),
+      forumCity: legalProfile.cityState,
+    });
+
+    const renderedText = renderContractDocumentText({
+      ...structured,
+      totalInWords: valorPorExtensoBRL(structured.totalValue),
+    });
+
+    const contract = await tx.contract.create({
+      data: {
+        proposalId: backingProposal.id,
+        version: 1,
+        title: contractTitle,
+        status: "DRAFT",
+        content: json({
+          structured,
+          text: renderedText,
+          total: structured.totalValue,
+        }),
+      },
+    });
+
+    return contract;
+  });
+
+  await recordAudit("CONTRACT_CHANGED", "Contract", created.id, user.id, {
+    standalone: true,
+    totalValue,
+  });
+
+  return created;
+}

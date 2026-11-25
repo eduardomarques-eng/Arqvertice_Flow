@@ -409,6 +409,24 @@ export async function generateContractAction(proposalId: string) {
   return result;
 }
 
+export async function createStandaloneContractAction(input: {
+  projectId?: string | null;
+  title?: string;
+  clientName?: string;
+  clientDocument?: string;
+  totalValue?: number;
+  includeStructuralPartner?: boolean;
+  artEnabled?: boolean;
+}) {
+  const { createStandaloneContract } = await import("@/server/services/contract-service");
+  const result = await createStandaloneContract(input);
+  revalidatePath("/admin/contratos");
+  if (input.projectId) {
+    revalidatePath(`/admin/projetos/${input.projectId}`);
+  }
+  return result;
+}
+
 export async function importEapIntoProposalAction(proposalId: string) {
   const result = await importEapIntoProposal(proposalId);
   revalidatePath(`/admin/propostas/${proposalId}`);

@@ -23,7 +23,30 @@ export async function GET(
     const eap = await prisma.eapProject.findUnique({
       where: { projectId },
       include: {
-        sourceFiles: { orderBy: { createdAt: "desc" } },
+        sourceFiles: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            eapProjectId: true,
+            acervoDocumentId: true,
+            fileName: true,
+            storageKey: true,
+            url: true,
+            sourceSoftware: true,
+            discipline: true,
+            revisionLabel: true,
+            versionCode: true,
+            versionNumber: true,
+            isActive: true,
+            revisionNote: true,
+            supersedesId: true,
+            includedInMining: true,
+            status: true,
+            extractedSummaryJson: true,
+            processedAt: true,
+            createdAt: true,
+          },
+        },
       },
     });
 

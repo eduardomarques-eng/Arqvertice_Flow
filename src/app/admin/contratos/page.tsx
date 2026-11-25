@@ -1,7 +1,8 @@
 import { AppShell } from "@/components/app-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { requirePageAdminRole } from "@/server/auth";
-import { listContracts, listProposalsReadyForContract } from "@/server/services/contract-service";
+import { listContracts } from "@/server/services/contract-service";
+import { prisma } from "@/server/db";
 import { ContractsHubClient } from "@/components/contracts/contracts-hub-client";
 
 export const dynamic = "force-dynamic";
@@ -10,16 +11,23 @@ export const metadata = { title: "Contratos & Minutas" };
 
 export default async function AdminContractsPage() {
   await requirePageAdminRole();
-  const [contracts, readyProposals] = await Promise.all([
+  const [contracts, projects] = await Promise.all([
     listContracts(),
-    listProposalsReadyForContract(),
+    prisma.project.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        client: { select: { name: true, fullName: true, document: true, cpf: true } },
+      },
+    }),
   ]);
 
   return (
-    <AppShell eyebrow="Jurídico & Comercial">
+    <AppShell eyebrow="Jurídico">
       <SectionHeading
         title="Contratos & Termos Aditivos"
-        description="Minutas editáveis, assinatura eletrônica, arquivamento PDF no Acervo e aditivos integrados."
+        description="Minutas padrão de 8 cláusulas, qualificação automática, pré-visualização, assinatura eletrônica e PDF oficial."
       />
       <div className="mt-6">
         <ContractsHubClient
@@ -41,14 +49,11 @@ export default async function AdminContractsPage() {
               totalValue: Number(content.total ?? 0),
             };
           })}
-          readyProposals={readyProposals.map((p) => ({
+          projects={projects.map((p) => ({
             id: p.id,
-            code: p.code,
-            status: p.status,
-            projectName: p.project.name,
-            clientName: p.project.client.fullName ?? p.project.client.name,
-            title: p.versions[0]?.title ?? "Proposta",
-            total: Number(p.versions[0]?.total ?? 0),
+            name: p.name,
+            clientName: p.client.fullName ?? p.client.name,
+            clientDocument: p.client.cpf ?? p.client.document ?? "",
           }))}
         />
       </div>

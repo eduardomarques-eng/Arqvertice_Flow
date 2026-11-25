@@ -502,15 +502,15 @@ export function buildParametricExecutiveFallback(input: {
     unit: string;
     qtyFactor: number;
   }> = [
-    { code: "01", name: "Serviços Preliminares & Canteiro", weightPct: 5, unit: "vb", qtyFactor: 1 },
-    { code: "03", name: "Infraestrutura & Fundações", weightPct: 14, unit: "m²", qtyFactor: 0.45 },
-    { code: "04", name: "Supraestrutura (Concreto, Aço & Fôrmas)", weightPct: 24, unit: "m²", qtyFactor: 1.0 },
-    { code: "05", name: "Alvenaria, Vedações & Drywall", weightPct: 12, unit: "m²", qtyFactor: 1.55 },
-    { code: "08", name: "Instalações Elétricas & Automação", weightPct: 11, unit: "pt", qtyFactor: 0.42 },
-    { code: "09", name: "Instalações Hidrossanitárias & Drenagem", weightPct: 10, unit: "pt", qtyFactor: 0.28 },
-    { code: "11", name: "Coberta & Impermeabilização", weightPct: 8, unit: "m²", qtyFactor: 0.58 },
-    { code: "13", name: "Revestimentos, Esquadrias & Pintura", weightPct: 16, unit: "m²", qtyFactor: 1.85 },
-  ];
+      { code: "01", name: "Serviços Preliminares & Canteiro", weightPct: 5, unit: "vb", qtyFactor: 1 },
+      { code: "03", name: "Infraestrutura & Fundações", weightPct: 14, unit: "m²", qtyFactor: 0.45 },
+      { code: "04", name: "Supraestrutura (Concreto, Aço & Fôrmas)", weightPct: 24, unit: "m²", qtyFactor: 1.0 },
+      { code: "05", name: "Alvenaria, Vedações & Drywall", weightPct: 12, unit: "m²", qtyFactor: 1.55 },
+      { code: "08", name: "Instalações Elétricas & Automação", weightPct: 11, unit: "pt", qtyFactor: 0.42 },
+      { code: "09", name: "Instalações Hidrossanitárias & Drenagem", weightPct: 10, unit: "pt", qtyFactor: 0.28 },
+      { code: "11", name: "Coberta & Impermeabilização", weightPct: 8, unit: "m²", qtyFactor: 0.58 },
+      { code: "13", name: "Revestimentos, Esquadrias & Pintura", weightPct: 16, unit: "m²", qtyFactor: 1.85 },
+    ];
 
   const stages: ExecutiveReportStageDTO[] = macroWeights.map((mw) => {
     const stageCommercial = round2((totalCommercialPrice * mw.weightPct) / 100);
@@ -536,13 +536,13 @@ export function buildParametricExecutiveFallback(input: {
       weightPercent: mw.weightPct,
       ...(isInternal
         ? {
-            materialUnitCost: round2(unitDirect * 0.58),
-            laborUnitCost: round2(unitDirect * 0.32),
-            thirdPartyUnitCost: round2(unitDirect * 0.1),
-            unitDirectCost: unitDirect,
-            totalDirectCost: stageDirect,
-            markupMultiplier: round2(markup),
-          }
+          materialUnitCost: round2(unitDirect * 0.58),
+          laborUnitCost: round2(unitDirect * 0.32),
+          thirdPartyUnitCost: round2(unitDirect * 0.1),
+          unitDirectCost: unitDirect,
+          totalDirectCost: stageDirect,
+          markupMultiplier: round2(markup),
+        }
         : {}),
     };
 
@@ -625,31 +625,31 @@ export function buildParametricExecutiveFallback(input: {
     basePayload.schedule.waves.length > 0
       ? basePayload.schedule.waves
       : [
-          {
-            waveName: "Equipe A · Infraestrutura & Estrutura",
-            packagesCount: 4,
-            startDate: startIso,
-            endDate: endIso,
-            totalWorkingDays: Math.round(totalWorkingDays * 0.45),
-            progressPercent: 0,
-          },
-          {
-            waveName: "Equipe B · Alvenaria & Instalações",
-            packagesCount: 4,
-            startDate: startIso,
-            endDate: endIso,
-            totalWorkingDays: Math.round(totalWorkingDays * 0.4),
-            progressPercent: 0,
-          },
-          {
-            waveName: "Equipe C · Coberta & Acabamentos",
-            packagesCount: 4,
-            startDate: startIso,
-            endDate: endIso,
-            totalWorkingDays: Math.round(totalWorkingDays * 0.35),
-            progressPercent: 0,
-          },
-        ];
+        {
+          waveName: "Equipe A · Infraestrutura & Estrutura",
+          packagesCount: 4,
+          startDate: startIso,
+          endDate: endIso,
+          totalWorkingDays: Math.round(totalWorkingDays * 0.45),
+          progressPercent: 0,
+        },
+        {
+          waveName: "Equipe B · Alvenaria & Instalações",
+          packagesCount: 4,
+          startDate: startIso,
+          endDate: endIso,
+          totalWorkingDays: Math.round(totalWorkingDays * 0.4),
+          progressPercent: 0,
+        },
+        {
+          waveName: "Equipe C · Coberta & Acabamentos",
+          packagesCount: 4,
+          startDate: startIso,
+          endDate: endIso,
+          totalWorkingDays: Math.round(totalWorkingDays * 0.35),
+          progressPercent: 0,
+        },
+      ];
 
   const headline = `Cenário Paramétrico Fortaleza-CE (${standard} · ${area} m²) — ${fmtBRL(totalCommercialPrice)} em ${months} meses`;
   const overview = `Orçamento baseline gerado automaticamente pelo motor paramétrico regional para ${area} m² no padrão ${standard} (BDI ${bdi}%). As etapas de Supraestrutura (24%) e Revestimentos (16%) concentram 40% do investimento previsto, com equipes A, B e C distribuídas em ${months} meses (${totalWorkingDays} dias úteis).`;
@@ -661,75 +661,75 @@ export function buildParametricExecutiveFallback(input: {
 
   const comparativeAnalytics: ComparativeProjectAnalytics = basePayload.comparativeAnalytics
     ? {
-        ...basePayload.comparativeAnalytics,
-        financial: {
-          ...basePayload.comparativeAnalytics.financial,
-          budgetedEapTotal: totalCommercialPrice,
-          plannedLobCumulative: round2(totalCommercialPrice * 0.12),
-          eacCostProjection: totalCommercialPrice,
-        },
-        monthlyComparative:
-          basePayload.comparativeAnalytics.monthlyComparative.length > 0
-            ? basePayload.comparativeAnalytics.monthlyComparative
-            : monthlySeries.slice(0, 6).map((m) => ({
-                monthKey: m.monthKey,
-                label: m.label,
-                plannedCumulative: m.cumulativeCommercialCost,
-                measuredCumulative: 0,
-                billedCumulative: 0,
-              })),
-        aiSummary: {
-          ...basePayload.comparativeAnalytics.aiSummary,
-          source: "DETERMINISTIC",
-          headline,
-          executiveOverview: overview,
-          actionPlan,
-        },
-      }
+      ...basePayload.comparativeAnalytics,
+      financial: {
+        ...basePayload.comparativeAnalytics.financial,
+        budgetedEapTotal: totalCommercialPrice,
+        plannedLobCumulative: round2(totalCommercialPrice * 0.12),
+        eacCostProjection: totalCommercialPrice,
+      },
+      monthlyComparative:
+        basePayload.comparativeAnalytics.monthlyComparative.length > 0
+          ? basePayload.comparativeAnalytics.monthlyComparative
+          : monthlySeries.slice(0, 6).map((m) => ({
+            monthKey: m.monthKey,
+            label: m.label,
+            plannedCumulative: m.cumulativeCommercialCost,
+            measuredCumulative: 0,
+            billedCumulative: 0,
+          })),
+      aiSummary: {
+        ...basePayload.comparativeAnalytics.aiSummary,
+        source: "DETERMINISTIC",
+        headline,
+        executiveOverview: overview,
+        actionPlan,
+      },
+    }
     : {
-        referenceDate: new Date().toISOString().slice(0, 10),
-        financial: {
-          budgetedEapTotal: totalCommercialPrice,
-          plannedLobCumulative: round2(totalCommercialPrice * 0.12),
-          measuredFieldCumulative: 0,
-          billedInstallmentsTotal: 0,
-          receivedInstallmentsTotal: 0,
-          cashBalanceBilledMinusMeasured: 0,
-          physicalProgressPct: 0,
-          plannedLobPct: 0,
-          physicalDeviationPct: 0,
-          spi: 1,
-          cpi: 1,
-          eacCostProjection: totalCommercialPrice,
-        },
-        shortTerm: {
-          windowDays: 15,
-          upcomingPackagesCount: 0,
-          criticalConstraintsCount: 0,
-          attentionConstraintsCount: 0,
-          recentBulletinsCount: 0,
-          teamUtilization: [],
-        },
-        monthlyComparative: monthlySeries.slice(0, 6).map((m) => ({
-          monthKey: m.monthKey,
-          label: m.label,
-          plannedCumulative: m.cumulativeCommercialCost,
-          measuredCumulative: 0,
-          billedCumulative: 0,
-        })),
-        floorComparison: [],
-        activeVersions: [],
-        bulletinsSummary: [],
-        aiSummary: {
-          healthStatus: "SAUDAVEL",
-          source: "DETERMINISTIC",
-          generatedAt: new Date().toISOString(),
-          headline,
-          executiveOverview: overview,
-          topBottlenecks: [],
-          actionPlan,
-        },
-      };
+      referenceDate: new Date().toISOString().slice(0, 10),
+      financial: {
+        budgetedEapTotal: totalCommercialPrice,
+        plannedLobCumulative: round2(totalCommercialPrice * 0.12),
+        measuredFieldCumulative: 0,
+        billedInstallmentsTotal: 0,
+        receivedInstallmentsTotal: 0,
+        cashBalanceBilledMinusMeasured: 0,
+        physicalProgressPct: 0,
+        plannedLobPct: 0,
+        physicalDeviationPct: 0,
+        spi: 1,
+        cpi: 1,
+        eacCostProjection: totalCommercialPrice,
+      },
+      shortTerm: {
+        windowDays: 15,
+        upcomingPackagesCount: 0,
+        criticalConstraintsCount: 0,
+        attentionConstraintsCount: 0,
+        recentBulletinsCount: 0,
+        teamUtilization: [],
+      },
+      monthlyComparative: monthlySeries.slice(0, 6).map((m) => ({
+        monthKey: m.monthKey,
+        label: m.label,
+        plannedCumulative: m.cumulativeCommercialCost,
+        measuredCumulative: 0,
+        billedCumulative: 0,
+      })),
+      floorComparison: [],
+      activeVersions: [],
+      bulletinsSummary: [],
+      aiSummary: {
+        healthStatus: "SAUDAVEL",
+        source: "DETERMINISTIC",
+        generatedAt: new Date().toISOString(),
+        headline,
+        executiveOverview: overview,
+        topBottlenecks: [],
+        actionPlan,
+      },
+    };
 
   return {
     ...basePayload,
@@ -751,9 +751,9 @@ export function buildParametricExecutiveFallback(input: {
       costPerM2: commercialCostPerM2,
       ...(isInternal
         ? {
-            totalDirectCost,
-            directCostPerM2: directCostPerM2,
-          }
+          totalDirectCost,
+          directCostPerM2: directCostPerM2,
+        }
         : {}),
       materialSharePercent: 58,
       laborSharePercent: 32,
@@ -1014,10 +1014,10 @@ export async function loadExecutiveReportFromDb(
 
   const hasExplicitOverrides = Boolean(
     overrides &&
-      (overrides.builtAreaM2 ||
-        overrides.standardLevel ||
-        overrides.bdiPercent !== undefined ||
-        overrides.durationMonths)
+    (overrides.builtAreaM2 ||
+      overrides.standardLevel ||
+      overrides.bdiPercent !== undefined ||
+      overrides.durationMonths)
   );
 
   if (payload.kpis.totalCommercialPrice <= 0 || hasExplicitOverrides) {

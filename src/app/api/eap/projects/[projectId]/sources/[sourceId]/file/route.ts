@@ -24,6 +24,8 @@ export async function GET(
         fileName: true,
         storageKey: true,
         url: true,
+        rawTextContent: true,
+        rawBinaryBase64: true,
       },
     });
 
@@ -32,8 +34,11 @@ export async function GET(
     }
 
     const bytes = await readRawBufferFromSource({
+      id: source.id,
       storageKey: source.storageKey || null,
       url: source.url || null,
+      rawTextContent: source.rawTextContent,
+      rawBinaryBase64: source.rawBinaryBase64,
     });
 
     const lowerName = source.fileName.toLowerCase();

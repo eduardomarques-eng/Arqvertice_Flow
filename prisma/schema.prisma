@@ -1989,6 +1989,8 @@ model EapSourceFile {
   fileName             String
   storageKey           String
   url                  String
+  rawTextContent       String?    @db.Text
+  rawBinaryBase64      String?    @db.Text
   sourceSoftware       String     @default("MANUAL") // TQS | REVIT | MANUAL
   discipline           String
   revisionLabel        String     @default("R00")

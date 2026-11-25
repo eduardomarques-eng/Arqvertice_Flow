@@ -7,7 +7,6 @@ import { StudioEditor } from "@/components/studio/studio-editor";
 import { readStudioDeck } from "@/lib/studio-deck";
 import { readCommercialData } from "@/lib/studio-commercial";
 import { ProposalCommercialPanel } from "@/components/proposals/proposal-commercial-panel";
-import { SignatureActions } from "@/components/proposals/signature-actions";
 import { ProposalSendActions } from "@/components/proposals/proposal-send-actions";
 import { InsightsPanel } from "@/components/proposals/insights-panel";
 import { getProposalCommercialInsights } from "@/server/services/commercial-service";
@@ -297,44 +296,6 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
           />
         </div>
       </Card>
-
-      {proposal.contract ? (
-        <Card className="mt-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-slate-900">Contrato e assinatura</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Contrato versão {proposal.contract.version}
-                {proposal.contract.templateVersion ? ` · template v${proposal.contract.templateVersion}` : ""} · status{" "}
-                {proposal.contract.status}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href={`/admin/contratos/${proposal.contract.id}`}
-                className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-              >
-                Abrir Editor &amp; Preview do Contrato
-              </Link>
-              <a
-                href={`/api/contracts/${proposal.contract.id}/pdf`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Baixar PDF Contrato
-              </a>
-            </div>
-          </div>
-          <div className="mt-4">
-            <SignatureActions
-              contractId={proposal.contract.id}
-              status={proposal.contract.signature?.status ?? null}
-              provider={proposal.contract.signature?.provider ?? null}
-            />
-          </div>
-        </Card>
-      ) : null}
 
       <Card className="mt-6">
         <h2 className="font-semibold text-slate-900">Recomendações do sistema</h2>

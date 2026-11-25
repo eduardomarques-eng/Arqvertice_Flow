@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
-import { putStoredObject } from "@/server/storage";
+import { putStoredObject, s3Config } from "@/server/storage";
 import { computeSha256 } from "@/server/eap/pdf-reader";
 
 export const dynamic = "force-dynamic";
@@ -79,12 +80,43 @@ export async function POST(
         : null;
 
     const bytes = Buffer.from(await file.arrayBuffer());
+    const maxBytes = 15 * 1024 * 1024;
+    if (bytes.byteLength > maxBytes) {
+      return NextResponse.json(
+        { ok: false, error: "Arquivo excede o limite de 15 MB para upload na EAP." },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    const newSourceId = randomUUID();
     const hash = computeSha256(bytes).slice(0, 16);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const storageKey = `eap/${projectId}/${Date.now()}-${hash}-${safeName}`;
+    const externalKey = `eap/${projectId}/${Date.now()}-${hash}-${safeName}`;
     const mimeType = isHtml ? "text/html" : "application/pdf";
 
-    await putStoredObject(storageKey, bytes, mimeType);
+    let storageKey = externalKey;
+    let rawTextContent: string | null = null;
+    let rawBinaryBase64: string | null = null;
+
+    let storedExternally = false;
+    if (s3Config() || process.env.NODE_ENV !== "production") {
+      try {
+        await putStoredObject(externalKey, bytes, mimeType);
+        storedExternally = true;
+      } catch {
+        storedExternally = false;
+      }
+    }
+
+    if (!storedExternally) {
+      storageKey = `db://${newSourceId}`;
+      if (isHtml) {
+        const utf8 = bytes.toString("utf8");
+        rawTextContent = utf8.includes("\uFFFD") ? bytes.toString("latin1") : utf8;
+      } else {
+        rawBinaryBase64 = bytes.toString("base64");
+      }
+    }
 
     const source = await prisma.$transaction(async (tx) => {
       let nextVersionNumber = 0;
@@ -120,11 +152,14 @@ export async function POST(
 
       return tx.eapSourceFile.create({
         data: {
+          id: newSourceId,
           eapProjectId: eap.id,
           acervoDocumentId: null,
           fileName: file.name,
           storageKey,
           url: storageKey,
+          rawTextContent,
+          rawBinaryBase64,
           sourceSoftware,
           discipline: resolvedDiscipline,
           revisionLabel: nextVersionCode,
@@ -135,6 +170,27 @@ export async function POST(
           supersedesId,
           includedInMining: true,
           status: "PENDENTE",
+        },
+        select: {
+          id: true,
+          eapProjectId: true,
+          acervoDocumentId: true,
+          fileName: true,
+          storageKey: true,
+          url: true,
+          sourceSoftware: true,
+          discipline: true,
+          revisionLabel: true,
+          versionCode: true,
+          versionNumber: true,
+          isActive: true,
+          revisionNote: true,
+          supersedesId: true,
+          includedInMining: true,
+          status: true,
+          extractedSummaryJson: true,
+          processedAt: true,
+          createdAt: true,
         },
       });
     });

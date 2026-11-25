@@ -81,9 +81,38 @@ export async function extractPdfFromBuffer(buffer: Buffer): Promise<ExtractedPdf
 }
 
 export async function readRawBufferFromSource(source: {
+  id?: string | null;
   storageKey?: string | null;
   url?: string | null;
+  rawTextContent?: string | null;
+  rawBinaryBase64?: string | null;
 }): Promise<Buffer> {
+  if (source.rawBinaryBase64) {
+    return Buffer.from(source.rawBinaryBase64, "base64");
+  }
+  if (typeof source.rawTextContent === "string" && source.rawTextContent.length > 0) {
+    return Buffer.from(source.rawTextContent, "utf8");
+  }
+
+  if (source.storageKey?.startsWith("db://")) {
+    const dbId = source.storageKey.slice("db://".length).trim() || source.id || "";
+    if (!dbId) {
+      throw new Error("Identificador db:// inválido na fonte da EAP.");
+    }
+    const { prisma } = await import("@/server/db");
+    const row = await prisma.eapSourceFile.findUnique({
+      where: { id: dbId },
+      select: { rawTextContent: true, rawBinaryBase64: true },
+    });
+    if (row?.rawBinaryBase64) {
+      return Buffer.from(row.rawBinaryBase64, "base64");
+    }
+    if (typeof row?.rawTextContent === "string" && row.rawTextContent.length > 0) {
+      return Buffer.from(row.rawTextContent, "utf8");
+    }
+    throw new Error("Conteúdo do arquivo não encontrado no fallback do banco de dados.");
+  }
+
   if (source.storageKey) {
     return getStoredObject(source.storageKey);
   }

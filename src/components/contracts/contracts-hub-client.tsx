@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { generateContractAction } from "@/app/actions/domain-actions";
+import { createStandaloneContractAction } from "@/app/actions/domain-actions";
 import { formatCurrencyBRL } from "@/lib/contract-template";
 
 export interface ContractListItem {
@@ -24,31 +24,32 @@ export interface ContractListItem {
   totalValue: number;
 }
 
-export interface ProposalReadyItem {
+export interface ContractProjectOption {
   id: string;
-  code: string | null;
-  status: string;
-  projectName: string;
+  name: string;
   clientName: string;
-  title: string;
-  total: number;
+  clientDocument?: string;
 }
 
 export function ContractsHubClient({
   contracts,
-  readyProposals,
+  projects = [],
 }: {
   contracts: ContractListItem[];
-  readyProposals: ProposalReadyItem[];
+  projects?: ContractProjectOption[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sigFilter, setSigFilter] = useState("ALL");
   const [showNew, setShowNew] = useState(false);
-  const [selectedProposalId, setSelectedProposalId] = useState(
-    readyProposals.find((p) => p.status === "APPROVED")?.id || readyProposals[0]?.id || "",
-  );
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [title, setTitle] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [clientDocument, setClientDocument] = useState("");
+  const [totalValue, setTotalValue] = useState("");
+  const [includeStructuralPartner, setIncludeStructuralPartner] = useState(false);
+  const [artEnabled, setArtEnabled] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -67,15 +68,37 @@ export function ContractsHubClient({
     });
   }, [contracts, query, statusFilter, sigFilter]);
 
-  function handleGenerate() {
-    if (!selectedProposalId) return;
+  function handleProjectSelect(nextProjectId: string) {
+    setSelectedProjectId(nextProjectId);
+    const found = projects.find((p) => p.id === nextProjectId);
+    if (found) {
+      if (!title.trim()) setTitle(`Contrato de Prestação de Serviços — ${found.name}`);
+      setClientName(found.clientName);
+      setClientDocument(found.clientDocument ?? "");
+    }
+  }
+
+  function handleCreateContract(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedProjectId && !clientName.trim()) {
+      setError("Informe o nome da Contratante ou selecione um projeto existente.");
+      return;
+    }
     setError("");
     startTransition(async () => {
       try {
-        const created = await generateContractAction(selectedProposalId);
+        const created = await createStandaloneContractAction({
+          projectId: selectedProjectId || null,
+          title: title.trim() || undefined,
+          clientName: clientName.trim() || undefined,
+          clientDocument: clientDocument.trim() || undefined,
+          totalValue: Number(totalValue.replace(",", ".")) || 0,
+          includeStructuralPartner,
+          artEnabled,
+        });
         router.push(`/admin/contratos/${created.id}`);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Não foi possível gerar o contrato.");
+        setError(err instanceof Error ? err.message : "Não foi possível criar o contrato.");
       }
     });
   }
@@ -119,45 +142,126 @@ export function ContractsHubClient({
         <button
           type="button"
           onClick={() => setShowNew((v) => !v)}
-          className="inline-flex min-h-10 items-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+          className="apple-primary-btn h-10 text-sm cursor-pointer"
         >
-          + Novo Contrato / Gerar da Proposta
+          + Novo Contrato
         </button>
       </div>
 
       {showNew ? (
-        <Card className="border-blue-200 bg-blue-50/40 p-5">
-          <h3 className="text-sm font-bold text-slate-900">Gerar Contrato a partir de Proposta Aprovada</h3>
-          <p className="mt-1 text-xs text-slate-600">
-            O contrato herda automaticamente o escopo, metragem, cliente e condições da versão aprovada e aplica o CNPJ oficial de StudioSetting.
+        <Card className="border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900/95">
+          <h3 className="apple-section-title">Novo Contrato Jurídico (Minuta Padrão — 8 Cláusulas)</h3>
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+            Crie diretamente um contrato independente com qualificação da Contratada (ArqVértice Studio · CNPJ 66.773.164/0001-60), pré-visualização ao vivo e geração de PDF oficial.
           </p>
-          {readyProposals.length === 0 ? (
-            <p className="mt-3 text-xs font-medium text-amber-800">
-              Não há propostas sem contrato no momento. Aprove uma proposta ou crie uma nova em Propostas.
-            </p>
-          ) : (
-            <div className="mt-3 flex flex-wrap items-center gap-3">
+
+          <form onSubmit={handleCreateContract} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                Vincular a Projeto (Opcional)
+              </label>
               <select
-                value={selectedProposalId}
-                onChange={(e) => setSelectedProposalId(e.target.value)}
-                className="min-h-10 min-w-[280px] flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                value={selectedProjectId}
+                onChange={(e) => handleProjectSelect(e.target.value)}
+                className="mt-1 h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               >
-                {readyProposals.map((p) => (
+                <option value="">Preenchimento manual (contrato avulso)</option>
+                {projects.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.code ?? "PROP"} · {p.projectName} ({p.clientName}) — {p.status} · {formatCurrencyBRL(p.total)}
+                    {p.name} — {p.clientName}
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                Título do Contrato
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex.: Contrato Projeto Executivo Residencial"
+                className="mt-1 h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                Nome da Contratante
+              </label>
+              <input
+                type="text"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="Nome completo / Razão social"
+                className="mt-1 h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                CPF / CNPJ da Contratante
+              </label>
+              <input
+                type="text"
+                value={clientDocument}
+                onChange={(e) => setClientDocument(e.target.value)}
+                placeholder="000.000.000-00 ou 00.000.000/0001-00"
+                className="mt-1 h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                Valor Global (R$)
+              </label>
+              <input
+                type="text"
+                value={totalValue}
+                onChange={(e) => setTotalValue(e.target.value)}
+                placeholder="Ex.: 28500"
+                className="mt-1 h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 font-mono text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+            </div>
+
+            <div className="flex flex-col justify-end gap-1.5 text-xs text-zinc-700 dark:text-zinc-300">
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeStructuralPartner}
+                  onChange={(e) => setIncludeStructuralPartner(e.target.checked)}
+                />
+                Incluir Parceiro Estrutural (Emanoel Luan · CNPJ)
+              </label>
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={artEnabled}
+                  onChange={(e) => setArtEnabled(e.target.checked)}
+                />
+                Incluir Taxa de ART / RRT (R$ 108,39)
+              </label>
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={pending}
+                className="apple-primary-btn h-10 text-sm cursor-pointer disabled:opacity-50"
+              >
+                {pending ? "Criando..." : "Criar Contrato (Minuta 8 Cláusulas)"}
+              </button>
               <button
                 type="button"
-                disabled={pending || !selectedProposalId}
-                onClick={handleGenerate}
-                className="min-h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                onClick={() => setShowNew(false)}
+                className="apple-glass-btn h-10 text-xs cursor-pointer"
               >
-                {pending ? "Gerando..." : "Gerar Minuta (8 Cláusulas)"}
+                Cancelar
               </button>
             </div>
-          )}
+          </form>
           {error ? <p className="mt-2 text-xs font-semibold text-rose-600">{error}</p> : null}
         </Card>
       ) : null}

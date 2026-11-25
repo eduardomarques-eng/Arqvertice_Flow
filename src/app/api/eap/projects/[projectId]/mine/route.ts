@@ -89,7 +89,13 @@ export async function POST(
 
     for (const src of eap.sourceFiles) {
       try {
-        const rawBytes = await readRawBufferFromSource({ storageKey: src.storageKey || null, url: src.url || null });
+        const rawBytes = await readRawBufferFromSource({
+          id: src.id,
+          storageKey: src.storageKey || null,
+          url: src.url || null,
+          rawTextContent: src.rawTextContent,
+          rawBinaryBase64: src.rawBinaryBase64,
+        });
         const sha256 = computeSha256(rawBytes);
         const lowerName = src.fileName.toLowerCase();
         const headText = rawBytes.subarray(0, 512).toString("utf8").trim().toLowerCase();
