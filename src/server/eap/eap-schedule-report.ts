@@ -505,7 +505,7 @@ export function renderEapScheduleReportPdf(
 
   drawPdfKpiCardsRow(pdf, [
     {
-      label: "Inicio / Termino",
+      label: "Inicio e Termino",
       value: `${formatDateBR(payload.kpis.startDate)}`,
       sub: `Termino: ${formatDateBR(payload.kpis.endDate)}`,
       accentHex: "#059669",
@@ -513,20 +513,20 @@ export function renderEapScheduleReportPdf(
     },
     {
       label: "Prazo Total",
-      value: `${payload.kpis.workingDaysTotal} d.u.`,
-      sub: `${payload.kpis.calendarDaysTotal} d.c. (~${payload.kpis.monthsEstimated} meses)`,
+      value: `${payload.kpis.workingDaysTotal} Dias Uteis`,
+      sub: `${payload.kpis.calendarDaysTotal} Dias Corridos (~${payload.kpis.monthsEstimated} meses)`,
       accentHex: "#2563EB",
       bgHex: "#EFF6FF",
     },
     {
-      label: "Pacotes & Celulas",
-      value: `${payload.kpis.activePackagesCount} PCTs`,
+      label: "Pacotes e Celulas",
+      value: `${payload.kpis.activePackagesCount} Pacotes`,
       sub: `${payload.kpis.totalAllocatedCells} celulas alocadas`,
       accentHex: "#7C3AED",
       bgHex: "#F5F3FF",
     },
     {
-      label: "Saude & Equipes",
+      label: "Saude e Equipes",
       value: `${payload.kpis.teamsCount} equipes`,
       sub: payload.kpis.healthLabel,
       accentHex:
@@ -540,9 +540,9 @@ export function renderEapScheduleReportPdf(
     },
   ]);
 
-  // 1. Timeline Gantt Colorida por Fase & Pacote
-  pdf.ensure(95);
-  pdf.heading("1. Cronograma Gantt por Fase & Pacote (Linha de Balanco)");
+  // 1. Cronograma
+  pdf.ensure(110);
+  pdf.heading("1. Cronograma");
   const totalMonths = payload.monthlyHistogram.length || 1;
   const monthMarkers = payload.monthlyHistogram
     .filter((_, idx) => totalMonths <= 14 || idx % 2 === 0)
@@ -552,11 +552,11 @@ export function renderEapScheduleReportPdf(
     }));
 
   drawPdfGanttTimeline(pdf, {
-    title: "Sequenciamento Fisico dos Pacotes de Servico (Cura + Paralelismo)",
+    title: "Sequenciamento Fisico dos Pacotes de Servico (Cura e Paralelismo)",
     totalSpanDays: payload.kpis.calendarDaysTotal,
     monthMarkers,
     bars: payload.packages.map((pkg) => ({
-      codeLabel: `PCT ${String(pkg.packageNumber).padStart(2, "0")} · ${pkg.packageName}`,
+      codeLabel: `Pacote ${String(pkg.packageNumber).padStart(2, "0")} · ${pkg.packageName}`,
       phaseLabel: pkg.phaseName,
       phaseGroupTitle: pkg.phaseGroupTitle,
       phaseGroupColorHex: pkg.phaseGroupColorHex,
@@ -564,19 +564,19 @@ export function renderEapScheduleReportPdf(
       widthRatio: pkg.widthRatio,
       cureWidthRatio: pkg.cureWidthRatio,
       colorHex: pkg.phaseGroupColorHex,
-      durationLabel: `Eq.${pkg.teamCodes.join(",")} · ${pkg.workingDays}d`,
+      durationLabel: `Equipe ${pkg.teamCodes.join(",")} · ${pkg.workingDays} Dias Uteis`,
     })),
   });
 
   // 2. Histograma de Carga Mensal de Equipes
-  pdf.ensure(160);
+  pdf.ensure(165);
   pdf.heading("2. Histograma Mensal de Carga das Equipes");
   const teamColors = ["#2563EB", "#059669", "#D97706", "#7C3AED", "#DC2626"];
   drawPdfMonthlyHistogram(pdf, {
     title: "Dias-Equipe Trabalhados por Mes (Histograma de Efetivo)",
     teamSeries: payload.teams.map((t, idx) => ({
       teamCode: t.teamCode,
-      label: `Eq. ${t.teamCode}`,
+      label: `Equipe ${t.teamCode}`,
       colorHex: teamColors[idx % teamColors.length],
     })),
     months: payload.monthlyHistogram.map((m) => ({
@@ -587,36 +587,36 @@ export function renderEapScheduleReportPdf(
   });
 
   // 3. Distribuição por Pavimento
-  pdf.ensure(120);
+  pdf.ensure(125);
   pdf.heading("3. Distribuicao de Dias Uteis por Pavimento");
   drawPdfHorizontalBarChart(pdf, {
-    title: "Alocacao de Frentes por Pavimento / Setor",
+    title: "Alocacao de Frentes por Pavimento e Setor",
     items: payload.byFloor.map((f, idx) => ({
       label: f.floorName,
       value: f.workingDays,
-      formattedValue: `${f.workingDays} d.u.`,
+      formattedValue: `${f.workingDays} Dias Uteis`,
       colorHex: PDF_PALETTE[idx % PDF_PALETTE.length],
       percent: f.sharePercent,
     })),
   });
 
   // 4. Tabela Executiva do Cronograma
-  pdf.ensure(95);
+  pdf.ensure(100);
   pdf.heading("4. Tabela Executiva do Cronograma por Pacote");
   pdf.table({
     columns: [
-      { title: "Fase", weight: 1.5 },
-      { title: "Pacote", weight: 2.1 },
-      { title: "Pavimento(s)", weight: 1.6 },
-      { title: "Eq.", weight: 0.6 },
+      { title: "Fase", weight: 1.4 },
+      { title: "Pacote", weight: 2.2 },
+      { title: "Pavimentos", weight: 1.6 },
+      { title: "Equipe", weight: 0.7 },
       { title: "Inicio", weight: 1.0 },
       { title: "Termino", weight: 1.0 },
-      { title: "D.U.", weight: 0.6 },
+      { title: "Dias Uteis", weight: 0.8 },
       { title: "Status", weight: 1.0 },
     ],
     rows: payload.packages.map((p) => [
       p.phaseName.replace(/\s*—\s*.*$/, ""),
-      `PCT ${String(p.packageNumber).padStart(2, "0")} - ${p.packageName}`,
+      `Pacote ${String(p.packageNumber).padStart(2, "0")} - ${p.packageName}`,
       p.floorsLabel,
       p.teamCodes.join(", "),
       formatDateBR(p.startDate),

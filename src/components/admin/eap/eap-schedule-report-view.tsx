@@ -113,21 +113,28 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
       {/* Cabeçalho Editorial Apple HIG */}
       <Card className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="neutral">Relatório de Planejamento &amp; Cronograma LOB</Badge>
-              <Badge tone={k.teamOverloads + k.precedenceViolations === 0 ? "green" : "amber"}>
-                {k.healthLabel}
-              </Badge>
+          <div className="flex items-start gap-3.5">
+            <img
+              src="/logo.png"
+              alt="ArqVértice Studio"
+              className="h-12 w-12 shrink-0 rounded-2xl border border-slate-200 bg-white object-contain p-1.5 shadow-xs dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="neutral">Relatório de Planejamento e Cronograma LOB</Badge>
+                <Badge tone={k.teamOverloads + k.precedenceViolations === 0 ? "green" : "amber"}>
+                  {k.healthLabel}
+                </Badge>
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-slate-950 dark:text-zinc-100">
+                {report.meta.projectName}
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-zinc-400">
+                Cliente: <strong className="text-slate-900 dark:text-zinc-200">{report.meta.clientName}</strong>{" "}
+                · Praça: {report.meta.cityLabel} · Área Construída:{" "}
+                <span className="font-mono font-semibold tabular-nums">{report.meta.builtAreaM2} m²</span>
+              </p>
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-950 dark:text-zinc-100">
-              {report.meta.projectName}
-            </h2>
-            <p className="text-xs text-slate-600 dark:text-zinc-400">
-              Cliente: <strong className="text-slate-900 dark:text-zinc-200">{report.meta.clientName}</strong>{" "}
-              · Praça: {report.meta.cityLabel} · Área:{" "}
-              <span className="font-mono font-semibold tabular-nums">{report.meta.builtAreaM2} m²</span>
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -183,10 +190,10 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             Prazo Total
           </p>
           <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-blue-700 dark:text-blue-400">
-            {k.workingDaysTotal} d.u.
+            {k.workingDaysTotal} Dias Úteis
           </p>
           <p className="mt-1 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
-            {k.calendarDaysTotal} d.c. (~{k.monthsEstimated} meses) · -{k.daysSavedByParallelism}d paralel.
+            {k.calendarDaysTotal} Dias Corridos (~{k.monthsEstimated} meses) · {k.daysSavedByParallelism} dias economizados por paralelismo
           </p>
         </Card>
 
@@ -195,7 +202,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             Pacotes Ativos
           </p>
           <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-slate-950 dark:text-zinc-100">
-            {k.activePackagesCount} PCTs
+            {k.activePackagesCount} Pacotes
           </p>
           <p className="mt-1 font-mono text-[11px] text-slate-600 dark:text-zinc-400">
             {k.totalAllocatedCells} células no calendário
@@ -210,13 +217,13 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             {k.teamsCount} equipes
           </p>
           <p className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">
-            {report.teams.map((t) => `Eq. ${t.teamCode}`).join(" · ")}
+            {report.teams.map((t) => `Equipe ${t.teamCode}`).join(" · ")}
           </p>
         </Card>
 
         <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-            Saúde / Conflitos
+            Saúde e Conflitos
           </p>
           <p
             className={`mt-1.5 font-mono text-xl font-bold tabular-nums ${
@@ -228,24 +235,24 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             {k.teamOverloads + k.precedenceViolations} alertas
           </p>
           <p className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">
-            {k.teamOverloads} sobrec. · {k.precedenceViolations} preced.
+            {k.teamOverloads} sobrecargas · {k.precedenceViolations} precedências
           </p>
         </Card>
       </div>
 
-      {/* Gráfico Gantt por Fase & Pacote */}
+      {/* Seção Cronograma */}
       <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-              Cronograma Gantt por Fase &amp; Pacote (Timeline Visual Colorida)
+            <h3 className="text-base font-bold text-slate-950 dark:text-zinc-100">
+              Cronograma
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-              Agrupamento por fase construtiva, janelas de cura (tracejado âmbar) e paralelismo real entre equipes ({k.daysSavedByParallelism} d.u. economizados).
+              Agrupamento por fase construtiva, janelas de cura (tracejado âmbar) e paralelismo real entre equipes ({k.daysSavedByParallelism} Dias Úteis economizados).
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="green">Cura &amp; Fast-Tracking</Badge>
+            <Badge tone="green">Cura e Paralelismo</Badge>
             <Badge tone="neutral">{report.packages.length} pacotes sequenciados</Badge>
           </div>
         </div>
@@ -294,7 +301,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                       {first.phaseGroupTitle}
                     </span>
                     <span className="font-mono text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
-                      {groupPkgs.length} pct · {groupDays} d.u. acumulados
+                      {groupPkgs.length} pacotes · {groupDays} Dias Úteis acumulados
                     </span>
                   </div>
 
@@ -302,32 +309,32 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                     const leftPct = pkg.startRatio * 100;
                     const widthPct = Math.max(1.8, pkg.widthRatio * 100);
                     const curePct = pkg.cureWidthRatio * 100;
-                    const teamTag = `Eq. ${pkg.teamCodes.join(",")}`;
+                    const teamTag = `Equipe ${pkg.teamCodes.join(", ")}`;
                     const predsText =
                       pkg.predecessorNumbers.length > 0
-                        ? pkg.predecessorNumbers.map((n) => `PCT ${String(n).padStart(2, "0")}`).join(", ")
+                        ? pkg.predecessorNumbers.map((n) => `Pacote ${String(n).padStart(2, "0")}`).join(", ")
                         : "Nenhuma";
 
                     return (
                       <div
                         key={pkg.packageNumber}
-                        className={`grid grid-cols-[320px_1fr_92px] items-center gap-3 px-3 py-1.5 transition hover:bg-blue-50/40 dark:hover:bg-zinc-900/70 ${
+                        className={`grid grid-cols-[340px_1fr_110px] items-center gap-3 px-3 py-2 transition hover:bg-blue-50/40 dark:hover:bg-zinc-900/70 ${
                           rowIdx % 2 === 1 ? "bg-zinc-50/60 dark:bg-zinc-900/30" : "bg-white dark:bg-transparent"
                         }`}
                       >
                         <div className="flex min-w-0 items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-slate-900 dark:text-zinc-100">
+                            <p className="text-xs font-semibold leading-snug text-slate-900 dark:text-zinc-100">
                               <span className="font-mono text-[11px] text-slate-500 dark:text-zinc-400">
-                                PCT {String(pkg.packageNumber).padStart(2, "0")}
+                                Pacote {String(pkg.packageNumber).padStart(2, "0")}
                               </span>{" "}
                               · {pkg.packageName}
                             </p>
-                            <p className="truncate text-[10px] text-slate-500 dark:text-zinc-400">
+                            <p className="text-[10px] text-slate-500 dark:text-zinc-400">
                               {pkg.floorsLabel}
                             </p>
                           </div>
-                          <span className="shrink-0 rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                          <span className="shrink-0 rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                             {teamTag}
                           </span>
                         </div>
@@ -335,13 +342,13 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                         <div
                           className="relative h-6 w-full rounded-md bg-slate-100/90 dark:bg-zinc-800/70"
                           title={[
-                            `PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.packageName}`,
+                            `Pacote ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.packageName}`,
                             `Início: ${fmtDateBR(pkg.startDate)} · Término: ${fmtDateBR(pkg.endDate)}`,
                             `Pavimentos: ${pkg.floorsLabel}`,
-                            `Equipe: ${teamTag} · Duração: ${pkg.workingDays} d.u.`,
+                            `${teamTag} · Duração: ${pkg.workingDays} Dias Úteis`,
                             `Predecessoras: ${predsText}`,
                             pkg.cureLagWorkingDays > 0
-                              ? `Janela de Cura: ${pkg.cureLagWorkingDays} d.u.`
+                              ? `Janela de Cura: ${pkg.cureLagWorkingDays} Dias Úteis`
                               : null,
                           ]
                             .filter(Boolean)
@@ -368,9 +375,9 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                               backgroundColor: pkg.phaseGroupColorHex,
                             }}
                           >
-                            {widthPct >= 9 && (
+                            {widthPct >= 11 && (
                               <span className="truncate font-mono text-[9px] font-bold text-white">
-                                {teamTag} · {pkg.workingDays}d
+                                {teamTag} · {pkg.workingDays} Dias Úteis
                               </span>
                             )}
                           </div>
@@ -383,13 +390,13 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                                 left: `${Math.min(99, leftPct + widthPct).toFixed(2)}%`,
                                 width: `${Math.min(100 - (leftPct + widthPct), curePct).toFixed(2)}%`,
                               }}
-                              title={`Cura técnica obrigatória: ${pkg.cureLagWorkingDays} d.u.`}
+                              title={`Cura técnica obrigatória: ${pkg.cureLagWorkingDays} Dias Úteis`}
                             />
                           )}
                         </div>
 
                         <div className="text-right font-mono text-[11px] font-bold tabular-nums text-slate-700 dark:text-zinc-300">
-                          {pkg.workingDays} d.u.
+                          {pkg.workingDays} Dias Úteis
                         </div>
                       </div>
                     );

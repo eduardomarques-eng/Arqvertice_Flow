@@ -127,25 +127,32 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
       {/* Cabeçalho Corporativo */}
       <Card className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="neutral">Relatório de Custos da Planilha EAP</Badge>
-              <Badge tone="neutral">
-                Revisão R{String(report.meta.revision).padStart(2, "0")}
-              </Badge>
-              {report.meta.isParametricFallback && (
-                <Badge tone="amber">Estimativa Paramétrica (EAP sem itens orçados)</Badge>
-              )}
+          <div className="flex items-start gap-3.5">
+            <img
+              src="/logo.png"
+              alt="ArqVértice Studio"
+              className="h-12 w-12 shrink-0 rounded-2xl border border-slate-200 bg-white object-contain p-1.5 shadow-xs dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="neutral">Relatório de Custos da Planilha EAP</Badge>
+                <Badge tone="neutral">
+                  Revisão R{String(report.meta.revision).padStart(2, "0")}
+                </Badge>
+                {report.meta.isParametricFallback && (
+                  <Badge tone="amber">Estimativa Paramétrica (Planilha EAP sem itens orçados)</Badge>
+                )}
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-slate-950 dark:text-zinc-100">
+                {report.meta.projectName}
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-zinc-400">
+                Cliente: <strong className="text-slate-900 dark:text-zinc-200">{report.meta.clientName}</strong>{" "}
+                · Praça: {report.meta.cityLabel} · Área Construída:{" "}
+                <span className="font-mono font-semibold tabular-nums">{report.meta.builtAreaM2} m²</span>{" "}
+                · BDI: <span className="font-mono font-semibold tabular-nums">{report.meta.bdiPercent}%</span>
+              </p>
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-950 dark:text-zinc-100">
-              {report.meta.projectName}
-            </h2>
-            <p className="text-xs text-slate-600 dark:text-zinc-400">
-              Cliente: <strong className="text-slate-900 dark:text-zinc-200">{report.meta.clientName}</strong>{" "}
-              · Praça: {report.meta.cityLabel} · Área Construída:{" "}
-              <span className="font-mono font-semibold tabular-nums">{report.meta.builtAreaM2} m²</span>{" "}
-              · BDI: <span className="font-mono font-semibold tabular-nums">{report.meta.bdiPercent}%</span>
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -184,7 +191,7 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
             {fmtBRL(k.totalCommercialPrice)}
           </p>
           <p className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">
-            C/ BDI ({k.bdiPercent}%)
+            Com BDI ({k.bdiPercent}%)
           </p>
         </Card>
 
@@ -260,7 +267,7 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
             <span>Concreto: <strong>{k.concreteM3.toFixed(1)} m³</strong></span>
             <span>Aço: <strong>{k.steelKg.toFixed(0)} kg</strong></span>
             <span>Alvenaria: <strong>{k.masonryM2.toFixed(1)} m²</strong></span>
-            <span>Pisos &amp; Revest.: <strong>{k.ceramicTileM2.toFixed(1)} m²</strong></span>
+            <span>Pisos e Revestimentos: <strong>{k.ceramicTileM2.toFixed(1)} m²</strong></span>
             <span>Coberta: <strong>{k.roofM2.toFixed(1)} m²</strong></span>
           </div>
         </div>

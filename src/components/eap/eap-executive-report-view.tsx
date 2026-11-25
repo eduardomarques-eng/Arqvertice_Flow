@@ -195,7 +195,12 @@ export function EapExecutiveReportView({
         {/* Barra de Controle Superior (oculta na impressão) */}
         <Card className="print:hidden rounded-3xl border border-slate-200/90 bg-white p-4 dark:border-zinc-800 dark:bg-[#16161D]">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <img
+                src="/logo.png"
+                alt="ArqVértice Studio"
+                className="h-9 w-9 shrink-0 rounded-xl border border-slate-200 bg-white object-contain p-1 shadow-xs dark:border-zinc-700 dark:bg-zinc-900"
+              />
               <Badge tone="blue">{report.meta.baselineLabel}</Badge>
               <Badge tone={report.meta.isPublishedToClient ? "green" : "amber"}>
                 {report.meta.isPublishedToClient

@@ -34,29 +34,63 @@ export function drawPdfBrandedHeader(
   }
 ): void {
   const accent = hexToPdfRgb(opts.accentHex ?? "#2563EB");
-  pdf.rect(0, 0, pdf.width, 94, { fill: hexToPdfRgb("#11131A") });
-  pdf.rect(0, 94, pdf.width, 4, { fill: accent });
+  pdf.rect(0, 0, pdf.width, 96, { fill: hexToPdfRgb("#11131A") });
+  pdf.rect(0, 96, pdf.width, 4, { fill: accent });
 
-  pdf.drawText(opts.eyebrow.toUpperCase(), pdf.margin, 24, {
+  // Logotipo vetorial institucional ArqVértice Studio (embutido sem dependência externa)
+  const logoX = pdf.margin;
+  const logoY = 18;
+  const logoSize = 54;
+  pdf.rect(logoX, logoY, logoSize, logoSize, {
+    fill: hexToPdfRgb("#1B1F2A"),
+    stroke: accent,
+    lineWidth: 1.0,
+  });
+  // Monograma arquitetônico Vértice (A + V geométrico)
+  pdf.polygon(
+    [
+      { x: logoX + 12, y: logoY + 37 },
+      { x: logoX + 27, y: logoY + 11 },
+      { x: logoX + 42, y: logoY + 37 },
+      { x: logoX + 36, y: logoY + 37 },
+      { x: logoX + 27, y: logoY + 21 },
+      { x: logoX + 18, y: logoY + 37 },
+    ],
+    { fill: "1 1 1" }
+  );
+  pdf.line(logoX + 19, logoY + 29, logoX + 35, logoY + 29, {
+    stroke: opts.accentHex ?? "#3B82F6",
+    lineWidth: 1.6,
+  });
+  pdf.drawText("ARQVERTICE", logoX + logoSize / 2, logoY + 48, {
+    size: 5.5,
+    bold: true,
+    align: "center",
+    color: hexToPdfRgb("#CBD5E1"),
+  });
+
+  const textX = pdf.margin + logoSize + 14;
+
+  pdf.drawText(opts.eyebrow.toUpperCase(), textX, 25, {
     size: 8.5,
     bold: true,
     color: hexToPdfRgb("#93C5FD"),
   });
-  pdf.drawText(opts.title, pdf.margin, 46, {
-    size: 14.5,
+  pdf.drawText(opts.title, textX, 46, {
+    size: 14,
     bold: true,
     color: "1 1 1",
   });
-  pdf.drawText(opts.subtitle, pdf.margin, 65, {
-    size: 9.5,
+  pdf.drawText(opts.subtitle, textX, 64, {
+    size: 9.2,
     color: hexToPdfRgb("#E2E8F0"),
   });
-  pdf.drawText(opts.metaLine, pdf.margin, 81, {
-    size: 8,
+  pdf.drawText(opts.metaLine, textX, 81, {
+    size: 7.8,
     color: hexToPdfRgb("#94A3B8"),
   });
 
-  pdf.y = 110;
+  pdf.y = 114;
 }
 
 export function drawPdfKpiCardsRow(
@@ -132,8 +166,8 @@ export function drawPdfHorizontalBarChart(
   pdf.y += headerH;
 
   const maxVal = Math.max(...opts.items.map((i) => i.value), 1);
-  const labelW = 148;
-  const valueW = 112;
+  const labelW = 178;
+  const valueW = 118;
   const barMaxW = Math.max(80, pdf.contentWidth - labelW - valueW - 10);
 
   opts.items.forEach((item, idx) => {
@@ -142,10 +176,10 @@ export function drawPdfHorizontalBarChart(
     const ratio = item.value > 0 ? Math.max(0.025, Math.min(1, item.value / maxVal)) : 0;
     const color = hexToPdfRgb(item.colorHex ?? PDF_PALETTE[idx % PDF_PALETTE.length]);
 
-    const truncatedLabel =
-      item.label.length > 28 ? `${item.label.slice(0, 26)}..` : item.label;
-    pdf.drawText(truncatedLabel, pdf.margin, yRow + 10, {
-      size: 8,
+    const cleanLabel =
+      item.label.length > 36 ? `${item.label.slice(0, 34)}...` : item.label;
+    pdf.drawText(cleanLabel, pdf.margin, yRow + 10, {
+      size: 7.8,
       color: hexToPdfRgb("#1E293B"),
     });
 
@@ -378,8 +412,8 @@ export function drawPdfGroupedBarChart(
 
   pdf.y += 18;
 
-  const labelW = 128;
-  const valueW = 92;
+  const labelW = 158;
+  const valueW = 96;
   const barAreaW = Math.max(80, pdf.contentWidth - labelW - valueW - 12);
   const maxVal = Math.max(
     1,
@@ -391,7 +425,7 @@ export function drawPdfGroupedBarChart(
     const y0 = pdf.y;
 
     pdf.drawText(
-      item.label.length > 24 ? `${item.label.slice(0, 22)}..` : item.label,
+      item.label.length > 32 ? `${item.label.slice(0, 30)}...` : item.label,
       pdf.margin,
       y0 + 13,
       { size: 8, bold: true, color: hexToPdfRgb("#1E293B") }
@@ -541,8 +575,8 @@ export function drawPdfGanttTimeline(
   });
   pdf.y += 16;
 
-  const labelW = 195;
-  const rightW = 54;
+  const labelW = 212;
+  const rightW = 78;
   const chartW = Math.max(120, pdf.contentWidth - labelW - rightW - 8);
   const trackX = pdf.margin + labelW;
 
@@ -550,7 +584,7 @@ export function drawPdfGanttTimeline(
     pdf.rect(pdf.margin, pdf.y, pdf.contentWidth, 16, {
       fill: hexToPdfRgb("#0F172A"),
     });
-    pdf.drawText("Pacote / Fase Construtiva", pdf.margin + 6, pdf.y + 11, {
+    pdf.drawText("Pacote e Fase Construtiva", pdf.margin + 6, pdf.y + 11, {
       size: 7.5,
       bold: true,
       color: hexToPdfRgb("#FFFFFF"),
@@ -563,8 +597,8 @@ export function drawPdfGanttTimeline(
         color: hexToPdfRgb("#CBD5E1"),
       });
     }
-    pdf.drawText("Eq. / D.U.", pdf.margin + pdf.contentWidth - 4, pdf.y + 11, {
-      size: 7.5,
+    pdf.drawText("Equipe / Dias Uteis", pdf.margin + pdf.contentWidth - 4, pdf.y + 11, {
+      size: 7.2,
       bold: true,
       align: "right",
       color: hexToPdfRgb("#FFFFFF"),
@@ -615,8 +649,8 @@ export function drawPdfGanttTimeline(
     }
 
     const txt =
-      bar.codeLabel.length > 38
-        ? `${bar.codeLabel.slice(0, 36)}..`
+      bar.codeLabel.length > 44
+        ? `${bar.codeLabel.slice(0, 42)}...`
         : bar.codeLabel;
     pdf.drawText(txt, pdf.margin + 4, y0 + 10, {
       size: 6.8,

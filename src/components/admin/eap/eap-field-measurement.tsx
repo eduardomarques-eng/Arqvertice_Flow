@@ -409,11 +409,17 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
       {/* Cabeçalho do Boletim + Exportação */}
       <Card className="rounded-3xl border border-zinc-200/80 bg-white p-4 shadow-xs space-y-3 dark:border-zinc-800 dark:bg-zinc-900/95">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-bold text-zinc-950 dark:text-zinc-50">
-                ArqVértice OS — Medição no Canteiro ({nextCode})
-              </h3>
+          <div className="flex items-start gap-3">
+            <img
+              src="/logo.png"
+              alt="ArqVértice Studio"
+              className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-white object-contain p-1 shadow-xs dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold text-zinc-950 dark:text-zinc-50">
+                  ArqVértice OS — Medição no Canteiro ({nextCode})
+                </h3>
               <Badge tone="blue">Mobile-First</Badge>
               {snapshot?.isParametricFallback && (
                 <Badge tone="amber">Estrutura Paramétrica Editável</Badge>
@@ -422,6 +428,7 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
             <p className="mt-0.5 text-xs text-zinc-700 dark:text-zinc-300">
               Registre rapidamente o avanço feito em campo e gere boletins automáticos em PDF.
             </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

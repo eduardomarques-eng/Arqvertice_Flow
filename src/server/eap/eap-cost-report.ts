@@ -756,14 +756,14 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
   // Cards KPI em linha única
   drawPdfKpiCardsRow(pdf, [
     {
-      label: "Total Geral (c/ BDI)",
+      label: "Total Geral (com BDI)",
       value: fmtBRL(payload.kpis.totalCommercialPrice),
       sub: `${payload.kpis.totalItemsCount} itens orcados`,
       accentHex: "#2563EB",
       bgHex: "#EFF6FF",
     },
     {
-      label: "Custo por m2 (c/ BDI)",
+      label: "Custo por m2 (com BDI)",
       value: `${fmtBRL(payload.kpis.costPerM2)}/m2`,
       sub: `Direto: ${fmtBRL(payload.kpis.directCostPerM2)}/m2`,
       accentHex: "#059669",
@@ -772,7 +772,7 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     {
       label: "Custo Direto Total",
       value: fmtBRL(payload.kpis.totalDirectCost),
-      sub: `Mat ${payload.kpis.materialSharePercent.toFixed(0)}% · MO ${payload.kpis.laborSharePercent.toFixed(0)}%`,
+      sub: `Material ${payload.kpis.materialSharePercent.toFixed(0)}% · Mao de Obra ${payload.kpis.laborSharePercent.toFixed(0)}%`,
       accentHex: "#D97706",
       bgHex: "#FFFBEB",
     },
@@ -785,9 +785,10 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     },
   ]);
 
-  pdf.heading("1. Composicao de Custos & Quantidades-Chave");
+  pdf.ensure(110);
+  pdf.heading("1. Composicao de Custos e Quantidades-Chave");
   drawPdfDonutChart(pdf, {
-    title: "Composicao Global do Orcamento (Material x Mao de Obra x Terceiros x BDI)",
+    title: "Composicao Global do Orcamento (Material, Mao de Obra, Terceiros e BDI)",
     centerLabel: fmtBRL(payload.kpis.totalCommercialPrice),
     centerSubLabel: `${fmtBRL(payload.kpis.costPerM2)}/m2`,
     segments: [
@@ -804,7 +805,7 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
         colorHex: "#059669",
       },
       {
-        label: "Terceiros / Equip.",
+        label: "Terceiros e Equipamentos",
         value: payload.kpis.totalThirdPartyCost,
         formattedValue: fmtBRL(payload.kpis.totalThirdPartyCost),
         colorHex: "#D97706",
@@ -818,7 +819,7 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     ],
   });
   drawPdfStackedDistributionBar(pdf, {
-    title: "Composicao Direta (Material x Mao de Obra x Terceiros)",
+    title: "Composicao Direta (Material, Mao de Obra e Terceiros)",
     segments: [
       { label: "Materiais", value: payload.kpis.totalMaterialCost, colorHex: "#2563EB" },
       { label: "Mao de Obra", value: payload.kpis.totalLaborCost, colorHex: "#059669" },
@@ -827,14 +828,15 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
   });
 
   pdf.flowText(
-    `Quantidades-Chave: Concreto: ${payload.kpis.concreteM3.toFixed(1)} m3 · Aco: ${payload.kpis.steelKg.toFixed(0)} kg · Alvenaria: ${payload.kpis.masonryM2.toFixed(1)} m2 · Pisos/Revest.: ${payload.kpis.ceramicTileM2.toFixed(1)} m2 · Coberta: ${payload.kpis.roofM2.toFixed(1)} m2`,
-    { size: 8.5, bold: true, color: "#334155", gapAfter: 8 }
+    `Quantidades-Chave: Concreto: ${payload.kpis.concreteM3.toFixed(1)} m3 · Aco: ${payload.kpis.steelKg.toFixed(0)} kg · Alvenaria: ${payload.kpis.masonryM2.toFixed(1)} m2 · Pisos e Revestimentos: ${payload.kpis.ceramicTileM2.toFixed(1)} m2 · Coberta: ${payload.kpis.roofM2.toFixed(1)} m2`,
+    { size: 8.5, bold: true, color: "#334155", gapAfter: 10 }
   );
 
   // 2. Custos por Pavimento (Gráfico Agrupado Material x MO + Tabela)
-  pdf.heading("2. Distribuicao de Custos por Pavimento / Zona");
+  pdf.ensure(110);
+  pdf.heading("2. Distribuicao de Custos por Pavimento e Zona");
   drawPdfGroupedBarChart(pdf, {
-    title: "Material x Mao de Obra por Pavimento / Zona",
+    title: "Material e Mao de Obra por Pavimento",
     seriesA: { label: "Materiais", colorHex: "#2563EB" },
     seriesB: { label: "Mao de Obra", colorHex: "#059669" },
     items: payload.byFloor.map((f) => ({
@@ -846,7 +848,7 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     })),
   });
   drawPdfHorizontalBarChart(pdf, {
-    title: "Grafico de Custos por Pavimento (Total c/ BDI)",
+    title: "Grafico de Custos por Pavimento (Total com BDI)",
     items: payload.byFloor.map((f, idx) => ({
       label: f.label,
       value: f.commercialPrice,
@@ -857,12 +859,12 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
   });
   pdf.table({
     columns: [
-      { title: "Pavimento / Zona", weight: 2.2 },
+      { title: "Pavimento e Zona", weight: 2.2 },
       { title: "Material", weight: 1.3 },
       { title: "Mao de Obra", weight: 1.3 },
       { title: "Terceiros", weight: 1.2 },
-      { title: "Total c/ BDI", weight: 1.4 },
-      { title: "% Part.", weight: 0.8 },
+      { title: "Total com BDI", weight: 1.4 },
+      { title: "Participacao", weight: 0.9 },
     ],
     rows: payload.byFloor.map((f) => [
       f.label,
@@ -986,10 +988,10 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
   pdf.table({
     columns: [
       { title: "Classe", weight: 0.6 },
-      { title: "Descricao", weight: 2.8 },
-      { title: "Qtd", weight: 0.9 },
-      { title: "Total c/ BDI", weight: 1.3 },
-      { title: "% Acum.", weight: 0.9 },
+      { title: "Descricao", weight: 2.7 },
+      { title: "Quantidade", weight: 1.0 },
+      { title: "Total com BDI", weight: 1.3 },
+      { title: "Acumulado", weight: 0.9 },
     ],
     rows: payload.abcCurve.items.slice(0, 15).map((item) => [
       item.abcClass,
