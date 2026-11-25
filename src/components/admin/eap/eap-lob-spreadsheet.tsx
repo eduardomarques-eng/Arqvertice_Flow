@@ -65,6 +65,7 @@ interface EapLobSpreadsheetProps {
   constraintBlocks?: Record<string, { count: number; criticalCount: number; titles: string[] }>;
   onScheduleMutated: () => Promise<void> | void;
   onOpenSegmentModal?: (pkg: LobPackageLike, seg: LobSegmentLike) => void;
+  onAllocationsChange?: (allocs: LobFloorAllocationItem[]) => void;
 }
 
 type LobDensity = "COMPACTO" | "PADRAO" | "CONFORTAVEL";
@@ -113,6 +114,7 @@ export function EapLobSpreadsheet({
   stageLoads = [],
   constraintBlocks = {},
   onScheduleMutated,
+  onAllocationsChange,
 }: EapLobSpreadsheetProps) {
   const [scale, setScale] = useState<LobTimeScale>("DIARIO");
   const [density, setDensity] = useState<LobDensity>("PADRAO");
@@ -208,6 +210,10 @@ export function EapLobSpreadsheet({
     });
     setDirty(false);
   }, [initialFloors, initialAllocations, clearHistory]);
+
+  useEffect(() => {
+    onAllocationsChange?.(matrix.allocations);
+  }, [matrix.allocations, onAllocationsChange]);
 
   useEffect(() => {
     if (plannedStartDate || analyticsStartDate) {

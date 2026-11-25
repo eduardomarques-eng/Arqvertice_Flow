@@ -1333,12 +1333,163 @@ export function resolveConstructionRuleForPackage(
   return CONSTRUCTION_SEQUENCE_RULES[3]; // Fallback seguro: Vedação (Fase 4)
 }
 
+export interface CanonicalLobPackageRule {
+  packageNumber: number;
+  phaseOrder: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  defaultTeam: "A" | "B" | "C";
+  cureLagWorkingDays: number;
+  allowedFloors: string[];
+  predecessorNumbers: number[];
+  defaultDurationDays: number;
+  matchHint: RegExp;
+}
+
+/**
+ * Mapa oficial explícito de precedência, fase, cura e pavimentos permitidos para os 38 pacotes padrão.
+ */
+export const CANONICAL_LOB_PACKAGE_RULES: Record<number, CanonicalLobPackageRule> = {
+  1: { packageNumber: 1, phaseOrder: 1, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["FUNDACAO"], predecessorNumbers: [], defaultDurationDays: 5, matchHint: /CANTEIRO|TAPUME|MURO|PRELIM/ },
+  2: { packageNumber: 2, phaseOrder: 1, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["FUNDACAO"], predecessorNumbers: [1], defaultDurationDays: 3, matchHint: /LOCAC|GABARIT/ },
+  3: { packageNumber: 3, phaseOrder: 2, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["FUNDACAO"], predecessorNumbers: [2], defaultDurationDays: 4, matchHint: /TERRA|ESCAV/ },
+  4: { packageNumber: 4, phaseOrder: 2, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["FUNDACAO"], predecessorNumbers: [3], defaultDurationDays: 6, matchHint: /FUNDAC|SAPATA|BLOCO/ },
+  5: { packageNumber: 5, phaseOrder: 2, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["FUNDACAO"], predecessorNumbers: [4], defaultDurationDays: 5, matchHint: /BALDRAM|IMPERMEAB.*BASE/ },
+  6: { packageNumber: 6, phaseOrder: 2, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["FUNDACAO"], predecessorNumbers: [5], defaultDurationDays: 4, matchHint: /ATERRO|LASTRO|ENTERRAD/ },
+  7: { packageNumber: 7, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["TERREO"], predecessorNumbers: [6], defaultDurationDays: 7, matchHint: /SUPRA.*TERREO/ },
+  8: { packageNumber: 8, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["PAV_SUPERIOR"], predecessorNumbers: [7], defaultDurationDays: 7, matchHint: /SUPRA.*SUPERIOR/ },
+  9: { packageNumber: 9, phaseOrder: 3, defaultTeam: "A", cureLagWorkingDays: 2, allowedFloors: ["COBERTA"], predecessorNumbers: [8], defaultDurationDays: 5, matchHint: /SUPRA.*COBERT|PLATIBAND/ },
+  10: { packageNumber: 10, phaseOrder: 4, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["TERREO"], predecessorNumbers: [7], defaultDurationDays: 5, matchHint: /ALVENARIA.*TERREO/ },
+  11: { packageNumber: 11, phaseOrder: 4, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["PAV_SUPERIOR"], predecessorNumbers: [8, 10], defaultDurationDays: 5, matchHint: /ALVENARIA.*SUPERIOR/ },
+  12: { packageNumber: 12, phaseOrder: 4, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [11], defaultDurationDays: 3, matchHint: /VERGA|CONTRAVERGA|ENCUNH/ },
+  13: { packageNumber: 13, phaseOrder: 5, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["COBERTA"], predecessorNumbers: [9], defaultDurationDays: 5, matchHint: /COBERT|TELHA|CALHA/ },
+  14: { packageNumber: 14, phaseOrder: 5, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["COBERTA", "PAV_SUPERIOR", "TERREO"], predecessorNumbers: [9, 12], defaultDurationDays: 4, matchHint: /IMPERMEAB.*LAJE|SACADA/ },
+  15: { packageNumber: 15, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [12], defaultDurationDays: 5, matchHint: /ELETRIC.*INFRA|RASGO|ELETRODUT/ },
+  16: { packageNumber: 16, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["COBERTA"], predecessorNumbers: [9, 14], defaultDurationDays: 3, matchHint: /RESERVATORIO|BARRILETE/ },
+  17: { packageNumber: 17, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [12, 16], defaultDurationDays: 5, matchHint: /HIDROSSANIT|PRUMADA|RAMAI/ },
+  18: { packageNumber: 18, phaseOrder: 6, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [12], defaultDurationDays: 4, matchHint: /CLIMATIZ|AR-COND|GAS/ },
+  19: { packageNumber: 19, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 2, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [15, 17, 18], defaultDurationDays: 6, matchHint: /CHAPISC.*INTERN|EMBOCO.*INTERN/ },
+  20: { packageNumber: 20, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 1, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19], defaultDurationDays: 5, matchHint: /GESSO LISO|REBOCO.*GESSO/ },
+  21: { packageNumber: 21, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 2, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [13, 14], defaultDurationDays: 6, matchHint: /CHAPISC.*EXTERN|FACHADA/ },
+  22: { packageNumber: 22, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19, 21], defaultDurationDays: 3, matchHint: /CONTRAMARCO/ },
+  23: { packageNumber: 23, phaseOrder: 7, defaultTeam: "B", cureLagWorkingDays: 2, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19], defaultDurationDays: 4, matchHint: /CONTRAPISO|REGULARIZ/ },
+  24: { packageNumber: 24, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [19, 23], defaultDurationDays: 5, matchHint: /CERAMIC|PORCELANATO.*PAREDE/ },
+  25: { packageNumber: 25, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [23, 24], defaultDurationDays: 6, matchHint: /ASSENTAMENTO.*PISO|RODAPE/ },
+  26: { packageNumber: 26, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [20, 24], defaultDurationDays: 5, matchHint: /FORRO.*GESSO|SANCA/ },
+  27: { packageNumber: 27, phaseOrder: 8, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [14, 21], defaultDurationDays: 6, matchHint: /PISCINA|DECK|GOURMET/ },
+  28: { packageNumber: 28, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [25], defaultDurationDays: 4, matchHint: /MARMORARIA|BANCADA|SOLEIRA/ },
+  29: { packageNumber: 29, phaseOrder: 9, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [26], defaultDurationDays: 5, matchHint: /ENFIAC|QUADRO|AUTOMAC/ },
+  30: { packageNumber: 30, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [26, 28], defaultDurationDays: 5, matchHint: /PINTURA.*INTERNA.*1/ },
+  31: { packageNumber: 31, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [21, 22], defaultDurationDays: 5, matchHint: /PINTURA.*EXTERNA|TEXTURA/ },
+  32: { packageNumber: 32, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [22, 30, 31], defaultDurationDays: 4, matchHint: /ESQUADRIA.*ALUMIN|VIDRO/ },
+  33: { packageNumber: 33, phaseOrder: 8, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [30, 32], defaultDurationDays: 3, matchHint: /PORTA.*MADEIRA|FERRAG/ },
+  34: { packageNumber: 34, phaseOrder: 9, defaultTeam: "C", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [28, 29, 32], defaultDurationDays: 4, matchHint: /LOUCA|METAI|LUMINAR/ },
+  35: { packageNumber: 35, phaseOrder: 9, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["AREA_EXTERNA"], predecessorNumbers: [27, 31], defaultDurationDays: 5, matchHint: /SERRALHERIA|PORTAO|PAISAG/ },
+  36: { packageNumber: 36, phaseOrder: 9, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR"], predecessorNumbers: [33, 34], defaultDurationDays: 3, matchHint: /PINTURA.*FINAL|RETOQUE/ },
+  37: { packageNumber: 37, phaseOrder: 9, defaultTeam: "B", cureLagWorkingDays: 0, allowedFloors: ["PAV_SUPERIOR", "TERREO"], predecessorNumbers: [32, 36], defaultDurationDays: 2, matchHint: /GUARDA-CORPO|CORRIMAO/ },
+  38: { packageNumber: 38, phaseOrder: 9, defaultTeam: "A", cureLagWorkingDays: 0, allowedFloors: ["TERREO", "PAV_SUPERIOR", "AREA_EXTERNA"], predecessorNumbers: [35, 36, 37], defaultDurationDays: 3, matchHint: /LIMPEZA.*FINAL|COMISSION|ENTREGA/ },
+};
+
+export function getCanonicalPackageRule(
+  pkg: Pick<FloorMatrixServicePackage, "packageNumber" | "name">
+): CanonicalLobPackageRule | null {
+  const canonical = CANONICAL_LOB_PACKAGE_RULES[pkg.packageNumber];
+  if (!canonical) return null;
+  const upperName = (pkg.name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  return canonical.matchHint.test(upperName) ? canonical : null;
+}
+
+export function normalizePackageWithCanonicalRule(
+  pkg: FloorMatrixServicePackage
+): FloorMatrixServicePackage & { canonicalRule: CanonicalLobPackageRule | null } {
+  const canonicalRule = getCanonicalPackageRule(pkg);
+  if (!canonicalRule) {
+    return { ...pkg, canonicalRule: null };
+  }
+  const mergedPreds = Array.from(
+    new Set([...pkg.predecessorNumbers, ...canonicalRule.predecessorNumbers])
+  ).sort((a, b) => a - b);
+  return {
+    ...pkg,
+    predecessorNumbers: mergedPreds,
+    canonicalRule,
+  };
+}
+
+export interface LobPackageAllocationSummary {
+  packageNumber: number;
+  workingDaysCount: number;
+  teamCodes: string[];
+  teamsCount: number;
+  floors: string[];
+  startDate: string | null;
+  endDate: string | null;
+}
+
+/**
+ * Resume de forma somente-leitura os dias úteis e equipes reais alocados por pacote
+ * diretamente a partir das células do Calendário LOB (`EapLobFloorAllocation`).
+ */
+export function summarizeLobAllocationsByPackage(
+  allocations: LobFloorAllocationItem[]
+): Map<number, LobPackageAllocationSummary> {
+  const acc = new Map<
+    number,
+    {
+      cellKeys: Set<string>;
+      teamCodes: Set<string>;
+      floors: Set<string>;
+      minDate: string | null;
+      maxDate: string | null;
+    }
+  >();
+
+  for (const a of allocations) {
+    const entry = acc.get(a.packageNumber) ?? {
+      cellKeys: new Set<string>(),
+      teamCodes: new Set<string>(),
+      floors: new Set<string>(),
+      minDate: null,
+      maxDate: null,
+    };
+    entry.cellKeys.add(`${a.floorId}::${a.dateIso}`);
+    entry.teamCodes.add(a.teamCode.toUpperCase());
+    entry.floors.add(a.floorId);
+    if (!entry.minDate || a.dateIso < entry.minDate) entry.minDate = a.dateIso;
+    if (!entry.maxDate || a.dateIso > entry.maxDate) entry.maxDate = a.dateIso;
+    acc.set(a.packageNumber, entry);
+  }
+
+  const result = new Map<number, LobPackageAllocationSummary>();
+  for (const [pkgNum, v] of acc.entries()) {
+    const teamCodes = Array.from(v.teamCodes).sort();
+    result.set(pkgNum, {
+      packageNumber: pkgNum,
+      workingDaysCount: v.cellKeys.size,
+      teamCodes,
+      teamsCount: teamCodes.length,
+      floors: Array.from(v.floors).sort(),
+      startDate: v.minDate,
+      endDate: v.maxDate,
+    });
+  }
+  return result;
+}
+
 export function isPackageAllowedOnFloor(
   rule: ConstructionSequenceRule,
-  floor: LobFloorDefinition
+  floor: LobFloorDefinition,
+  canonicalRule?: CanonicalLobPackageRule | null
 ): boolean {
   const fid = floor.floorId.toUpperCase();
   const knownCanonical = ["FUNDACAO", "TERREO", "PAV_SUPERIOR", "COBERTA", "AREA_EXTERNA"];
+  if (canonicalRule) {
+    if (!knownCanonical.includes(fid)) {
+      return canonicalRule.phaseOrder >= 3;
+    }
+    return canonicalRule.allowedFloors.includes(fid);
+  }
   if (!knownCanonical.includes(fid)) {
     // Pavimentos customizados (ex.: Subsolo, Mezanino) aceitam fases construtivas gerais
     return rule.phaseOrder >= 2;
@@ -1347,10 +1498,20 @@ export function isPackageAllowedOnFloor(
 }
 
 export function inferDefaultTeamCodeForPackage(
-  pkg: Pick<FloorMatrixServicePackage, "linkedEapStageCodes" | "discipline"> & { name?: string },
+  pkg: Pick<FloorMatrixServicePackage, "linkedEapStageCodes" | "discipline"> & {
+    name?: string;
+    packageNumber?: number;
+  },
   workTeams: FloorMatrixWorkTeam[]
 ): string {
   const available = new Set(workTeams.map((t) => t.teamCode.toUpperCase()));
+  const canonical =
+    typeof pkg.packageNumber === "number"
+      ? getCanonicalPackageRule({ packageNumber: pkg.packageNumber, name: pkg.name ?? "" })
+      : null;
+  if (canonical && available.has(canonical.defaultTeam)) {
+    return canonical.defaultTeam;
+  }
   const rule = resolveConstructionRuleForPackage({
     name: pkg.name ?? "",
     discipline: pkg.discipline,
@@ -1416,6 +1577,7 @@ function computeEarliestPhysicalStart(input: {
   pkg: FloorMatrixServicePackage;
   rule: ConstructionSequenceRule;
   pkgEndByFloor: Map<string, string>;
+  pkgMaxEndGlobal: Map<number, string>;
   phaseEndByFloor: Map<string, string>;
   phaseMaxEndGlobal: Map<number, string>;
   pkgRuleMap: Map<number, ConstructionSequenceRule>;
@@ -1429,17 +1591,24 @@ function computeEarliestPhysicalStart(input: {
     if (target > earliest) earliest = target;
   };
 
-  // 1. Predecessoras explícitas no mesmo pavimento
+  // 1. Predecessoras explícitas (no mesmo pavimento ou cross-floor quando a predecessora vive em outro pavimento)
   for (const predNum of input.pkg.predecessorNumbers) {
-    const predEnd = input.pkgEndByFloor.get(`${input.floor.floorId}::${predNum}`);
-    const predLag = input.pkgRuleMap.get(predNum)?.cureLagWorkingDays ?? 0;
+    const predEnd =
+      input.pkgEndByFloor.get(`${input.floor.floorId}::${predNum}`) ??
+      input.pkgMaxEndGlobal.get(predNum);
+    const predCanonical = CANONICAL_LOB_PACKAGE_RULES[predNum];
+    const predLag =
+      predCanonical?.cureLagWorkingDays ?? input.pkgRuleMap.get(predNum)?.cureLagWorkingDays ?? 0;
     advanceAfter(predEnd, predLag);
   }
 
   const pOrder = input.rule.phaseOrder;
   const fid = input.floor.floorId;
 
-  // 2. Trava global de Fundação (Fase 2) antes de qualquer Fase >= 3
+  // 2. Trava global de Preparação (Fase 1) e Fundação (Fase 2)
+  if (pOrder >= 2) {
+    advanceAfter(input.phaseMaxEndGlobal.get(1), 0);
+  }
   if (pOrder >= 3) {
     advanceAfter(input.phaseMaxEndGlobal.get(2), 2);
   }
@@ -1453,29 +1622,23 @@ function computeEarliestPhysicalStart(input: {
     }
   }
 
-  // 4. Cadeia física intra-pavimento
+  // 4. Cadeia física intra-pavimento + proteção global para fases posteriores
   if (pOrder === 4) {
-    // Vedação/Alvenaria só após Supraestrutura do mesmo pavimento
     advanceAfter(input.phaseEndByFloor.get(`${fid}::3`), 0);
   } else if (pOrder === 5) {
-    // Cobertura & Estanqueidade após Supraestrutura/Alvenaria do topo (ou do pavimento)
     advanceAfter(input.phaseMaxEndGlobal.get(3), 0);
     advanceAfter(input.phaseEndByFloor.get(`${fid}::4`), 0);
   } else if (pOrder === 6) {
-    // Embutidos MEP só após Alvenaria do mesmo pavimento
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`) ?? input.phaseMaxEndGlobal.get(4), 0);
   } else if (pOrder === 7) {
-    // Revestimentos Brutos (Chapisco/Reboco) só após Alvenaria + Embutidos MEP do mesmo pavimento
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::3`), 0);
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`), 0);
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::6`), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::3`) ?? input.phaseMaxEndGlobal.get(3), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::4`) ?? input.phaseMaxEndGlobal.get(4), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::6`) ?? input.phaseMaxEndGlobal.get(6), 0);
   } else if (pOrder === 8) {
-    // Acabamentos após Chapisco/Reboco (+ cura 2 d.u.) + Cobertura/Estanqueidade
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::7`), 2);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::7`) ?? input.phaseMaxEndGlobal.get(7), 2);
     advanceAfter(input.phaseMaxEndGlobal.get(5), 0);
   } else if (pOrder === 9) {
-    // Finais & Entrega após Acabamentos do mesmo pavimento (ou globais)
-    advanceAfter(input.phaseEndByFloor.get(`${fid}::8`), 0);
+    advanceAfter(input.phaseEndByFloor.get(`${fid}::8`) ?? input.phaseMaxEndGlobal.get(8), 0);
     if (/LIMPEZA|ENTREGA/.test(input.pkg.name.toUpperCase())) {
       advanceAfter(input.phaseMaxEndGlobal.get(8), 0);
     }
@@ -1509,13 +1672,26 @@ export function generateIntelligentFloorLobMatrix(input: {
   const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
   const activePackages = [...input.servicePackages]
     .filter((p) => p.isActive)
+    .map((p) => normalizePackageWithCanonicalRule(p))
     .sort((a, b) => a.packageNumber - b.packageNumber);
 
   const stageLoadMap = new Map(input.stageLoads.map((s) => [s.stageCode, s]));
   const teamMap = new Map(input.workTeams.map((t) => [t.teamCode.toUpperCase(), t]));
   const pkgRuleMap = new Map<number, ConstructionSequenceRule>();
   for (const pkg of activePackages) {
-    pkgRuleMap.set(pkg.packageNumber, resolveConstructionRuleForPackage(pkg));
+    const baseRule = resolveConstructionRuleForPackage(pkg);
+    pkgRuleMap.set(
+      pkg.packageNumber,
+      pkg.canonicalRule
+        ? {
+            ...baseRule,
+            phaseOrder: pkg.canonicalRule.phaseOrder,
+            defaultTeam: pkg.canonicalRule.defaultTeam,
+            cureLagWorkingDays: pkg.canonicalRule.cureLagWorkingDays,
+            allowedFloors: pkg.canonicalRule.allowedFloors,
+          }
+        : baseRule
+    );
   }
 
   const hasAnyEapQuantity = input.stageLoads.some((st) =>
@@ -1532,6 +1708,7 @@ export function generateIntelligentFloorLobMatrix(input: {
   const resultMap = new Map<string, LobFloorAllocationItem>();
   const teamOccupancy = new Map<string, Set<string>>();
   const pkgEndByFloor = new Map<string, string>();
+  const pkgMaxEndGlobal = new Map<number, string>();
   const phaseEndByFloor = new Map<string, string>();
   const phaseMaxEndGlobal = new Map<number, string>();
   const lockedFloorDate = new Set<string>();
@@ -1540,6 +1717,9 @@ export function generateIntelligentFloorLobMatrix(input: {
     const endKey = `${floorId}::${pkgNumber}`;
     const prevEnd = pkgEndByFloor.get(endKey);
     if (!prevEnd || dateIso > prevEnd) pkgEndByFloor.set(endKey, dateIso);
+
+    const prevPkgGl = pkgMaxEndGlobal.get(pkgNumber);
+    if (!prevPkgGl || dateIso > prevPkgGl) pkgMaxEndGlobal.set(pkgNumber, dateIso);
 
     const pfKey = `${floorId}::${rule.phaseOrder}`;
     const prevPf = phaseEndByFloor.get(pfKey);
@@ -1564,10 +1744,10 @@ export function generateIntelligentFloorLobMatrix(input: {
   }
 
   const baseStart = stepWorkingDayUTC(input.startDate.slice(0, 10), 0, input.holidaySet);
-  const packagesToSchedule = hasAnyEapQuantity ? activePackages : activePackages.slice(0, 14);
+  const packagesToSchedule = activePackages;
 
   interface ScheduledNode {
-    pkg: FloorMatrixServicePackage;
+    pkg: FloorMatrixServicePackage & { canonicalRule: CanonicalLobPackageRule | null };
     rule: ConstructionSequenceRule;
     floor: LobFloorDefinition;
     floorIdx: number;
@@ -1588,7 +1768,7 @@ export function generateIntelligentFloorLobMatrix(input: {
 
     for (let floorIdx = 0; floorIdx < orderedFloors.length; floorIdx++) {
       const floor = orderedFloors[floorIdx];
-      if (!isPackageAllowedOnFloor(rule, floor)) continue;
+      if (!isPackageAllowedOnFloor(rule, floor, pkg.canonicalRule)) continue;
 
       let floorQty = 0;
       for (const stageCode of pkg.linkedEapStageCodes) {
@@ -1603,11 +1783,8 @@ export function generateIntelligentFloorLobMatrix(input: {
         if (floorQty <= 0) continue;
         workingDaysNeeded = Math.max(1, Math.ceil(floorQty / effectiveCap));
       } else {
-        const speedRatio = Math.max(
-          0.5,
-          Math.min(2, effectiveCap / Math.max(1, pkg.productivityPerDay || 1))
-        );
-        workingDaysNeeded = Math.max(2, Math.min(8, Math.round((2.6 * areaFactor) / speedRatio)));
+        const baseDays = pkg.canonicalRule?.defaultDurationDays ?? 4;
+        workingDaysNeeded = Math.max(2, Math.min(12, Math.round(baseDays * areaFactor)));
       }
 
       packagesWithNodes.add(pkg.packageNumber);
@@ -1647,6 +1824,7 @@ export function generateIntelligentFloorLobMatrix(input: {
       pkg: node.pkg,
       rule: node.rule,
       pkgEndByFloor,
+      pkgMaxEndGlobal,
       phaseEndByFloor,
       phaseMaxEndGlobal,
       pkgRuleMap,
@@ -1657,7 +1835,7 @@ export function generateIntelligentFloorLobMatrix(input: {
     let allocatedDates: string[] = [];
     let guard = 0;
 
-    while (guard < 700) {
+    while (guard < 1000) {
       const windowDates: string[] = [];
       let cursor = candidateStart;
       let validWindow = true;
@@ -1802,14 +1980,33 @@ export function analyzeFloorMatrixConflicts(input: {
   const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
   const phaseBoundsByFloor = new Map<string, { min: string; max: string }>();
   const phaseMaxGlobal = new Map<number, string>();
+  const pkgMaxGlobal = new Map<number, string>();
+  const normalizedPkgMap = new Map<number, FloorMatrixServicePackage & { canonicalRule: CanonicalLobPackageRule | null }>();
   const pkgRuleMap = new Map<number, ConstructionSequenceRule>();
-  for (const p of input.servicePackages) {
-    pkgRuleMap.set(p.packageNumber, resolveConstructionRuleForPackage(p));
+  for (const rawP of input.servicePackages) {
+    const p = normalizePackageWithCanonicalRule(rawP);
+    normalizedPkgMap.set(p.packageNumber, p);
+    const baseRule = resolveConstructionRuleForPackage(p);
+    pkgRuleMap.set(
+      p.packageNumber,
+      p.canonicalRule
+        ? {
+            ...baseRule,
+            phaseOrder: p.canonicalRule.phaseOrder,
+            defaultTeam: p.canonicalRule.defaultTeam,
+            cureLagWorkingDays: p.canonicalRule.cureLagWorkingDays,
+            allowedFloors: p.canonicalRule.allowedFloors,
+          }
+        : baseRule
+    );
   }
 
   for (const [fpKey, bounds] of floorPkgBounds.entries()) {
     const [floorId, pkgNumStr] = fpKey.split("::");
     const pkgNumber = Number(pkgNumStr);
+    const prevPkgGl = pkgMaxGlobal.get(pkgNumber);
+    if (!prevPkgGl || bounds.max > prevPkgGl) pkgMaxGlobal.set(pkgNumber, bounds.max);
+
     const rule = pkgRuleMap.get(pkgNumber);
     if (!rule) continue;
     const pfKey = `${floorId}::${rule.phaseOrder}`;
@@ -1825,15 +2022,16 @@ export function analyzeFloorMatrixConflicts(input: {
   for (const [fpKey, bounds] of floorPkgBounds.entries()) {
     const [floorId, pkgNumStr] = fpKey.split("::");
     const pkgNumber = Number(pkgNumStr);
-    const pkg = pkgMap.get(pkgNumber);
+    const pkg = normalizedPkgMap.get(pkgNumber) ?? pkgMap.get(pkgNumber);
     if (!pkg) continue;
     const rule = pkgRuleMap.get(pkgNumber);
     const floorName = floorMap.get(floorId)?.floorName || floorId;
 
-    // 2A. Predecessores explícitos no pavimento
+    // 2A. Predecessores explícitos no pavimento (ou cross-floor)
     for (const predNum of pkg.predecessorNumbers) {
-      const predBounds = floorPkgBounds.get(`${floorId}::${predNum}`);
-      if (predBounds && bounds.min <= predBounds.max) {
+      const predMax =
+        floorPkgBounds.get(`${floorId}::${predNum}`)?.max ?? pkgMaxGlobal.get(predNum);
+      if (predMax && bounds.min <= predMax) {
         conflictCellKeySet.add(`${floorId}::${bounds.min}`);
         conflicts.push({
           type: "PRECEDENCE_VIOLATION",
@@ -1842,7 +2040,7 @@ export function analyzeFloorMatrixConflicts(input: {
           floorName,
           dateIso: bounds.min,
           packageNumber: pkgNumber,
-          message: `${floorName}: Pacote ${pkgNumber} (${pkg.name}) inicia em ${bounds.min} antes do término do predecessor #${predNum} (${predBounds.max}).`,
+          message: `${floorName}: Pacote ${pkgNumber} (${pkg.name}) inicia em ${bounds.min} antes do término do predecessor #${predNum} (${predMax}).`,
         });
       }
     }
@@ -1997,9 +2195,24 @@ export function autoLevelFloorMatrix(input: {
 
   const orderedFloors = [...input.floors].sort((a, b) => a.floorOrder - b.floorOrder);
   const floorMap = new Map(input.floors.map((f) => [f.floorId, f]));
+  const normalizedPkgMap = new Map<number, FloorMatrixServicePackage & { canonicalRule: CanonicalLobPackageRule | null }>();
   const pkgRuleMap = new Map<number, ConstructionSequenceRule>();
-  for (const p of input.servicePackages) {
-    pkgRuleMap.set(p.packageNumber, resolveConstructionRuleForPackage(p));
+  for (const rawP of input.servicePackages) {
+    const p = normalizePackageWithCanonicalRule(rawP);
+    normalizedPkgMap.set(p.packageNumber, p);
+    const baseRule = resolveConstructionRuleForPackage(p);
+    pkgRuleMap.set(
+      p.packageNumber,
+      p.canonicalRule
+        ? {
+            ...baseRule,
+            phaseOrder: p.canonicalRule.phaseOrder,
+            defaultTeam: p.canonicalRule.defaultTeam,
+            cureLagWorkingDays: p.canonicalRule.cureLagWorkingDays,
+            allowedFloors: p.canonicalRule.allowedFloors,
+          }
+        : baseRule
+    );
   }
 
   const locked = input.allocations.filter((a) => a.isLocked);
@@ -2007,6 +2220,7 @@ export function autoLevelFloorMatrix(input: {
 
   const occupancy = new Map<string, Set<string>>();
   const pkgEndByFloor = new Map<string, string>();
+  const pkgMaxEndGlobal = new Map<number, string>();
   const phaseEndByFloor = new Map<string, string>();
   const phaseMaxEndGlobal = new Map<number, string>();
   const finalList: LobFloorAllocationItem[] = [...locked];
@@ -2015,6 +2229,9 @@ export function autoLevelFloorMatrix(input: {
     const endKey = `${floorId}::${pkgNumber}`;
     const prev = pkgEndByFloor.get(endKey);
     if (!prev || dateIso > prev) pkgEndByFloor.set(endKey, dateIso);
+
+    const prevPkgGl = pkgMaxEndGlobal.get(pkgNumber);
+    if (!prevPkgGl || dateIso > prevPkgGl) pkgMaxEndGlobal.set(pkgNumber, dateIso);
 
     const rule = pkgRuleMap.get(pkgNumber);
     if (rule) {
@@ -2063,7 +2280,7 @@ export function autoLevelFloorMatrix(input: {
     const sample = sorted[0];
     const teamCode = sample.teamCode.toUpperCase();
     const maxFronts = Math.max(1, teamMap.get(teamCode)?.maxSimultaneousFronts ?? 1);
-    const pkg = pkgMap.get(sample.packageNumber);
+    const pkg = normalizedPkgMap.get(sample.packageNumber) ?? pkgMap.get(sample.packageNumber);
     const rule = pkgRuleMap.get(sample.packageNumber);
     const floorObj = floorMap.get(sample.floorId) ?? {
       floorId: sample.floorId,
@@ -2080,6 +2297,7 @@ export function autoLevelFloorMatrix(input: {
         pkg,
         rule,
         pkgEndByFloor,
+        pkgMaxEndGlobal,
         phaseEndByFloor,
         phaseMaxEndGlobal,
         pkgRuleMap,
@@ -2093,7 +2311,7 @@ export function autoLevelFloorMatrix(input: {
     let chosenDates: string[] = [];
     let guard = 0;
 
-    while (guard < 700) {
+    while (guard < 1000) {
       const windowDates: string[] = [];
       let cursor = candidateStart;
       let ok = true;

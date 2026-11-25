@@ -9,6 +9,7 @@ import { EapSchedulePlanner } from "@/components/admin/eap/eap-schedule-planner"
 import { EapFieldMeasurement } from "@/components/admin/eap/eap-field-measurement";
 import { EapExecutiveReportView } from "@/components/eap/eap-executive-report-view";
 import { EapExecutionTracker } from "@/components/eap/eap-execution-tracker";
+import { EapCostReportView } from "@/components/admin/eap/eap-cost-report-view";
 
 export type EapDisciplineCode =
   | "ARQUITETONICO"
@@ -186,7 +187,9 @@ export function EapProjectHub({
     warningsCount: number;
   } | null>(null);
   const [sources, setSources] = useState<SourceFileDTO[]>(initialEap?.sourceFiles ?? []);
-  const [activeTab, setActiveTab] = useState<"sources" | "conference" | "planning" | "field" | "report">(
+  const [activeTab, setActiveTab] = useState<
+    "sources" | "conference" | "costReport" | "planning" | "field" | "report"
+  >(
     initialEap && initialEap.status !== "RASCUNHO" ? "conference" : "sources"
   );
   const [reportSubTab, setReportSubTab] = useState<"executive" | "execution">(
@@ -524,9 +527,10 @@ export function EapProjectHub({
           [
             { id: "sources", label: "1. Upload de Quantitativos" },
             { id: "conference", label: "2. Planilha EAP & Custos (Conferência)" },
-            { id: "planning", label: "3. Planejamento (LOB & Cronograma)" },
-            { id: "field", label: "4. Medição no Canteiro" },
-            { id: "report", label: "5. Relatório Executivo & Medições" },
+            { id: "costReport", label: "3. Relatório da EAP (Custos)" },
+            { id: "planning", label: "4. Planejamento (LOB & Cronograma)" },
+            { id: "field", label: "5. Medição no Canteiro" },
+            { id: "report", label: "6. Relatório Executivo & Medições" },
           ] as const
         ).map((tab) => (
           <button
@@ -549,8 +553,11 @@ export function EapProjectHub({
           projectId={projectId}
           cityId={initialEap.cityId}
           onValidated={() => router.refresh()}
+          onOpenCostReport={() => setActiveTab("costReport")}
         />
       )}
+
+      {activeTab === "costReport" && <EapCostReportView projectId={projectId} />}
 
       {activeTab === "planning" && (
         <EapSchedulePlanner

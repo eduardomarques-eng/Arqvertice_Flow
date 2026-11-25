@@ -250,10 +250,12 @@ export function EapConferenceWorkbench({
   projectId,
   cityId,
   onValidated,
+  onOpenCostReport,
 }: {
   projectId: string;
   cityId: string;
   onValidated?: () => void;
+  onOpenCostReport?: () => void;
 }) {
   const [tree, setTree] = useState<EapTreeResponse | null>(null);
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterialOption[]>([]);
@@ -1897,6 +1899,16 @@ export function EapConferenceWorkbench({
               </svg>
               Ampliar Planilha
             </button>
+
+            {onOpenCostReport && (
+              <button
+                type="button"
+                onClick={onOpenCostReport}
+                className="inline-flex h-8 items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 cursor-pointer dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-950/70"
+              >
+                📊 Relatório da EAP (Custos)
+              </button>
+            )}
 
             <button
               type="button"

@@ -20,10 +20,11 @@ import { EapLobSpreadsheet } from "@/components/admin/eap/eap-lob-spreadsheet";
 import { EapTeamsAndPackagesManager } from "@/components/admin/eap/eap-teams-and-packages-manager";
 import { EapConstraintsKanban } from "@/components/admin/eap/eap-constraints-kanban";
 import type { LobPackageBlockSummary } from "@/server/eap/constraints-lookahead";
-import type {
-  EapStageFloorLoad,
-  LobFloorAllocationItem,
-  LobFloorDefinition,
+import {
+  summarizeLobAllocationsByPackage,
+  type EapStageFloorLoad,
+  type LobFloorAllocationItem,
+  type LobFloorDefinition,
 } from "@/lib/eap-lob-grid";
 import type { ServicePackageDTO, WorkTeamDTO } from "@/components/admin/eap/eap-teams-and-packages-manager";
 import type {
@@ -137,6 +138,7 @@ export function EapSchedulePlanner({
   const [startDateInput, setStartDateInput] = useState("2026-04-01");
   const [waveFilter, setWaveFilter] = useState("ALL");
   const [zoneFilter, setZoneFilter] = useState("ALL");
+  const [liveLobAllocations, setLiveLobAllocations] = useState<LobFloorAllocationItem[]>([]);
 
   // Modal de edição rápida de segmento (clique no bloco LOB)
   const [editingSegment, setEditingSegment] = useState<{
@@ -162,6 +164,7 @@ export function EapSchedulePlanner({
         const json = await res.json();
         if (json.ok) {
           setData(json as ScheduleApiPayload);
+          setLiveLobAllocations(json.lobAllocations ?? []);
           if (json.plannedStartDate) {
             setStartDateInput(json.plannedStartDate);
           }
@@ -187,19 +190,31 @@ export function EapSchedulePlanner({
       .sort((a, b) => a.triggerDate.localeCompare(b.triggerDate));
   }, [data]);
 
+  const lobSummaryByPkg = useMemo(
+    () => summarizeLobAllocationsByPackage(liveLobAllocations),
+    [liveLobAllocations]
+  );
+
   const uniqueWaves = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.packages.map((p) => p.waveName))];
+    return [...new Set(data.packages.map((p) => p.waveName.replace(/Onda/gi, "Fase")))];
   }, [data]);
 
   const filteredPackages = useMemo(() => {
     if (!data) return [];
     return data.packages.filter((p) => {
-      if (waveFilter !== "ALL" && p.waveName !== waveFilter) return false;
-      if (zoneFilter !== "ALL" && !p.segments.some((s) => s.zoneCode === zoneFilter)) return false;
+      const normalizedPhase = p.waveName.replace(/Onda/gi, "Fase");
+      if (waveFilter !== "ALL" && normalizedPhase !== waveFilter) return false;
+      if (zoneFilter !== "ALL") {
+        const summary = lobSummaryByPkg.get(p.packageNumber);
+        const matchesAlloc = summary?.floors.some((f) =>
+          f === (zoneFilter === "FUND_TERREO" ? "FUNDACAO" : zoneFilter) || f === zoneFilter
+        );
+        if (!matchesAlloc && !p.segments.some((s) => s.zoneCode === zoneFilter)) return false;
+      }
       return true;
     });
-  }, [data, waveFilter, zoneFilter]);
+  }, [data, waveFilter, zoneFilter, lobSummaryByPkg]);
 
   async function handleGenerateSchedule() {
     setBusy("generate");
@@ -278,55 +293,6 @@ export function EapSchedulePlanner({
         setFeedback({ type: "success", text: "Trecho LOB atualizado." });
         await loadSchedule();
       }
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleSplitSecondSegment(pkg: SchedulePackageDTO) {
-    const baseSeg = pkg.segments[pkg.segments.length - 1];
-    const zoneCode = (baseSeg?.zoneCode || "FUND_TERREO") as
-      | "FUND_TERREO"
-      | "PAV_SUPERIOR"
-      | "COBERTURA"
-      | "EXTERNO";
-    const startDate = baseSeg?.endDate || startDateInput;
-    setBusy(pkg.id);
-    try {
-      const res = await fetch(`/api/eap/projects/${projectId}/schedule/packages/${pkg.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          segmentAction: {
-            type: "UPSERT",
-            zoneCode,
-            segmentOrder: pkg.segments.length + 1,
-            startDate,
-            endDate: startDate,
-            workingDays: Math.max(2, Math.ceil(pkg.durationWorkingDays / 2)),
-            parallelLane: (baseSeg?.parallelLane || 1) + 1,
-            notes: "2º Trecho (desdobramento LOB)",
-          },
-        }),
-      });
-      if (res.ok) {
-        setFeedback({ type: "success", text: `2º trecho criado em PCT ${String(pkg.packageNumber).padStart(2, "0")}.` });
-        await loadSchedule();
-      }
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleUpdatePackageInline(pkg: SchedulePackageDTO, teamsCount: number, durationWorkingDays: number) {
-    setBusy(pkg.id);
-    try {
-      await fetch(`/api/eap/projects/${projectId}/schedule/packages/${pkg.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamsCount, durationWorkingDays }),
-      });
-      await loadSchedule();
     } finally {
       setBusy(null);
     }
@@ -542,7 +508,7 @@ export function EapSchedulePlanner({
               id: "constraints",
               label: `Restrições & Suprimentos (${data.constraintsMetrics?.criticalCount ? `${data.constraintsMetrics.criticalCount} crít.` : "Lookahead 45d"})`,
             },
-            { id: "table", label: "Tabela de Pacotes & Trechos (38 PCTs)" },
+            { id: "table", label: "Tabela de Pacotes" },
             { id: "charts", label: "Gantt, Curva S & Desembolso Mensal" },
             { id: "procurement", label: `Calendário de Suprimentos (${allGates.length})` },
           ] as const
@@ -590,6 +556,7 @@ export function EapSchedulePlanner({
             stageLoads={data.eapStageFloorLoads}
             constraintBlocks={data.constraintBlocks}
             onScheduleMutated={() => loadSchedule(true)}
+            onAllocationsChange={setLiveLobAllocations}
             onOpenSegmentModal={(pkg, seg) => {
               const matchedPkg = data.packages.find((p) => p.id === pkg.id);
               const matchedSeg = matchedPkg?.segments.find((s) => s.id === seg.id) ?? {
@@ -624,34 +591,39 @@ export function EapSchedulePlanner({
         />
       )}
 
-      {/* SUB-VISÃO 2: TABELA EDITÁVEL DE PACOTES & TRECHOS */}
+      {/* SUB-VISÃO 2: TABELA SOMENTE LEITURA DE PACOTES (SINCRONIZADA COM O CALENDÁRIO LOB) */}
       {subView === "table" && (
         <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={waveFilter}
-              onChange={(e) => setWaveFilter(e.target.value)}
-              className={INPUT_CLASS}
-            >
-              <option value="ALL">Todas as Fases ({uniqueWaves.length})</option>
-              {uniqueWaves.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-            <select
-              value={zoneFilter}
-              onChange={(e) => setZoneFilter(e.target.value)}
-              className={INPUT_CLASS}
-            >
-              <option value="ALL">Todas as Zonas</option>
-              {data.zones.map((z) => (
-                <option key={z.code} value={z.code}>
-                  {z.name}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={waveFilter}
+                onChange={(e) => setWaveFilter(e.target.value)}
+                className={INPUT_CLASS}
+              >
+                <option value="ALL">Todas as Fases ({uniqueWaves.length})</option>
+                {uniqueWaves.map((w) => (
+                  <option key={w} value={w}>
+                    {w}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={zoneFilter}
+                onChange={(e) => setZoneFilter(e.target.value)}
+                className={INPUT_CLASS}
+              >
+                <option value="ALL">Todas as Zonas</option>
+                {data.zones.map((z) => (
+                  <option key={z.code} value={z.code}>
+                    {z.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+              Somente leitura · Sincronizado em tempo real com o Calendário LOB
+            </span>
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-zinc-800">
@@ -660,90 +632,61 @@ export function EapSchedulePlanner({
                 <tr>
                   <th className="px-3 py-2">Pacote</th>
                   <th className="px-3 py-2">Etapas / Predec.</th>
-                  <th className="px-3 py-2">Equipes</th>
-                  <th className="px-3 py-2">Dias Úteis</th>
-                  <th className="px-3 py-2">Trechos Alocados</th>
-                  <th className="px-3 py-2 text-right">Ações</th>
+                  <th className="px-3 py-2">Equipes (LOB)</th>
+                  <th className="px-3 py-2">Dias Úteis (LOB)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                {filteredPackages.map((pkg) => (
-                  <tr key={pkg.id} className="text-slate-800 dark:text-zinc-200">
-                    <td className="px-3 py-2">
-                      <div className="font-bold text-slate-900 dark:text-zinc-100">
-                        PCT {String(pkg.packageNumber).padStart(2, "0")} — {pkg.name}
-                      </div>
-                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">{pkg.waveName}</div>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px]">
-                      Et: {pkg.linkedStageCodes.join(",")}
-                      {pkg.predecessorNumbers.length > 0 && ` · Pr: ${pkg.predecessorNumbers.join(",")}`}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min={1}
-                        defaultValue={pkg.teamsCount}
-                        onBlur={(e) =>
-                          handleUpdatePackageInline(
-                            pkg,
-                            Math.max(1, Number(e.target.value)),
-                            pkg.durationWorkingDays
-                          )
-                        }
-                        className="h-7 w-14 rounded-lg border border-slate-300 bg-white px-1.5 text-right font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min={1}
-                        defaultValue={pkg.durationWorkingDays}
-                        onBlur={(e) =>
-                          handleUpdatePackageInline(
-                            pkg,
-                            pkg.teamsCount,
-                            Math.max(1, Number(e.target.value))
-                          )
-                        }
-                        className="h-7 w-16 rounded-lg border border-slate-300 bg-white px-1.5 text-right font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-1">
-                        {pkg.segments.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() =>
-                              setEditingSegment({
-                                packageId: pkg.id,
-                                packageLabel: `PCT ${String(pkg.packageNumber).padStart(2, "0")} — ${pkg.name}`,
-                                segment: { ...s },
-                              })
-                            }
-                            className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900"
-                          >
-                            {s.zoneCode}: {s.startDate}→{s.endDate} ({s.workingDays}d)
-                          </button>
-                        ))}
-                        {pkg.segments.length === 0 && (
-                          <span className="text-[10px] text-slate-400">Sem trecho</span>
+                {filteredPackages.map((pkg) => {
+                  const summary = lobSummaryByPkg.get(pkg.packageNumber);
+                  const phaseLabel = pkg.waveName.replace(/Onda/gi, "Fase");
+                  return (
+                    <tr key={pkg.id} className="text-slate-800 dark:text-zinc-200">
+                      <td className="px-3 py-2.5">
+                        <div className="font-bold text-slate-900 dark:text-zinc-100">
+                          PCT {String(pkg.packageNumber).padStart(2, "0")} — {pkg.name}
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-zinc-400">{phaseLabel}</div>
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-[11px] text-slate-600 dark:text-zinc-300">
+                        Et: {pkg.linkedStageCodes.join(",")}
+                        {pkg.predecessorNumbers.length > 0 && ` · Pr: ${pkg.predecessorNumbers.join(",")}`}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {summary && summary.teamsCount > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex h-6 items-center rounded-md bg-slate-900 px-2 font-mono text-[11px] font-bold text-white dark:bg-zinc-100 dark:text-zinc-950">
+                              {summary.teamsCount} eq.
+                            </span>
+                            <span className="font-mono text-[11px] text-slate-600 dark:text-zinc-300">
+                              ({summary.teamCodes.join(", ")})
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 dark:text-zinc-500">
+                            Sem alocação no calendário
+                          </span>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        disabled={busy === pkg.id}
-                        onClick={() => handleSplitSecondSegment(pkg)}
-                        className="rounded-lg border border-slate-300 px-2.5 py-1 text-[10px] font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:text-zinc-200"
-                      >
-                        + Dividir em 2º Trecho
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {summary && summary.workingDaysCount > 0 ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-bold tabular-nums text-slate-900 dark:text-zinc-100">
+                              {summary.workingDaysCount} d.u.
+                            </span>
+                            {summary.startDate && summary.endDate && (
+                              <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
+                                {summary.startDate} → {summary.endDate}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">0 d.u.</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
