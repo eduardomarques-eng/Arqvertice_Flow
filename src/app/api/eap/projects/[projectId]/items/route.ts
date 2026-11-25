@@ -154,6 +154,7 @@ export async function POST(
           teamsCount: parsed.teamsCount,
           sourceSoftware: "MANUAL",
           revisionTag: "ADICIONADO",
+          dataOrigin: "EDITADO_USUARIO",
           orderIndex: itemsCount + 1,
         },
       });

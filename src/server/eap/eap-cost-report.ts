@@ -1,5 +1,12 @@
 import { prisma } from "@/server/db";
 import { PdfWriter } from "@/lib/pdf/pdf-writer";
+import {
+  drawPdfBrandedHeader,
+  drawPdfHorizontalBarChart,
+  drawPdfKpiCardsRow,
+  drawPdfStackedDistributionBar,
+  PDF_PALETTE,
+} from "@/lib/pdf/pdf-charts";
 import { round2 } from "./calculator";
 import { buildEapTreePayload } from "./workbench";
 
@@ -726,71 +733,82 @@ function fmtBRL(v: number): string {
 }
 
 export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Array {
-  const pdf = new PdfWriter({
-    title: `Relatorio de Custos da EAP - ${payload.meta.projectName}`,
-    author: "ArqVertice OS",
-    subject: `Relatorio Analitico de Custos da Planilha EAP (${payload.meta.cityLabel})`,
+  const pdf = new PdfWriter(
+    {
+      title: `Relatorio de Custos da EAP - ${payload.meta.projectName}`,
+      author: "ArqVertice OS",
+      subject: `Relatorio Analitico de Custos da Planilha EAP (${payload.meta.cityLabel})`,
+    },
+    { margin: 28 }
+  );
+
+  drawPdfBrandedHeader(pdf, {
+    eyebrow: "ArqVertice OS · Orcamento Executivo",
+    title: "RELATORIO DE CUSTOS DA PLANILHA EAP",
+    subtitle: `${payload.meta.projectName} · Cliente: ${payload.meta.clientName} · ${payload.meta.cityLabel}`,
+    metaLine: `Area: ${payload.meta.builtAreaM2} m2 · Revisao: R${String(payload.meta.revision).padStart(2, "0")} · BDI: ${payload.meta.bdiPercent}%${payload.meta.isParametricFallback ? " · Estimativa Parametrica" : ""}`,
+    accentHex: "#2563EB",
   });
 
-  // Cabeçalho Corporativo ArqVértice OS
-  pdf.rect(0, 0, pdf.width, 108, { fill: "0.09 0.09 0.11" });
-  pdf.drawText("ARQVERTICE OS · ORCAMENTO EXECUTIVO", pdf.margin, 34, {
-    size: 10,
-    bold: true,
-    color: "0.93 0.90 0.85",
-  });
-  pdf.drawText("RELATORIO DE CUSTOS DA PLANILHA EAP", pdf.margin, 58, {
-    size: 15,
-    bold: true,
-    color: "1 1 1",
-  });
-  pdf.drawText(
-    `${payload.meta.projectName} · Cliente: ${payload.meta.clientName} · ${payload.meta.cityLabel}`,
-    pdf.margin,
-    80,
-    { size: 10, color: "0.85 0.87 0.90" }
-  );
-  pdf.drawText(
-    `Area: ${payload.meta.builtAreaM2} m2 · Revisao: R${String(payload.meta.revision).padStart(2, "0")} · BDI: ${payload.meta.bdiPercent}%${payload.meta.isParametricFallback ? " · Estimativa Parametrica" : ""}`,
-    pdf.margin,
-    96,
-    { size: 8.5, color: "0.70 0.74 0.80" }
-  );
-  pdf.y = 124;
+  // Cards KPI em linha única
+  drawPdfKpiCardsRow(pdf, [
+    {
+      label: "Total Geral (c/ BDI)",
+      value: fmtBRL(payload.kpis.totalCommercialPrice),
+      sub: `${payload.kpis.totalItemsCount} itens orcados`,
+      accentHex: "#2563EB",
+      bgHex: "#EFF6FF",
+    },
+    {
+      label: "Custo por m2 (c/ BDI)",
+      value: `${fmtBRL(payload.kpis.costPerM2)}/m2`,
+      sub: `Direto: ${fmtBRL(payload.kpis.directCostPerM2)}/m2`,
+      accentHex: "#059669",
+      bgHex: "#ECFDF5",
+    },
+    {
+      label: "Custo Direto Total",
+      value: fmtBRL(payload.kpis.totalDirectCost),
+      sub: `Mat ${payload.kpis.materialSharePercent.toFixed(0)}% · MO ${payload.kpis.laborSharePercent.toFixed(0)}%`,
+      accentHex: "#D97706",
+      bgHex: "#FFFBEB",
+    },
+    {
+      label: `BDI (${payload.kpis.bdiPercent}%)`,
+      value: fmtBRL(payload.kpis.bdiValue),
+      sub: `Terceiros: ${payload.kpis.thirdPartySharePercent.toFixed(1)}%`,
+      accentHex: "#7C3AED",
+      bgHex: "#F5F3FF",
+    },
+  ]);
 
-  // Ficha KPI Resumo
-  pdf.heading("1. Resumo Executivo de Custos & Quantidades-Chave");
-  pdf.keyValueGrid(
-    [
-      { label: "Total Geral (c/ BDI)", value: fmtBRL(payload.kpis.totalCommercialPrice) },
-      { label: "Custo por m2 (c/ BDI)", value: `${fmtBRL(payload.kpis.costPerM2)}/m2` },
-      { label: "Custo Direto Total", value: fmtBRL(payload.kpis.totalDirectCost) },
-      { label: `BDI Aplicado (${payload.kpis.bdiPercent}%)`, value: fmtBRL(payload.kpis.bdiValue) },
-      {
-        label: `Materiais (${payload.kpis.materialSharePercent.toFixed(1)}%)`,
-        value: fmtBRL(payload.kpis.totalMaterialCost),
-      },
-      {
-        label: `Mao de Obra (${payload.kpis.laborSharePercent.toFixed(1)}%)`,
-        value: fmtBRL(payload.kpis.totalLaborCost),
-      },
-      {
-        label: `Terceiros (${payload.kpis.thirdPartySharePercent.toFixed(1)}%)`,
-        value: fmtBRL(payload.kpis.totalThirdPartyCost),
-      },
-      { label: "Itens Orcados na EAP", value: `${payload.kpis.totalItemsCount} itens` },
+  pdf.heading("1. Composicao de Custos & Quantidades-Chave");
+  drawPdfStackedDistributionBar(pdf, {
+    title: "Composicao Direta (Material x Mao de Obra x Terceiros)",
+    segments: [
+      { label: "Materiais", value: payload.kpis.totalMaterialCost, colorHex: "#2563EB" },
+      { label: "Mao de Obra", value: payload.kpis.totalLaborCost, colorHex: "#059669" },
+      { label: "Terceiros", value: payload.kpis.totalThirdPartyCost, colorHex: "#D97706" },
     ],
-    { columns: 2, labelWidth: 118 }
-  );
+  });
 
-  pdf.y += 4;
   pdf.flowText(
     `Quantidades-Chave: Concreto: ${payload.kpis.concreteM3.toFixed(1)} m3 · Aco: ${payload.kpis.steelKg.toFixed(0)} kg · Alvenaria: ${payload.kpis.masonryM2.toFixed(1)} m2 · Pisos/Revest.: ${payload.kpis.ceramicTileM2.toFixed(1)} m2 · Coberta: ${payload.kpis.roofM2.toFixed(1)} m2`,
-    { size: 8.5, bold: true, color: "#334155", gapAfter: 10 }
+    { size: 8.5, bold: true, color: "#334155", gapAfter: 8 }
   );
 
-  // 2. Custos por Pavimento
+  // 2. Custos por Pavimento (Gráfico Vetorial Colorido + Tabela)
   pdf.heading("2. Distribuicao de Custos por Pavimento / Zona");
+  drawPdfHorizontalBarChart(pdf, {
+    title: "Grafico de Custos por Pavimento (Total c/ BDI)",
+    items: payload.byFloor.map((f, idx) => ({
+      label: f.label,
+      value: f.commercialPrice,
+      formattedValue: fmtBRL(f.commercialPrice),
+      colorHex: PDF_PALETTE[idx % PDF_PALETTE.length],
+      percent: f.sharePercent,
+    })),
+  });
   pdf.table({
     columns: [
       { title: "Pavimento / Zona", weight: 2.2 },
@@ -811,10 +829,20 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     size: 8,
   });
 
-  pdf.y += 10;
+  pdf.y += 8;
 
-  // 3. Custos por Disciplina
+  // 3. Custos por Disciplina (Gráfico Vetorial Colorido + Tabela)
   pdf.heading("3. Custos por Disciplina Tecnica");
+  drawPdfHorizontalBarChart(pdf, {
+    title: "Distribuicao por Disciplina Tecnica",
+    items: payload.byDiscipline.map((d, idx) => ({
+      label: d.discipline,
+      value: d.commercialPrice,
+      formattedValue: fmtBRL(d.commercialPrice),
+      colorHex: PDF_PALETTE[(idx + 2) % PDF_PALETTE.length],
+      percent: d.sharePercent,
+    })),
+  });
   pdf.table({
     columns: [
       { title: "Disciplina", weight: 2.3 },
@@ -833,10 +861,20 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     size: 8,
   });
 
-  pdf.y += 10;
+  pdf.y += 8;
 
-  // 4. Custos por Fase Construtiva
+  // 4. Custos por Fase Construtiva (Gráfico + Tabela)
   pdf.heading("4. Custos por Fase Construtiva");
+  drawPdfHorizontalBarChart(pdf, {
+    title: "Custos por Fase Construtiva",
+    items: payload.byPhase.map((p, idx) => ({
+      label: p.phaseName,
+      value: p.commercialPrice,
+      formattedValue: fmtBRL(p.commercialPrice),
+      colorHex: PDF_PALETTE[(idx + 4) % PDF_PALETTE.length],
+      percent: p.sharePercent,
+    })),
+  });
   pdf.table({
     columns: [
       { title: "Fase Construtiva", weight: 2.5 },

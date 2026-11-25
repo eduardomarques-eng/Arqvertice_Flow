@@ -1,5 +1,11 @@
 import { prisma } from "@/server/db";
 import { PdfWriter } from "@/lib/pdf/pdf-writer";
+import {
+  drawPdfBrandedHeader,
+  drawPdfHorizontalBarChart,
+  drawPdfKpiCardsRow,
+  drawPdfStackedDistributionBar,
+} from "@/lib/pdf/pdf-charts";
 import { round2 } from "./calculator";
 import { buildEapTreePayload, type ComputedEapItemDTO } from "./workbench";
 import { computeScheduleAnalytics, type MonthlyCashflowPoint } from "./scheduler";
@@ -1038,67 +1044,79 @@ function fmtBRL(v: number): string {
  * Gera PDF corporativo determinístico (%PDF-1.4) com gráficos vetoriais sem dependências nativas (100% Vercel Serverless).
  */
 export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8Array {
-  const pdf = new PdfWriter({
-    title: `Relatorio Executivo Integral - ${payload.meta.projectName}`,
-    author: "ArqVertice OS",
-    subject: `ArqVertice OS: EAP, Comparativos, Desvios IA e Cronograma (${payload.meta.baselineLabel})`,
-  });
-
-  // 1. CAPA CORPORATIVA ARQVERTICE OS
-  pdf.rect(0, 0, pdf.width, 130, { fill: "0.09 0.09 0.11" });
-  pdf.drawText("ARQVERTICE OS", pdf.margin, 46, { size: 11, bold: true, color: "0.93 0.90 0.85" });
-  pdf.drawText("DOSSIE EXECUTIVO INTEGRAL — EAP, COMPARATIVOS & IA", pdf.margin, 72, {
-    size: 15,
-    bold: true,
-    color: "1 1 1",
-  });
-  pdf.drawText(`${payload.meta.projectName} · Cliente: ${payload.meta.clientName}`, pdf.margin, 98, {
-    size: 11,
-    color: "0.85 0.87 0.90",
-  });
-  pdf.drawText(
-    `Praca: ${payload.meta.cityLabel} · Area: ${payload.meta.builtAreaM2} m2 · Baseline: ${payload.meta.baselineLabel}`,
-    pdf.margin,
-    116,
-    { size: 9, color: "0.75 0.78 0.82" }
+  const pdf = new PdfWriter(
+    {
+      title: `Relatorio Executivo Integral - ${payload.meta.projectName}`,
+      author: "ArqVertice OS",
+      subject: `ArqVertice OS: EAP, Comparativos, Desvios IA e Cronograma (${payload.meta.baselineLabel})`,
+    },
+    { margin: 28 }
   );
-
-  pdf.y = 152;
 
   const comp = payload.comparativeAnalytics;
+  const activeVersionsStr =
+    comp && comp.activeVersions.length > 0
+      ? ` · Versoes: ${comp.activeVersions.map((v) => `${v.discipline} (${v.versionCode})`).join(" | ")}`
+      : "";
 
-  if (comp && comp.activeVersions.length > 0) {
-    pdf.flowText(
-      `Versoes Vigentes: ${comp.activeVersions.map((v) => `${v.discipline} (${v.versionCode})`).join(" · ")}`,
-      { size: 8.5, bold: true, gapAfter: 8 }
-    );
-  }
+  drawPdfBrandedHeader(pdf, {
+    eyebrow: "ArqVertice OS · Gestao Executiva de Obras",
+    title: "DOSSIE EXECUTIVO INTEGRAL — EAP, COMPARATIVOS & IA",
+    subtitle: `${payload.meta.projectName} · Cliente: ${payload.meta.clientName}`,
+    metaLine: `${payload.meta.cityLabel} · Area: ${payload.meta.builtAreaM2} m2 · Baseline: ${payload.meta.baselineLabel}${activeVersionsStr}`,
+    accentHex: "#059669",
+  });
 
-  // 2. RESUMO EXECUTIVO & KPIs
-  pdf.flowText("1. RESUMO EXECUTIVO & INDICADORES DE ENGENHARIA", { size: 12, bold: true, gapAfter: 8 });
-  pdf.flowText(
-    `Investimento Comercial Total: ${fmtBRL(payload.kpis.totalCommercialPrice)}  |  Custo/m2: ${fmtBRL(payload.kpis.costPerM2)}/m2`,
-    { size: 10, bold: true, gapAfter: 4 }
-  );
+  // Cards KPI em linha única
+  drawPdfKpiCardsRow(pdf, [
+    {
+      label: "Investimento Comercial",
+      value: fmtBRL(payload.kpis.totalCommercialPrice),
+      sub: `Custo/m2: ${fmtBRL(payload.kpis.costPerM2)}/m2`,
+      accentHex: "#2563EB",
+      bgHex: "#EFF6FF",
+    },
+    {
+      label: "Prazo Previsto",
+      value: `${payload.meta.totalMonths} meses`,
+      sub: `${payload.meta.totalWorkingDays} d.u. (${payload.meta.startDate || "A definir"})`,
+      accentHex: "#4F46E5",
+      bgHex: "#EEF2FF",
+    },
+    {
+      label: "Indices SPI / CPI",
+      value: comp ? `${comp.financial.spi.toFixed(2)} / ${comp.financial.cpi.toFixed(2)}` : "1.00 / 1.00",
+      sub: comp
+        ? `Desvio: ${comp.financial.physicalDeviationPct >= 0 ? "+" : ""}${comp.financial.physicalDeviationPct.toFixed(1)} p.p.`
+        : "No prazo",
+      accentHex: "#059669",
+      bgHex: "#ECFDF5",
+    },
+    {
+      label: "Indicadores TQS/BIM",
+      value: `${payload.kpis.steelRateKgPerM3} kg/m3`,
+      sub: `Conc. ${payload.kpis.concreteM3PerM2} · Alv. ${payload.kpis.masonryM2PerM2}`,
+      accentHex: "#D97706",
+      bgHex: "#FFFBEB",
+    },
+  ]);
+
+  // Composicao Material x MO x Terceiros
+  drawPdfStackedDistributionBar(pdf, {
+    title: "1. Composicao de Custos (Material x Mao de Obra x Terceiros)",
+    segments: [
+      { label: "Material", value: payload.kpis.materialSharePercent, colorHex: "#2563EB" },
+      { label: "Mao de Obra", value: payload.kpis.laborSharePercent, colorHex: "#059669" },
+      { label: "Terceiros", value: payload.kpis.thirdPartySharePercent, colorHex: "#D97706" },
+    ],
+  });
+
   if (payload.audience === "INTERNAL" && payload.kpis.totalDirectCost !== undefined) {
     pdf.flowText(
-      `[Interno] Custo Direto: ${fmtBRL(payload.kpis.totalDirectCost)}  |  BDI: ${payload.meta.bdiPercent ?? 0}%`,
-      { size: 9, gapAfter: 4 }
+      `[Visao Interna] Custo Direto Total: ${fmtBRL(payload.kpis.totalDirectCost)} · BDI: ${payload.meta.bdiPercent ?? 0}%${payload.kpis.embodiedCarbonKgCo2 ? ` · Carbono Embutido: ${payload.kpis.embodiedCarbonKgCo2.toFixed(0)} kgCO2` : ""}`,
+      { size: 8.5, bold: true, color: "#334155", gapAfter: 6 }
     );
   }
-  pdf.flowText(
-    `Prazo Previsto: ${payload.meta.startDate || "A definir"} a ${payload.meta.endDate || "A definir"} (${payload.meta.totalMonths} meses / ${payload.meta.totalWorkingDays} dias uteis)`,
-    { size: 9, gapAfter: 4 }
-  );
-  pdf.flowText(
-    `Composicao: Material ${payload.kpis.materialSharePercent}% · Mao de Obra ${payload.kpis.laborSharePercent}% · Terceiros ${payload.kpis.thirdPartySharePercent}%`,
-    { size: 9, gapAfter: 4 }
-  );
-  pdf.flowText(
-    `Engenharia: Taxa de Aco ${payload.kpis.steelRateKgPerM3} kg/m3 · Concreto ${payload.kpis.concreteM3PerM2} m3/m2 · Alvenaria ${payload.kpis.masonryM2PerM2} m2/m2${payload.kpis.embodiedCarbonKgCo2 ? ` · Carbono Embutido: ${payload.kpis.embodiedCarbonKgCo2.toFixed(0)} kgCO2` : ""
-    }`,
-    { size: 9, gapAfter: 8 }
-  );
 
   // 2A. COMPARATIVO CUSTOS x PREVISOES x FATURAMENTO + GRAFICO VETORIAL + DIAGNOSTICO IA
   if (comp) {
@@ -1170,6 +1188,15 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
     // Avanco Fisico por Pavimento (Feito x Pendente)
     if (comp.floorComparison.length > 0) {
       pdf.heading("1D. AVANCO FISICO POR PAVIMENTO (FEITO x PENDENTE)");
+      drawPdfHorizontalBarChart(pdf, {
+        title: "Evolucao Fisica por Pavimento (%)",
+        items: comp.floorComparison.map((f) => ({
+          label: f.floorName,
+          value: Math.max(0, Math.min(100, f.progressPct)),
+          formattedValue: `${f.progressPct.toFixed(1)}%`,
+          colorHex: f.progressPct >= 80 ? "#059669" : f.progressPct >= 40 ? "#2563EB" : "#D97706",
+        })),
+      });
       pdf.table({
         columns: [
           { title: "Pavimento", weight: 2.2 },

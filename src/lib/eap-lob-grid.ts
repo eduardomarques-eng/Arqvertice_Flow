@@ -807,6 +807,7 @@ export interface LobFloorAllocationItem {
   packageNumber: number;
   isOvertime: boolean;
   isLocked?: boolean;
+  dataOrigin?: "PRELIMINAR_PADRAO" | "QUANTITATIVO_IMPORTADO" | "EDITADO_USUARIO" | string;
 }
 
 export interface ContinuousTimelineColumn extends LobTimelineColumn {
@@ -1712,6 +1713,7 @@ export function generateIntelligentFloorLobMatrix(input: {
   existingAllocations?: LobFloorAllocationItem[];
   preserveLocked?: boolean;
   builtAreaM2?: number;
+  defaultDataOrigin?: "PRELIMINAR_PADRAO" | "QUANTITATIVO_IMPORTADO" | "EDITADO_USUARIO";
 }): {
   allocations: LobFloorAllocationItem[];
   scheduledPackagesCount: number;
@@ -1913,6 +1915,9 @@ export function generateIntelligentFloorLobMatrix(input: {
       if (input.preserveLocked && lockedFloorDate.has(`${node.floor.floorId}::${dateIso}`)) {
         continue;
       }
+      const resolvedOrigin =
+        input.defaultDataOrigin ??
+        (hasAnyEapQuantity ? "QUANTITATIVO_IMPORTADO" : "PRELIMINAR_PADRAO");
       const key = `${node.floor.floorId}::${dateIso}::${node.teamCode}::${node.pkg.packageNumber}`;
       resultMap.set(key, {
         floorId: node.floor.floorId,
@@ -1923,6 +1928,7 @@ export function generateIntelligentFloorLobMatrix(input: {
         packageNumber: node.pkg.packageNumber,
         isOvertime: false,
         isLocked: false,
+        dataOrigin: resolvedOrigin,
       });
 
       const occKey = `${node.teamCode}::${dateIso}`;

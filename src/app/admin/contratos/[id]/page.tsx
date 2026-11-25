@@ -5,6 +5,8 @@ import { SectionHeading } from "@/components/section-heading";
 import { requirePageAdminRole } from "@/server/auth";
 import { getContractDetail } from "@/server/services/contract-service";
 import { ContractEditorWorkspace } from "@/components/contracts/contract-editor-workspace";
+import { WhatsAppQuickDispatch } from "@/components/shared/whatsapp-quick-dispatch";
+import { formatCurrencyBRL } from "@/lib/contract-template";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +71,19 @@ export default async function AdminContractDetailPage({
             totalSelling: Number(s.totalCommercialPrice ?? 0),
           }))}
         />
+
+        <div className="mt-6">
+          <WhatsAppQuickDispatch
+            entityType="CONTRATO"
+            documentTitle={contract.title}
+            projectName={contract.proposal.project.name}
+            projectId={contract.proposal.project.id}
+            clientId={contract.proposal.project.client.id}
+            clientName={contract.proposal.project.client.fullName ?? contract.proposal.project.client.name}
+            clientPhone={contract.proposal.project.client.phone}
+            summaryText={`Valor contratual: ${formatCurrencyBRL(structured.totalValue)} · Minuta v${contract.version}`}
+          />
+        </div>
       </div>
     </AppShell>
   );

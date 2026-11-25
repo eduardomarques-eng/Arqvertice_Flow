@@ -4,6 +4,7 @@ import { requirePageAdminRole } from "@/server/auth";
 import { listContracts } from "@/server/services/contract-service";
 import { prisma } from "@/server/db";
 import { ContractsHubClient } from "@/components/contracts/contracts-hub-client";
+import { extractBriefingScopeContext } from "@/lib/scope-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,11 @@ export default async function AdminContractsPage() {
       select: {
         id: true,
         name: true,
-        client: { select: { name: true, fullName: true, document: true, cpf: true } },
+        type: true,
+        scope: true,
+        description: true,
+        client: { select: { name: true, fullName: true, document: true, cpf: true, phone: true, city: true } },
+        briefing: { select: { responses: true } },
       },
     }),
   ]);
@@ -49,12 +54,25 @@ export default async function AdminContractsPage() {
               totalValue: Number(content.total ?? 0),
             };
           })}
-          projects={projects.map((p) => ({
-            id: p.id,
-            name: p.name,
-            clientName: p.client.fullName ?? p.client.name,
-            clientDocument: p.client.cpf ?? p.client.document ?? "",
-          }))}
+          projects={projects.map((p) => {
+            const ctx = extractBriefingScopeContext({
+              projectType: p.type,
+              projectScope: p.scope,
+              projectDescription: p.description,
+              clientPhone: p.client.phone,
+              clientCity: p.client.city,
+              briefingResponses: p.briefing?.responses,
+            });
+            return {
+              id: p.id,
+              name: p.name,
+              clientName: p.client.fullName ?? p.client.name,
+              clientDocument: p.client.cpf ?? p.client.document ?? "",
+              hasBriefing: ctx.hasBriefing,
+              areaM2: ctx.areaM2,
+              suggestedTemplate: ctx.suggestedTemplate,
+            };
+          })}
         />
       </div>
     </AppShell>

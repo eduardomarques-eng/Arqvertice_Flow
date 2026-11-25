@@ -6,6 +6,7 @@ import { requirePageAdminRole } from "@/server/auth";
 import { listProposals } from "@/server/services/proposal-service";
 import { prisma } from "@/server/db";
 import { CreateProposalButton } from "@/components/proposals/create-proposal-button";
+import { extractBriefingScopeContext } from "@/lib/scope-templates";
 import {
   BentoCollapsiblePanel,
   BentoHorizontalRanking,
@@ -20,7 +21,15 @@ export default async function ProposalsPage() {
     listProposals(),
     prisma.project.findMany({
       orderBy: { updatedAt: "desc" },
-      select: { id: true, name: true, client: { select: { name: true } } },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        scope: true,
+        description: true,
+        client: { select: { name: true, phone: true, city: true } },
+        briefing: { select: { responses: true } },
+      },
     }),
   ]);
   const totalProposed = proposals.reduce(
@@ -41,11 +50,24 @@ export default async function ProposalsPage() {
         description="Apresentações, propostas formais, versões e decisões do cliente."
         action={
           <CreateProposalButton
-            projects={projects.map((p) => ({
-              id: p.id,
-              name: p.name,
-              clientName: p.client.name,
-            }))}
+            projects={projects.map((p) => {
+              const ctx = extractBriefingScopeContext({
+                projectType: p.type,
+                projectScope: p.scope,
+                projectDescription: p.description,
+                clientPhone: p.client.phone,
+                clientCity: p.client.city,
+                briefingResponses: p.briefing?.responses,
+              });
+              return {
+                id: p.id,
+                name: p.name,
+                clientName: p.client.name,
+                hasBriefing: ctx.hasBriefing,
+                areaM2: ctx.areaM2,
+                suggestedTemplate: ctx.suggestedTemplate,
+              };
+            })}
           />
         }
       />

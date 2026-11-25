@@ -1972,6 +1972,7 @@ model EapItem {
   sourcePage         Int?
   sanityFlag         String?
   revisionTag        String               @default("ORIGINAL") // ORIGINAL | ADICIONADO | QUANTIDADE_ALTERADA | CUSTO_ALTERADO
+  dataOrigin         String               @default("PRELIMINAR_PADRAO") // PRELIMINAR_PADRAO | QUANTITATIVO_IMPORTADO | EDITADO_USUARIO
   orderIndex         Int                  @default(0)
   group              EapGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
   materialCatalog    MaterialCatalogItem? @relation(fields: [materialCatalogId], references: [id], onDelete: SetNull)
@@ -2174,6 +2175,7 @@ model EapLobFloorAllocation {
   teamCode      String
   packageNumber Int
   isOvertime    Boolean    @default(false)
+  dataOrigin    String     @default("PRELIMINAR_PADRAO") // PRELIMINAR_PADRAO | QUANTITATIVO_IMPORTADO | EDITADO_USUARIO
   eapProject    EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt

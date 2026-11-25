@@ -508,6 +508,8 @@ export async function createStandaloneContract(input: {
   totalValue?: number;
   includeStructuralPartner?: boolean;
   artEnabled?: boolean;
+  useBriefing?: boolean;
+  templateKey?: "COMPLETO" | "ARQUITETURA" | "INTERIORES" | "ESTRUTURAL" | "COMPLEMENTARES" | "FACHADAS_BIM";
 }) {
   const user = await requireRole("ADMIN");
   const legalProfile = await getStudioLegalProfile();
@@ -557,13 +559,20 @@ export async function createStandaloneContract(input: {
       },
     });
 
+    const { extractBriefingScopeContext, SCOPE_TEMPLATES } = await import("@/lib/scope-templates");
+    const briefingCtx = extractBriefingScopeContext({
+      projectType: targetProject.type,
+      projectScope: targetProject.scope,
+      projectDescription: targetProject.description,
+      clientPhone: targetProject.client.phone,
+      clientCity: targetProject.client.city,
+      briefingResponses: input.useBriefing !== false ? targetProject.briefing?.responses : null,
+    });
+    const templateDef = input.templateKey ? SCOPE_TEMPLATES[input.templateKey] : null;
     const contractTitle =
       cleanTitle || `Contrato de Prestação de Serviços — ${targetProject.name}`;
     const c = targetProject.client;
-    const briefingResponses = (targetProject.briefing?.responses ?? {}) as Record<string, unknown>;
-    const areaStr = String(
-      briefingResponses.area ?? briefingResponses.areaTotal ?? briefingResponses.metragem ?? "",
-    );
+    const areaStr = briefingCtx.hasBriefing ? String(briefingCtx.areaM2) : "";
 
     const structured = buildDefaultContractDocument({
       title: contractTitle,
@@ -590,19 +599,27 @@ export async function createStandaloneContract(input: {
             ? cleanClientDoc
             : c.cpf || c.document || "a informar",
         address: formatAddress(c.address) || "Endereço a informar",
-        city: c.city || legalProfile.cityState,
+        city: c.city || briefingCtx.cityState || legalProfile.cityState,
       },
       project: {
         name: targetProject.name,
-        type: targetProject.type || "Arquitetura e Engenharia",
+        type: templateDef?.label ?? briefingCtx.typology ?? targetProject.type ?? "Arquitetura e Engenharia",
         areaM2: areaStr ? `${areaStr} m²` : "conforme levantamento",
-        cityState: legalProfile.cityState,
+        cityState: briefingCtx.cityState || legalProfile.cityState,
         proposalCode: backingProposal.code ?? "Minuta Avulsa",
       },
-      scopeLines: [
-        "Elaboração de Projeto Executivo e Compatibilização Técnica conforme escopo contratado.",
-      ],
-      businessDays: 45,
+      scopeLines:
+        templateDef
+          ? templateDef.includedItems
+          : briefingCtx.hasBriefing && briefingCtx.disciplines.length > 0
+            ? [
+                `Disciplinas contratadas via Briefing: ${briefingCtx.disciplines.join(", ")}.`,
+                ...(briefingCtx.programSummary ? [`Programa base: ${briefingCtx.programSummary}`] : []),
+              ]
+            : [
+                "Elaboração de Projeto Executivo e Compatibilização Técnica conforme escopo contratado.",
+              ],
+      businessDays: templateDef?.defaultBusinessDays ?? 45,
       totalValue,
       artFee: { enabled: Boolean(input.artEnabled), amount: 108.39 },
       contractDate: new Date(),

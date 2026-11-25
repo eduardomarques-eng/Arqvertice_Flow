@@ -13,6 +13,7 @@ export interface ExistingEapItemForMerge {
   unit: string;
   sourceSoftware: string;
   revisionTag: string;
+  dataOrigin?: string;
   materialUnitCost: number;
   laborUnitCost: number;
   thirdPartyUnitCost: number;
@@ -162,7 +163,7 @@ export function planMiningMerge(input: {
 
     if (bestItem) {
       matchedExistingIds.add(bestItem.id);
-      if (bestItem.revisionTag !== "ORIGINAL") {
+      if (bestItem.dataOrigin === "EDITADO_USUARIO" || bestItem.revisionTag !== "ORIGINAL") {
         preservedManualCount += 1;
         continue;
       }
@@ -245,7 +246,7 @@ export function planMiningMerge(input: {
 
   for (const existing of existingItems) {
     if (matchedExistingIds.has(existing.id)) continue;
-    if (existing.revisionTag !== "ORIGINAL") continue;
+    if (existing.dataOrigin === "EDITADO_USUARIO" || existing.revisionTag !== "ORIGINAL") continue;
 
     const codeUpper = existing.code?.toUpperCase() ?? "";
     if (codeUpper && templateCodes.has(codeUpper)) {
@@ -361,6 +362,7 @@ export async function ensureBaseEapItems(
       teamsCount: 1,
       sourceSoftware: "TEMPLATE",
       revisionTag: "ORIGINAL",
+      dataOrigin: "PRELIMINAR_PADRAO",
       orderIndex: nextOrder,
     };
   });

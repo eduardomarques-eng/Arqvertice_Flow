@@ -4,6 +4,7 @@ import {
   round2,
   type ZoneQuantities,
 } from "./calculator";
+import { normalizeDataOrigin, type EapDataOrigin } from "@/lib/eap-preliminary-13m";
 
 export interface RawEapItemRecord {
   id: string;
@@ -25,6 +26,7 @@ export interface RawEapItemRecord {
   sourcePage: number | null;
   sanityFlag: string | null;
   revisionTag: string;
+  dataOrigin?: string | null;
   orderIndex: number;
 }
 
@@ -49,6 +51,7 @@ export interface ComputedEapItemDTO {
   sourcePage: number | null;
   sanityFlag: string | null;
   revisionTag: string;
+  dataOrigin: EapDataOrigin;
   orderIndex: number;
   rawQuantity: number;
   totalQtyWithLoss: number;
@@ -287,6 +290,10 @@ export function buildEapTreePayload(input: {
           ...item,
           stageCode: stage.code,
           zoneQuantities: zq,
+          dataOrigin: normalizeDataOrigin(item.dataOrigin, {
+            sourceSoftware: item.sourceSoftware,
+            revisionTag: item.revisionTag,
+          }),
           rawQuantity: calc.rawQuantity,
           totalQtyWithLoss: calc.quantityWithLoss,
           unitDirectCost: calc.directUnitCost,

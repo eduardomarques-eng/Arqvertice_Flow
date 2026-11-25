@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { createStandaloneContractAction } from "@/app/actions/domain-actions";
 import { formatCurrencyBRL } from "@/lib/contract-template";
+import { SCOPE_TEMPLATES, type ScopeTemplateKey } from "@/lib/scope-templates";
 
 export interface ContractListItem {
   id: string;
@@ -29,6 +30,9 @@ export interface ContractProjectOption {
   name: string;
   clientName: string;
   clientDocument?: string;
+  hasBriefing?: boolean;
+  areaM2?: number;
+  suggestedTemplate?: ScopeTemplateKey;
 }
 
 export function ContractsHubClient({
@@ -50,6 +54,8 @@ export function ContractsHubClient({
   const [totalValue, setTotalValue] = useState("");
   const [includeStructuralPartner, setIncludeStructuralPartner] = useState(false);
   const [artEnabled, setArtEnabled] = useState(false);
+  const [useBriefing, setUseBriefing] = useState(true);
+  const [templateKey, setTemplateKey] = useState<ScopeTemplateKey>("COMPLETO");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -75,6 +81,7 @@ export function ContractsHubClient({
       if (!title.trim()) setTitle(`Contrato de Prestação de Serviços — ${found.name}`);
       setClientName(found.clientName);
       setClientDocument(found.clientDocument ?? "");
+      if (found.suggestedTemplate) setTemplateKey(found.suggestedTemplate);
     }
   }
 
@@ -95,6 +102,8 @@ export function ContractsHubClient({
           totalValue: Number(totalValue.replace(",", ".")) || 0,
           includeStructuralPartner,
           artEnabled,
+          useBriefing,
+          templateKey,
         });
         router.push(`/admin/contratos/${created.id}`);
       } catch (err) {
@@ -226,7 +235,32 @@ export function ContractsHubClient({
               />
             </div>
 
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                Template de Escopo / Objeto
+              </label>
+              <select
+                value={templateKey}
+                onChange={(e) => setTemplateKey(e.target.value as ScopeTemplateKey)}
+                className="mt-1 h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              >
+                {(Object.keys(SCOPE_TEMPLATES) as ScopeTemplateKey[]).map((key) => (
+                  <option key={key} value={key}>
+                    {SCOPE_TEMPLATES[key].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex flex-col justify-end gap-1.5 text-xs text-zinc-700 dark:text-zinc-300">
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useBriefing}
+                  onChange={(e) => setUseBriefing(e.target.checked)}
+                />
+                Puxar dados e escopo do Briefing / Projeto
+              </label>
               <label className="inline-flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"

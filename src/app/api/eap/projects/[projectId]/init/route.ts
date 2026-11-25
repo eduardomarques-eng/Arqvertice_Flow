@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
 import { ensureBaseEapItems } from "@/server/eap/base-items";
+import { applyPreliminary13MonthFill } from "@/server/eap/preliminary-fill";
 import {
   DEFAULT_EAP_ZONES,
   DEFAULT_PROPOSAL_EXCLUSIONS,
@@ -119,6 +120,11 @@ export async function POST(
       return { created, baseItemsInserted: baseItemsResult.inserted };
     });
 
+    const preliminaryFill = await applyPreliminary13MonthFill({
+      eapProjectId: eap.created.id,
+      startDate: parsed.plannedStartDate?.slice(0, 10) || undefined,
+    });
+
     return NextResponse.json(
       {
         ok: true,
@@ -128,6 +134,9 @@ export async function POST(
           stages: MASTER_EAP_STAGES.length,
           packages: MASTER_LOB_PACKAGES.length,
           baseItems: eap.baseItemsInserted,
+          preliminaryFilledItems: preliminaryFill.filledEapItemsCount,
+          preliminaryLobAllocations: preliminaryFill.lobAllocationsCount,
+          preliminaryWorkingDaysSpan: preliminaryFill.workingDaysSpan,
         },
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }

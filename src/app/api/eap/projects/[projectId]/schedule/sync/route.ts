@@ -63,6 +63,9 @@ const floorAllocationSchema = z.object({
   teamCode: z.string().trim().min(1).max(6),
   packageNumber: z.number().int().min(1).max(999),
   isOvertime: z.boolean().default(false),
+  dataOrigin: z
+    .enum(["PRELIMINAR_PADRAO", "QUANTITATIVO_IMPORTADO", "EDITADO_USUARIO"])
+    .optional(),
 });
 
 const floorMatrixSyncSchema = z.object({
@@ -139,6 +142,7 @@ export async function POST(
               teamCode: a.teamCode,
               packageNumber: a.packageNumber,
               isOvertime: a.isOvertime,
+              dataOrigin: a.dataOrigin ?? "EDITADO_USUARIO",
             })),
             skipDuplicates: true,
           });

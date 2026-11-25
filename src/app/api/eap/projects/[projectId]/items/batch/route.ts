@@ -79,6 +79,7 @@ export async function POST(
               EXTERNO: 0,
             },
             revisionTag: "QUANTIDADE_ALTERADA",
+            dataOrigin: "EDITADO_USUARIO",
           },
         });
       }

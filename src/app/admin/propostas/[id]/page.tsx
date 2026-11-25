@@ -20,6 +20,7 @@ import { prisma } from "@/server/db";
 import { getStudioLegalProfile } from "@/server/services/settings-service";
 import { readNormalizedPremissesText, readProposalEditorial } from "@/lib/proposal-standard";
 import { ProposalConversionPanel } from "@/components/proposals/proposal-conversion-panel";
+import { WhatsAppQuickDispatch } from "@/components/shared/whatsapp-quick-dispatch";
 export const dynamic = "force-dynamic";
 
 /** Texto de um campo Json, ou string vazia. */
@@ -289,10 +290,19 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
           A mensagem vem do template configurado em Mensagens, com o telefone e o e-mail do cliente. Sem serviço de
           WhatsApp configurado, o botão abre o WhatsApp com o texto preparado — não envia por si.
         </p>
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
           <ProposalSendActions
             proposalId={proposal.id}
             encerrada={proposal.status === "APPROVED" || proposal.status === "REJECTED" || frozen}
+          />
+          <WhatsAppQuickDispatch
+            entityType="PROPOSTA"
+            documentTitle={version?.title ?? `Proposta ${proposal.code ?? ""}`}
+            projectName={proposal.project.name}
+            projectId={proposal.project.id}
+            clientName={proposal.project.client.name}
+            clientPhone={proposal.project.client.phone}
+            summaryText={`Valor global: ${formatCurrencyBRL(Number(version?.total ?? 0))} · Versão v${version?.version ?? proposal.currentVersion}`}
           />
         </div>
       </Card>

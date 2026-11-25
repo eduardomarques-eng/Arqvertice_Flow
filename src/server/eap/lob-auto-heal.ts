@@ -86,6 +86,7 @@ export async function regenerateAndPersistLobMatrix(params: {
           teamCode: a.teamCode,
           packageNumber: a.packageNumber,
           isOvertime: Boolean(a.isOvertime),
+          dataOrigin: a.dataOrigin ?? "PRELIMINAR_PADRAO",
         })),
         skipDuplicates: true,
       });

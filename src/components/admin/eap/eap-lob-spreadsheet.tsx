@@ -20,12 +20,14 @@ import {
   analyzeFloorMatrixConflicts,
   autoLevelFloorMatrix,
   buildContinuousLobTimeline,
+  CANONICAL_LOB_PACKAGE_RULES,
   DEFAULT_LOB_FLOORS,
   fillFloorAllocationsHorizontally,
   generateIntelligentFloorLobMatrix,
   getLobPackageMeta,
   parseLobCellInput,
   shiftFloorAllocations,
+  summarizeLobAllocationsByPackage,
   type EapStageFloorLoad,
   type LobFloorAllocationItem,
   type LobFloorDefinition,
@@ -33,6 +35,11 @@ import {
   type LobSegmentLike,
   type LobTimeScale,
 } from "@/lib/eap-lob-grid";
+import {
+  DATA_ORIGIN_META,
+  normalizeDataOrigin,
+  type EapDataOrigin,
+} from "@/lib/eap-preliminary-13m";
 
 interface ZoneDTO {
   id: string;
@@ -99,6 +106,18 @@ const LOB_DENSITY_LABELS: Record<LobDensity, string> = {
   CONFORTAVEL: "Confortável",
 };
 
+const LOB_PHASE_TITLES: Record<number, string> = {
+  1: "Fase 1 — Preliminares & Locação",
+  2: "Fase 2 — Terraplanagem & Fundações",
+  3: "Fase 3 — Supraestrutura",
+  4: "Fase 4 — Alvenaria & Vedações",
+  5: "Fase 5 — Cobertura & Impermeabilização",
+  6: "Fase 6 — Instalações & Embutidos",
+  7: "Fase 7 — Chapisco, Reboco & Regularização",
+  8: "Fase 8 — Revestimentos, Esquadrias & Pintura",
+  9: "Fase 9 — Acabamentos Finais & Entrega",
+};
+
 export function EapLobSpreadsheet({
   projectId,
   builtAreaM2,
@@ -119,6 +138,10 @@ export function EapLobSpreadsheet({
   const [scale, setScale] = useState<LobTimeScale>("DIARIO");
   const [density, setDensity] = useState<LobDensity>("PADRAO");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const [legendSearch, setLegendSearch] = useState("");
+  const [originFilter, setOriginFilter] = useState<"ALL" | EapDataOrigin>("ALL");
+  const [fillingPreliminary, setFillingPreliminary] = useState(false);
 
   const [timelineStart, setTimelineStart] = useState<string>(
     plannedStartDate || analyticsStartDate || "2026-04-01"
@@ -286,6 +309,84 @@ export function EapLobSpreadsheet({
     [packageRegistry]
   );
 
+  const allocationSummaryByPkg = useMemo(
+    () => summarizeLobAllocationsByPackage(matrix.allocations),
+    [matrix.allocations]
+  );
+
+  const originCounts = useMemo(() => {
+    let prelim = 0;
+    let imported = 0;
+    let edited = 0;
+    for (const a of matrix.allocations) {
+      const org = normalizeDataOrigin(a.dataOrigin);
+      if (org === "PRELIMINAR_PADRAO") prelim += 1;
+      else if (org === "QUANTITATIVO_IMPORTADO") imported += 1;
+      else edited += 1;
+    }
+    return { prelim, imported, edited };
+  }, [matrix.allocations]);
+
+  const legendPhaseGroups = useMemo(() => {
+    const q = legendSearch.trim().toLowerCase();
+    const groups = new Map<
+      number,
+      {
+        phaseOrder: number;
+        phaseTitle: string;
+        items: Array<{
+          packageNumber: number;
+          name: string;
+          corHex: string;
+          textHex: string;
+          defaultTeam: string;
+          durationDays: number;
+        }>;
+      }
+    >();
+
+    for (const chip of packageChips) {
+      const paddedNum = String(chip.packageNumber).padStart(2, "0");
+      if (
+        q &&
+        !`${chip.packageNumber} ${paddedNum} ${chip.name} ${chip.discipline}`
+          .toLowerCase()
+          .includes(q)
+      ) {
+        continue;
+      }
+
+      const rule = CANONICAL_LOB_PACKAGE_RULES[chip.packageNumber];
+      const phaseOrder = rule?.phaseOrder ?? 1;
+      const phaseTitle =
+        LOB_PHASE_TITLES[phaseOrder] ?? `Fase ${phaseOrder}`;
+      const summary = allocationSummaryByPkg.get(chip.packageNumber);
+      const defaultTeam =
+        summary?.teamCodes[0] ?? rule?.defaultTeam ?? "A";
+      const durationDays =
+        summary?.workingDaysCount ?? rule?.defaultDurationDays ?? 0;
+
+      const existing = groups.get(phaseOrder) ?? {
+        phaseOrder,
+        phaseTitle,
+        items: [],
+      };
+      existing.items.push({
+        packageNumber: chip.packageNumber,
+        name: chip.name,
+        corHex: chip.corHex,
+        textHex: chip.textHex,
+        defaultTeam,
+        durationDays,
+      });
+      groups.set(phaseOrder, existing);
+    }
+
+    return Array.from(groups.values()).sort(
+      (a, b) => a.phaseOrder - b.phaseOrder
+    );
+  }, [packageChips, legendSearch, allocationSummaryByPkg]);
+
   const teamByCode = useMemo(() => {
     const map = new Map<string, WorkTeamDTO>();
     for (const t of workTeams) {
@@ -431,6 +532,7 @@ export function EapLobSpreadsheet({
             packageNumber: tok.packageNumber,
             isOvertime: isNonWorking,
             isLocked: true,
+            dataOrigin: "EDITADO_USUARIO",
           });
         }
       }
@@ -457,7 +559,7 @@ export function EapLobSpreadsheet({
       if (existing.length > 0) {
         const next = matrix.allocations.map((a) =>
           a.floorId === floor.floorId && a.dateIso === targetDate
-            ? { ...a, isOvertime: !a.isOvertime }
+            ? { ...a, isOvertime: !a.isOvertime, dataOrigin: "EDITADO_USUARIO" as const }
             : a
         );
         pushMatrix({ floors: matrix.floors, allocations: next });
@@ -477,6 +579,7 @@ export function EapLobSpreadsheet({
           packageNumber: activePackageNumber,
           isOvertime: true,
           isLocked: true,
+          dataOrigin: "EDITADO_USUARIO",
         },
       ];
       pushMatrix({ floors: matrix.floors, allocations: next });
@@ -1053,43 +1156,101 @@ export function EapLobSpreadsheet({
           </div>
         </div>
 
-        {/* Faixa Superior de Pacotes de Serviço (1, 2, 3...) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto border-t border-slate-200/80 pt-2 pb-1 dark:border-zinc-800">
-          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-            Pacotes:
-          </span>
-          {packageChips.map((chip) => {
-            const isActive = chip.packageNumber === activePackageNumber;
-            return (
-              <button
-                key={chip.packageNumber}
-                type="button"
-                onClick={() => {
-                  setActivePackageNumber(chip.packageNumber);
-                  if (selectedCell) {
-                    const floor = matrix.floors[selectedCell.floorIndex];
-                    const col = timeline.columns[selectedCell.colIndex];
-                    if (floor && col) {
-                      const existing = getCellDisplayItems(floor.floorId, col.allDatesIso);
-                      const nextToken = `${activeTeamCode.toUpperCase()}${chip.packageNumber}`;
-                      const merged = Array.from(
-                        new Set([...existing.map((i) => `${i.teamCode}${i.packageNumber}`), nextToken])
-                      ).join(", ");
-                      commitCellText(selectedCell.floorIndex, selectedCell.colIndex, merged);
-                    }
-                  }
-                }}
-                style={{ backgroundColor: chip.corHex, color: chip.textHex }}
-                title={`${chip.packageNumber} — ${chip.name} (${chip.discipline})`}
-                className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition cursor-pointer ${
-                  isActive ? "ring-2 ring-slate-950 ring-offset-1 dark:ring-white" : "opacity-90 hover:opacity-100"
-                }`}
+        {/* Painel de Legenda Funcional de Pacotes (Agrupado por Fase) */}
+        <div className="space-y-2 border-t border-slate-200/80 pt-2.5 pb-1 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-300">
+                Legenda de Pacotes ({packageChips.length})
+              </span>
+              <input
+                type="text"
+                value={legendSearch}
+                onChange={(e) => setLegendSearch(e.target.value)}
+                placeholder="Buscar nº ou nome do pacote..."
+                className="h-7 w-52 rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              />
+              {legendSearch && (
+                <button
+                  type="button"
+                  onClick={() => setLegendSearch("")}
+                  className="text-[10px] font-semibold text-slate-500 hover:text-slate-900 cursor-pointer dark:text-zinc-400 dark:hover:text-zinc-100"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setLegendExpanded((v) => !v)}
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              {legendExpanded || legendSearch.trim().length > 0
+                ? "Modo Compacto"
+                : `Expandir Todas (${legendPhaseGroups.length} fases)`}
+            </button>
+          </div>
+
+          <div
+            className={`grid gap-2 ${
+              legendExpanded || legendSearch.trim().length > 0
+                ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+                : "grid-cols-1 md:grid-cols-2"
+            }`}
+          >
+            {(legendExpanded || legendSearch.trim().length > 0
+              ? legendPhaseGroups
+              : legendPhaseGroups.filter(
+                  (grp) =>
+                    grp.items.some((i) => i.packageNumber === activePackageNumber) ||
+                    grp.phaseOrder <= 2
+                )
+            ).map((group) => (
+              <div
+                key={group.phaseOrder}
+                className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 dark:border-zinc-800 dark:bg-zinc-900/50"
               >
-                <span className="font-mono">{chip.packageNumber}</span>
-                <span className="max-w-[115px] truncate">{chip.name}</span>
-              </button>
-            );
-          })}
+                <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
+                  <span>{group.phaseTitle}</span>
+                  <span>{group.items.length} pct</span>
+                </div>
+                <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                  {group.items.map((item) => {
+                    const isActive = item.packageNumber === activePackageNumber;
+                    return (
+                      <button
+                        key={item.packageNumber}
+                        type="button"
+                        onClick={() => setActivePackageNumber(item.packageNumber)}
+                        title={`Selecionar Pacote ${String(item.packageNumber).padStart(2, "0")} — ${item.name} (Eq. ${item.defaultTeam} · ${item.durationDays}d) e destacar no calendário`}
+                        className={`flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1 text-left transition cursor-pointer ${
+                          isActive
+                            ? "border-slate-900 bg-white shadow-xs ring-1 ring-slate-900 dark:border-amber-400 dark:bg-zinc-900 dark:ring-amber-400"
+                            : "border-slate-200/80 bg-white/90 hover:border-slate-300 hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/60 dark:hover:border-zinc-700"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            style={{ backgroundColor: item.corHex, color: item.textHex }}
+                            className="inline-flex h-5 min-w-[24px] shrink-0 items-center justify-center rounded px-1 font-mono text-[10px] font-extrabold"
+                          >
+                            {String(item.packageNumber).padStart(2, "0")}
+                          </span>
+                          <span className="text-[10px] font-semibold leading-tight text-slate-800 dark:text-zinc-100">
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="shrink-0 font-mono text-[9px] font-bold text-slate-500 dark:text-zinc-400">
+                          {item.defaultTeam}·{item.durationDays}d
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Painel Sincronizado Fase 10: Prazos, Validação, Nivelamento & Equipes */}
@@ -1133,6 +1294,43 @@ export function EapLobSpreadsheet({
             </select>
             <button
               type="button"
+              onClick={async () => {
+                setFillingPreliminary(true);
+                setFeedback(null);
+                try {
+                  const res = await fetch(`/api/eap/projects/${projectId}/preliminary-fill`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      startDate: timelineStart,
+                      overwritePreliminary: false,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (res.ok && json.ok) {
+                    setDirty(false);
+                    setFeedback({
+                      type: "success",
+                      text: `Preliminar 13 meses aplicado (${json.workingDaysSpan} d.u. · ${json.lobAllocationsCount} células).`,
+                    });
+                    await onScheduleMutated();
+                  } else {
+                    setFeedback({
+                      type: "error",
+                      text: json.error || "Erro ao gerar preliminar de 13 meses.",
+                    });
+                  }
+                } finally {
+                  setFillingPreliminary(false);
+                }
+              }}
+              disabled={fillingPreliminary}
+              className="h-7 rounded-lg border border-amber-300 bg-amber-50 px-2.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              {fillingPreliminary ? "Gerando..." : "⚡ Preencher Preliminar (13 Meses)"}
+            </button>
+            <button
+              type="button"
               onClick={handleGenerateIntelligentMatrix}
               className="h-7 rounded-lg bg-indigo-600 px-3 text-[11px] font-semibold text-white hover:bg-indigo-700 cursor-pointer"
             >
@@ -1145,6 +1343,50 @@ export function EapLobSpreadsheet({
             >
               ⚡ Nivelar Conflitos
             </button>
+          </div>
+        </div>
+
+        {/* Mini-legenda + Filtro rápido por origem no LOB */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-2 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: "ALL", label: "Todos" },
+                { id: "PRELIMINAR_PADRAO", label: "Somente Preliminares (a revisar)" },
+                { id: "QUANTITATIVO_IMPORTADO", label: "Quantitativos" },
+                { id: "EDITADO_USUARIO", label: "Editados" },
+              ] as const
+            ).map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setOriginFilter(chip.id)}
+                className={`h-7 rounded-lg px-2.5 text-[10px] font-semibold cursor-pointer ${
+                  originFilter === chip.id
+                    ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200/80 bg-slate-50/70 px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-300">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              <strong>{originCounts.prelim}</strong> preliminares
+            </span>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <strong>{originCounts.imported}</strong> quantitativos
+            </span>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <strong>{originCounts.edited}</strong> editados
+            </span>
           </div>
         </div>
 
@@ -1459,21 +1701,42 @@ export function EapLobSpreadsheet({
                             {cellItems.map((it) => {
                               const pkg = resolvePackageVisual(it.packageNumber);
                               const blk = constraintBlocks[`${floor.floorId}::${it.packageNumber}`];
+                              const org = normalizeDataOrigin(it.dataOrigin);
+                              const orgMeta = DATA_ORIGIN_META[org];
+                              const dimmedByOrigin =
+                                originFilter !== "ALL" && org !== originFilter;
+                              const isHighlightedPkg =
+                                it.packageNumber === activePackageNumber;
                               return (
                                 <span
                                   key={`${it.teamCode}-${it.packageNumber}`}
                                   style={{ backgroundColor: pkg.corHex, color: pkg.textHex }}
                                   title={
                                     blk
-                                      ? `Restrições pendentes: ${blk.titles.join(" | ")}`
-                                      : undefined
+                                      ? `Restrições pendentes: ${blk.titles.join(" | ")} • ${orgMeta.tooltip}`
+                                      : `${orgMeta.label} (${orgMeta.shortBadge}) — ${orgMeta.tooltip}`
                                   }
-                                  className={`inline-flex items-center justify-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[9px] font-extrabold leading-none shadow-2xs ${
-                                    blk?.criticalCount ? "ring-1 ring-rose-400" : ""
-                                  }`}
+                                  className={`relative inline-flex items-center justify-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[9px] font-extrabold leading-none shadow-2xs transition ${
+                                    blk?.criticalCount
+                                      ? "ring-1 ring-rose-400"
+                                      : isHighlightedPkg
+                                        ? "ring-2 ring-slate-950 dark:ring-white scale-[1.04]"
+                                        : org === "PRELIMINAR_PADRAO"
+                                          ? "ring-1 ring-amber-300/80"
+                                          : ""
+                                  } ${dimmedByOrigin ? "opacity-25" : ""}`}
                                 >
                                   {it.teamCode}
                                   {it.packageNumber}
+                                  <span
+                                    className={`ml-0.5 h-1.5 w-1.5 rounded-full ${
+                                      org === "PRELIMINAR_PADRAO"
+                                        ? "bg-amber-300"
+                                        : org === "QUANTITATIVO_IMPORTADO"
+                                          ? "bg-sky-300"
+                                          : "bg-emerald-300"
+                                    }`}
+                                  />
                                   {blk ? (
                                     <span
                                       className={

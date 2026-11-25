@@ -228,6 +228,7 @@ export async function POST(
             unit: it.unit,
             sourceSoftware: it.sourceSoftware,
             revisionTag: it.revisionTag,
+            dataOrigin: it.dataOrigin,
             materialUnitCost: it.materialUnitCost,
             laborUnitCost: it.laborUnitCost,
             thirdPartyUnitCost: it.thirdPartyUnitCost,
@@ -263,6 +264,7 @@ export async function POST(
               sourceFileId: upd.sourceFileId,
               sourcePage: upd.sourcePage,
               sanityFlag: upd.sanityFlag,
+              dataOrigin: "QUANTITATIVO_IMPORTADO",
             },
           });
         }
@@ -281,6 +283,7 @@ export async function POST(
               sourceFileId: null,
               sourcePage: null,
               sanityFlag: null,
+              dataOrigin: "PRELIMINAR_PADRAO",
             },
           });
         }
@@ -312,6 +315,7 @@ export async function POST(
               sourcePage: c.sourcePage,
               sanityFlag: c.sanityFlag,
               revisionTag: "ORIGINAL",
+              dataOrigin: "QUANTITATIVO_IMPORTADO",
               orderIndex: c.orderIndex,
             })),
           });

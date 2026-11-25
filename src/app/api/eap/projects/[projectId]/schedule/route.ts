@@ -17,6 +17,7 @@ import {
   buildEapStageFloorLoads,
   regenerateAndPersistLobMatrix,
 } from "@/server/eap/lob-auto-heal";
+import { normalizeDataOrigin } from "@/lib/eap-preliminary-13m";
 import { handleEapRouteError, jsonNoStore, uuidParamSchema } from "@/server/eap/route-error";
 
 export const dynamic = "force-dynamic";
@@ -213,6 +214,7 @@ export async function GET(
       teamCode: a.teamCode,
       packageNumber: a.packageNumber,
       isOvertime: a.isOvertime,
+      dataOrigin: normalizeDataOrigin(a.dataOrigin),
     }));
 
     if (

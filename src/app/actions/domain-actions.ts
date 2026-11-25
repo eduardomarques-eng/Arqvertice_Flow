@@ -256,8 +256,15 @@ export async function archiveProjectDocumentAction(projectId: string, documentId
   return result;
 }
 
-export async function createProposalAction(projectId: string) {
-  const result = await createProposal(projectId);
+export async function createProposalAction(
+  projectId: string,
+  options?: {
+    useBriefing?: boolean;
+    templateKey?: "COMPLETO" | "ARQUITETURA" | "INTERIORES" | "ESTRUTURAL" | "COMPLEMENTARES" | "FACHADAS_BIM";
+    forceNew?: boolean;
+  }
+) {
+  const result = await createProposal(projectId, options);
   revalidatePath("/admin/propostas");
   revalidatePath(`/admin/projetos/${projectId}`);
   return result;
@@ -417,6 +424,8 @@ export async function createStandaloneContractAction(input: {
   totalValue?: number;
   includeStructuralPartner?: boolean;
   artEnabled?: boolean;
+  useBriefing?: boolean;
+  templateKey?: "COMPLETO" | "ARQUITETURA" | "INTERIORES" | "ESTRUTURAL" | "COMPLEMENTARES" | "FACHADAS_BIM";
 }) {
   const { createStandaloneContract } = await import("@/server/services/contract-service");
   const result = await createStandaloneContract(input);

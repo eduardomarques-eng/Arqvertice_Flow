@@ -221,11 +221,19 @@ export class PdfWriter {
 
   /** Desenha um rectângulo. `y` é medido do topo. */
   rect(x: number, y: number, width: number, height: number, options: PdfRectOptions = {}): void {
+    const toRgb = (c: string) => {
+      const t = c.trim();
+      if (!t.startsWith("#") || t.length !== 7) return t;
+      const r = (parseInt(t.slice(1, 3), 16) / 255).toFixed(3);
+      const g = (parseInt(t.slice(3, 5), 16) / 255).toFixed(3);
+      const b = (parseInt(t.slice(5, 7), 16) / 255).toFixed(3);
+      return `${r} ${g} ${b}`;
+    };
     const top = this.height - y - height;
     const parts: string[] = [];
-    if (options.fill) parts.push(`${options.fill} rg`);
+    if (options.fill) parts.push(`${toRgb(options.fill)} rg`);
     if (options.stroke) {
-      parts.push(`${options.stroke} RG`);
+      parts.push(`${toRgb(options.stroke)} RG`);
       parts.push(`${(options.lineWidth ?? 0.6).toFixed(2)} w`);
     }
     parts.push(`${x.toFixed(2)} ${top.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)} re`);
@@ -235,12 +243,20 @@ export class PdfWriter {
 
   /** Texto numa posição absoluta. `baseline` é a linha de base, medida do topo. */
   drawText(text: string, x: number, baseline: number, options: PdfTextOptions = {}): void {
+    const toRgb = (c: string) => {
+      const t = c.trim();
+      if (!t.startsWith("#") || t.length !== 7) return t;
+      const r = (parseInt(t.slice(1, 3), 16) / 255).toFixed(3);
+      const g = (parseInt(t.slice(3, 5), 16) / 255).toFixed(3);
+      const b = (parseInt(t.slice(5, 7), 16) / 255).toFixed(3);
+      return `${r} ${g} ${b}`;
+    };
     const size = options.size ?? 10;
     const bold = options.bold ?? false;
     const width = measureText(text, bold) * size;
     const align = options.align ?? "left";
     const left = align === "left" ? x : align === "center" ? x - width / 2 : x - width;
-    const prefix = options.color ? `${options.color} rg\n` : "";
+    const prefix = options.color ? `${toRgb(options.color)} rg\n` : "";
     this.current +=
       `${prefix}BT /${bold ? "F2" : "F1"} ${size} Tf 1 0 0 1 ${left.toFixed(2)} ${(this.height - baseline).toFixed(2)} Tm ${hexString(text)} Tj ET\n`;
   }

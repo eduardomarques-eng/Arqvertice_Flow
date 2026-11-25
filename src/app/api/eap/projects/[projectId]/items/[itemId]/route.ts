@@ -85,6 +85,7 @@ export async function PATCH(
         ...(parsed.laborRoleId !== undefined ? { laborRoleId: parsed.laborRoleId } : {}),
         ...(parsed.clearSanityFlag ? { sanityFlag: null } : {}),
         revisionTag: nextRevisionTag,
+        dataOrigin: "EDITADO_USUARIO",
       },
     });
 

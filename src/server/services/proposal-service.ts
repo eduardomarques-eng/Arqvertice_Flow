@@ -250,7 +250,14 @@ export async function getProposalSuggestions(projectId: string, level: PricingLe
  * negociações abertas para o mesmo cliente, e a métrica de valor proposto
  * contaria a mesma oportunidade duas vezes (item 71).
  */
-export async function createProposal(projectId: string) {
+export async function createProposal(
+  projectId: string,
+  options?: {
+    useBriefing?: boolean;
+    templateKey?: "COMPLETO" | "ARQUITETURA" | "INTERIORES" | "ESTRUTURAL" | "COMPLEMENTARES" | "FACHADAS_BIM";
+    forceNew?: boolean;
+  }
+) {
   const user = await requireRole("ADMIN");
   const legalProfile = await getStudioLegalProfile();
   const project = await prisma.project.findUnique({
@@ -259,12 +266,14 @@ export async function createProposal(projectId: string) {
   });
   if (!project) return notFound("Projeto");
 
-  const existing = await prisma.proposal.findFirst({
-    where: { projectId },
-    orderBy: { createdAt: "desc" },
-    include: { versions: { orderBy: { version: "desc" }, take: 1 } },
-  });
-  if (existing) return existing;
+  if (!options?.forceNew && !options?.templateKey) {
+    const existing = await prisma.proposal.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+      include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+    });
+    if (existing) return existing;
+  }
 
   const commercialInput = buildProjectCommercialInput({
     client: {
@@ -298,12 +307,50 @@ export async function createProposal(projectId: string) {
     environmentCount,
   });
 
-  const areaNum = Number(String(commercialInput.project.area ?? "").replace(",", ".").replace(/[^\d.]/g, "")) || 180;
+  const { extractBriefingScopeContext, SCOPE_TEMPLATES } = await import("@/lib/scope-templates");
+  const briefingCtx = extractBriefingScopeContext({
+    projectType: project.type,
+    projectScope: project.scope,
+    projectDescription: project.description,
+    clientPhone: project.client.phone,
+    clientCity: project.client.city,
+    briefingResponses: options?.useBriefing !== false ? project.briefing?.responses : null,
+  });
+
+  const activeTemplate =
+    options?.templateKey && SCOPE_TEMPLATES[options.templateKey]
+      ? SCOPE_TEMPLATES[options.templateKey]
+      : null;
+
+  const areaNum =
+    Number(String(commercialInput.project.area ?? "").replace(",", ".").replace(/[^\d.]/g, "")) ||
+    briefingCtx.areaM2 ||
+    180;
   const editorial = buildDefaultEditorialData({
     areaM2: areaNum,
     technicalLead: `${legalProfile.studioName} | ${legalProfile.technicalLeadName}`,
-    projectType: project.type ?? undefined,
+    projectType: activeTemplate?.label ?? project.type ?? undefined,
   });
+
+  const seededServices = activeTemplate
+    ? activeTemplate.defaultLines.map((line) => {
+        const qty = line.unit === "m²" ? areaNum : 1;
+        const unitPrice = line.ratePerM2 ?? line.fixedPrice ?? 0;
+        const subtotalLine = Math.round(qty * unitPrice * 100) / 100;
+        return {
+          serviceId: "",
+          name: line.name,
+          discipline: line.discipline,
+          unit: line.unit,
+          quantity: qty,
+          unitPrice,
+          total: subtotalLine,
+          optional: false,
+          notes: options?.useBriefing !== false && briefingCtx.hasBriefing ? `Extraído do Briefing (${areaNum} m²)` : "",
+        };
+      })
+    : [];
+  const seededTotal = seededServices.reduce((s, l) => s + l.total, 0);
 
   const now = new Date();
   const proposal = await prisma.$transaction(async (tx) => {
@@ -315,28 +362,37 @@ export async function createProposal(projectId: string) {
         versions: {
           create: {
             version: 1,
-            title: `Proposta comercial — ${project.name}`,
+            title: activeTemplate
+              ? `Proposta ${activeTemplate.label.split("(")[0].trim()} — ${project.name}`
+              : `Proposta comercial — ${project.name}`,
             presentation: json({
-              slides: [{ type: "cover", title: project.name, body: commercialInput.project.description ?? null }],
+              slides: [{ type: "cover", title: project.name, body: activeTemplate?.objectSummary ?? commercialInput.project.description ?? null }],
               suggestions,
               portfolioOverrides: {},
             }),
             formalText: json({
-              object: `Prestação de serviços de projeto — ${project.name}`,
+              object: activeTemplate
+                ? `${activeTemplate.objectSummary} — ${project.name} (${areaNum} m², ${briefingCtx.cityState}).`
+                : `Prestação de serviços de projeto — ${project.name}`,
               validityDays: legalProfile.proposalValidityDays || DEFAULT_VALIDITY_DAYS,
               conditions: commercialInput.project.restrictions.length
                 ? `Condições consideradas: ${commercialInput.project.restrictions.join("; ")}`
                 : legalProfile.refundPolicyText || null,
-              premisses: commercialInput.project.requirements,
-              included: legalProfile.defaultProposalScope || null,
+              premisses:
+                briefingCtx.programSummary && options?.useBriefing !== false
+                  ? [...commercialInput.project.requirements, `Programa (Briefing): ${briefingCtx.programSummary}`]
+                  : commercialInput.project.requirements,
+              included: activeTemplate
+                ? activeTemplate.includedItems.map((it) => `• ${it}`).join("\n")
+                : legalProfile.defaultProposalScope || null,
               excluded: null,
-              schedule: null,
+              schedule: activeTemplate ? `Prazo estimado: ${activeTemplate.defaultBusinessDays} dias úteis.` : null,
               observations: commercialInput.project.notes,
               editorial,
             }),
-            services: json([]),
-            subtotal: 0,
-            total: 0,
+            services: json(seededServices),
+            subtotal: seededTotal,
+            total: seededTotal,
             authorId: user.id,
           },
         },

@@ -12,8 +12,11 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapFullscreenShell } from "@/components/admin/eap/eap-fullscreen-shell";
-import { EapTeamsAndPackagesManager } from "@/components/admin/eap/eap-teams-and-packages-manager";
 import { useHistoryStack } from "@/lib/history-stack";
+import {
+  DATA_ORIGIN_META,
+  normalizeDataOrigin,
+} from "@/lib/eap-preliminary-13m";
 import {
   applyCommercialUnitPrice,
   createDuplicateItemPayload,
@@ -63,7 +66,15 @@ interface CatalogMaterialOption {
   thirdPartyUnitCost: number;
 }
 
-type QuickFilter = "ALL" | "WITH_QTY" | "NO_PRICE" | "SANITY" | "MODIFIED";
+type QuickFilter =
+  | "ALL"
+  | "WITH_QTY"
+  | "NO_PRICE"
+  | "SANITY"
+  | "MODIFIED"
+  | "PRELIMINAR_PADRAO"
+  | "QUANTITATIVO_IMPORTADO"
+  | "EDITADO_USUARIO";
 type SpreadsheetDensity = "COMPACTO" | "PADRAO" | "CONFORTAVEL";
 
 const DENSITY_INPUT_HEIGHT: Record<SpreadsheetDensity, string> = {
@@ -392,6 +403,17 @@ export function EapConferenceWorkbench({
       if (filter === "NO_PRICE") return item.totalQtyWithLoss > 0 && item.unitDirectCost <= 0;
       if (filter === "SANITY") return Boolean(item.sanityFlag);
       if (filter === "MODIFIED") return item.revisionTag !== "ORIGINAL";
+      if (
+        filter === "PRELIMINAR_PADRAO" ||
+        filter === "QUANTITATIVO_IMPORTADO" ||
+        filter === "EDITADO_USUARIO"
+      ) {
+        const origin = normalizeDataOrigin(item.dataOrigin, {
+          sourceSoftware: item.sourceSoftware,
+          revisionTag: item.revisionTag,
+        });
+        return origin === filter;
+      }
       return true;
     },
     [search, filter]
@@ -709,10 +731,12 @@ export function EapConferenceWorkbench({
             items: g.items.map((it) => {
               if (it.id !== itemId) return it;
               const nextIt = updater(it);
-              if (nextIt.revisionTag === "ORIGINAL") {
-                return { ...nextIt, revisionTag: "EDITADO_MANUAL" };
-              }
-              return nextIt;
+              return {
+                ...nextIt,
+                dataOrigin: "EDITADO_USUARIO",
+                revisionTag:
+                  nextIt.revisionTag === "ORIGINAL" ? "EDITADO_MANUAL" : nextIt.revisionTag,
+              };
             }),
           })),
         })),
@@ -1307,11 +1331,18 @@ export function EapConferenceWorkbench({
                         const rIdx = rowIndexByItemId.get(item.id) ?? 0;
                         const isDirty = dirtyIds.includes(item.id);
                         const colOffsetDetailed = viewMode === "DETAILED" ? 6 : 0;
+                        const itemOrigin = normalizeDataOrigin(item.dataOrigin, {
+                          sourceSoftware: item.sourceSoftware,
+                          revisionTag: item.revisionTag,
+                        });
+                        const originMeta = DATA_ORIGIN_META[itemOrigin];
                         const rowBgClass = item.sanityFlag
                           ? "bg-rose-50 dark:bg-rose-950/30"
                           : isDirty
-                            ? "bg-amber-50 dark:bg-amber-950/20"
-                            : "bg-white dark:bg-[#16161D]";
+                            ? "bg-amber-100/70 dark:bg-amber-950/35"
+                            : itemOrigin === "PRELIMINAR_PADRAO"
+                              ? "bg-amber-50/70 dark:bg-amber-950/25"
+                              : "bg-white dark:bg-[#16161D]";
 
                         return (
                           <tr
@@ -1359,7 +1390,11 @@ export function EapConferenceWorkbench({
                                   displayValue={item.description}
                                   editValue={item.description}
                                   align="left"
-                                  className={`${cellDensityClass} font-medium text-slate-900 dark:text-zinc-100`}
+                                  className={`${cellDensityClass} font-medium ${
+                                    itemOrigin === "PRELIMINAR_PADRAO"
+                                      ? "text-amber-950/90 italic dark:text-amber-100/90"
+                                      : "text-slate-900 dark:text-zinc-100"
+                                  }`}
                                   registerRef={registerCellRef}
                                   onNavigate={navigateCell}
                                   onCommit={(raw) => {
@@ -1371,20 +1406,33 @@ export function EapConferenceWorkbench({
                                     }));
                                   }}
                                 />
-                                {item.sourceSoftware !== "TEMPLATE" && (
+                                <span
+                                  title={originMeta.tooltip}
+                                  className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
+                                    itemOrigin === "PRELIMINAR_PADRAO"
+                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300"
+                                      : itemOrigin === "QUANTITATIVO_IMPORTADO"
+                                        ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-300"
+                                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300"
+                                  }`}
+                                >
                                   <span
-                                    title={`Origem: ${item.sourceSoftware}${item.sourcePage ? ` p.${item.sourcePage}` : ""}`}
+                                    className={`h-1.5 w-1.5 rounded-full ${
+                                      itemOrigin === "PRELIMINAR_PADRAO"
+                                        ? "bg-amber-500"
+                                        : itemOrigin === "QUANTITATIVO_IMPORTADO"
+                                          ? "bg-indigo-500"
+                                          : "bg-emerald-500"
+                                    }`}
+                                  />
+                                  {originMeta.shortBadge}
+                                </span>
+                                {item.sourceSoftware !== "TEMPLATE" && item.sourceSoftware !== "MANUAL" && (
+                                  <span
+                                    title={`Software: ${item.sourceSoftware}${item.sourcePage ? ` p.${item.sourcePage}` : ""}`}
                                     className="shrink-0 rounded bg-slate-100 px-1 py-0.5 font-mono text-[9px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-300"
                                   >
                                     {item.sourceSoftware}
-                                  </span>
-                                )}
-                                {item.revisionTag !== "ORIGINAL" && (
-                                  <span
-                                    title={`Status: ${item.revisionTag}`}
-                                    className="shrink-0 rounded bg-blue-100 px-1 py-0.5 font-mono text-[9px] font-semibold text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
-                                  >
-                                    EDIT
                                   </span>
                                 )}
                                 {item.sanityFlag && (
@@ -1782,10 +1830,11 @@ export function EapConferenceWorkbench({
             {(
               [
                 { id: "ALL", label: "Todos" },
-                { id: "WITH_QTY", label: "Com Qtd" },
+                { id: "PRELIMINAR_PADRAO", label: "Somente Preliminares (a revisar)" },
+                { id: "QUANTITATIVO_IMPORTADO", label: "Quantitativos" },
+                { id: "EDITADO_USUARIO", label: "Editados" },
                 { id: "NO_PRICE", label: `Sem Preço (${tree.conferenceGate.summary.itemsWithoutPriceCount})` },
                 { id: "SANITY", label: `Alertas (${tree.conferenceGate.summary.sanityAlertsCount})` },
-                { id: "MODIFIED", label: "Editados" },
               ] as const
             ).map((chip) => (
               <button
@@ -1800,6 +1849,42 @@ export function EapConferenceWorkbench({
                 {chip.label}
               </button>
             ))}
+            {(() => {
+              let prelim = 0;
+              let imported = 0;
+              let edited = 0;
+              for (const st of tree.stages) {
+                for (const g of st.groups) {
+                  for (const it of g.items) {
+                    const org = normalizeDataOrigin(it.dataOrigin, {
+                      sourceSoftware: it.sourceSoftware,
+                      revisionTag: it.revisionTag,
+                    });
+                    if (org === "PRELIMINAR_PADRAO") prelim += 1;
+                    else if (org === "QUANTITATIVO_IMPORTADO") imported += 1;
+                    else edited += 1;
+                  }
+                }
+              }
+              return (
+                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-300">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-amber-500" />
+                    <strong>{prelim}</strong> preliminares
+                  </span>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                    <strong>{imported}</strong> quantitativos
+                  </span>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <strong>{edited}</strong> editados
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -1875,11 +1960,39 @@ export function EapConferenceWorkbench({
             {densityControls}
             {saveButton}
 
-            <EapTeamsAndPackagesManager
-              projectId={projectId}
-              stages={tree.stages.map((st) => ({ code: st.code, name: st.name }))}
-              onLaborSynced={() => void loadTree()}
-            />
+            <button
+              type="button"
+              onClick={async () => {
+                setSavingId("prelim13m");
+                try {
+                  const res = await fetch(`/api/eap/projects/${projectId}/preliminary-fill`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ overwritePreliminary: false }),
+                  });
+                  const json = await res.json();
+                  if (res.ok && json.ok) {
+                    setFeedback({
+                      type: "success",
+                      text: `Preenchimento preliminar (13 meses): ${json.filledEapItemsCount} item(ns) estimados e ${json.lobAllocationsCount} célula(s) LOB geradas.`,
+                    });
+                    await loadTree();
+                  } else {
+                    setFeedback({
+                      type: "error",
+                      text: json.error || "Erro ao aplicar preenchimento preliminar.",
+                    });
+                  }
+                } finally {
+                  setSavingId(null);
+                }
+              }}
+              disabled={savingId === "prelim13m"}
+              title="Preenche lacunas vazias com estimativa paramétrica para 13 meses (não altera itens já editados ou minerados)"
+              className="inline-flex h-8 items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-2.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/70"
+            >
+              {savingId === "prelim13m" ? "Preenchendo..." : "⚡ Preencher Preliminar (13 Meses)"}
+            </button>
 
             <button
               type="button"

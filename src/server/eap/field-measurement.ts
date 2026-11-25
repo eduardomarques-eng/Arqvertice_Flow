@@ -3,6 +3,11 @@ import { computeEapLine, round2 } from "@/server/eap/calculator";
 import { normalizeZoneQuantities } from "@/server/eap/workbench";
 import { DEFAULT_LOB_FLOORS, type LobFloorDefinition } from "@/lib/eap-lob-grid";
 import { PdfWriter } from "@/lib/pdf/pdf-writer";
+import {
+  drawPdfBrandedHeader,
+  drawPdfHorizontalBarChart,
+  drawPdfKpiCardsRow,
+} from "@/lib/pdf/pdf-charts";
 import { DomainError } from "@/server/errors";
 
 export const WEATHER_CONDITIONS = [
@@ -786,56 +791,68 @@ export function renderFieldMeasurementBulletinPdf(input: {
   floorSummaries: FieldMeasurementFloorSummary[];
   items: FieldMeasurementServiceRow[];
 }): Uint8Array {
-  const pdf = new PdfWriter({
-    title: `Boletim de Medicao ${input.bulletinCode} - ${input.projectName}`,
-    author: "ArqVertice OS",
-    subject: `Medicao de Obra ${input.bulletinCode}`,
-  });
-
-  pdf.rect(0, 0, pdf.width, 114, { fill: "0.09 0.09 0.11" });
-  pdf.drawText("ARQVERTICE OS — MEDICAO NO CANTEIRO", pdf.margin, 38, {
-    size: 9.5,
-    bold: true,
-    color: "0.93 0.90 0.85",
-  });
-  pdf.drawText(`BOLETIM DE MEDICAO ${input.bulletinCode}`, pdf.margin, 64, {
-    size: 16,
-    bold: true,
-    color: "1 1 1",
-  });
-  pdf.drawText(
-    `${input.projectName} · Data: ${input.referenceDate} · Status: ${input.status}`,
-    pdf.margin,
-    88,
-    { size: 10, color: "0.85 0.87 0.90" }
+  const pdf = new PdfWriter(
+    {
+      title: `Boletim de Medicao ${input.bulletinCode} - ${input.projectName}`,
+      author: "ArqVertice OS",
+      subject: `Medicao de Obra ${input.bulletinCode}`,
+    },
+    { margin: 28 }
   );
 
-  pdf.y = 128;
+  drawPdfBrandedHeader(pdf, {
+    eyebrow: "ArqVertice OS · Medicao no Canteiro",
+    title: `BOLETIM DE MEDICAO ${input.bulletinCode}`,
+    subtitle: `${input.projectName} · Data: ${input.referenceDate} · Status: ${input.status}`,
+    metaLine: `Inspetor: ${input.inspectorName || "Equipe Tecnica"} · Clima: ${input.weatherCondition || "SOL"} · Desvio: ${input.summary.deviationPct >= 0 ? "+" : ""}${input.summary.deviationPct.toFixed(1)} p.p.`,
+    accentHex: "#059669",
+  });
 
-  pdf.heading("1. Dados da Medicao & Indicadores Gerais");
-  pdf.keyValueGrid(
-    [
-      { label: "Boletim", value: input.bulletinCode },
-      { label: "Inspetor / Resp.", value: input.inspectorName || "Equipe Tecnica" },
-      { label: "Condicao Climatica", value: input.weatherCondition || "SOL" },
-      { label: "Avanco Realizado", value: `${input.summary.physicalProgressPct.toFixed(1)}%` },
-      { label: "Previsto LOB", value: `${input.summary.plannedLobPct.toFixed(1)}%` },
-      {
-        label: "Desvio Fisico",
-        value: `${input.summary.deviationPct >= 0 ? "+" : ""}${input.summary.deviationPct.toFixed(1)} p.p.`,
-      },
-      { label: "Medido no Periodo", value: fmtBRLPdf(input.summary.totalMeasuredValue) },
-      { label: "Saldo Pendente", value: fmtBRLPdf(input.summary.totalPendingValue) },
-    ],
-    { columns: 2 }
-  );
+  drawPdfKpiCardsRow(pdf, [
+    {
+      label: "Avanco Realizado",
+      value: `${input.summary.physicalProgressPct.toFixed(1)}%`,
+      sub: `Previsto LOB: ${input.summary.plannedLobPct.toFixed(1)}%`,
+      accentHex: "#059669",
+      bgHex: "#ECFDF5",
+    },
+    {
+      label: "Desvio Fisico",
+      value: `${input.summary.deviationPct >= 0 ? "+" : ""}${input.summary.deviationPct.toFixed(1)} p.p.`,
+      sub: input.summary.deviationPct >= 0 ? "Adiantado / No prazo" : "Atencao / Recuperar",
+      accentHex: input.summary.deviationPct >= 0 ? "#2563EB" : "#D97706",
+      bgHex: input.summary.deviationPct >= 0 ? "#EFF6FF" : "#FFFBEB",
+    },
+    {
+      label: "Medido no Periodo",
+      value: fmtBRLPdf(input.summary.totalMeasuredValue),
+      sub: `Boletim ${input.bulletinCode}`,
+      accentHex: "#4F46E5",
+      bgHex: "#EEF2FF",
+    },
+    {
+      label: "Saldo Pendente",
+      value: fmtBRLPdf(input.summary.totalPendingValue),
+      sub: "A executar na obra",
+      accentHex: "#D97706",
+      bgHex: "#FFFBEB",
+    },
+  ]);
 
   if (input.generalNotes) {
     pdf.paragraph(`Observacoes de Canteiro: ${input.generalNotes}`);
   }
 
-  pdf.y += 6;
-  pdf.heading("2. Resumo por Pavimento (Feito x Pendente)");
+  pdf.heading("2. Evolucao por Pavimento (Feito x Pendente)");
+  drawPdfHorizontalBarChart(pdf, {
+    title: "Avanco Fisico por Pavimento (%)",
+    items: input.floorSummaries.map((f) => ({
+      label: f.floorName,
+      value: Math.max(0, Math.min(100, f.progressPct)),
+      formattedValue: `${f.progressPct.toFixed(1)}%`,
+      colorHex: f.progressPct >= 80 ? "#059669" : f.progressPct >= 40 ? "#2563EB" : "#D97706",
+    })),
+  });
   pdf.table({
     columns: [
       { title: "Pavimento", weight: 2.2 },
