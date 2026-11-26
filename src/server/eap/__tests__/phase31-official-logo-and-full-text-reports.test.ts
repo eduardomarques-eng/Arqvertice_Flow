@@ -15,7 +15,7 @@ describe("Phase 31 — Logo Oficial da Pasta nos PDFs & Cronograma sem Abreviaç
     expect(logo).not.toBeNull();
     expect(logo!.width).toBeGreaterThan(0);
     expect(logo!.height).toBeGreaterThan(0);
-    expect(logo!.rgbFlate.length).toBeGreaterThan(100);
+    expect(logo!.rgbFlate?.length).toBeGreaterThan(100);
 
     const pdf = new PdfWriter({
       title: "Teste Logo Oficial",

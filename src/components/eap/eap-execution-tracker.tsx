@@ -14,6 +14,8 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EapMeasurementChartsPanel } from "@/components/admin/eap/eap-measurement-charts-panel";
+import type { FieldMeasurementChartData } from "@/lib/eap-measurement-charts";
 import type {
   ExecutionDashboardPayload,
   StageTrafficLight,
@@ -48,6 +50,8 @@ export function EapExecutionTracker({
   onMutated?: () => void;
 }) {
   const [dashboard, setDashboard] = useState<ExecutionDashboardPayload | null>(null);
+  const [measurementChartData, setMeasurementChartData] =
+    useState<FieldMeasurementChartData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(
@@ -75,14 +79,23 @@ export function EapExecutionTracker({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/eap/projects/${projectId}/execution`, {
-        cache: "no-store",
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) {
+      const [execRes, measRes] = await Promise.all([
+        fetch(`/api/eap/projects/${projectId}/execution`, { cache: "no-store" }),
+        fetch(`/api/eap/projects/${projectId}/measurements`, { cache: "no-store" }).catch(
+          () => null
+        ),
+      ]);
+      const json = await execRes.json();
+      if (!execRes.ok || !json.ok) {
         setError(json.error || "Não foi possível carregar o controle de execução.");
         setDashboard(null);
         return;
+      }
+      if (measRes && measRes.ok) {
+        const measJson = await measRes.json().catch(() => null);
+        if (measJson?.ok && measJson?.chartData) {
+          setMeasurementChartData(measJson.chartData as FieldMeasurementChartData);
+        }
       }
       const data = json.dashboard as ExecutionDashboardPayload;
       setDashboard(data);
@@ -357,6 +370,16 @@ export function EapExecutionTracker({
           </p>
         </Card>
       </div>
+
+      {/* Painel Gráfico Executivo da Medição de Campo (Expandido no Boletim de Evolução) */}
+      {measurementChartData && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
+            Painel Gráfico de Evolução no Canteiro
+          </h4>
+          <EapMeasurementChartsPanel chartData={measurementChartData} />
+        </div>
+      )}
 
       {/* Curva S Dupla + Avanço por Zona */}
       <div className="grid gap-6 lg:grid-cols-3">

@@ -572,24 +572,33 @@ export class PdfWriter {
 
     for (const { name, image } of this.images) {
       const imgObjId = nextImgObjId++;
-      let smaskRef = "";
-      let smaskObj: string | null = null;
-      if (image.alphaFlate) {
-        const smaskId = nextImgObjId++;
-        smaskRef = ` /SMask ${smaskId} 0 R`;
-        const alphaStr = image.alphaFlate.toString("latin1");
-        smaskObj =
+      if (image.jpegBytes) {
+        const jpgStr = image.jpegBytes.toString("latin1");
+        const imgObj =
           `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
-          `/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${alphaStr.length} >>\n` +
-          `stream\n${alphaStr}\nendstream`;
+          `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpgStr.length} >>\n` +
+          `stream\n${jpgStr}\nendstream`;
+        imageObjEntries.push(imgObj);
+      } else if (image.rgbFlate) {
+        let smaskRef = "";
+        let smaskObj: string | null = null;
+        if (image.alphaFlate) {
+          const smaskId = nextImgObjId++;
+          smaskRef = ` /SMask ${smaskId} 0 R`;
+          const alphaStr = image.alphaFlate.toString("latin1");
+          smaskObj =
+            `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
+            `/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${alphaStr.length} >>\n` +
+            `stream\n${alphaStr}\nendstream`;
+        }
+        const rgbStr = image.rgbFlate.toString("latin1");
+        const imgObj =
+          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
+          `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode${smaskRef} /Length ${rgbStr.length} >>\n` +
+          `stream\n${rgbStr}\nendstream`;
+        imageObjEntries.push(imgObj);
+        if (smaskObj) imageObjEntries.push(smaskObj);
       }
-      const rgbStr = image.rgbFlate.toString("latin1");
-      const imgObj =
-        `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
-        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode${smaskRef} /Length ${rgbStr.length} >>\n` +
-        `stream\n${rgbStr}\nendstream`;
-      imageObjEntries.push(imgObj);
-      if (smaskObj) imageObjEntries.push(smaskObj);
       xObjectRefs.push(`/${name} ${imgObjId} 0 R`);
     }
 

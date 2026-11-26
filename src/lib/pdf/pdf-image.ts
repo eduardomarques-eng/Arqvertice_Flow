@@ -5,8 +5,9 @@ import zlib from "node:zlib";
 export interface PdfEmbeddedImage {
   width: number;
   height: number;
-  rgbFlate: Buffer;
+  rgbFlate?: Buffer;
   alphaFlate?: Buffer;
+  jpegBytes?: Buffer;
 }
 
 let cachedOfficialLogo: PdfEmbeddedImage | null | undefined;
@@ -135,6 +136,71 @@ export function decodePngToPdfImage(
     rgbFlate: zlib.deflateSync(rgb),
     alphaFlate: alpha ? zlib.deflateSync(alpha) : undefined,
   };
+}
+
+/**
+ * Extrai dimensões de um JPEG (SOF0/SOF1/SOF2) para embutimento nativo em PDF via `/DCTDecode`.
+ */
+export function decodeJpegToPdfImage(jpegBytes: Buffer): PdfEmbeddedImage | null {
+  if (jpegBytes.length < 4) return null;
+  if (jpegBytes[0] !== 0xff || jpegBytes[1] !== 0xd8) return null;
+
+  let offset = 2;
+  while (offset + 4 <= jpegBytes.length) {
+    if (jpegBytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = jpegBytes[offset + 1];
+    // Skip padding 0xFF
+    if (marker === 0xff) {
+      offset += 1;
+      continue;
+    }
+    // Standalone markers (RST, SOI, EOI, TEM)
+    if (marker === 0x00 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+      offset += 2;
+      continue;
+    }
+    if (offset + 4 > jpegBytes.length) break;
+    const segmentLen = jpegBytes.readUInt16BE(offset + 2);
+    if (segmentLen < 2) break;
+
+    // SOF0 (0xC0), SOF1 (0xC1), SOF2 (0xC2)
+    if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+      if (offset + 9 <= jpegBytes.length) {
+        const height = jpegBytes.readUInt16BE(offset + 5);
+        const width = jpegBytes.readUInt16BE(offset + 7);
+        if (width > 0 && height > 0) {
+          return { width, height, jpegBytes };
+        }
+      }
+      return null;
+    }
+    offset += 2 + segmentLen;
+  }
+
+  return null;
+}
+
+/**
+ * Converte automaticamente buffer JPEG ou PNG em `PdfEmbeddedImage` pronto para o `PdfWriter`.
+ */
+export function decodeImageBufferToPdfImage(
+  bytes: Buffer,
+  mimeType?: string
+): PdfEmbeddedImage | null {
+  if (!bytes || bytes.length < 4) return null;
+  const isJpegSig = bytes[0] === 0xff && bytes[1] === 0xd8;
+  const isPngSig = bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a";
+  if (isJpegSig || mimeType?.toLowerCase().includes("jpeg") || mimeType?.toLowerCase().includes("jpg")) {
+    const jpeg = decodeJpegToPdfImage(bytes);
+    if (jpeg) return jpeg;
+  }
+  if (isPngSig || mimeType?.toLowerCase().includes("png")) {
+    return decodePngToPdfImage(bytes, 480);
+  }
+  return null;
 }
 
 export function getOfficialArqVerticeLogoForPdf(): PdfEmbeddedImage | null {

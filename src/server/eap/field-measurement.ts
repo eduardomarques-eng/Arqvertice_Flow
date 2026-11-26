@@ -3,12 +3,23 @@ import { computeEapLine, round2 } from "@/server/eap/calculator";
 import { normalizeZoneQuantities } from "@/server/eap/workbench";
 import { DEFAULT_LOB_FLOORS, type LobFloorDefinition } from "@/lib/eap-lob-grid";
 import { PdfWriter } from "@/lib/pdf/pdf-writer";
+import { decodeImageBufferToPdfImage } from "@/lib/pdf/pdf-image";
 import {
   drawPdfBrandedHeader,
+  drawPdfDonutChart,
+  drawPdfGroupedBarChart,
   drawPdfHorizontalBarChart,
   drawPdfKpiCardsRow,
+  drawPdfStackedDistributionBar,
 } from "@/lib/pdf/pdf-charts";
+import { getStoredObject } from "@/server/storage";
+import {
+  buildFieldMeasurementChartData,
+  type FieldMeasurementChartData,
+} from "@/lib/eap-measurement-charts";
 import { DomainError } from "@/server/errors";
+
+export { buildFieldMeasurementChartData, type FieldMeasurementChartData };
 
 export const WEATHER_CONDITIONS = [
   "SOL",
@@ -84,6 +95,25 @@ export interface FieldMeasurementBulletinSummary {
   entriesCount: number;
 }
 
+export interface MeasurementEvidenceDTO {
+  id: string;
+  eapProjectId: string;
+  bulletinId: string | null;
+  rowKey: string;
+  floorId: string;
+  floorName: string;
+  eapItemId: string | null;
+  serviceLabel: string;
+  mediaType: "IMAGE" | "VIDEO";
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storageKey: string;
+  durationSec: number | null;
+  capturedAt: string;
+  url: string;
+}
+
 export interface FieldMeasurementSnapshot {
   projectId: string;
   eapProjectId: string;
@@ -107,6 +137,51 @@ export interface FieldMeasurementSnapshot {
   floorSummaries: FieldMeasurementFloorSummary[];
   items: FieldMeasurementServiceRow[];
   bulletins: FieldMeasurementBulletinSummary[];
+  evidences: MeasurementEvidenceDTO[];
+  chartData: FieldMeasurementChartData;
+}
+
+export function toEvidenceDto(
+  projectId: string,
+  row: {
+    id: string;
+    eapProjectId: string;
+    bulletinId: string | null;
+    rowKey: string;
+    floorId: string;
+    floorName: string;
+    eapItemId: string | null;
+    serviceLabel: string;
+    mediaType: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    storageKey: string;
+    durationSec: number | null;
+    capturedAt: Date | string;
+  }
+): MeasurementEvidenceDTO {
+  return {
+    id: row.id,
+    eapProjectId: row.eapProjectId,
+    bulletinId: row.bulletinId,
+    rowKey: row.rowKey,
+    floorId: row.floorId,
+    floorName: row.floorName,
+    eapItemId: row.eapItemId,
+    serviceLabel: row.serviceLabel,
+    mediaType: row.mediaType === "VIDEO" ? "VIDEO" : "IMAGE",
+    fileName: row.fileName,
+    mimeType: row.mimeType,
+    sizeBytes: row.sizeBytes,
+    storageKey: row.storageKey,
+    durationSec: row.durationSec,
+    capturedAt:
+      row.capturedAt instanceof Date
+        ? row.capturedAt.toISOString()
+        : String(row.capturedAt),
+    url: `/api/eap/projects/${projectId}/measurements/evidence/${row.id}`,
+  };
 }
 
 export function formatBulletinCode(num: number): string {
@@ -557,11 +632,46 @@ export async function buildFieldMeasurementSnapshot(
           : 0,
     }));
 
+  // Previsto LOB por pavimento até refIso
+  const plannedLobPctByFloor: Record<string, number> = {};
+  for (const f of floors) {
+    const fTotal = eap.lobFloorAllocations.filter((a) => a.floorId === f.floorId).length;
+    const fDue = eap.lobFloorAllocations.filter(
+      (a) => a.floorId === f.floorId && a.dateIso <= refIso
+    ).length;
+    if (fTotal > 0) {
+      plannedLobPctByFloor[f.floorId] = Math.min(100, round2((fDue / fTotal) * 100));
+    }
+  }
+
+  const evidenceRows = prisma.eapMeasurementEvidence?.findMany
+    ? await prisma.eapMeasurementEvidence
+        .findMany({
+          where: { eapProjectId: eap.id },
+          orderBy: { capturedAt: "desc" },
+        })
+        .catch(() => [])
+    : [];
+  const evidences = evidenceRows.map((ev) => toEvidenceDto(eap.projectId, ev));
+
   const maxBulletinNumber = eap.fieldMeasurementBulletins.reduce(
     (max, b) => Math.max(max, b.bulletinNumber),
     0
   );
   const nextBulletinNumber = latestDraft ? latestDraft.bulletinNumber : maxBulletinNumber + 1;
+
+  const summary = {
+    ...weighted,
+    completedItemsCount: items.filter((i) => i.status === "CONCLUIDO").length,
+    totalItemsCount: items.length,
+  };
+
+  const chartData = buildFieldMeasurementChartData({
+    summary,
+    floorSummaries,
+    items,
+    plannedLobPctByFloor,
+  });
 
   return {
     projectId: eap.projectId,
@@ -572,11 +682,7 @@ export async function buildFieldMeasurementSnapshot(
     nextBulletinCode: formatBulletinCode(nextBulletinNumber),
     isParametricFallback,
     floors,
-    summary: {
-      ...weighted,
-      completedItemsCount: items.filter((i) => i.status === "CONCLUIDO").length,
-      totalItemsCount: items.length,
-    },
+    summary,
     floorSummaries,
     items,
     bulletins: eap.fieldMeasurementBulletins.map((b) => ({
@@ -592,6 +698,8 @@ export async function buildFieldMeasurementSnapshot(
       physicalProgressPct: b.physicalProgressPct,
       entriesCount: b.entries.length,
     })),
+    evidences,
+    chartData,
   };
 }
 
@@ -779,6 +887,10 @@ function fmtBRLPdf(v: number): string {
   return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+export interface PdfBulletinEvidenceInput extends MeasurementEvidenceDTO {
+  imageBytes?: Buffer | null;
+}
+
 export function renderFieldMeasurementBulletinPdf(input: {
   projectName: string;
   bulletinCode: string;
@@ -790,6 +902,8 @@ export function renderFieldMeasurementBulletinPdf(input: {
   summary: FieldMeasurementSnapshot["summary"];
   floorSummaries: FieldMeasurementFloorSummary[];
   items: FieldMeasurementServiceRow[];
+  evidences?: PdfBulletinEvidenceInput[];
+  plannedLobPctByFloor?: Record<string, number>;
 }): Uint8Array {
   const pdf = new PdfWriter(
     {
@@ -804,7 +918,7 @@ export function renderFieldMeasurementBulletinPdf(input: {
     eyebrow: "ArqVertice OS · Medicao no Canteiro",
     title: `BOLETIM DE MEDICAO ${input.bulletinCode}`,
     subtitle: `${input.projectName} · Data: ${input.referenceDate} · Status: ${input.status}`,
-    metaLine: `Inspetor: ${input.inspectorName || "Equipe Tecnica"} · Clima: ${input.weatherCondition || "SOL"} · Desvio: ${input.summary.deviationPct >= 0 ? "+" : ""}${input.summary.deviationPct.toFixed(1)} p.p.`,
+    metaLine: `Inspetor: ${input.inspectorName || "Equipe Tecnica"} · Clima: ${input.weatherCondition || "SOL"} · Desvio Fisico: ${input.summary.deviationPct >= 0 ? "+" : ""}${input.summary.deviationPct.toFixed(1)} pontos percentuais`,
     accentHex: "#059669",
   });
 
@@ -812,7 +926,7 @@ export function renderFieldMeasurementBulletinPdf(input: {
     {
       label: "Avanco Realizado",
       value: `${input.summary.physicalProgressPct.toFixed(1)}%`,
-      sub: `Previsto LOB: ${input.summary.plannedLobPct.toFixed(1)}%`,
+      sub: `Previsto Linha de Balanco: ${input.summary.plannedLobPct.toFixed(1)}%`,
       accentHex: "#059669",
       bgHex: "#ECFDF5",
     },
@@ -843,23 +957,71 @@ export function renderFieldMeasurementBulletinPdf(input: {
     pdf.paragraph(`Observacoes de Canteiro: ${input.generalNotes}`);
   }
 
-  pdf.heading("2. Evolucao por Pavimento (Feito x Pendente)");
-  drawPdfHorizontalBarChart(pdf, {
-    title: "Avanco Fisico por Pavimento (%)",
-    items: input.floorSummaries.map((f) => ({
-      label: f.floorName,
-      value: Math.max(0, Math.min(100, f.progressPct)),
-      formattedValue: `${f.progressPct.toFixed(1)}%`,
-      colorHex: f.progressPct >= 80 ? "#059669" : f.progressPct >= 40 ? "#2563EB" : "#D97706",
+  const chartData = buildFieldMeasurementChartData({
+    summary: input.summary,
+    floorSummaries: input.floorSummaries,
+    items: input.items,
+    plannedLobPctByFloor: input.plannedLobPctByFloor,
+  });
+
+  pdf.ensure(90);
+  pdf.heading("1. Painel Grafico de Evolucao e Composicao Financeira");
+
+  if (chartData.floorComparison.length > 0) {
+    drawPdfGroupedBarChart(pdf, {
+      title: "Avanco Fisico por Pavimento (Previsto Linha de Balanco % x Realizado no Canteiro %)",
+      seriesA: { label: "Previsto Linha de Balanco", colorHex: "#64748B" },
+      seriesB: { label: "Realizado no Canteiro", colorHex: "#059669" },
+      items: chartData.floorComparison.map((fc) => ({
+        label: fc.floorName,
+        valueA: fc.plannedPct,
+        valueB: fc.realizedPct,
+        formattedA: `${fc.plannedPct.toFixed(1)}%`,
+        formattedB: `${fc.realizedPct.toFixed(1)}%`,
+      })),
+    });
+  }
+
+  drawPdfStackedDistributionBar(pdf, {
+    title: "Composicao Financeira Acumulada da Obra",
+    segments: chartData.financialComposition.slices.map((s) => ({
+      label: s.label,
+      value: s.value,
+      colorHex: s.colorHex,
     })),
   });
+
+  drawPdfDonutChart(pdf, {
+    title: "Distribuicao Financeira (Anterior x Boletim Atual x Saldo a Executar)",
+    centerLabel: fmtBRLPdf(chartData.financialComposition.totalPlanned),
+    centerSubLabel: "Total Previsto",
+    segments: chartData.financialComposition.slices.map((s) => ({
+      label: s.label,
+      value: s.value,
+      formattedValue: fmtBRLPdf(s.value),
+      colorHex: s.colorHex,
+    })),
+  });
+
+  drawPdfHorizontalBarChart(pdf, {
+    title: "Status dos Servicos em Campo",
+    items: chartData.serviceStatusDistribution.map((st) => ({
+      label: st.label,
+      value: st.count,
+      formattedValue: `${st.count} servico(s)`,
+      colorHex: st.colorHex,
+    })),
+  });
+
+  pdf.ensure(75);
+  pdf.heading("2. Resumo por Pavimento");
   pdf.table({
     columns: [
       { title: "Pavimento", weight: 2.2 },
-      { title: "Itens", weight: 0.9 },
-      { title: "Avanco", weight: 1.5 },
+      { title: "Servicos", weight: 0.9 },
+      { title: "Avanco Realizado", weight: 1.5 },
       { title: "Acumulado R$", weight: 1.4 },
-      { title: "Saldo Pend. R$", weight: 1.4 },
+      { title: "Saldo Pendente R$", weight: 1.4 },
     ],
     rows: input.floorSummaries.map((f) => [
       f.floorName,
@@ -873,30 +1035,135 @@ export function renderFieldMeasurementBulletinPdf(input: {
   });
 
   pdf.y += 10;
-  pdf.heading("3. Detalhamento de Servicos (Feito x Pendente)");
+  pdf.ensure(75);
+  pdf.heading("3. Detalhamento de Servicos Medidos");
   pdf.table({
     size: 7.5,
     padding: 3.5,
     columns: [
       { title: "Pavimento", weight: 1.3 },
-      { title: "Servico", weight: 2.8 },
-      { title: "Prev.", weight: 0.9 },
-      { title: "Feito", weight: 0.9 },
-      { title: "Pend.", weight: 0.9 },
-      { title: "Medido R$", weight: 1.2 },
+      { title: "Servico", weight: 2.5 },
+      { title: "Previsto", weight: 0.95 },
+      { title: "Anterior", weight: 0.85 },
+      { title: "Atual", weight: 0.85 },
+      { title: "Saldo Pendente", weight: 0.95 },
+      { title: "Valor Medido R$", weight: 1.2 },
     ],
     rows: input.items.slice(0, 80).map((it) => [
-      `${it.floorName}${it.packageNumber ? ` (${it.teamCode || ""}${it.packageNumber})` : ""}`,
+      `${it.floorName}${it.packageNumber ? ` (Pacote ${it.packageNumber})` : ""}`,
       it.serviceLabel,
       `${it.plannedQty.toFixed(2)} ${it.unit}`,
-      `${it.accumulatedQty.toFixed(2)}`,
-      `${it.pendingQty.toFixed(2)}`,
+      `${it.previousExecutedQty.toFixed(2)}`,
+      `${it.currentExecutedQty.toFixed(2)}`,
+      `${it.pendingQty.toFixed(2)} ${it.unit}`,
       fmtBRLPdf(it.measuredAmount),
     ]),
   });
 
+  const evidences = input.evidences ?? [];
+  if (evidences.length > 0) {
+    pdf.y += 10;
+    pdf.ensure(90);
+    pdf.heading("4. Registro Fotografico e Evidencias de Campo");
+
+    const photoEvidences = evidences.filter(
+      (ev) => ev.mediaType === "IMAGE" && ev.imageBytes && ev.imageBytes.length > 0
+    );
+    const videoEvidences = evidences.filter((ev) => ev.mediaType === "VIDEO");
+
+    if (photoEvidences.length > 0) {
+      const colGap = 12;
+      const cardW = (pdf.contentWidth - colGap) / 2;
+      const imgH = 118;
+      const cardH = imgH + 34;
+
+      const maxPhotos = photoEvidences.slice(0, 12);
+      for (let i = 0; i < maxPhotos.length; i += 2) {
+        pdf.ensure(cardH + 8);
+        const rowY = pdf.y;
+
+        for (let col = 0; col < 2; col++) {
+          const ev = maxPhotos[i + col];
+          if (!ev || !ev.imageBytes) continue;
+          const x = pdf.margin + col * (cardW + colGap);
+          const embedded = decodeImageBufferToPdfImage(ev.imageBytes, ev.mimeType);
+
+          pdf.rect(x, rowY, cardW, cardH, {
+            fill: "#F8FAFC",
+            stroke: "#CBD5E1",
+            lineWidth: 0.6,
+          });
+          if (embedded) {
+            pdf.drawEmbeddedImage(embedded, x + 6, rowY + 6, cardW - 12, imgH);
+          } else {
+            pdf.drawText("Imagem anexada no portal", x + cardW / 2, rowY + imgH / 2, {
+              size: 8,
+              align: "center",
+              color: "#64748B",
+            });
+          }
+
+          pdf.drawText(ev.serviceLabel, x + 8, rowY + imgH + 17, {
+            size: 7.5,
+            bold: true,
+            color: "#0F172A",
+          });
+          pdf.drawText(
+            `${ev.floorName} · ${ev.capturedAt.slice(0, 10)}`,
+            x + 8,
+            rowY + imgH + 28,
+            { size: 6.8, color: "#475569" }
+          );
+        }
+
+        pdf.y = rowY + cardH + 8;
+      }
+    }
+
+    if (videoEvidences.length > 0) {
+      pdf.ensure(40);
+      pdf.paragraph(
+        `Videos anexados no portal da obra (${videoEvidences.length}): ${videoEvidences
+          .map(
+            (v) =>
+              `${v.serviceLabel} — ${v.fileName}${v.durationSec ? ` (${v.durationSec.toFixed(0)}s)` : ""}`
+          )
+          .join("; ")}`
+      );
+    }
+  }
+
   pdf.stampFooters(`ArqVertice OS · Boletim ${input.bulletinCode}`);
   return pdf.build();
+}
+
+async function resolveProjectEvidencesForPdf(
+  projectId: string,
+  eapProjectId: string
+): Promise<PdfBulletinEvidenceInput[]> {
+  if (!prisma.eapMeasurementEvidence?.findMany) return [];
+  const rows = await prisma.eapMeasurementEvidence
+    .findMany({
+      where: { eapProjectId },
+      orderBy: { capturedAt: "desc" },
+      take: 24,
+    })
+    .catch(() => []);
+
+  const result: PdfBulletinEvidenceInput[] = [];
+  for (const row of rows) {
+    const dto = toEvidenceDto(projectId, row);
+    let imageBytes: Buffer | null = null;
+    if (dto.mediaType === "IMAGE") {
+      if (row.dataBase64) {
+        imageBytes = Buffer.from(row.dataBase64, "base64");
+      } else if (!row.storageKey.startsWith("db://")) {
+        imageBytes = await getStoredObject(row.storageKey).catch(() => null);
+      }
+    }
+    result.push({ ...dto, imageBytes });
+  }
+  return result;
 }
 
 export async function generateAutomaticMeasurementBulletinPdf(
@@ -909,6 +1176,11 @@ export async function generateAutomaticMeasurementBulletinPdf(
 } | null> {
   const snapshot = await buildFieldMeasurementSnapshot(projectId);
   if (!snapshot) return null;
+
+  const pdfEvidences = await resolveProjectEvidencesForPdf(
+    projectId,
+    snapshot.eapProjectId
+  );
 
   if (bulletinId) {
     const bulletin = await prisma.eapFieldMeasurementBulletin.findFirst({
@@ -964,6 +1236,7 @@ export async function generateAutomaticMeasurementBulletinPdf(
       },
       floorSummaries: snapshot.floorSummaries,
       items: entryRows,
+      evidences: pdfEvidences,
     });
 
     return { pdfBytes, bulletinCode: code, projectName: snapshot.projectName };
@@ -982,6 +1255,7 @@ export async function generateAutomaticMeasurementBulletinPdf(
     summary: snapshot.summary,
     floorSummaries: snapshot.floorSummaries,
     items: snapshot.items,
+    evidences: pdfEvidences,
   });
 
   return { pdfBytes, bulletinCode: code, projectName: snapshot.projectName };

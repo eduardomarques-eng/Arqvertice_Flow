@@ -1,13 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EapMeasurementChartsPanel } from "@/components/admin/eap/eap-measurement-charts-panel";
+import { buildFieldMeasurementChartData } from "@/lib/eap-measurement-charts";
+import {
+  compressImageFileForField,
+  readVideoDurationSeconds,
+} from "@/lib/media-compress";
 import type {
   FieldMeasurementBulletinSummary,
   FieldMeasurementFloorSummary,
   FieldMeasurementServiceRow,
   FieldMeasurementSnapshot,
+  MeasurementEvidenceDTO,
 } from "@/server/eap/field-measurement";
 
 interface EapFieldMeasurementProps {
@@ -59,6 +67,17 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
   const [weatherCondition, setWeatherCondition] = useState<string>("SOL");
   const [generalNotes, setGeneralNotes] = useState("");
 
+  const [evidences, setEvidences] = useState<MeasurementEvidenceDTO[]>([]);
+  const [uploadingRowKey, setUploadingRowKey] = useState<string | null>(null);
+  const [showChartsPanel, setShowChartsPanel] = useState(true);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewBulletinTarget, setPreviewBulletinTarget] = useState<{
+    id: string;
+    code: string;
+  } | null>(null);
+  const [lightboxEvidence, setLightboxEvidence] =
+    useState<MeasurementEvidenceDTO | null>(null);
+
   const loadSnapshot = useCallback(async () => {
     setLoading(true);
     try {
@@ -69,6 +88,7 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
       if (res.ok && json.ok) {
         setSnapshot(json);
         setRows(json.items ?? []);
+        setEvidences(json.evidences ?? []);
         const draft = (json.bulletins as FieldMeasurementBulletinSummary[] | undefined)?.find(
           (b) => b.status === "RASCUNHO"
         );
@@ -270,6 +290,118 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
     });
   }, [rows, selectedFloor, statusFilter, searchQuery]);
 
+  async function handleUploadEvidence(
+    row: FieldMeasurementServiceRow,
+    fileList: FileList | null
+  ) {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    setUploadingRowKey(row.rowKey);
+    setFeedback(null);
+
+    try {
+      const activeDraft = snapshot?.bulletins.find((b) => b.status === "RASCUNHO");
+      for (const rawFile of files) {
+        const isVideo = rawFile.type.startsWith("video/");
+        let preparedFile = rawFile;
+        let durationSec: number | null = null;
+
+        if (rawFile.type.startsWith("image/")) {
+          preparedFile = await compressImageFileForField(rawFile, 1280, 0.78);
+        } else if (isVideo) {
+          if (rawFile.size > 25 * 1024 * 1024) {
+            setFeedback({
+              type: "error",
+              text: `O vídeo "${rawFile.name}" excede 25 MB. Grave um trecho mais curto.`,
+            });
+            continue;
+          }
+          durationSec = await readVideoDurationSeconds(rawFile);
+        }
+
+        const fd = new FormData();
+        fd.append("file", preparedFile);
+        fd.append("rowKey", row.rowKey);
+        fd.append("floorId", row.floorId);
+        fd.append("floorName", row.floorName);
+        fd.append("serviceLabel", row.serviceLabel);
+        if (row.eapItemId) fd.append("eapItemId", row.eapItemId);
+        if (activeDraft?.id) fd.append("bulletinId", activeDraft.id);
+        if (durationSec !== null) fd.append("durationSec", String(durationSec));
+
+        const res = await fetch(
+          `/api/eap/projects/${projectId}/measurements/evidence`,
+          { method: "POST", body: fd }
+        );
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+          setFeedback({
+            type: "error",
+            text: json.error || "Não foi possível anexar a evidência.",
+          });
+          continue;
+        }
+        setEvidences((prev) => [json.evidence as MeasurementEvidenceDTO, ...prev]);
+        setFeedback({
+          type: "success",
+          text: `${isVideo ? "Vídeo" : "Foto"} anexado em "${row.serviceLabel}".`,
+        });
+      }
+    } catch {
+      setFeedback({ type: "error", text: "Erro de conexão ao enviar mídia." });
+    } finally {
+      setUploadingRowKey(null);
+    }
+  }
+
+  async function handleDeleteEvidence(evidenceId: string) {
+    setFeedback(null);
+    try {
+      const res = await fetch(
+        `/api/eap/projects/${projectId}/measurements/evidence/${evidenceId}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        setEvidences((prev) => prev.filter((e) => e.id !== evidenceId));
+        if (lightboxEvidence?.id === evidenceId) setLightboxEvidence(null);
+      }
+    } catch {
+      setFeedback({ type: "error", text: "Erro ao remover evidência." });
+    }
+  }
+
+  const evidencesByRowKey = useMemo(() => {
+    const map = new Map<string, MeasurementEvidenceDTO[]>();
+    for (const ev of evidences) {
+      const list = map.get(ev.rowKey) ?? [];
+      list.push(ev);
+      map.set(ev.rowKey, list);
+    }
+    return map;
+  }, [evidences]);
+
+  const liveChartData = useMemo(
+    () =>
+      buildFieldMeasurementChartData({
+        summary: {
+          totalPlannedValue: liveSummary.totalPlannedValue,
+          totalAccumulatedValue: liveSummary.totalAccumulatedValue,
+          totalMeasuredValue: liveSummary.totalMeasuredValue,
+          totalPendingValue: liveSummary.totalPendingValue,
+          plannedLobPct: liveSummary.plannedLobPct,
+        },
+        floorSummaries: liveFloorSummaries,
+        items: rows,
+        plannedLobPctByFloor: snapshot?.chartData?.floorComparison.reduce<
+          Record<string, number>
+        >((acc, fc) => {
+          acc[fc.floorId] = fc.plannedPct;
+          return acc;
+        }, {}),
+      }),
+    [liveSummary, liveFloorSummaries, rows, snapshot?.chartData?.floorComparison]
+  );
+
   async function handleSaveBulletin(targetStatus: "RASCUNHO" | "APROVADO") {
     if (rows.length === 0) {
       setFeedback({
@@ -442,6 +574,16 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
             </button>
             <button
               type="button"
+              onClick={() => {
+                setPreviewBulletinTarget({ id: latestBulletinId, code: nextCode });
+                setShowPreviewModal(true);
+              }}
+              className="h-9 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 cursor-pointer dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-200"
+            >
+              👁 Pré-visualizar Boletim
+            </button>
+            <button
+              type="button"
               onClick={() => void handleSaveBulletin("APROVADO")}
               disabled={saving}
               className="h-9 rounded-xl bg-emerald-600 px-3.5 text-xs font-semibold text-white shadow-[0_2px_10px_-2px_rgba(5,150,105,0.28)] transition-all duration-150 active:scale-[0.985] hover:bg-emerald-700 cursor-pointer"
@@ -500,6 +642,32 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
             }`}
           >
             {feedback.text}
+          </div>
+        )}
+      </Card>
+
+      {/* Painel Gráfico de Evolução (Colapsável) */}
+      <Card className="rounded-3xl border border-zinc-200/80 bg-white/95 p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/95">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+              Painel Gráfico de Evolução
+            </h4>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              Avanço por pavimento, composição financeira e distribuição dos serviços ({evidences.length} evidência(s) capturada(s)).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowChartsPanel((v) => !v)}
+            className="h-8 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          >
+            {showChartsPanel ? "Recolher Gráficos ▴" : "Exibir Gráficos ▾"}
+          </button>
+        </div>
+        {showChartsPanel && (
+          <div className="mt-4">
+            <EapMeasurementChartsPanel chartData={liveChartData} compact />
           </div>
         )}
       </Card>
@@ -564,118 +732,227 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
         <div className="grid gap-3 md:grid-cols-2">
           {filteredRows.map((row) => {
             const stBadge = STATUS_BADGE[row.status] ?? STATUS_BADGE.PENDENTE;
+            const rowEvidences = evidencesByRowKey.get(row.rowKey) ?? [];
+            const photoCount = rowEvidences.filter((e) => e.mediaType === "IMAGE").length;
+            const videoCount = rowEvidences.filter((e) => e.mediaType === "VIDEO").length;
+            const isUploading = uploadingRowKey === row.rowKey;
+
             return (
               <Card
                 key={row.rowKey}
-                className="rounded-2xl border border-slate-200/90 bg-white/95 p-3.5 shadow-xs space-y-3 dark:border-zinc-800 dark:bg-[#171720]"
+                className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-xs space-y-3.5 dark:border-zinc-800 dark:bg-[#171720]"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-bold text-slate-950 dark:text-zinc-100">
+                {/* ZONA 1 — TOPO: Código/Nome + Badges + % e Valor Medido */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold leading-snug text-slate-950 dark:text-zinc-100">
                       {row.serviceLabel}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <Badge tone="neutral">{row.floorName}</Badge>
                       {row.packageNumber && (
                         <Badge tone="blue">
-                          {row.teamCode || "Eq."}
-                          {row.packageNumber}
+                          {row.teamCode ? `Equipe ${row.teamCode} · ` : ""}Pacote {row.packageNumber}
                         </Badge>
                       )}
                       <Badge tone={stBadge.tone}>{stBadge.label}</Badge>
                     </div>
                   </div>
-                  <div className="text-right font-mono">
-                    <div className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                  <div className="shrink-0 text-right font-mono">
+                    <div className="text-base font-extrabold text-emerald-700 dark:text-emerald-400">
                       {row.accumulatedPct.toFixed(0)}%
                     </div>
-                    <div className="text-[10px] text-slate-500 dark:text-zinc-400">
+                    <div className="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
                       {fmtBRL(row.measuredAmount)}
                     </div>
                   </div>
                 </div>
 
-                {/* Barra de Progresso Feito vs Pendente */}
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-amber-100 dark:bg-zinc-800">
-                  <div
-                    style={{ width: `${Math.min(100, row.accumulatedPct)}%` }}
-                    className="h-full rounded-full bg-emerald-600 transition-all"
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 text-[11px]">
-                  <div>
-                    <span className="block text-[10px] text-zinc-600 dark:text-zinc-300">
-                      Previsto ({row.unit})
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={row.plannedQty}
-                      onChange={(e) =>
-                        updateRowPlannedQty(row.rowKey, Number(e.target.value) || 0.01)
-                      }
-                      aria-label={`Quantidade prevista ${row.serviceLabel}`}
-                      className="mt-0.5 h-7 w-full rounded-lg border border-zinc-300 bg-white px-1.5 font-mono text-[11px] font-semibold tabular-nums text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                {/* ZONA 2 — MEIO: Barra de Progresso + Grid Uniforme de 4 Colunas */}
+                <div className="space-y-2.5">
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-amber-100 dark:bg-zinc-800">
+                    <div
+                      style={{ width: `${Math.min(100, row.accumulatedPct)}%` }}
+                      className="h-full rounded-full bg-emerald-600 transition-all"
                     />
                   </div>
-                  <div>
-                    <span className="block text-[10px] text-slate-500 dark:text-zinc-400">
-                      Anterior
-                    </span>
-                    <strong className="font-mono text-slate-700 dark:text-zinc-300">
-                      {row.previousExecutedQty.toFixed(2)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="block text-[10px] text-slate-500 dark:text-zinc-400">
-                      Atual (Campo)
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={row.currentExecutedQty}
-                      onChange={(e) =>
-                        updateRowCurrentQty(row.rowKey, Math.max(0, Number(e.target.value) || 0))
-                      }
-                      className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 font-mono text-xs font-bold text-slate-950 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] text-slate-500 dark:text-zinc-400">
-                      Pendente
-                    </span>
-                    <strong className="font-mono text-amber-700 dark:text-amber-300">
-                      {row.pendingQty.toFixed(2)} {row.unit}
-                    </strong>
+
+                  <div className="grid grid-cols-2 gap-2.5 text-[11px] sm:grid-cols-4">
+                    <div>
+                      <span className="block text-[10px] font-medium text-zinc-600 dark:text-zinc-300">
+                        Previsto ({row.unit})
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={row.plannedQty}
+                        onChange={(e) =>
+                          updateRowPlannedQty(row.rowKey, Number(e.target.value) || 0.01)
+                        }
+                        aria-label={`Quantidade prevista ${row.serviceLabel}`}
+                        className="mt-1 h-10 w-full rounded-xl border border-zinc-300 bg-white px-2.5 font-mono text-xs font-semibold tabular-nums text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-medium text-slate-500 dark:text-zinc-400">
+                        Anterior
+                      </span>
+                      <div className="mt-1 flex h-10 items-center rounded-xl border border-slate-200/80 bg-slate-50/70 px-2.5 font-mono text-xs font-bold text-slate-700 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+                        {row.previousExecutedQty.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-semibold text-blue-700 dark:text-amber-300">
+                        Atual (Campo)
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={row.currentExecutedQty}
+                        onChange={(e) =>
+                          updateRowCurrentQty(row.rowKey, Math.max(0, Number(e.target.value) || 0))
+                        }
+                        aria-label={`Quantidade atual em campo ${row.serviceLabel}`}
+                        className="mt-1 h-10 w-full rounded-xl border-2 border-slate-300 bg-white px-2.5 font-mono text-sm font-bold text-slate-950 focus:border-blue-600 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-amber-400"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-medium text-slate-500 dark:text-zinc-400">
+                        Saldo Pendente
+                      </span>
+                      <div className="mt-1 flex h-10 items-center rounded-xl border border-amber-200/80 bg-amber-50/60 px-2.5 font-mono text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                        {row.pendingQty.toFixed(2)} {row.unit}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Atalhos Rápidos Touch */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => applyQuickPercent(row, 25)}
-                    className="h-8 rounded-lg border border-slate-300 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-                  >
-                    +25%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyQuickPercent(row, 50)}
-                    className="h-8 rounded-lg border border-slate-300 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-                  >
-                    +50%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyQuickPercent(row, 100)}
-                    className="h-8 rounded-lg bg-emerald-600/15 px-2.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-600/25 cursor-pointer dark:text-emerald-300"
-                  >
-                    ✓ 100% Concluído
-                  </button>
+                {/* ZONA 3 — RODAPÉ: Atalhos Rápidos + Evidências (Foto, Vídeo, Galeria) & Miniaturas */}
+                <div className="space-y-2.5 border-t border-slate-100 pt-2.5 dark:border-zinc-800/80">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => applyQuickPercent(row, 25)}
+                        className="h-8 rounded-lg border border-slate-300 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                      >
+                        +25%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyQuickPercent(row, 50)}
+                        className="h-8 rounded-lg border border-slate-300 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                      >
+                        +50%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyQuickPercent(row, 100)}
+                        className="h-8 rounded-lg bg-emerald-600/15 px-2.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-600/25 cursor-pointer dark:text-emerald-300"
+                      >
+                        ✓ 100% Concluído
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <label className="inline-flex h-8 items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 cursor-pointer dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-200">
+                        <span>📷 Foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          disabled={isUploading}
+                          onChange={(e) => {
+                            void handleUploadEvidence(row, e.target.files);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      <label className="inline-flex h-8 items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 text-[11px] font-semibold text-purple-800 hover:bg-purple-100 cursor-pointer dark:border-purple-800/60 dark:bg-purple-950/40 dark:text-purple-200">
+                        <span>🎥 Vídeo</span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          capture="environment"
+                          className="hidden"
+                          disabled={isUploading}
+                          onChange={(e) => {
+                            void handleUploadEvidence(row, e.target.files);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      <label className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                        <span>📎 Galeria</span>
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          multiple
+                          className="hidden"
+                          disabled={isUploading}
+                          onChange={(e) => {
+                            void handleUploadEvidence(row, e.target.files);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {isUploading && (
+                    <p className="text-[11px] font-medium text-blue-700 dark:text-blue-300">
+                      Comprimindo e enviando evidência para o boletim...
+                    </p>
+                  )}
+
+                  {rowEvidences.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
+                        {photoCount} foto(s) · {videoCount} vídeo(s) anexado(s)
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {rowEvidences.map((ev) => (
+                          <div
+                            key={ev.id}
+                            className="group relative h-14 w-14 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setLightboxEvidence(ev)}
+                              className="h-full w-full cursor-pointer"
+                              title={`Abrir ${ev.mediaType === "VIDEO" ? "vídeo" : "foto"}: ${ev.fileName}`}
+                            >
+                              {ev.mediaType === "IMAGE" ? (
+                                <img
+                                  src={ev.url}
+                                  alt={ev.fileName}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-900 text-white">
+                                  <span className="text-sm">▶</span>
+                                  <span className="text-[9px] font-mono">
+                                    {ev.durationSec ? `${Math.round(ev.durationSec)}s` : "VÍDEO"}
+                                  </span>
+                                </div>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteEvidence(ev.id)}
+                              title="Remover evidência"
+                              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white opacity-90 hover:bg-rose-700 cursor-pointer"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             );
@@ -705,19 +982,319 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
                     {fmtBRL(b.totalMeasuredValue)}
                   </span>
                 </div>
-                <a
-                  href={`/api/eap/projects/${projectId}/measurements/${b.id}/pdf`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] font-semibold text-indigo-700 hover:underline dark:text-indigo-400"
-                >
-                  📄 Abrir PDF ({b.bulletinCode})
-                </a>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewBulletinTarget({ id: b.id, code: b.bulletinCode });
+                      setShowPreviewModal(true);
+                    }}
+                    className="text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer dark:text-blue-400"
+                  >
+                    👁 Pré-visualizar ({b.bulletinCode})
+                  </button>
+                  <a
+                    href={`/api/eap/projects/${projectId}/measurements/${b.id}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-semibold text-indigo-700 hover:underline dark:text-indigo-400"
+                  >
+                    📄 Abrir PDF ({b.bulletinCode})
+                  </a>
+                </div>
               </div>
             ))}
           </div>
         </Card>
       )}
+
+      {/* MODAL LIGHTBOX / PLAYER PARA FOTO E VÍDEO */}
+      {lightboxEvidence &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            onClick={() => setLightboxEvidence(null)}
+          >
+            <div
+              className="relative flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-zinc-950 text-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold">{lightboxEvidence.serviceLabel}</p>
+                  <p className="text-[11px] text-zinc-400">
+                    {lightboxEvidence.floorName} · {lightboxEvidence.fileName}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLightboxEvidence(null)}
+                  className="h-8 rounded-xl bg-white/10 px-3 text-xs font-semibold hover:bg-white/20 cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+              <div className="flex flex-1 items-center justify-center overflow-auto bg-black p-4">
+                {lightboxEvidence.mediaType === "IMAGE" ? (
+                  <img
+                    src={lightboxEvidence.url}
+                    alt={lightboxEvidence.fileName}
+                    className="max-h-[72dvh] max-w-full rounded-xl object-contain"
+                  />
+                ) : (
+                  <video
+                    src={lightboxEvidence.url}
+                    controls
+                    playsInline
+                    autoPlay
+                    className="max-h-[72dvh] max-w-full rounded-xl"
+                  />
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* MODAL DE PRÉ-VISUALIZAÇÃO DO BOLETIM ANTES DE EXPORTAR EM PDF */}
+      {showPreviewModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pré-visualização do Boletim de Medição"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-6"
+          >
+            <div className="flex h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+              {/* Cabeçalho Fixo do Modal */}
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3.5 dark:border-zinc-800">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                    Pré-visualização Fiel do Boletim ({previewBulletinTarget?.code ?? nextCode})
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    Confira os gráficos, serviços medidos e registro fotográfico antes de baixar o PDF final.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  className="h-8 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:text-zinc-300"
+                >
+                  × Fechar
+                </button>
+              </div>
+
+              {/* Corpo Rolável Simulando Folha A4 */}
+              <div className="flex-1 overflow-y-auto bg-slate-100/80 p-4 sm:p-6 dark:bg-zinc-900/60">
+                <div className="mx-auto max-w-4xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                  {/* Cabeçalho Institucional com Logo Oficial */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-zinc-800">
+                    <div className="flex items-center gap-3.5">
+                      <img
+                        src="/logo.png"
+                        alt="ArqVértice Studio"
+                        className="h-14 w-14 shrink-0 rounded-xl border border-slate-200 bg-white object-contain p-1 dark:border-zinc-700"
+                      />
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+                          ArqVértice OS · Boletim de Medição de Obra
+                        </p>
+                        <h4 className="text-base font-extrabold text-slate-950 dark:text-zinc-50">
+                          {snapshot?.projectName || "Obra em Acompanhamento"} — {previewBulletinTarget?.code ?? nextCode}
+                        </h4>
+                        <p className="text-xs text-slate-600 dark:text-zinc-400">
+                          Vistoria: {referenceDate} · Inspetor: {inspectorName || "Equipe Técnica"} · Clima:{" "}
+                          {WEATHER_OPTIONS.find((w) => w.id === weatherCondition)?.label || weatherCondition}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* KPIs do Boletim */}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    <div className="rounded-xl border border-slate-200 bg-emerald-50/60 p-3 dark:border-zinc-800 dark:bg-emerald-950/20">
+                      <p className="text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                        Avanço Físico Realizado
+                      </p>
+                      <p className="mt-1 font-mono text-base font-bold text-emerald-700 dark:text-emerald-400">
+                        {liveSummary.physicalProgressPct.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
+                      <p className="text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                        Previsto Linha de Balanço
+                      </p>
+                      <p className="mt-1 font-mono text-base font-bold text-slate-900 dark:text-zinc-100">
+                        {liveSummary.plannedLobPct.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
+                      <p className="text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                        Desvio Físico
+                      </p>
+                      <p className="mt-1 font-mono text-base font-bold text-blue-700 dark:text-blue-400">
+                        {liveSummary.deviationPct >= 0 ? "+" : ""}
+                        {liveSummary.deviationPct.toFixed(1)} p.p.
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-blue-50/50 p-3 dark:border-zinc-800 dark:bg-blue-950/20">
+                      <p className="text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                        Total Medido no Período
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-bold text-blue-800 dark:text-blue-300">
+                        {fmtBRL(liveSummary.totalMeasuredValue)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-amber-50/50 p-3 dark:border-zinc-800 dark:bg-amber-950/20">
+                      <p className="text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                        Saldo Pendente
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-bold text-amber-800 dark:text-amber-300">
+                        {fmtBRL(liveSummary.totalPendingValue)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Gráficos Executivos */}
+                  <EapMeasurementChartsPanel chartData={liveChartData} compact />
+
+                  {/* Tabela de Serviços Medidos */}
+                  <div>
+                    <h5 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
+                      Serviços Medidos no Período ({rows.length})
+                    </h5>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-800">
+                      <table className="w-full min-w-[740px] border-collapse text-left text-[11px]">
+                        <thead className="bg-slate-900 text-white">
+                          <tr>
+                            <th className="px-2.5 py-2">Etapa / Serviço</th>
+                            <th className="px-2 py-2">Pavimento</th>
+                            <th className="px-2 py-2 text-center">Unidade</th>
+                            <th className="px-2 py-2 text-right">Previsto</th>
+                            <th className="px-2 py-2 text-right">Anterior</th>
+                            <th className="px-2 py-2 text-right">Atual</th>
+                            <th className="px-2 py-2 text-right">Acumulado %</th>
+                            <th className="px-2 py-2 text-right">Saldo Pendente</th>
+                            <th className="px-2.5 py-2 text-right">Valor Medido R$</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
+                          {rows.map((r) => (
+                            <tr key={r.rowKey}>
+                              <td className="px-2.5 py-1.5 font-medium text-slate-900 dark:text-zinc-100">
+                                {r.serviceLabel}
+                              </td>
+                              <td className="px-2 py-1.5 text-slate-600 dark:text-zinc-400">
+                                {r.floorName}
+                              </td>
+                              <td className="px-2 py-1.5 text-center">{r.unit}</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{r.plannedQty.toFixed(2)}</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{r.previousExecutedQty.toFixed(2)}</td>
+                              <td className="px-2 py-1.5 text-right font-mono font-bold text-blue-700 dark:text-blue-400">
+                                {r.currentExecutedQty.toFixed(2)}
+                              </td>
+                              <td className="px-2 py-1.5 text-right font-mono">{r.accumulatedPct.toFixed(1)}%</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{r.pendingQty.toFixed(2)}</td>
+                              <td className="px-2.5 py-1.5 text-right font-mono font-semibold">
+                                {fmtBRL(r.measuredAmount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Anexo Fotográfico de Campo */}
+                  <div>
+                    <h5 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300">
+                      Anexo Fotográfico de Campo ({evidences.filter((e) => e.mediaType === "IMAGE").length} foto(s) ·{" "}
+                      {evidences.filter((e) => e.mediaType === "VIDEO").length} vídeo(s))
+                    </h5>
+                    {evidences.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500 dark:border-zinc-800">
+                        Nenhuma foto ou vídeo anexado até o momento.
+                      </p>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {evidences.map((ev) => (
+                          <div
+                            key={ev.id}
+                            className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900"
+                          >
+                            {ev.mediaType === "IMAGE" ? (
+                              <img
+                                src={ev.url}
+                                alt={ev.serviceLabel}
+                                className="h-36 w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-36 w-full flex-col items-center justify-center bg-zinc-900 text-white">
+                                <span className="text-xl">🎥</span>
+                                <span className="mt-1 text-xs font-semibold">
+                                  Vídeo anexado no portal
+                                </span>
+                                <span className="text-[10px] text-zinc-400">
+                                  {ev.durationSec ? `${Math.round(ev.durationSec)}s` : ev.fileName}
+                                </span>
+                              </div>
+                            )}
+                            <div className="p-2.5">
+                              <p className="truncate text-[11px] font-bold text-slate-900 dark:text-zinc-100">
+                                {ev.serviceLabel}
+                              </p>
+                              <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                                {ev.floorName} · {ev.capturedAt.slice(0, 10)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rodapé Fixo com Ações */}
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  className="h-9 rounded-xl border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                >
+                  Voltar e Editar
+                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={async () => {
+                      await handleSaveBulletin("APROVADO");
+                      setShowPreviewModal(false);
+                    }}
+                    className="h-9 rounded-xl border border-emerald-600 bg-emerald-50 px-4 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer dark:border-emerald-500/60 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  >
+                    ✓ Fechar Boletim
+                  </button>
+                  <a
+                    href={`/api/eap/projects/${projectId}/measurements/${previewBulletinTarget?.id ?? latestBulletinId}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 dark:bg-amber-500 dark:text-zinc-950"
+                  >
+                    📄 Confirmar e Baixar PDF
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
