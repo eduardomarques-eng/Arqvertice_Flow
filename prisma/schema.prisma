@@ -1897,6 +1897,7 @@ model EapProject {
   builtAreaM2       Float                 @default(0)
   bdiPercent             Float                 @default(22.0)
   constructionStandard   String                @default("MEDIO_PADRAO") // BAIXO_PADRAO | MEDIO_PADRAO | ALTO_PADRAO
+  concreteMethod         String                @default("USINADO") // USINADO | IN_LOCO_BETONEIRA
   cityName               String                @default("Fortaleza")
   stateCode              String                @default("CE")
   regionalLaborFactor    Float                 @default(1.0)

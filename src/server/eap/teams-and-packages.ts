@@ -135,6 +135,160 @@ export function computeLaborUnitCostFromTeam(input: {
   return round2(Math.max(0, input.teamDailyCost) / cappedProd);
 }
 
+export function getStandardWorkTeamsForProfile(
+  standard: "BAIXO_PADRAO" | "MEDIO_PADRAO" | "ALTO_PADRAO"
+): Array<{
+  teamCode: string;
+  name: string;
+  specialty: string;
+  dailyHours: number;
+  maxSimultaneousFronts: number;
+  workers: Array<{
+    roleName: string;
+    headcount: number;
+    dailyRate: number;
+    hourlyRate: number;
+    socialChargesPct: number;
+    maxDailyOutput: number;
+  }>;
+}> {
+  const makeWorker = (
+    roleName: string,
+    dailyRate: number,
+    socialChargesPct: number,
+    maxDailyOutput = 15
+  ) => ({
+    roleName,
+    headcount: 1,
+    dailyRate,
+    hourlyRate: computeWorkerHourlyRate(dailyRate, 8),
+    socialChargesPct,
+    maxDailyOutput,
+  });
+
+  if (standard === "BAIXO_PADRAO") {
+    return [
+      {
+        teamCode: "A",
+        name: "Equipe A — Estrutura & Alvenaria",
+        specialty: "Fundação, Estrutura e Alvenaria",
+        dailyHours: 8,
+        maxSimultaneousFronts: 2,
+        workers: [
+          makeWorker("Pedreiro", 135, 10, 15),
+          makeWorker("Carpinteiro", 145, 10, 12),
+          makeWorker("Servente", 95, 10, 15),
+        ],
+      },
+      {
+        teamCode: "B",
+        name: "Equipe B — Instalações",
+        specialty: "Elétrica e Hidrossanitária",
+        dailyHours: 8,
+        maxSimultaneousFronts: 2,
+        workers: [
+          makeWorker("Eletricista", 150, 10, 20),
+          makeWorker("Encanador", 155, 10, 18),
+          makeWorker("Servente", 110, 10, 20),
+        ],
+      },
+      {
+        teamCode: "C",
+        name: "Equipe C — Acabamentos",
+        specialty: "Revestimentos, Pisos e Pintura",
+        dailyHours: 8,
+        maxSimultaneousFronts: 2,
+        workers: [
+          makeWorker("Azulejista", 145, 10, 20),
+          makeWorker("Pintor", 140, 10, 35),
+          makeWorker("Servente", 100, 10, 25),
+        ],
+      },
+    ];
+  }
+
+  if (standard === "ALTO_PADRAO") {
+    return [
+      {
+        teamCode: "A",
+        name: "Equipe A — Estrutura & Alvenaria",
+        specialty: "Fundação, Estrutura e Alvenaria",
+        dailyHours: 8,
+        maxSimultaneousFronts: 2,
+        workers: [
+          makeWorker("Pedreiro Especializado", 190, 20, 18),
+          makeWorker("Carpinteiro de Fôrma", 200, 20, 15),
+          makeWorker("Servente", 125, 20, 18),
+        ],
+      },
+      {
+        teamCode: "B",
+        name: "Equipe B — Instalações & Automação",
+        specialty: "Elétrica, Automação e Hidrossanitária",
+        dailyHours: 8,
+        maxSimultaneousFronts: 2,
+        workers: [
+          makeWorker("Eletricista / Automação", 210, 20, 22),
+          makeWorker("Encanador Especializado", 205, 20, 20),
+          makeWorker("Ajudante Técnico", 135, 20, 22),
+        ],
+      },
+      {
+        teamCode: "C",
+        name: "Equipe C — Acabamentos Finos",
+        specialty: "Grandes Formatos, Pedras e Pintura",
+        dailyHours: 8,
+        maxSimultaneousFronts: 2,
+        workers: [
+          makeWorker("Azulejista Grandes Formatos", 210, 20, 18),
+          makeWorker("Pintor Acabamento Fino", 185, 20, 32),
+          makeWorker("Servente", 125, 20, 25),
+        ],
+      },
+    ];
+  }
+
+  // MEDIO_PADRAO (Fortaleza/CE)
+  return [
+    {
+      teamCode: "A",
+      name: "Equipe A — Estrutura & Alvenaria",
+      specialty: "Fundação, Estrutura e Alvenaria",
+      dailyHours: 8,
+      maxSimultaneousFronts: 2,
+      workers: [
+        makeWorker("Pedreiro", 160, 15, 16),
+        makeWorker("Carpinteiro", 170, 15, 14),
+        makeWorker("Servente", 105, 15, 16),
+      ],
+    },
+    {
+      teamCode: "B",
+      name: "Equipe B — Instalações",
+      specialty: "Elétrica e Hidrossanitária",
+      dailyHours: 8,
+      maxSimultaneousFronts: 2,
+      workers: [
+        makeWorker("Eletricista", 185, 15, 20),
+        makeWorker("Encanador", 185, 15, 18),
+        makeWorker("Ajudante", 120, 15, 20),
+      ],
+    },
+    {
+      teamCode: "C",
+      name: "Equipe C — Acabamentos",
+      specialty: "Revestimentos, Pisos e Pintura",
+      dailyHours: 8,
+      maxSimultaneousFronts: 2,
+      workers: [
+        makeWorker("Azulejista", 180, 15, 20),
+        makeWorker("Pintor", 165, 15, 35),
+        makeWorker("Servente", 115, 15, 25),
+      ],
+    },
+  ];
+}
+
 const DEFAULT_WORK_TEAMS: Array<{
   teamCode: string;
   name: string;

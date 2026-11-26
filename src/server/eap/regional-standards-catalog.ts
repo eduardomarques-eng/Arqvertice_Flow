@@ -2,6 +2,62 @@ import { computeEapLine, round2 } from "./calculator";
 
 export type ConstructionStandard = "BAIXO_PADRAO" | "MEDIO_PADRAO" | "ALTO_PADRAO";
 
+export type ConcreteMethod = "USINADO" | "IN_LOCO_BETONEIRA";
+
+export const CONCRETE_METHOD_LABELS: Record<ConcreteMethod, string> = {
+  USINADO: "Concreto Usinado",
+  IN_LOCO_BETONEIRA: "In Loco (Betoneira 400 L)",
+};
+
+export const CONCRETE_METHOD_RATES: Record<
+  ConcreteMethod,
+  Record<ConstructionStandard, { material: number; labor: number }>
+> = {
+  USINADO: {
+    BAIXO_PADRAO: { material: 545, labor: 95 },
+    MEDIO_PADRAO: { material: 585, labor: 95 },
+    ALTO_PADRAO: { material: 635, labor: 95 },
+  },
+  IN_LOCO_BETONEIRA: {
+    BAIXO_PADRAO: { material: 410, labor: 135 },
+    MEDIO_PADRAO: { material: 435, labor: 155 },
+    ALTO_PADRAO: { material: 475, labor: 175 },
+  },
+};
+
+export function isStructuralConcreteItem(
+  stageCode: string,
+  description: string
+): boolean {
+  if (!["03", "04", "06"].includes(stageCode)) return false;
+  const d = description.toLowerCase();
+  if (!d.includes("concreto")) return false;
+  if (d.includes("aço") || d.includes("aco") || d.includes("fôrma") || d.includes("forma")) {
+    return false;
+  }
+  return true;
+}
+
+export function convertConcreteItemByMethod(input: {
+  concreteMethod: ConcreteMethod;
+  standard: ConstructionStandard;
+}): { description: string; materialUnitCost: number; laborUnitCost: number } {
+  const rates =
+    CONCRETE_METHOD_RATES[input.concreteMethod]?.[input.standard] ??
+    CONCRETE_METHOD_RATES.USINADO.MEDIO_PADRAO;
+
+  const description =
+    input.concreteMethod === "IN_LOCO_BETONEIRA"
+      ? "Concreto estrutural virado in loco c/ betoneira 400 L (C30/C35 — cimento, areia, brita e aditivo)"
+      : "Concreto estrutural usinado bombeável FCK 30/35 MPa (dosado em central c/ lançamento)";
+
+  return {
+    description,
+    materialUnitCost: rates.material,
+    laborUnitCost: rates.labor,
+  };
+}
+
 export type SensitivityTier =
   | "ESTRUTURAL_BRUTO"
   | "REVESTIMENTO_BRUTO"

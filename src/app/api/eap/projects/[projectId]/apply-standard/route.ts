@@ -9,7 +9,10 @@ import {
   uuidParamSchema,
 } from "@/server/eap/route-error";
 import {
+  convertConcreteItemByMethod,
+  isStructuralConcreteItem,
   previewMultiStandardTriage,
+  type ConcreteMethod,
   type ConstructionStandard,
   type TriagePreviewItemInput,
 } from "@/server/eap/regional-standards-catalog";
@@ -21,6 +24,8 @@ export const revalidate = 0;
 const applyStandardSchema = z.object({
   action: z.enum(["PREVIEW", "APPLY"]),
   targetStandard: z.enum(["BAIXO_PADRAO", "MEDIO_PADRAO", "ALTO_PADRAO"]),
+  concreteMethod: z.enum(["USINADO", "IN_LOCO_BETONEIRA"]).optional(),
+  updateConcreteMethodOnly: z.boolean().default(false),
   cityName: z.string().trim().min(2).max(120),
   stateCode: z.string().trim().min(2).max(2),
   regionalMaterialFactor: z.number().min(0.5).max(3.0),
@@ -49,6 +54,55 @@ export async function POST(
     }
 
     const body = applyStandardSchema.parse(await request.json());
+
+    if (body.action === "APPLY" && body.updateConcreteMethodOnly && body.concreteMethod) {
+      const eap = await prisma.eapProject.findUnique({
+        where: { projectId },
+        include: {
+          stages: {
+            include: {
+              groups: { include: { items: true } },
+            },
+          },
+        },
+      });
+      if (!eap) {
+        return jsonNoStore({ ok: false, error: "Planilha EAP não encontrada." }, 404);
+      }
+
+      const concreteMethod = body.concreteMethod as ConcreteMethod;
+      const standard = body.targetStandard as ConstructionStandard;
+      const converted = convertConcreteItemByMethod({ concreteMethod, standard });
+
+      const concreteItems = eap.stages.flatMap((st) =>
+        st.groups.flatMap((g) =>
+          g.items.filter((it) => isStructuralConcreteItem(st.code, it.description))
+        )
+      );
+
+      await prisma.$transaction([
+        prisma.eapProject.update({
+          where: { id: eap.id },
+          data: { concreteMethod },
+        }),
+        ...concreteItems.map((it) =>
+          prisma.eapItem.update({
+            where: { id: it.id },
+            data: {
+              description: converted.description,
+              materialUnitCost: converted.materialUnitCost,
+              laborUnitCost: converted.laborUnitCost,
+            },
+          })
+        ),
+      ]);
+
+      return jsonNoStore({
+        ok: true,
+        concreteMethod,
+        updatedCount: concreteItems.length,
+      });
+    }
 
     const eap = await prisma.eapProject.findUnique({
       where: { projectId },

@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  CONCRETE_METHOD_LABELS,
   CONSTRUCTION_STANDARD_LABELS,
   REGIONAL_CITY_MULTIPLIERS,
+  type ConcreteMethod,
   type ConstructionStandard,
   type TriagePreviewResult,
 } from "@/server/eap/regional-standards-catalog";
@@ -20,6 +22,7 @@ function fmtBRL(v: number): string {
 interface EapStandardTriageBarProps {
   projectId: string;
   initialStandard?: string;
+  initialConcreteMethod?: string;
   initialCityName?: string;
   initialStateCode?: string;
   initialLaborFactor?: number;
@@ -30,6 +33,7 @@ interface EapStandardTriageBarProps {
 export function EapStandardTriageBar({
   projectId,
   initialStandard = "MEDIO_PADRAO",
+  initialConcreteMethod = "USINADO",
   initialCityName = "Fortaleza",
   initialStateCode = "CE",
   initialLaborFactor = 1.0,
@@ -38,6 +42,9 @@ export function EapStandardTriageBar({
 }: EapStandardTriageBarProps) {
   const [targetStandard, setTargetStandard] = useState<ConstructionStandard>(
     (initialStandard as ConstructionStandard) || "MEDIO_PADRAO"
+  );
+  const [concreteMethod, setConcreteMethod] = useState<ConcreteMethod>(
+    (initialConcreteMethod as ConcreteMethod) || "USINADO"
   );
   const matchedInitialCity =
     REGIONAL_CITY_MULTIPLIERS.find(
@@ -165,6 +172,40 @@ export function EapStandardTriageBar({
     (s) => s.tier !== "ACABAMENTO_NOBRE"
   );
 
+  async function handleConcreteMethodToggle(nextMethod: ConcreteMethod) {
+    if (nextMethod === concreteMethod || applying) return;
+    setConcreteMethod(nextMethod);
+    setApplying(true);
+    setStatusMessage(null);
+    try {
+      const res = await fetch(`/api/eap/projects/${projectId}/apply-standard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "APPLY",
+          targetStandard,
+          concreteMethod: nextMethod,
+          updateConcreteMethodOnly: true,
+          cityName: activeCity.cityName,
+          stateCode: activeCity.stateCode,
+          regionalLaborFactor: Math.max(0.5, Math.min(3.0, (Number(laborPctInput) || 100) / 100)),
+          regionalMaterialFactor: Math.max(0.5, Math.min(3.0, (Number(materialPctInput) || 100) / 100)),
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        setStatusMessage(
+          `Concretagem alterada para ${CONCRETE_METHOD_LABELS[nextMethod]} (${json.updatedCount ?? 0} item(ns) convertidos).`
+        );
+        await onApplied();
+      } else {
+        setStatusMessage(json.error || "Erro ao converter modalidade de concretagem.");
+      }
+    } finally {
+      setApplying(false);
+    }
+  }
+
   return (
     <>
       <Card className="rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-xs dark:border-zinc-800 dark:bg-[#16161D]/95">
@@ -186,6 +227,27 @@ export function EapStandardTriageBar({
                   }`}
                 >
                   {CONSTRUCTION_STANDARD_LABELS[std]}
+                </button>
+              ))}
+            </div>
+
+            <span className="ml-1 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-300">
+              Concretagem:
+            </span>
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-900">
+              {(["USINADO", "IN_LOCO_BETONEIRA"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={applying}
+                  onClick={() => void handleConcreteMethodToggle(m)}
+                  className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold transition cursor-pointer ${
+                    concreteMethod === m
+                      ? "bg-emerald-700 text-white shadow-xs dark:bg-emerald-500 dark:text-zinc-950"
+                      : "text-slate-700 hover:text-slate-950 dark:text-zinc-300 dark:hover:text-white"
+                  }`}
+                >
+                  {m === "USINADO" ? "Usinado" : "In Loco (Betoneira)"}
                 </button>
               ))}
             </div>
