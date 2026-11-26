@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapFullscreenShell } from "@/components/admin/eap/eap-fullscreen-shell";
 import { EapStandardTriageBar } from "@/components/admin/eap/eap-standard-triage-bar";
+import { EapCoherenceAuditDrawer } from "@/components/admin/eap/eap-coherence-audit-drawer";
 import { useHistoryStack } from "@/lib/history-stack";
 import {
   DATA_ORIGIN_META,
@@ -2115,6 +2116,11 @@ export function EapConferenceWorkbench({
                   <Badge tone={tree.conferenceGate.approved ? "green" : "amber"}>
                     {tree.conferenceGate.approved ? "Conferência Homologada" : "Em Conferência"}
                   </Badge>
+                  <EapCoherenceAuditDrawer
+                    projectId={projectId}
+                    refreshKey={`${tree.currentRevision}-${ind.totalDirectCost}`}
+                    onAfterAutoFix={() => void loadTree()}
+                  />
                 </div>
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
                   {tree.cityLabel} · Área: {ind.builtAreaM2} m² · BDI: {tree.bdiPercent}% · Clique em Entrar para editar células, fórmulas e composição completa.

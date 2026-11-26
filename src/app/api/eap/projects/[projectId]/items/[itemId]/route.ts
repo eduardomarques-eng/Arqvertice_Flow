@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
 import { normalizeZoneQuantities, resolveRevisionTag } from "@/server/eap/workbench";
+import { cascadeSyncEapProject } from "@/server/eap/cascade-sync";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -89,6 +90,8 @@ export async function PATCH(
       },
     });
 
+    await cascadeSyncEapProject(projectId);
+
     return NextResponse.json({ ok: true, item: updated }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return NextResponse.json(
@@ -123,6 +126,7 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "Item da EAP não encontrado." }, { status: 404 });
     }
     await prisma.eapItem.delete({ where: { id: itemId } });
+    await cascadeSyncEapProject(projectId);
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return NextResponse.json(

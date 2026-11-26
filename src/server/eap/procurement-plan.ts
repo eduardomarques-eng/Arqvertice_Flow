@@ -475,10 +475,22 @@ export async function generateProcurementPlanForProject(projectId: string) {
     })),
   });
 
-  // Preserva itens já em cotação/comprados/entregues; substitui apenas A_COTAR sem financeiro
+  // Preserva itens já em cotação/comprados/entregues ou com fornecedor/valor fechado;
+  // substitui apenas A_COTAR em aberto sem financeiro
+  const isLockedProcurement = (i: {
+    status: string;
+    financialEntryId: string | null;
+    supplierName: string | null;
+    closedAmount: number | null;
+  }) =>
+    i.status !== "A_COTAR" ||
+    Boolean(i.financialEntryId) ||
+    Boolean(i.supplierName) ||
+    i.closedAmount !== null;
+
   const lockedKeys = new Set(
     eap.procurementItems
-      .filter((i) => i.status !== "A_COTAR" || Boolean(i.financialEntryId))
+      .filter(isLockedProcurement)
       .map((i) => `${i.stageCode || ""}::${i.itemName.toLowerCase()}`)
   );
 
@@ -487,6 +499,8 @@ export async function generateProcurementPlanForProject(projectId: string) {
       eapProjectId: eap.id,
       status: "A_COTAR",
       financialEntryId: null,
+      supplierName: null,
+      closedAmount: null,
     },
   });
 

@@ -696,3 +696,61 @@ export function previewMultiStandardTriage(input: {
     itemUpdates,
   };
 }
+
+export const REGIONAL_BENCHMARKS_FORTALEZA = {
+  sinapiDirectPerM2: 1890,
+  cubWithBdiPerM2: 2500,
+} as const;
+
+export const ROOF_PROPORTIONAL_LABOR_ANCHORS = {
+  terca: { material: 31, labor: 9 },
+  caibro: { material: 10.5, labor: 5.5 },
+  ripa: { material: 3.8, labor: 2.5 },
+  telhamento: { material: 44, labor: 20.2 },
+  targetTotalLaborPerM2Range: [45, 55] as [number, number],
+} as const;
+
+/**
+ * Calibra proporcionalmente a Mão de Obra da Etapa 06 (Coberta/Telhado) em Fortaleza/CE
+ * para evitar multiplicação cheia em cada peça linear (terça/caibro/ripa) + telhamento,
+ * fechando a carpintaria + telhamento em ~R$ 45–55/m² na projeção de telhado.
+ */
+export function calibrateRoofLaborProportional<
+  T extends { description: string; materialUnitCost: number; laborUnitCost: number }
+>(items: T[], standard: ConstructionStandard = "BAIXO_PADRAO"): T[] {
+  const stdMult =
+    standard === "ALTO_PADRAO" ? 1.15 : standard === "MEDIO_PADRAO" ? 1.06 : 1.0;
+
+  return items.map((item) => {
+    const desc = item.description.toLowerCase();
+    if (/ter[çc]a/.test(desc)) {
+      return {
+        ...item,
+        materialUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.terca.material * stdMult),
+        laborUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.terca.labor * stdMult),
+      };
+    }
+    if (/caibro/.test(desc)) {
+      return {
+        ...item,
+        materialUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.caibro.material * stdMult),
+        laborUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.caibro.labor * stdMult),
+      };
+    }
+    if (/ripa/.test(desc)) {
+      return {
+        ...item,
+        materialUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.ripa.material * stdMult),
+        laborUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.ripa.labor * stdMult),
+      };
+    }
+    if (/telha|telhamento/.test(desc)) {
+      return {
+        ...item,
+        materialUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.telhamento.material * stdMult),
+        laborUnitCost: round2(ROOF_PROPORTIONAL_LABOR_ANCHORS.telhamento.labor * stdMult),
+      };
+    }
+    return item;
+  });
+}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { requireRole } from "@/server/auth";
+import { cascadeSyncEapProject } from "@/server/eap/cascade-sync";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -84,6 +85,8 @@ export async function POST(
         });
       }
     });
+
+    await cascadeSyncEapProject(projectId);
 
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {

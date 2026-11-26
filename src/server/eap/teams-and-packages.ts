@@ -216,9 +216,9 @@ export function getStandardWorkTeamsForProfile(
         dailyHours: 8,
         maxSimultaneousFronts: 2,
         workers: [
-          makeWorker("Pedreiro Especializado", 190, 20, 18),
-          makeWorker("Carpinteiro de Fôrma", 200, 20, 15),
-          makeWorker("Servente", 125, 20, 18),
+          makeWorker("Pedreiro Especializado", 205, 20, 18),
+          makeWorker("Carpinteiro de Fôrma", 218, 20, 15),
+          makeWorker("Servente", 135, 20, 18),
         ],
       },
       {
@@ -228,9 +228,9 @@ export function getStandardWorkTeamsForProfile(
         dailyHours: 8,
         maxSimultaneousFronts: 2,
         workers: [
-          makeWorker("Eletricista / Automação", 210, 20, 22),
-          makeWorker("Encanador Especializado", 205, 20, 20),
-          makeWorker("Ajudante Técnico", 135, 20, 22),
+          makeWorker("Eletricista / Automação", 245, 20, 22),
+          makeWorker("Encanador Especializado", 242, 20, 20),
+          makeWorker("Ajudante Técnico", 155, 20, 22),
         ],
       },
       {
@@ -240,9 +240,9 @@ export function getStandardWorkTeamsForProfile(
         dailyHours: 8,
         maxSimultaneousFronts: 2,
         workers: [
-          makeWorker("Azulejista Grandes Formatos", 210, 20, 18),
-          makeWorker("Pintor Acabamento Fino", 185, 20, 32),
-          makeWorker("Servente", 125, 20, 25),
+          makeWorker("Azulejista Grandes Formatos", 226, 20, 18),
+          makeWorker("Pintor Acabamento Fino", 210, 20, 32),
+          makeWorker("Servente", 140, 20, 25),
         ],
       },
     ];
@@ -337,9 +337,12 @@ const DEFAULT_WORK_TEAMS: Array<{
 
 /**
  * Inicializa de forma idempotente e segura contra concorrência os pacotes de serviço (1..N)
- * e as 3 equipes iniciais (A, B, C) caso o projeto EAP ainda não possua registros.
+ * e as 3 equipes iniciais (A, B, C) calibradas pelo padrão construtivo do projeto.
  */
-export async function ensureDefaultTeamsAndPackages(eapProjectId: string): Promise<{
+export async function ensureDefaultTeamsAndPackages(
+  eapProjectId: string,
+  standardOverride?: "BAIXO_PADRAO" | "MEDIO_PADRAO" | "ALTO_PADRAO"
+): Promise<{
   seededPackages: number;
   seededTeams: number;
 }> {
@@ -347,10 +350,19 @@ export async function ensureDefaultTeamsAndPackages(eapProjectId: string): Promi
     // Serializa o seed inicial por EapProject para evitar P2002 em GETs paralelos
     await tx.$executeRaw`SELECT 1 FROM "EapProject" WHERE "id" = ${eapProjectId}::uuid FOR UPDATE`;
 
-    const [pkgCount, teamCount] = await Promise.all([
+    const [pkgCount, teamCount, eapMeta] = await Promise.all([
       tx.eapServicePackage.count({ where: { eapProjectId } }),
       tx.eapWorkTeam.count({ where: { eapProjectId } }),
+      tx.eapProject.findUnique({
+        where: { id: eapProjectId },
+        select: { constructionStandard: true },
+      }),
     ]);
+
+    const resolvedStd: "BAIXO_PADRAO" | "MEDIO_PADRAO" | "ALTO_PADRAO" =
+      standardOverride ??
+      ((eapMeta?.constructionStandard as "BAIXO_PADRAO" | "MEDIO_PADRAO" | "ALTO_PADRAO") ||
+        "MEDIO_PADRAO");
 
     let seededPackages = 0;
     let seededTeams = 0;
@@ -381,14 +393,15 @@ export async function ensureDefaultTeamsAndPackages(eapProjectId: string): Promi
     }
 
     if (teamCount === 0) {
-      for (const teamDef of DEFAULT_WORK_TEAMS) {
+      const stdTeams = getStandardWorkTeamsForProfile(resolvedStd);
+      for (const teamDef of stdTeams) {
         await tx.eapWorkTeam.create({
           data: {
             eapProjectId,
             teamCode: teamDef.teamCode,
             name: teamDef.name,
             specialty: teamDef.specialty,
-            maxDailyHours: teamDef.maxDailyHours,
+            maxDailyHours: teamDef.dailyHours,
             maxSimultaneousFronts: teamDef.maxSimultaneousFronts,
             isActive: true,
             workers: {
@@ -396,7 +409,7 @@ export async function ensureDefaultTeamsAndPackages(eapProjectId: string): Promi
                 roleName: w.roleName,
                 headcount: w.headcount,
                 dailyRate: w.dailyRate,
-                hourlyRate: computeWorkerHourlyRate(w.dailyRate, teamDef.maxDailyHours),
+                hourlyRate: computeWorkerHourlyRate(w.dailyRate, teamDef.dailyHours),
                 socialChargesPct: w.socialChargesPct,
                 maxDailyOutput: w.maxDailyOutput ?? null,
               })),
@@ -410,6 +423,79 @@ export async function ensureDefaultTeamsAndPackages(eapProjectId: string): Promi
 
     return { seededPackages, seededTeams };
   });
+}
+
+type PrismaTxLike = Parameters<Parameters<typeof prisma.$transaction>[0]>[0] | typeof prisma;
+
+/**
+ * Provisiona ou recalibra as Equipes A, B e C de uma obra para o padrão construtivo selecionado,
+ * sempre mantendo hourlyRate = dailyRate / dailyHours (8h).
+ */
+export async function syncWorkTeamsToStandard(
+  db: PrismaTxLike,
+  eapProjectId: string,
+  standard: "BAIXO_PADRAO" | "MEDIO_PADRAO" | "ALTO_PADRAO"
+): Promise<{ updatedTeams: number; createdTeams: number }> {
+  const profileTeams = getStandardWorkTeamsForProfile(standard);
+  let updatedTeams = 0;
+  let createdTeams = 0;
+
+  for (const def of profileTeams) {
+    const existing = await db.eapWorkTeam.findFirst({
+      where: { eapProjectId, teamCode: def.teamCode },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await db.eapWorkTeam.update({
+        where: { id: existing.id },
+        data: {
+          name: def.name,
+          specialty: def.specialty,
+          maxDailyHours: def.dailyHours,
+          maxSimultaneousFronts: def.maxSimultaneousFronts,
+          isActive: true,
+          workers: {
+            deleteMany: {},
+            create: def.workers.map((w) => ({
+              roleName: w.roleName,
+              headcount: w.headcount,
+              dailyRate: w.dailyRate,
+              hourlyRate: computeWorkerHourlyRate(w.dailyRate, def.dailyHours),
+              socialChargesPct: w.socialChargesPct,
+              maxDailyOutput: w.maxDailyOutput ?? null,
+            })),
+          },
+        },
+      });
+      updatedTeams += 1;
+    } else {
+      await db.eapWorkTeam.create({
+        data: {
+          eapProjectId,
+          teamCode: def.teamCode,
+          name: def.name,
+          specialty: def.specialty,
+          maxDailyHours: def.dailyHours,
+          maxSimultaneousFronts: def.maxSimultaneousFronts,
+          isActive: true,
+          workers: {
+            create: def.workers.map((w) => ({
+              roleName: w.roleName,
+              headcount: w.headcount,
+              dailyRate: w.dailyRate,
+              hourlyRate: computeWorkerHourlyRate(w.dailyRate, def.dailyHours),
+              socialChargesPct: w.socialChargesPct,
+              maxDailyOutput: w.maxDailyOutput ?? null,
+            })),
+          },
+        },
+      });
+      createdTeams += 1;
+    }
+  }
+
+  return { updatedTeams, createdTeams };
 }
 
 /**

@@ -17,6 +17,8 @@ import {
   type TriagePreviewItemInput,
 } from "@/server/eap/regional-standards-catalog";
 import { normalizeZoneQuantities } from "@/server/eap/workbench";
+import { syncWorkTeamsToStandard } from "@/server/eap/teams-and-packages";
+import { cascadeSyncEapProject } from "@/server/eap/cascade-sync";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -96,6 +98,8 @@ export async function POST(
           })
         ),
       ]);
+
+      await cascadeSyncEapProject(projectId);
 
       return jsonNoStore({
         ok: true,
@@ -185,7 +189,15 @@ export async function POST(
           },
         });
       }
+
+      await syncWorkTeamsToStandard(
+        tx,
+        eap.id,
+        body.targetStandard as ConstructionStandard
+      );
     });
+
+    await cascadeSyncEapProject(projectId);
 
     return jsonNoStore({
       ok: true,

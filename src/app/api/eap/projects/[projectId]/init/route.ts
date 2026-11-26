@@ -5,6 +5,15 @@ import { requireRole } from "@/server/auth";
 import { ensureBaseEapItems } from "@/server/eap/base-items";
 import { applyPreliminary13MonthFill } from "@/server/eap/preliminary-fill";
 import {
+  calibrateRoofLaborProportional,
+  convertConcreteItemByMethod,
+  isStructuralConcreteItem,
+  type ConcreteMethod,
+  type ConstructionStandard,
+} from "@/server/eap/regional-standards-catalog";
+import { ensureDefaultTeamsAndPackages } from "@/server/eap/teams-and-packages";
+import { cascadeSyncEapProject } from "@/server/eap/cascade-sync";
+import {
   DEFAULT_EAP_ZONES,
   DEFAULT_PROPOSAL_EXCLUSIONS,
   DEFAULT_PROPOSAL_PREMISES,
@@ -21,6 +30,10 @@ const initSchema = z.object({
   builtAreaM2: z.number().positive(),
   bdiPercent: z.number().min(0).max(100).default(22),
   plannedStartDate: z.string().optional().nullable(),
+  constructionStandard: z
+    .enum(["BAIXO_PADRAO", "MEDIO_PADRAO", "ALTO_PADRAO"])
+    .default("MEDIO_PADRAO"),
+  concreteMethod: z.enum(["USINADO", "IN_LOCO_BETONEIRA"]).default("USINADO"),
 });
 
 export async function POST(
@@ -60,6 +73,11 @@ export async function POST(
       : null;
 
     const eap = await prisma.$transaction(async (tx) => {
+      const cityInfo = await tx.cityCatalog.findUnique({
+        where: { id: parsed.cityId },
+        select: { name: true, state: true },
+      });
+
       const created = await tx.eapProject.create({
         data: {
           projectId,
@@ -67,6 +85,10 @@ export async function POST(
           title: parsed.title?.trim() || `EAP & Orçamento Executivo — ${project.name}`,
           builtAreaM2: parsed.builtAreaM2,
           bdiPercent: parsed.bdiPercent,
+          constructionStandard: parsed.constructionStandard,
+          concreteMethod: parsed.concreteMethod,
+          cityName: cityInfo?.name || "Fortaleza",
+          stateCode: cityInfo?.state || "CE",
           plannedStartDate: plannedDate,
           status: "RASCUNHO",
           premisesJson: DEFAULT_PROPOSAL_PREMISES,
@@ -124,6 +146,70 @@ export async function POST(
       eapProjectId: eap.created.id,
       startDate: parsed.plannedStartDate?.slice(0, 10) || undefined,
     });
+
+    await ensureDefaultTeamsAndPackages(
+      eap.created.id,
+      parsed.constructionStandard as ConstructionStandard
+    );
+
+    // Calibra concreto (Usinado vs In Loco Betoneira) e carpintaria de coberta (MO proporcional)
+    const seededStages = await prisma.eapStage.findMany({
+      where: { eapProjectId: eap.created.id, code: { in: ["03", "04", "06"] } },
+      include: { groups: { include: { items: true } } },
+    });
+
+    if (parsed.concreteMethod === "IN_LOCO_BETONEIRA") {
+      const converted = convertConcreteItemByMethod({
+        concreteMethod: parsed.concreteMethod as ConcreteMethod,
+        standard: parsed.constructionStandard as ConstructionStandard,
+      });
+      const concreteItems = seededStages.flatMap((st) =>
+        st.groups.flatMap((g) =>
+          g.items.filter((it) => isStructuralConcreteItem(st.code, it.description))
+        )
+      );
+      if (concreteItems.length > 0) {
+        await prisma.$transaction(
+          concreteItems.map((it) =>
+            prisma.eapItem.update({
+              where: { id: it.id },
+              data: {
+                description: converted.description,
+                materialUnitCost: converted.materialUnitCost,
+                laborUnitCost: converted.laborUnitCost,
+              },
+            })
+          )
+        );
+      }
+    }
+
+    const stage06 = seededStages.find((st) => st.code === "06");
+    if (stage06) {
+      const roofItems = stage06.groups.flatMap((g) => g.items);
+      const calibratedRoof = calibrateRoofLaborProportional(
+        roofItems,
+        parsed.constructionStandard as ConstructionStandard
+      );
+      for (let i = 0; i < roofItems.length; i++) {
+        const orig = roofItems[i];
+        const next = calibratedRoof[i];
+        if (
+          next.materialUnitCost !== orig.materialUnitCost ||
+          next.laborUnitCost !== orig.laborUnitCost
+        ) {
+          await prisma.eapItem.update({
+            where: { id: orig.id },
+            data: {
+              materialUnitCost: next.materialUnitCost,
+              laborUnitCost: next.laborUnitCost,
+            },
+          });
+        }
+      }
+    }
+
+    await cascadeSyncEapProject(projectId);
 
     return NextResponse.json(
       {

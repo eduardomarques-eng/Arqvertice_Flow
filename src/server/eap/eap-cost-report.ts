@@ -11,7 +11,18 @@ import {
   PDF_PALETTE,
 } from "@/lib/pdf/pdf-charts";
 import { round2 } from "./calculator";
+import { computeCanonicalEapTotals } from "./cascade-sync";
 import { buildEapTreePayload } from "./workbench";
+import {
+  CONCRETE_METHOD_LABELS,
+  CONSTRUCTION_STANDARD_LABELS,
+  type ConcreteMethod,
+  type ConstructionStandard,
+} from "./regional-standards-catalog";
+import {
+  resolveOfficialDiscipline,
+  resolveOfficialPhaseForStage,
+} from "./master-taxonomy";
 
 export type EapTreePayload = ReturnType<typeof buildEapTreePayload>;
 
@@ -104,6 +115,8 @@ export interface EapCostReportPayload {
     bdiPercent: number;
     status: string;
     revision: number;
+    constructionStandardLabel?: string;
+    concreteMethodLabel?: string;
     isParametricFallback: boolean;
   };
   kpis: {
@@ -161,25 +174,11 @@ const FLOOR_BUCKETS: Array<{ code: string; label: string }> = [
 ];
 
 export function resolveDisciplineForStageCode(stageCode: string): string {
-  const num = Number(stageCode);
-  if (num === 1 || num === 2) return "Serviços Preliminares / Gerais";
-  if (num === 3 || num === 4) return "Estrutural";
-  if (num === 8) return "Elétrico";
-  if (num === 9 || num === 10) return "Hidrossanitário";
-  if (num === 20 || num === 21) return "Luminotécnico";
-  if (num === 22 || num === 23 || num === 24) return "Paisagismo";
-  if (num >= 5 && num <= 26) return "Arquitetônico";
-  return "Complementares / Outros";
+  return resolveOfficialDiscipline(stageCode);
 }
 
 export function resolvePhaseForStageCode(stageCode: string): { code: string; name: string } {
-  const num = Number(stageCode);
-  if (num >= 1 && num <= 3) return { code: "F1", name: "Fase 1 — Implantação & Infraestrutura" };
-  if (num >= 4 && num <= 5) return { code: "F2", name: "Fase 2 — Supraestrutura & Vedação" };
-  if (num >= 6 && num <= 10) return { code: "F3", name: "Fase 3 — Cobertura & Instalações" };
-  if (num >= 11 && num <= 13) return { code: "F4", name: "Fase 4 — Revestimentos" };
-  if (num >= 14 && num <= 18) return { code: "F5", name: "Fase 5 — Acabamentos" };
-  return { code: "F6", name: "Fase 6 — Finais & Entrega" };
+  return resolveOfficialPhaseForStage(stageCode);
 }
 
 function buildParametricCostFallback(params: {
@@ -339,6 +338,13 @@ function buildParametricCostFallback(params: {
       bdiPercent: bdiPct,
       status: tree.status,
       revision: tree.currentRevision,
+      constructionStandardLabel:
+        CONSTRUCTION_STANDARD_LABELS[
+          (tree.constructionStandard as ConstructionStandard) || "MEDIO_PADRAO"
+        ] || "Médio Padrão",
+      concreteMethodLabel:
+        CONCRETE_METHOD_LABELS[(tree.concreteMethod as ConcreteMethod) || "USINADO"] ||
+        "Concreto Usinado",
       isParametricFallback: true,
     },
     kpis: {
@@ -407,16 +413,34 @@ export function buildEapCostReport(params: {
     return buildParametricCostFallback({ projectId, projectName, clientName, tree, teams });
   }
 
+  const treeStd = (tree.constructionStandard as ConstructionStandard) || "MEDIO_PADRAO";
+  const treeConcrete = (tree.concreteMethod as ConcreteMethod) || "USINADO";
+  const constructionStandardLabel =
+    CONSTRUCTION_STANDARD_LABELS[treeStd] || "Médio Padrão";
+  const concreteMethodLabel =
+    CONCRETE_METHOD_LABELS[treeConcrete] || "Concreto Usinado";
+
   const ind = tree.indicators;
-  const totalDirect = ind.totalDirectCost;
+  const canonical = computeCanonicalEapTotals({
+    items: [
+      {
+        totalMaterial: ind.totalMaterialCost,
+        totalLabor: ind.totalLaborCost,
+        totalThirdParty: ind.totalThirdPartyCost,
+      },
+    ],
+    bdiPercent: tree.bdiPercent,
+    builtAreaM2: tree.builtAreaM2,
+  });
+  const totalDirect = canonical.totalDirectCost;
   const shouldApplyProjectBdi =
     tree.bdiPercent > 0 && ind.totalCommercialPrice <= totalDirect + 0.01;
   const bdiFactor = shouldApplyProjectBdi ? 1 + tree.bdiPercent / 100 : 1;
   const bdiValue = shouldApplyProjectBdi
-    ? round2(totalDirect * (tree.bdiPercent / 100))
+    ? canonical.bdiValue
     : round2(Math.max(0, ind.totalCommercialPrice - totalDirect));
   const totalCommercial = shouldApplyProjectBdi
-    ? round2(totalDirect + bdiValue)
+    ? canonical.totalCommercialPrice
     : ind.totalCommercialPrice;
   const area = tree.builtAreaM2 > 0 ? tree.builtAreaM2 : 1;
 
@@ -652,6 +676,8 @@ export function buildEapCostReport(params: {
       bdiPercent: tree.bdiPercent,
       status: tree.status,
       revision: tree.currentRevision,
+      constructionStandardLabel,
+      concreteMethodLabel,
       isParametricFallback: false,
     },
     kpis: {
@@ -729,6 +755,8 @@ export async function loadEapCostReportFromDb(
     title: eap.title,
     builtAreaM2: eap.builtAreaM2,
     bdiPercent: eap.bdiPercent,
+    constructionStandard: eap.constructionStandard,
+    concreteMethod: eap.concreteMethod,
     plannedStartDate: eap.plannedStartDate,
     status: eap.status,
     currentRevision: eap.currentRevision,
@@ -766,7 +794,7 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
     eyebrow: "ArqVertice OS · Orcamento Executivo",
     title: "RELATORIO DE CUSTOS DA PLANILHA EAP",
     subtitle: `${payload.meta.projectName} · Cliente: ${payload.meta.clientName} · ${payload.meta.cityLabel}`,
-    metaLine: `Area: ${payload.meta.builtAreaM2} m2 · Revisao: R${String(payload.meta.revision).padStart(2, "0")} · BDI: ${payload.meta.bdiPercent}%${payload.meta.isParametricFallback ? " · Estimativa Parametrica" : ""}`,
+    metaLine: `Padrao: ${payload.meta.constructionStandardLabel ?? "Medio Padrao"} · ${payload.meta.concreteMethodLabel ?? "Concreto Usinado"} · Area: ${payload.meta.builtAreaM2} m2 · R${String(payload.meta.revision).padStart(2, "0")} · BDI: ${payload.meta.bdiPercent}%`,
     accentHex: "#2563EB",
   });
 

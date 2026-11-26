@@ -148,7 +148,8 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
               </h2>
               <p className="text-xs text-slate-600 dark:text-zinc-400">
                 Cliente: <strong className="text-slate-900 dark:text-zinc-200">{report.meta.clientName}</strong>{" "}
-                · Praça: {report.meta.cityLabel} · Área Construída:{" "}
+                · Padrão: <strong className="text-slate-800 dark:text-zinc-200">{report.meta.constructionStandardLabel || "Médio Padrão"}</strong>{" "}
+                · {report.meta.concreteMethodLabel || "Concreto Usinado"} · Praça: {report.meta.cityLabel} · Área:{" "}
                 <span className="font-mono font-semibold tabular-nums">{report.meta.builtAreaM2} m²</span>{" "}
                 · BDI: <span className="font-mono font-semibold tabular-nums">{report.meta.bdiPercent}%</span>
               </p>

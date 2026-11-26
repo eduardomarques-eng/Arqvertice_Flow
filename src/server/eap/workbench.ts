@@ -199,6 +199,8 @@ export function buildEapTreePayload(input: {
   title: string;
   builtAreaM2: number;
   bdiPercent: number;
+  constructionStandard?: string | null;
+  concreteMethod?: string | null;
   plannedStartDate: Date | string | null;
   status: string;
   currentRevision: number;
@@ -394,6 +396,8 @@ export function buildEapTreePayload(input: {
     title: input.title,
     builtAreaM2: input.builtAreaM2,
     bdiPercent: input.bdiPercent,
+    constructionStandard: input.constructionStandard || "MEDIO_PADRAO",
+    concreteMethod: input.concreteMethod || "USINADO",
     plannedStartDate:
       input.plannedStartDate instanceof Date
         ? input.plannedStartDate.toISOString().slice(0, 10)

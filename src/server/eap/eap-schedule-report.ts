@@ -9,6 +9,12 @@ import {
   PDF_PALETTE,
 } from "@/lib/pdf/pdf-charts";
 import {
+  CONCRETE_METHOD_LABELS,
+  CONSTRUCTION_STANDARD_LABELS,
+  type ConcreteMethod,
+  type ConstructionStandard,
+} from "./regional-standards-catalog";
+import {
   CANONICAL_LOB_PACKAGE_RULES,
   DEFAULT_LOB_FLOORS,
   analyzeFloorMatrixConflicts,
@@ -73,6 +79,10 @@ export interface EapScheduleReportPayload {
     title: string;
     builtAreaM2: number;
     status: string;
+    revision?: number;
+    bdiPercent?: number;
+    constructionStandardLabel?: string;
+    concreteMethodLabel?: string;
   };
   kpis: {
     startDate: string;
@@ -471,6 +481,15 @@ export async function loadEapScheduleReportFromDb(
       title: eap.title,
       builtAreaM2: eap.builtAreaM2,
       status: eap.status,
+      revision: eap.currentRevision,
+      bdiPercent: eap.bdiPercent,
+      constructionStandardLabel:
+        CONSTRUCTION_STANDARD_LABELS[
+          (eap.constructionStandard as ConstructionStandard) || "MEDIO_PADRAO"
+        ] || "Médio Padrão",
+      concreteMethodLabel:
+        CONCRETE_METHOD_LABELS[(eap.concreteMethod as ConcreteMethod) || "USINADO"] ||
+        "Concreto Usinado",
     },
     allocations,
     floors,
@@ -499,7 +518,7 @@ export function renderEapScheduleReportPdf(
     eyebrow: "ArqVertice OS · Planejamento & Linha de Balanco",
     title: "RELATORIO DE PLANEJAMENTO & CRONOGRAMA",
     subtitle: `${payload.meta.projectName} · Cliente: ${payload.meta.clientName} · ${payload.meta.cityLabel}`,
-    metaLine: `Inicio: ${formatDateBR(payload.kpis.startDate)} · Termino: ${formatDateBR(payload.kpis.endDate)} · Area: ${payload.meta.builtAreaM2} m2 · ${payload.kpis.healthLabel}`,
+    metaLine: `${payload.meta.constructionStandardLabel ? `Padrao: ${payload.meta.constructionStandardLabel} · ` : ""}${payload.meta.concreteMethodLabel ? `${payload.meta.concreteMethodLabel} · ` : ""}${payload.meta.revision ? `R${String(payload.meta.revision).padStart(2, "0")} · ` : ""}${payload.meta.bdiPercent !== undefined ? `BDI: ${payload.meta.bdiPercent}% · ` : ""}Inicio: ${formatDateBR(payload.kpis.startDate)} · Termino: ${formatDateBR(payload.kpis.endDate)} · ${payload.meta.builtAreaM2} m2`,
     accentHex: "#059669",
   });
 
