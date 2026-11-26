@@ -30,6 +30,10 @@ import {
   recomputeTreeTotals,
   reorderItemsInList,
 } from "@/lib/eap-spreadsheet";
+import {
+  buildEapCellMatrixResolver,
+  evaluateSheetInput,
+} from "@/lib/eap-sheet-formulas";
 import type {
   ComputedEapItemDTO,
   ComputedEapStageDTO,
@@ -292,6 +296,16 @@ export function EapConferenceWorkbench({
   const [globalBdiInput, setGlobalBdiInput] = useState("22");
   const [viewMode, setViewMode] = useState<"EXECUTIVE" | "DETAILED">("EXECUTIVE");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showCommandsMenu, setShowCommandsMenu] = useState(false);
+  const [cellFormulas, setCellFormulas] = useState<Record<string, string>>({});
+  const [activeFormulaCell, setActiveFormulaCell] = useState<{
+    itemId: string;
+    rowIndex1: number;
+    colKey: string;
+    label: string;
+    applyValue: (val: number) => void;
+  } | null>(null);
+  const [formulaDraft, setFormulaDraft] = useState("");
   const [density, setDensity] = useState<SpreadsheetDensity>("PADRAO");
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [activeRowItemId, setActiveRowItemId] = useState<string | null>(null);
@@ -459,6 +473,56 @@ export function EapConferenceWorkbench({
     visibleRowOrder.forEach((id, idx) => map.set(id, idx));
     return map;
   }, [visibleRowOrder]);
+
+  const visibleItemsMatrix = useMemo(() => {
+    if (!tree) return [];
+    const byId = new Map<string, ComputedEapItemDTO>();
+    for (const st of tree.stages) {
+      for (const grp of st.groups) {
+        for (const it of grp.items) byId.set(it.id, it);
+      }
+    }
+    return visibleRowOrder
+      .map((id) => byId.get(id))
+      .filter((it): it is ComputedEapItemDTO => Boolean(it));
+  }, [tree, visibleRowOrder]);
+
+  const resolveNumericCellInput = useCallback(
+    (raw: string, itemId: string, colKey: string): number | null => {
+      const trimmed = raw.trim();
+      const formulaKey = `${itemId}:${colKey}`;
+      if (trimmed.startsWith("=")) {
+        const res = evaluateSheetInput(
+          trimmed,
+          buildEapCellMatrixResolver(
+            visibleItemsMatrix.map((it) => ({
+              quantity: it.rawQuantity,
+              materialUnitCost: it.materialUnitCost,
+              laborUnitCost: it.laborUnitCost,
+              thirdPartyUnitCost: it.thirdPartyUnitCost,
+              directTotal: it.totalDirectCost,
+              commercialTotal: it.totalCommercialPrice,
+            }))
+          )
+        );
+        if (!res.ok) {
+          setFeedback({ type: "error", text: `Fórmula (${colKey}): ${res.error}` });
+          return null;
+        }
+        setCellFormulas((prev) => ({ ...prev, [formulaKey]: trimmed }));
+        setFormulaDraft(trimmed);
+        return res.value;
+      }
+      setCellFormulas((prev) => {
+        if (!(formulaKey in prev)) return prev;
+        const next = { ...prev };
+        delete next[formulaKey];
+        return next;
+      });
+      return parsePtBrNumber(raw);
+    },
+    [visibleItemsMatrix]
+  );
 
   const registerCellRef = useCallback(
     (rowIndex: number, colIndex: number, el: HTMLInputElement | null) => {
@@ -688,8 +752,8 @@ export function EapConferenceWorkbench({
         e.preventDefault();
         const currItem = activeRowItemId
           ? treeRef.current?.stages
-              .flatMap((s) => s.groups.flatMap((g) => g.items))
-              .find((it) => it.id === activeRowItemId)
+            .flatMap((s) => s.groups.flatMap((g) => g.items))
+            .find((it) => it.id === activeRowItemId)
           : null;
         void handleQuickAddInStage(currItem?.stageCode || "04", currItem?.groupId);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d" && activeRowItemId) {
@@ -1527,11 +1591,10 @@ export function EapConferenceWorkbench({
                                   displayValue={item.description}
                                   editValue={item.description}
                                   align="left"
-                                  className={`${cellDensityClass} font-medium ${
-                                    itemOrigin === "PRELIMINAR_PADRAO"
-                                      ? "text-amber-950/90 italic dark:text-amber-100/90"
-                                      : "text-slate-900 dark:text-zinc-100"
-                                  }`}
+                                  className={`${cellDensityClass} font-medium ${itemOrigin === "PRELIMINAR_PADRAO"
+                                    ? "text-amber-950/90 italic dark:text-amber-100/90"
+                                    : "text-slate-900 dark:text-zinc-100"
+                                    }`}
                                   registerRef={registerCellRef}
                                   onNavigate={navigateCell}
                                   onCommit={(raw) => {
@@ -1545,22 +1608,20 @@ export function EapConferenceWorkbench({
                                 />
                                 <span
                                   title={originMeta.tooltip}
-                                  className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
-                                    itemOrigin === "PRELIMINAR_PADRAO"
-                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300"
-                                      : itemOrigin === "QUANTITATIVO_IMPORTADO"
-                                        ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-300"
-                                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300"
-                                  }`}
+                                  className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${itemOrigin === "PRELIMINAR_PADRAO"
+                                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300"
+                                    : itemOrigin === "QUANTITATIVO_IMPORTADO"
+                                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-300"
+                                      : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300"
+                                    }`}
                                 >
                                   <span
-                                    className={`h-1.5 w-1.5 rounded-full ${
-                                      itemOrigin === "PRELIMINAR_PADRAO"
-                                        ? "bg-amber-500"
-                                        : itemOrigin === "QUANTITATIVO_IMPORTADO"
-                                          ? "bg-indigo-500"
-                                          : "bg-emerald-500"
-                                    }`}
+                                    className={`h-1.5 w-1.5 rounded-full ${itemOrigin === "PRELIMINAR_PADRAO"
+                                      ? "bg-amber-500"
+                                      : itemOrigin === "QUANTITATIVO_IMPORTADO"
+                                        ? "bg-indigo-500"
+                                        : "bg-emerald-500"
+                                      }`}
                                   />
                                   {originMeta.shortBadge}
                                 </span>
@@ -1611,6 +1672,8 @@ export function EapConferenceWorkbench({
                             {(["FUND_TERREO", "PAV_SUPERIOR", "COBERTURA", "EXTERNO"] as const).map(
                               (zKey, zIdx) => {
                                 const val = item.zoneQuantities[zKey];
+                                const fKey = `Z${zIdx}`;
+                                const storedFormula = cellFormulas[`${item.id}:${fKey}`];
                                 return (
                                   <td
                                     key={zKey}
@@ -1620,13 +1683,29 @@ export function EapConferenceWorkbench({
                                       rowIndex={rIdx}
                                       colIndex={3 + zIdx}
                                       displayValue={formatPtBrQty(val, true)}
-                                      editValue={formatPtBrDecimalInput(val, true)}
+                                      editValue={storedFormula ?? formatPtBrDecimalInput(val, true)}
                                       align="right"
                                       className={`${cellDensityClass} font-mono tabular-nums`}
                                       registerRef={registerCellRef}
                                       onNavigate={navigateCell}
+                                      onFocusCell={() => {
+                                        const initialExpr = storedFormula ?? formatPtBrDecimalInput(val, true);
+                                        setFormulaDraft(initialExpr);
+                                        setActiveFormulaCell({
+                                          itemId: item.id,
+                                          rowIndex1: rIdx + 1,
+                                          colKey: fKey,
+                                          label: `${item.description} (${zKey})`,
+                                          applyValue: (nextVal) =>
+                                            updateCellAndQueueSave(item.id, (curr) => ({
+                                              ...curr,
+                                              zoneQuantities: { ...curr.zoneQuantities, [zKey]: nextVal },
+                                            })),
+                                        });
+                                      }}
                                       onCommit={(raw) => {
-                                        const nextVal = parsePtBrNumber(raw);
+                                        const nextVal = resolveNumericCellInput(raw, item.id, fKey);
+                                        if (nextVal === null) return;
                                         updateCellAndQueueSave(item.id, (curr) => ({
                                           ...curr,
                                           zoneQuantities: {
@@ -1668,13 +1747,30 @@ export function EapConferenceWorkbench({
                                     rowIndex={rIdx}
                                     colIndex={8}
                                     displayValue={formatPtBrCurrency(item.materialUnitCost, true)}
-                                    editValue={formatPtBrDecimalInput(item.materialUnitCost, true)}
+                                    editValue={cellFormulas[`${item.id}:D`] ?? formatPtBrDecimalInput(item.materialUnitCost, true)}
                                     align="right"
                                     className={`${cellDensityClass} font-mono tabular-nums`}
                                     registerRef={registerCellRef}
                                     onNavigate={navigateCell}
+                                    onFocusCell={() => {
+                                      const initialExpr =
+                                        cellFormulas[`${item.id}:D`] ?? formatPtBrDecimalInput(item.materialUnitCost, true);
+                                      setFormulaDraft(initialExpr);
+                                      setActiveFormulaCell({
+                                        itemId: item.id,
+                                        rowIndex1: rIdx + 1,
+                                        colKey: "D",
+                                        label: `${item.description} (Material)`,
+                                        applyValue: (nextVal) =>
+                                          updateCellAndQueueSave(item.id, (curr) => ({
+                                            ...curr,
+                                            materialUnitCost: nextVal,
+                                          })),
+                                      });
+                                    }}
                                     onCommit={(raw) => {
-                                      const nextVal = parsePtBrNumber(raw);
+                                      const nextVal = resolveNumericCellInput(raw, item.id, "D");
+                                      if (nextVal === null) return;
                                       updateCellAndQueueSave(item.id, (curr) => ({
                                         ...curr,
                                         materialUnitCost: nextVal,
@@ -1687,13 +1783,30 @@ export function EapConferenceWorkbench({
                                     rowIndex={rIdx}
                                     colIndex={9}
                                     displayValue={formatPtBrCurrency(item.laborUnitCost, true)}
-                                    editValue={formatPtBrDecimalInput(item.laborUnitCost, true)}
+                                    editValue={cellFormulas[`${item.id}:E`] ?? formatPtBrDecimalInput(item.laborUnitCost, true)}
                                     align="right"
                                     className={`${cellDensityClass} font-mono tabular-nums`}
                                     registerRef={registerCellRef}
                                     onNavigate={navigateCell}
+                                    onFocusCell={() => {
+                                      const initialExpr =
+                                        cellFormulas[`${item.id}:E`] ?? formatPtBrDecimalInput(item.laborUnitCost, true);
+                                      setFormulaDraft(initialExpr);
+                                      setActiveFormulaCell({
+                                        itemId: item.id,
+                                        rowIndex1: rIdx + 1,
+                                        colKey: "E",
+                                        label: `${item.description} (Mão de Obra)`,
+                                        applyValue: (nextVal) =>
+                                          updateCellAndQueueSave(item.id, (curr) => ({
+                                            ...curr,
+                                            laborUnitCost: nextVal,
+                                          })),
+                                      });
+                                    }}
                                     onCommit={(raw) => {
-                                      const nextVal = parsePtBrNumber(raw);
+                                      const nextVal = resolveNumericCellInput(raw, item.id, "E");
+                                      if (nextVal === null) return;
                                       updateCellAndQueueSave(item.id, (curr) => ({
                                         ...curr,
                                         laborUnitCost: nextVal,
@@ -1706,13 +1819,30 @@ export function EapConferenceWorkbench({
                                     rowIndex={rIdx}
                                     colIndex={10}
                                     displayValue={formatPtBrCurrency(item.thirdPartyUnitCost, true)}
-                                    editValue={formatPtBrDecimalInput(item.thirdPartyUnitCost, true)}
+                                    editValue={cellFormulas[`${item.id}:F`] ?? formatPtBrDecimalInput(item.thirdPartyUnitCost, true)}
                                     align="right"
                                     className={`${cellDensityClass} font-mono tabular-nums`}
                                     registerRef={registerCellRef}
                                     onNavigate={navigateCell}
+                                    onFocusCell={() => {
+                                      const initialExpr =
+                                        cellFormulas[`${item.id}:F`] ?? formatPtBrDecimalInput(item.thirdPartyUnitCost, true);
+                                      setFormulaDraft(initialExpr);
+                                      setActiveFormulaCell({
+                                        itemId: item.id,
+                                        rowIndex1: rIdx + 1,
+                                        colKey: "F",
+                                        label: `${item.description} (Terceiros)`,
+                                        applyValue: (nextVal) =>
+                                          updateCellAndQueueSave(item.id, (curr) => ({
+                                            ...curr,
+                                            thirdPartyUnitCost: nextVal,
+                                          })),
+                                      });
+                                    }}
                                     onCommit={(raw) => {
-                                      const nextVal = parsePtBrNumber(raw);
+                                      const nextVal = resolveNumericCellInput(raw, item.id, "F");
+                                      if (nextVal === null) return;
                                       updateCellAndQueueSave(item.id, (curr) => ({
                                         ...curr,
                                         thirdPartyUnitCost: nextVal,
@@ -1953,308 +2083,167 @@ export function EapConferenceWorkbench({
         </Card>
       </div>
 
-      {/* Seletor Inteligente de Padrão Construtivo (Baixo / Médio / Alto) & Praça Regional */}
-      <EapStandardTriageBar
-        projectId={projectId}
-        initialStandard={tree.constructionStandard}
-        initialCityName={tree.cityName}
-        initialStateCode={tree.stateCode}
-        initialLaborFactor={tree.regionalLaborFactor}
-        initialMaterialFactor={tree.regionalMaterialFactor}
-        onApplied={loadTree}
-      />
-
-      {/* Barra de Ferramentas, Filtros & Auto-Save */}
-      <Card className="rounded-3xl border border-white/50 bg-white/80 p-4 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por item, código ou serviço..."
-              className={`${INPUT_TEXT} w-56`}
-            />
-            {(
-              [
-                { id: "ALL", label: "Todos" },
-                { id: "PRELIMINAR_PADRAO", label: "Somente Preliminares (a revisar)" },
-                { id: "QUANTITATIVO_IMPORTADO", label: "Quantitativos" },
-                { id: "EDITADO_USUARIO", label: "Editados" },
-                { id: "NO_PRICE", label: `Sem Preço (${tree.conferenceGate.summary.itemsWithoutPriceCount})` },
-                { id: "SANITY", label: `Alertas (${tree.conferenceGate.summary.sanityAlertsCount})` },
-              ] as const
-            ).map((chip) => (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => setFilter(chip.id)}
-                className={`h-8 rounded-xl px-3 text-[11px] font-semibold cursor-pointer ${filter === chip.id
-                  ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
-                  : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-                  }`}
-              >
-                {chip.label}
-              </button>
-            ))}
-            {(() => {
-              let prelim = 0;
-              let imported = 0;
-              let edited = 0;
-              for (const st of tree.stages) {
-                for (const g of st.groups) {
-                  for (const it of g.items) {
-                    const org = normalizeDataOrigin(it.dataOrigin, {
-                      sourceSoftware: it.sourceSoftware,
-                      revisionTag: it.revisionTag,
-                    });
-                    if (org === "PRELIMINAR_PADRAO") prelim += 1;
-                    else if (org === "QUANTITATIVO_IMPORTADO") imported += 1;
-                    else edited += 1;
-                  }
-                }
-              }
-              return (
-                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-300">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-amber-500" />
-                    <strong>{prelim}</strong> preliminares
-                  </span>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                    <strong>{imported}</strong> quantitativos
-                  </span>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <strong>{edited}</strong> editados
-                  </span>
-                </div>
-              );
-            })()}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 px-2 py-1 dark:border-zinc-700">
-              <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-400">BDI %</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={globalBdiInput}
-                onChange={(e) => setGlobalBdiInput(e.target.value)}
-                className="w-12 bg-transparent text-right font-mono text-xs font-bold text-slate-900 focus:outline-none dark:text-zinc-100"
-              />
-              <button
-                type="button"
-                onClick={handleApplyGlobalBdi}
-                disabled={savingId === "bdi"}
-                className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white cursor-pointer dark:bg-zinc-100 dark:text-zinc-950"
-              >
-                Aplicar
-              </button>
-            </div>
-
-            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-900">
-              <button
-                type="button"
-                onClick={() => setViewMode("EXECUTIVE")}
-                className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold cursor-pointer ${viewMode === "EXECUTIVE"
-                  ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                  : "text-slate-600 dark:text-zinc-300"
-                  }`}
-              >
-                Planilha Padrão
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("DETAILED")}
-                className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold cursor-pointer ${viewMode === "DETAILED"
-                  ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                  : "text-slate-600 dark:text-zinc-300"
-                  }`}
-              >
-                Composição
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => toggleAllStages(true)}
-              className="h-8 rounded-xl border border-slate-300 px-2.5 text-[11px] font-semibold text-slate-700 cursor-pointer dark:border-zinc-700 dark:text-zinc-300"
-            >
-              Expandir
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleAllStages(false)}
-              className="h-8 rounded-xl border border-slate-300 px-2.5 text-[11px] font-semibold text-slate-700 cursor-pointer dark:border-zinc-700 dark:text-zinc-300"
-            >
-              Recolher
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedGroupId(null);
-                setShowAddModal(true);
-              }}
-              className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-            >
-              + Nova Linha
-            </button>
-
-            {undoRedoControls}
-            {densityControls}
-            {saveButton}
-
-            <button
-              type="button"
-              onClick={async () => {
-                setSavingId("prelim13m");
-                try {
-                  const res = await fetch(`/api/eap/projects/${projectId}/preliminary-fill`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ overwritePreliminary: false }),
-                  });
-                  const json = await res.json();
-                  if (res.ok && json.ok) {
-                    setFeedback({
-                      type: "success",
-                      text: `Preenchimento preliminar (13 meses): ${json.filledEapItemsCount} item(ns) estimados e ${json.lobAllocationsCount} célula(s) LOB geradas.`,
-                    });
-                    await loadTree();
-                  } else {
-                    setFeedback({
-                      type: "error",
-                      text: json.error || "Erro ao aplicar preenchimento preliminar.",
-                    });
-                  }
-                } finally {
-                  setSavingId(null);
-                }
-              }}
-              disabled={savingId === "prelim13m"}
-              title="Preenche lacunas vazias com estimativa paramétrica para 13 meses (não altera itens já editados ou minerados)"
-              className="inline-flex h-8 items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-2.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/70"
-            >
-              {savingId === "prelim13m" ? "Preenchendo..." : "⚡ Preencher Preliminar (13 Meses)"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsFullscreen(true)}
-              title="Abrir planilha em modo tela cheia (100vw × 100vh)"
-              className="inline-flex h-8 items-center gap-1 rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="h-3.5 w-3.5"
-                aria-hidden="true"
-              >
-                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-              </svg>
-              Ampliar Planilha
-            </button>
-
-            {onOpenCostReport && (
-              <button
-                type="button"
-                onClick={onOpenCostReport}
-                className="inline-flex h-8 items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 cursor-pointer dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-950/70"
-              >
-                📊 Relatório da EAP (Custos)
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleValidateConference}
-              disabled={savingId === "validate"}
-              className="h-8 rounded-xl bg-emerald-600 px-3 text-[11px] font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-            >
-              {savingId === "validate" ? "Validando..." : "✓ Validar EAP"}
-            </button>
-          </div>
+      {feedback && (
+        <div
+          className={`rounded-xl border px-3 py-2 text-xs font-medium ${feedback.type === "success"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+            : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+            }`}
+        >
+          {feedback.text}
         </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-zinc-400">
-          <div className="flex flex-wrap items-center gap-2">
-            <span>
-              Dica: <kbd className="rounded border px-1">Tab</kbd>/<kbd className="rounded border px-1">Enter</kbd>/setas navegam ·{" "}
-              <kbd className="rounded border px-1">Alt+N</kbd> nova linha · <kbd className="rounded border px-1">Ctrl+D</kbd> duplica ·{" "}
-              <kbd className="rounded border px-1">Ctrl+V</kbd> cola matriz Excel.
-            </span>
-            {needsPlanningSync && (
-              <Badge tone="blue">EAP atualizada — pronta para sincronizar no Planejamento</Badge>
-            )}
-            {selectedItemIds.length > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-0.5 dark:bg-zinc-800">
-                <strong className="text-slate-800 dark:text-zinc-200">
-                  {selectedItemIds.length} selecionado(s)
-                </strong>
-                <button
-                  type="button"
-                  onClick={() => void handleBatchAction("CLEAR_QUANTITIES")}
-                  className="text-amber-700 hover:underline cursor-pointer dark:text-amber-300"
-                >
-                  Zerar Qtds
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleBatchAction("DELETE")}
-                  className="text-rose-700 hover:underline cursor-pointer dark:text-rose-400"
-                >
-                  Excluir
-                </button>
-              </span>
-            )}
-          </div>
-          <span className="font-mono">
-            {autoSaveState === "saving"
-              ? "Sincronizando alterações..."
-              : autoSaveState === "dirty"
-                ? `${dirtyIds.length} célula(s) aguardando gravação automática...`
-                : autoSaveState === "saved"
-                  ? "Sincronizado no banco ✓"
-                  : "Edição automática ativada"}
-          </span>
-        </div>
-
-        {feedback && (
-          <div
-            className={`rounded-xl border px-3 py-2 text-xs font-medium ${feedback.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
-              : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
-              }`}
-          >
-            {feedback.text}
-          </div>
-        )}
-
-        {gateBlockers.length > 0 && (
-          <ul className="list-disc rounded-xl border border-rose-200 bg-rose-50/70 px-6 py-2.5 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
-            {gateBlockers.map((b) => (
-              <li key={b}>{b}</li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      {/* Planilha Editável (Normal ou Tela Cheia 100vw × 100vh) */}
-      {!isFullscreen && (
-        <Card className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white dark:border-zinc-800 dark:bg-[#16161D]">
-          <div className="max-h-[760px] overflow-auto">{spreadsheetTable}</div>
-        </Card>
       )}
 
+      {gateBlockers.length > 0 && (
+        <ul className="list-disc rounded-xl border border-rose-200 bg-rose-50/70 px-6 py-2.5 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
+          {gateBlockers.map((b) => (
+            <li key={b}>{b}</li>
+          ))}
+        </ul>
+      )}
+
+      {/* MODO VISUALIZAÇÃO RESUMIDA SOMENTE LEITURA (NA PÁGINA PRINCIPAL) */}
+      {!isFullscreen && (
+        <div className="space-y-4">
+          <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-md dark:border-zinc-800 dark:bg-[#16161D]">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                    Resumo da Planilha EAP (Somente Leitura)
+                  </h3>
+                  <Badge tone={tree.conferenceGate.approved ? "green" : "amber"}>
+                    {tree.conferenceGate.approved ? "Conferência Homologada" : "Em Conferência"}
+                  </Badge>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
+                  {tree.cityLabel} · Área: {ind.builtAreaM2} m² · BDI: {tree.bdiPercent}% · Clique em Entrar para editar células, fórmulas e composição completa.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(true)}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-5 text-xs font-bold text-white shadow-sm hover:bg-slate-800 cursor-pointer dark:bg-amber-500 dark:text-zinc-950 dark:hover:bg-amber-400"
+                >
+                  Entrar na Planilha EAP
+                </button>
+                {onOpenCostReport && (
+                  <button
+                    type="button"
+                    onClick={onOpenCostReport}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                  >
+                    Relatório EAP (Custos)
+                  </button>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-4 dark:border-zinc-800 dark:bg-[#16161D]">
+            <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+              Resumo por Etapa Construtiva
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 dark:border-zinc-800">
+                    <th className="py-2 pr-3">Etapa</th>
+                    <th className="py-2 px-2 text-center">Itens</th>
+                    <th className="py-2 px-2 text-right">Material</th>
+                    <th className="py-2 px-2 text-right">Mão de Obra</th>
+                    <th className="py-2 px-2 text-right">Terceiros</th>
+                    <th className="py-2 px-2 text-right">Total com BDI</th>
+                    <th className="py-2 pl-2 text-right">Participação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+                  {tree.stages
+                    .filter((st) => st.itemsCount > 0 || st.totalCommercialPrice > 0)
+                    .map((st) => {
+                      const pct =
+                        ind.totalCommercialPrice > 0
+                          ? (st.totalCommercialPrice / ind.totalCommercialPrice) * 100
+                          : 0;
+                      return (
+                        <tr key={st.id} className="hover:bg-slate-50/70 dark:hover:bg-zinc-900/40">
+                          <td className="py-2 pr-3 font-medium text-slate-900 dark:text-zinc-100">
+                            {st.code} — {st.name}
+                          </td>
+                          <td className="py-2 px-2 text-center font-mono text-slate-600 dark:text-zinc-400">
+                            {st.itemsCount}
+                          </td>
+                          <td className="py-2 px-2 text-right font-mono">{fmtBRL(st.totalMaterial)}</td>
+                          <td className="py-2 px-2 text-right font-mono">{fmtBRL(st.totalLabor)}</td>
+                          <td className="py-2 px-2 text-right font-mono">{fmtBRL(st.totalThirdParty)}</td>
+                          <td className="py-2 px-2 text-right font-mono font-bold text-slate-950 dark:text-zinc-100">
+                            {fmtBRL(st.totalCommercialPrice)}
+                          </td>
+                          <td className="py-2 pl-2 text-right font-mono text-slate-600 dark:text-zinc-400">
+                            {pct.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-4 dark:border-zinc-800 dark:bg-[#16161D]">
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Prévia Estruturada de Itens ({visibleItemsMatrix.length} visíveis)
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(true)}
+                className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer dark:text-amber-400"
+              >
+                Abrir ambiente completo →
+              </button>
+            </div>
+            <div className="max-h-[360px] overflow-auto">
+              <table className="w-full min-w-[680px] border-collapse text-left text-xs">
+                <thead className="sticky top-0 bg-slate-50 dark:bg-zinc-900">
+                  <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 dark:border-zinc-800">
+                    <th className="py-2 pr-3">Descrição</th>
+                    <th className="py-2 px-2 text-center">Unidade</th>
+                    <th className="py-2 px-2 text-right">Quantidade</th>
+                    <th className="py-2 px-2 text-right">Subtotal Direto</th>
+                    <th className="py-2 pl-2 text-right">Total com BDI</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+                  {tree.stages
+                    .flatMap((s) => s.groups.flatMap((g) => g.items))
+                    .filter((it) => it.rawQuantity > 0 || it.totalCommercialPrice > 0)
+                    .slice(0, 25)
+                    .map((it) => (
+                      <tr key={it.id}>
+                        <td className="py-1.5 pr-3 font-medium text-slate-900 dark:text-zinc-100">
+                          {it.description}
+                        </td>
+                        <td className="py-1.5 px-2 text-center text-slate-500">{it.unit}</td>
+                        <td className="py-1.5 px-2 text-right font-mono">{formatPtBrQty(it.rawQuantity)}</td>
+                        <td className="py-1.5 px-2 text-right font-mono">{fmtBRL(it.totalDirectCost)}</td>
+                        <td className="py-1.5 pl-2 text-right font-mono font-semibold">
+                          {fmtBRL(it.totalCommercialPrice)}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* AMBIENTE ISOLADO COMPLETO EXPANDIDO MINIMALISTA (100vw × 100dvh) */}
       <EapFullscreenShell
         open={isFullscreen}
-        title="Planilha EAP & Custos — Modo Ampliado"
+        title={`Planilha EAP — ${tree.title}`}
         subtitle={`${tree.cityLabel} · Área: ${ind.builtAreaM2} m² · Total Geral: ${fmtBRL(ind.totalCommercialPrice)} · ${autoSaveState === "saving"
           ? "Salvando..."
           : autoSaveState === "dirty"
@@ -2264,17 +2253,35 @@ export function EapConferenceWorkbench({
         onClose={() => setIsFullscreen(false)}
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCommandsMenu((v) => !v)}
+              className={`h-8 rounded-xl border px-3 text-[11px] font-semibold cursor-pointer ${showCommandsMenu
+                ? "border-slate-900 bg-slate-900 text-white dark:border-amber-500 dark:bg-amber-500 dark:text-zinc-950"
+                : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                }`}
+            >
+              Comandos de Planilha {showCommandsMenu ? "▴" : "▾"}
+            </button>
+            {undoRedoControls}
+            {saveButton}
+          </div>
+        }
+      >
+        {/* Barra Interna Colapsável de Comandos da Planilha */}
+        {showCommandsMenu && (
+          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/90">
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar item/serviço..."
-              className="h-8 w-44 rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] text-slate-900 focus:border-slate-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              className="h-8 w-44 rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] text-slate-900 focus:border-slate-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
             />
             <select
               value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value)}
-              className="h-8 max-w-[190px] rounded-xl border border-slate-300 bg-white px-2 text-[11px] text-slate-900 focus:border-slate-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              className="h-8 max-w-[180px] rounded-xl border border-slate-300 bg-white px-2 text-[11px] text-slate-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
             >
               <option value="ALL">Todas as Etapas (26)</option>
               {tree.stages.map((s) => (
@@ -2285,6 +2292,16 @@ export function EapConferenceWorkbench({
             </select>
             <button
               type="button"
+              onClick={() => {
+                setSelectedGroupId(null);
+                setShowAddModal(true);
+              }}
+              className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+            >
+              + Nova Linha
+            </button>
+            <button
+              type="button"
               onClick={() => toggleAllStages(true)}
               className="h-8 rounded-xl border border-slate-300 px-2 text-[10px] font-semibold text-slate-700 cursor-pointer dark:border-zinc-700 dark:text-zinc-300"
             >
@@ -2297,12 +2314,77 @@ export function EapConferenceWorkbench({
             >
               Recolher
             </button>
-            {undoRedoControls}
+            <button
+              type="button"
+              onClick={() => setViewMode((v) => (v === "EXECUTIVE" ? "DETAILED" : "EXECUTIVE"))}
+              className="h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 cursor-pointer dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+            >
+              {viewMode === "EXECUTIVE" ? "Modo: Planilha Padrão" : "Modo: Composição"}
+            </button>
             {densityControls}
-            {saveButton}
+            <EapStandardTriageBar
+              projectId={projectId}
+              initialStandard={tree.constructionStandard}
+              initialCityName={tree.cityName}
+              initialStateCode={tree.stateCode}
+              initialLaborFactor={tree.regionalLaborFactor}
+              initialMaterialFactor={tree.regionalMaterialFactor}
+              onApplied={loadTree}
+            />
           </div>
-        }
-      >
+        )}
+
+        {/* Barra de Fórmulas (fx) estilo Sheets */}
+        <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
+          <span className="rounded bg-slate-200 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-800 dark:bg-zinc-800 dark:text-zinc-200">
+            fx
+          </span>
+          <span className="max-w-[220px] truncate text-[11px] font-medium text-slate-600 dark:text-zinc-400">
+            {activeFormulaCell
+              ? `${activeFormulaCell.colKey}${activeFormulaCell.rowIndex1} · ${activeFormulaCell.label}`
+              : "Selecione uma célula numérica (ex: =12.5*3.4, =SOMA(C1:C5), =MEDIA(D1:D4))"}
+          </span>
+          <input
+            type="text"
+            value={formulaDraft}
+            disabled={!activeFormulaCell}
+            onChange={(e) => setFormulaDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && activeFormulaCell) {
+                e.preventDefault();
+                const nextVal = resolveNumericCellInput(
+                  formulaDraft,
+                  activeFormulaCell.itemId,
+                  activeFormulaCell.colKey
+                );
+                if (nextVal !== null) {
+                  activeFormulaCell.applyValue(nextVal);
+                }
+              }
+            }}
+            placeholder="Digite um valor ou fórmula (=SOMA, =MEDIA, =MIN, =MAX)..."
+            className="h-7 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 font-mono text-xs text-slate-900 focus:border-blue-600 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          />
+          {activeFormulaCell && (
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = resolveNumericCellInput(
+                  formulaDraft,
+                  activeFormulaCell.itemId,
+                  activeFormulaCell.colKey
+                );
+                if (nextVal !== null) {
+                  activeFormulaCell.applyValue(nextVal);
+                }
+              }}
+              className="h-7 rounded-lg bg-slate-900 px-2.5 text-[11px] font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
+            >
+              Aplicar
+            </button>
+          )}
+        </div>
+
         <div className="flex-1 min-h-0 overflow-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#16161D]">
           {spreadsheetTable}
         </div>

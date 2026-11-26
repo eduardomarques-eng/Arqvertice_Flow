@@ -1922,6 +1922,7 @@ model EapProject {
   constraints               EapConstraint[]
   fieldMeasurementBulletins EapFieldMeasurementBulletin[]
   fieldMeasurementEntries   EapFieldMeasurementEntry[]
+  procurementItems          EapProcurementItem[]
   createdAt                 DateTime                      @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -2274,4 +2275,33 @@ model EapFieldMeasurementEntry {
 
   @@index([bulletinId, floorId])
   @@index([eapProjectId, floorId])
+}
+
+model EapProcurementItem {
+  id                String     @id @default(uuid()) @db.Uuid
+  eapProjectId      String     @db.Uuid
+  packageId         String?    @db.Uuid
+  packageNumber     Int?
+  packageName       String
+  stageCode         String?
+  itemName          String
+  category          String     @default("MATERIAL") // MATERIAL | TERCEIROS | EQUIPAMENTO
+  unit              String     @default("un")
+  quantity          Float      @default(1)
+  estimatedAmount   Float      @default(0)
+  closedAmount      Float?
+  supplierName      String?
+  needDate          DateTime
+  leadTimeDays      Int        @default(10)
+  orderDeadlineDate DateTime
+  status            String     @default("A_COTAR") // A_COTAR | EM_COTACAO | PEDIDO_EMITIDO | ENTREGUE
+  financialEntryId  String?    @db.Uuid
+  notes             String?
+  eapProject        EapProject @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([eapProjectId, status])
+  @@index([eapProjectId, orderDeadlineDate])
+  @@index([packageNumber])
 }

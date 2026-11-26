@@ -23,6 +23,8 @@
  * em português não há perda; para texto com glifos CJK o ficheiro não serve.
  */
 
+import type { PdfEmbeddedImage } from "@/lib/pdf/pdf-image";
+
 /** A4 em pontos (72 pt = 1 polgada). */
 export const A4 = { width: 595.28, height: 841.89 };
 
@@ -188,6 +190,7 @@ export class PdfWriter {
   readonly margin: number;
   private pages: string[] = [];
   private current = "";
+  private images: Array<{ name: string; image: PdfEmbeddedImage }> = [];
   /** Cursor vertical, medido do topo. */
   y = 0;
 
@@ -514,6 +517,31 @@ export class PdfWriter {
     this.current = stamp(this.current, this.pages.length - 1);
   }
 
+  /** Desenha uma imagem PNG/RGB embutida (`y` medido do topo), preservando a proporção. */
+  drawEmbeddedImage(
+    image: PdfEmbeddedImage,
+    x: number,
+    y: number,
+    maxWidth: number,
+    maxHeight: number,
+  ): void {
+    let entry = this.images.find((item) => item.image === image);
+    if (!entry) {
+      entry = { name: `Im${this.images.length + 1}`, image };
+      this.images.push(entry);
+    }
+    const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+    const drawW = image.width * scale;
+    const drawH = image.height * scale;
+    const drawX = x + (maxWidth - drawW) / 2;
+    const drawY = y + (maxHeight - drawH) / 2;
+    const pdfBottomY = this.height - drawY - drawH;
+
+    this.current +=
+      `q\n${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${drawX.toFixed(2)} ${pdfBottomY.toFixed(2)} cm\n` +
+      `/${entry.name} Do\nQ\n`;
+  }
+
   /**
    * Monta o ficheiro.
    *
@@ -536,12 +564,48 @@ export class PdfWriter {
     const info = `<< /Title ${hexString(this.info.title)} /Author ${hexString(this.info.author)} /Subject ${hexString(this.info.subject)} /Producer ${hexString("ArqVértice OS")} >>`;
 
     const ordered: string[] = [catalog, pages, fontRegular, fontBold, info];
+    const pageCount = contents.length;
+    const firstImageObjId = 6 + pageCount * 2;
+    const imageObjEntries: string[] = [];
+    const xObjectRefs: string[] = [];
+    let nextImgObjId = firstImageObjId;
+
+    for (const { name, image } of this.images) {
+      const imgObjId = nextImgObjId++;
+      let smaskRef = "";
+      let smaskObj: string | null = null;
+      if (image.alphaFlate) {
+        const smaskId = nextImgObjId++;
+        smaskRef = ` /SMask ${smaskId} 0 R`;
+        const alphaStr = image.alphaFlate.toString("latin1");
+        smaskObj =
+          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
+          `/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${alphaStr.length} >>\n` +
+          `stream\n${alphaStr}\nendstream`;
+      }
+      const rgbStr = image.rgbFlate.toString("latin1");
+      const imgObj =
+        `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
+        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode${smaskRef} /Length ${rgbStr.length} >>\n` +
+        `stream\n${rgbStr}\nendstream`;
+      imageObjEntries.push(imgObj);
+      if (smaskObj) imageObjEntries.push(smaskObj);
+      xObjectRefs.push(`/${name} ${imgObjId} 0 R`);
+    }
+
+    const xObjectDict =
+      xObjectRefs.length > 0 ? ` /XObject << ${xObjectRefs.join(" ")} >>` : "";
+
     contents.forEach((content, index) => {
       ordered.push(`<< /Length ${content.length} >>\nstream\n${content}endstream`);
       ordered.push(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.width.toFixed(2)} ${this.height.toFixed(2)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6 + index * 2} 0 R >>`,
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.width.toFixed(2)} ${this.height.toFixed(2)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xObjectDict} >> /Contents ${6 + index * 2} 0 R >>`,
       );
     });
+
+    for (const imgObj of imageObjEntries) {
+      ordered.push(imgObj);
+    }
 
     const chunks: string[] = ["%PDF-1.4\n%PDFGEN\n"];
     const offsets: number[] = [];

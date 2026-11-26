@@ -125,15 +125,23 @@ export function EapSchedulePlanner({
   projectId,
   onBaselineApproved,
   onOpenScheduleReport,
+  externalSubView,
 }: {
   projectId: string;
   onBaselineApproved?: () => void;
   onOpenScheduleReport?: () => void;
+  externalSubView?: PlannerSubView;
 }) {
   const [data, setData] = useState<ScheduleApiPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [subView, setSubView] = useState<PlannerSubView>("lob");
+  const [subView, setSubView] = useState<PlannerSubView>(externalSubView ?? "lob");
   const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (externalSubView) {
+      setSubView(externalSubView);
+    }
+  }, [externalSubView]);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showAuditPanel, setShowAuditPanel] = useState(false);
 
@@ -387,7 +395,7 @@ export function EapSchedulePlanner({
             Duração Total
           </p>
           <p className="mt-1 font-mono text-sm font-bold tabular-nums text-slate-950 dark:text-zinc-100">
-            {an.totalMonths} meses · {an.totalWorkingDays} d.u.
+            {an.totalMonths} meses · {an.totalWorkingDays} Dias Úteis
           </p>
         </Card>
         <Card className="rounded-2xl border border-slate-200/90 bg-white p-3.5 dark:border-zinc-800 dark:bg-[#16161D]">
@@ -403,7 +411,7 @@ export function EapSchedulePlanner({
             Pico de Frentes
           </p>
           <p className="mt-1 font-mono text-sm font-bold tabular-nums text-slate-950 dark:text-zinc-100">
-            {an.peakFronts} frentes ({an.peakTeams} eq.)
+            {an.peakFronts} frentes ({an.peakTeams} equipes)
           </p>
         </Card>
         <Card className="rounded-2xl border border-slate-200/90 bg-white p-3.5 dark:border-zinc-800 dark:bg-[#16161D]">
@@ -440,7 +448,7 @@ export function EapSchedulePlanner({
               onClick={() => setShowAuditPanel((v) => !v)}
               className="h-9 rounded-xl border border-slate-300 px-3.5 text-xs font-semibold text-slate-800 cursor-pointer dark:border-zinc-700 dark:text-zinc-200"
             >
-              Auditar Sequência ({data.audit.criticalBlockers.length} bloq. / {data.audit.warnings.length} av.)
+              Auditar Sequência ({data.audit.criticalBlockers.length} bloqueios / {data.audit.warnings.length} avisos)
             </button>
           </div>
 

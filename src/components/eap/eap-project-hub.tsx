@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { EapExecutiveReportView } from "@/components/eap/eap-executive-report-vi
 import { EapExecutionTracker } from "@/components/eap/eap-execution-tracker";
 import { EapCostReportView } from "@/components/admin/eap/eap-cost-report-view";
 import { EapScheduleReportView } from "@/components/admin/eap/eap-schedule-report-view";
+import { EapProcurementView } from "@/components/admin/eap/eap-procurement-view";
 
 export type EapDisciplineCode =
   | "ARQUITETONICO"
@@ -217,14 +219,18 @@ export function EapProjectHub({
   const [stagingEditedQuantities, setStagingEditedQuantities] = useState<Map<string, Record<string, number>>>(new Map());
   const [sources, setSources] = useState<SourceFileDTO[]>(initialEap?.sourceFiles ?? []);
   const [activeTab, setActiveTab] = useState<
-    "sources" | "conference" | "costReport" | "planning" | "scheduleReport" | "field" | "report"
+    "sources" | "conference" | "planning" | "procurement" | "field"
   >(
     initialEap && initialEap.status !== "RASCUNHO" ? "conference" : "sources"
   );
-  const [reportSubTab, setReportSubTab] = useState<"executive" | "execution">(
+  const [eapSubTab, setEapSubTab] = useState<"summary" | "costReport">("summary");
+  const [planningSubTab, setPlanningSubTab] = useState<
+    "lob" | "scheduleReport" | "constraints" | "table"
+  >("lob");
+  const [fieldSubTab, setFieldSubTab] = useState<"field" | "bulletin" | "executive">(
     initialEap && (initialEap.status === "EM_EXECUCAO" || initialEap.status === "CONCLUIDA")
-      ? "execution"
-      : "executive"
+      ? "bulletin"
+      : "field"
   );
 
   async function handleInitEap(e: React.FormEvent) {
@@ -598,103 +604,269 @@ export function EapProjectHub({
 
   return (
     <div className="space-y-6">
-      {/* Navegação por Abas da Seção EAP */}
-      <div className="flex flex-wrap gap-2">
+      {/* Navegação em 2 Níveis: 5 Macro-Seções em Ordem Real de Execução */}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
         {(
           [
-            { id: "sources", label: "1. Upload de Quantitativos" },
-            { id: "conference", label: "2. Planilha EAP & Custos (Conferência)" },
-            { id: "costReport", label: "3. Relatório da EAP (Custos)" },
-            { id: "planning", label: "4. Planejamento (LOB & Cronograma)" },
-            { id: "scheduleReport", label: "5. Relatório do Planejamento" },
-            { id: "field", label: "6. Medição no Canteiro" },
-            { id: "report", label: "7. Relatório Executivo & Medições" },
+            { id: "sources", num: 1, icon: "📤", label: "Upload", desc: "Quantitativos" },
+            { id: "conference", num: 2, icon: "🧱", label: "EAP", desc: "Orçamento & Custos" },
+            { id: "planning", num: 3, icon: "📅", label: "Planejamento", desc: "LOB & Cronograma" },
+            { id: "procurement", num: 4, icon: "🛒", label: "Aquisições", desc: "Compras da Obra" },
+            { id: "field", num: 5, icon: "📐", label: "Medição", desc: "Evolução & Relatórios" },
           ] as const
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`h-9 rounded-xl px-4 text-xs font-semibold transition-all duration-150 active:scale-[0.985] cursor-pointer ${
-              activeTab === tab.id
-                ? "bg-zinc-900 text-white shadow-[0_2px_10px_-2px_rgba(0,0,0,0.18)] ring-1 ring-inset ring-white/15 dark:bg-zinc-100 dark:text-zinc-950"
-                : "border border-zinc-200/80 bg-white/75 text-zinc-700 backdrop-blur-md hover:bg-white/95 hover:text-zinc-950 dark:border-white/10 dark:bg-zinc-900/70 dark:text-zinc-300 dark:hover:bg-zinc-800/85"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        ).map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-start rounded-2xl border px-3.5 py-3 text-left transition-all duration-150 active:scale-[0.985] cursor-pointer ${
+                isActive
+                  ? "border-zinc-900 bg-zinc-900 text-white shadow-md dark:border-amber-400 dark:bg-zinc-100 dark:text-zinc-950"
+                  : "border-zinc-200/80 bg-white/80 text-zinc-800 hover:bg-white hover:shadow-sm dark:border-white/10 dark:bg-zinc-900/75 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              }`}
+            >
+              <div className="flex w-full items-center justify-between gap-2">
+                <span
+                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
+                    isActive
+                      ? "bg-white/20 text-white dark:bg-zinc-900 dark:text-amber-400"
+                      : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                  }`}
+                >
+                  {tab.num}
+                </span>
+                <span className="text-sm" aria-hidden="true">{tab.icon}</span>
+              </div>
+              <span className="mt-1.5 text-sm font-bold tracking-tight">{tab.label}</span>
+              <span
+                className={`text-[10px] ${
+                  isActive ? "text-zinc-300 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400"
+                }`}
+              >
+                {tab.desc}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
+      {/* MACRO-SEÇÃO 2: EAP (Com botões subordinados menores no cabeçalho interno) */}
       {activeTab === "conference" && (
-        <EapConferenceWorkbench
-          projectId={projectId}
-          cityId={initialEap.cityId}
-          onValidated={() => router.refresh()}
-          onOpenCostReport={() => setActiveTab("costReport")}
-        />
-      )}
-
-      {activeTab === "costReport" && <EapCostReportView projectId={projectId} />}
-
-      {activeTab === "planning" && (
-        <EapSchedulePlanner
-          projectId={projectId}
-          onBaselineApproved={() => router.refresh()}
-          onOpenScheduleReport={() => setActiveTab("scheduleReport")}
-        />
-      )}
-
-      {activeTab === "scheduleReport" && (
-        <EapScheduleReportView projectId={projectId} />
-      )}
-
-      {activeTab === "field" && (
-        <EapFieldMeasurement
-          projectId={projectId}
-          onSaved={() => router.refresh()}
-        />
-      )}
-
-      {activeTab === "report" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setReportSubTab("executive")}
-              className={`h-8 rounded-xl px-3.5 text-xs font-semibold transition cursor-pointer ${
-                reportSubTab === "executive"
-                  ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-              }`}
-            >
-              Relatório Executivo Inicial (Baseline)
-            </button>
-            <button
-              type="button"
-              onClick={() => setReportSubTab("execution")}
-              className={`h-8 rounded-xl px-3.5 text-xs font-semibold transition cursor-pointer ${
-                reportSubTab === "execution"
-                  ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-              }`}
-            >
-              Controle de Obra & Medições (Ciclo II)
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200/80 bg-white/85 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/80">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              2. EAP — Orçamento &amp; Quantitativos
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setEapSubTab("summary")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  eapSubTab === "summary"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Planilha Resumida
+              </button>
+              <button
+                type="button"
+                onClick={() => setEapSubTab("costReport")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  eapSubTab === "costReport"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Relatório EAP (Custos)
+              </button>
+              <Link
+                href="/admin/eap/catalogo"
+                className="inline-flex h-8 items-center rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+              >
+                Catálogo Regional
+              </Link>
+            </div>
           </div>
 
-          {reportSubTab === "executive" ? (
+          {eapSubTab === "summary" ? (
+            <EapConferenceWorkbench
+              projectId={projectId}
+              cityId={initialEap.cityId}
+              onValidated={() => router.refresh()}
+              onOpenCostReport={() => setEapSubTab("costReport")}
+            />
+          ) : (
+            <EapCostReportView projectId={projectId} />
+          )}
+        </div>
+      )}
+
+      {/* MACRO-SEÇÃO 3: PLANEJAMENTO (Com botões subordinados menores no cabeçalho interno) */}
+      {activeTab === "planning" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200/80 bg-white/85 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/80">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              3. Planejamento — Linha de Balanço &amp; Sequência
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPlanningSubTab("lob")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  planningSubTab === "lob"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Visão Geral LOB
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanningSubTab("scheduleReport")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  planningSubTab === "scheduleReport"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Relatório Planejamento
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanningSubTab("constraints")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  planningSubTab === "constraints"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Restrições (45d)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanningSubTab("table")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  planningSubTab === "table"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Baseline
+              </button>
+            </div>
+          </div>
+
+          {planningSubTab === "scheduleReport" ? (
+            <EapScheduleReportView projectId={projectId} />
+          ) : (
+            <EapSchedulePlanner
+              projectId={projectId}
+              externalSubView={planningSubTab === "constraints" ? "constraints" : planningSubTab === "table" ? "table" : "lob"}
+              onBaselineApproved={() => router.refresh()}
+              onOpenScheduleReport={() => setPlanningSubTab("scheduleReport")}
+            />
+          )}
+        </div>
+      )}
+
+      {/* MACRO-SEÇÃO 4: AQUISIÇÕES & COMPRAS */}
+      {activeTab === "procurement" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200/80 bg-white/85 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/80">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              4. Aquisições — Plano de Aquisições &amp; Compras da Obra
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <a
+                href={`/api/eap/projects/${projectId}/procurement/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-8 items-center rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+              >
+                Relatório Aquisições (PDF)
+              </a>
+              <Link
+                href={`/admin/financeiro?projectId=${projectId}`}
+                className="inline-flex h-8 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+              >
+                Ver no Gestão Financeira →
+              </Link>
+            </div>
+          </div>
+
+          <EapProcurementView
+            projectId={projectId}
+            onSyncedFinance={() => router.refresh()}
+          />
+        </div>
+      )}
+
+      {/* MACRO-SEÇÃO 5: MEDIÇÃO & RELATÓRIOS EXECUTIVOS */}
+      {activeTab === "field" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200/80 bg-white/85 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/80">
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              5. Medição — Evolução no Canteiro &amp; Relatórios
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFieldSubTab("field")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  fieldSubTab === "field"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Medição
+              </button>
+              <button
+                type="button"
+                onClick={() => setFieldSubTab("bulletin")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  fieldSubTab === "bulletin"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Boletim de Evolução
+              </button>
+              <button
+                type="button"
+                onClick={() => setFieldSubTab("executive")}
+                className={`h-8 rounded-xl px-3 text-xs font-semibold cursor-pointer ${
+                  fieldSubTab === "executive"
+                    ? "bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
+                Relatório Executivo
+              </button>
+            </div>
+          </div>
+
+          {fieldSubTab === "field" && (
+            <EapFieldMeasurement
+              projectId={projectId}
+              onSaved={() => router.refresh()}
+            />
+          )}
+          {fieldSubTab === "bulletin" && (
+            <EapExecutionTracker
+              projectId={projectId}
+              isAdmin={true}
+              onMutated={() => router.refresh()}
+            />
+          )}
+          {fieldSubTab === "executive" && (
             <EapExecutiveReportView
               projectId={projectId}
               isAdmin={true}
               initialAudience="CLIENT"
               onPublished={() => router.refresh()}
-            />
-          ) : (
-            <EapExecutionTracker
-              projectId={projectId}
-              isAdmin={true}
-              onMutated={() => router.refresh()}
             />
           )}
         </div>

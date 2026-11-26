@@ -294,7 +294,7 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
           runningPct = Math.min(100, runningPct + share);
           return {
             code: s.code,
-            name: `${s.code} · ${s.name.length > 20 ? `${s.name.slice(0, 18)}..` : s.name}`,
+            name: `${s.code} · ${s.name}`,
             commercialPrice: s.commercialPrice,
             cumulativePercent: Number(runningPct.toFixed(1)),
             isClassA: runningPct <= 82,

@@ -1,4 +1,5 @@
-import type { PdfWriter } from "@/lib/pdf/pdf-writer";
+import { measureText, type PdfWriter } from "@/lib/pdf/pdf-writer";
+import { getOfficialArqVerticeLogoForPdf } from "@/lib/pdf/pdf-image";
 
 /** Converte `#rrggbb` para `"r g b"` (0..1) compatível com o operador `rg`/`RG` do PDF 1.4. */
 export function hexToPdfRgb(hex: string): string {
@@ -37,37 +38,26 @@ export function drawPdfBrandedHeader(
   pdf.rect(0, 0, pdf.width, 96, { fill: hexToPdfRgb("#11131A") });
   pdf.rect(0, 96, pdf.width, 4, { fill: accent });
 
-  // Logotipo vetorial institucional ArqVértice Studio (embutido sem dependência externa)
+  // Logotipo oficial ArqVértice (public/logo.png) embutido como XObject no PDF
   const logoX = pdf.margin;
   const logoY = 18;
   const logoSize = 54;
+  const officialLogo = getOfficialArqVerticeLogoForPdf();
   pdf.rect(logoX, logoY, logoSize, logoSize, {
-    fill: hexToPdfRgb("#1B1F2A"),
+    fill: officialLogo ? "1 1 1" : hexToPdfRgb("#1B1F2A"),
     stroke: accent,
     lineWidth: 1.0,
   });
-  // Monograma arquitetônico Vértice (A + V geométrico)
-  pdf.polygon(
-    [
-      { x: logoX + 12, y: logoY + 37 },
-      { x: logoX + 27, y: logoY + 11 },
-      { x: logoX + 42, y: logoY + 37 },
-      { x: logoX + 36, y: logoY + 37 },
-      { x: logoX + 27, y: logoY + 21 },
-      { x: logoX + 18, y: logoY + 37 },
-    ],
-    { fill: "1 1 1" }
-  );
-  pdf.line(logoX + 19, logoY + 29, logoX + 35, logoY + 29, {
-    stroke: opts.accentHex ?? "#3B82F6",
-    lineWidth: 1.6,
-  });
-  pdf.drawText("ARQVERTICE", logoX + logoSize / 2, logoY + 48, {
-    size: 5.5,
-    bold: true,
-    align: "center",
-    color: hexToPdfRgb("#CBD5E1"),
-  });
+  if (officialLogo) {
+    pdf.drawEmbeddedImage(officialLogo, logoX + 3, logoY + 3, logoSize - 6, logoSize - 6);
+  } else {
+    pdf.drawText("ARQVERTICE", logoX + logoSize / 2, logoY + 30, {
+      size: 6.5,
+      bold: true,
+      align: "center",
+      color: hexToPdfRgb("#FFFFFF"),
+    });
+  }
 
   const textX = pdf.margin + logoSize + 14;
 
@@ -176,10 +166,9 @@ export function drawPdfHorizontalBarChart(
     const ratio = item.value > 0 ? Math.max(0.025, Math.min(1, item.value / maxVal)) : 0;
     const color = hexToPdfRgb(item.colorHex ?? PDF_PALETTE[idx % PDF_PALETTE.length]);
 
-    const cleanLabel =
-      item.label.length > 36 ? `${item.label.slice(0, 34)}...` : item.label;
+    const cleanLabel = item.label;
     pdf.drawText(cleanLabel, pdf.margin, yRow + 10, {
-      size: 7.8,
+      size: 7.4,
       color: hexToPdfRgb("#1E293B"),
     });
 
@@ -425,10 +414,10 @@ export function drawPdfGroupedBarChart(
     const y0 = pdf.y;
 
     pdf.drawText(
-      item.label.length > 32 ? `${item.label.slice(0, 30)}...` : item.label,
+      item.label,
       pdf.margin,
       y0 + 13,
-      { size: 8, bold: true, color: hexToPdfRgb("#1E293B") }
+      { size: 7.6, bold: true, color: hexToPdfRgb("#1E293B") }
     );
 
     const trackX = pdf.margin + labelW;
@@ -511,9 +500,9 @@ export function drawPdfParetoAbcChart(
       color: hexToPdfRgb("#FFFFFF"),
     });
 
-    const cleanLabel = item.label.length > 29 ? `${item.label.slice(0, 27)}..` : item.label;
+    const cleanLabel = item.label;
     pdf.drawText(cleanLabel, pdf.margin + 16, y0 + 11, {
-      size: 7.5,
+      size: 7.1,
       color: hexToPdfRgb("#1E293B"),
     });
 
@@ -575,45 +564,68 @@ export function drawPdfGanttTimeline(
   });
   pdf.y += 16;
 
-  const labelW = 212;
-  const rightW = 78;
+  const labelW = 198;
+  const rightW = 92;
   const chartW = Math.max(120, pdf.contentWidth - labelW - rightW - 8);
   const trackX = pdf.margin + labelW;
 
+  const wrapLabelLines = (text: string, maxWidth: number, fontSize: number): string[] => {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let current = "";
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (measureText(candidate) * fontSize <= maxWidth) {
+        current = candidate;
+      } else {
+        if (current) lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length > 0 ? lines.slice(0, 2) : [text];
+  };
+
   const drawHeader = () => {
-    pdf.rect(pdf.margin, pdf.y, pdf.contentWidth, 16, {
+    pdf.rect(pdf.margin, pdf.y, pdf.contentWidth, 18, {
       fill: hexToPdfRgb("#0F172A"),
     });
-    pdf.drawText("Pacote e Fase Construtiva", pdf.margin + 6, pdf.y + 11, {
-      size: 7.5,
+    pdf.drawText("Pacote e Fase Construtiva", pdf.margin + 6, pdf.y + 12, {
+      size: 7.4,
       bold: true,
       color: hexToPdfRgb("#FFFFFF"),
     });
+    let lastLabelRightX = trackX - 4;
     for (const m of opts.monthMarkers) {
-      const mx = trackX + Math.min(0.95, Math.max(0, m.offsetRatio)) * chartW;
-      pdf.drawText(m.label, mx, pdf.y + 11, {
-        size: 6.5,
-        bold: true,
-        color: hexToPdfRgb("#CBD5E1"),
-      });
+      const mx = trackX + Math.min(0.96, Math.max(0, m.offsetRatio)) * chartW;
+      const labelWEst = measureText(m.label, true) * 6.3 + 6;
+      if (mx >= lastLabelRightX + 4 && mx + labelWEst <= trackX + chartW + 2) {
+        pdf.drawText(m.label, mx + 2, pdf.y + 12, {
+          size: 6.3,
+          bold: true,
+          color: hexToPdfRgb("#CBD5E1"),
+        });
+        lastLabelRightX = mx + labelWEst;
+      }
     }
-    pdf.drawText("Equipe / Dias Uteis", pdf.margin + pdf.contentWidth - 4, pdf.y + 11, {
+    pdf.drawText("Equipe / Dias Uteis", pdf.margin + pdf.contentWidth - 4, pdf.y + 12, {
       size: 7.2,
       bold: true,
       align: "right",
       color: hexToPdfRgb("#FFFFFF"),
     });
-    pdf.y += 17;
+    pdf.y += 19;
   };
 
   drawHeader();
 
-  const rowH = 14;
   const groupHeaderH = 15;
   let lastGroupTitle = "";
 
   for (let i = 0; i < opts.bars.length; i++) {
     const bar = opts.bars[i];
+    const labelLines = wrapLabelLines(bar.codeLabel, labelW - 10, 6.7);
+    const rowH = labelLines.length > 1 ? 21 : 14;
     const hasNewGroup = Boolean(bar.phaseGroupTitle && bar.phaseGroupTitle !== lastGroupTitle);
     const neededH = rowH + (hasNewGroup ? groupHeaderH : 0);
 
@@ -648,13 +660,11 @@ export function drawPdfGanttTimeline(
       });
     }
 
-    const txt =
-      bar.codeLabel.length > 44
-        ? `${bar.codeLabel.slice(0, 42)}...`
-        : bar.codeLabel;
-    pdf.drawText(txt, pdf.margin + 4, y0 + 10, {
-      size: 6.8,
-      color: hexToPdfRgb("#1E293B"),
+    labelLines.forEach((line, lIdx) => {
+      pdf.drawText(line, pdf.margin + 4, y0 + 9 + lIdx * 8.5, {
+        size: 6.7,
+        color: hexToPdfRgb("#1E293B"),
+      });
     });
 
     // Linhas verticais suaves de mês
@@ -665,14 +675,15 @@ export function drawPdfGanttTimeline(
 
     const bx = trackX + Math.min(0.98, Math.max(0, bar.startRatio)) * chartW;
     const bw = Math.max(4, Math.min(chartW - (bx - trackX), bar.widthRatio * chartW));
-    pdf.rect(bx, y0 + 3, bw, rowH - 6, { fill: hexToPdfRgb(bar.colorHex) });
+    const barY = y0 + (rowH - 8) / 2;
+    pdf.rect(bx, barY, bw, 8, { fill: hexToPdfRgb(bar.colorHex) });
 
     // Marcador sutil de janela de cura / lag após a barra
     if (bar.cureWidthRatio && bar.cureWidthRatio > 0) {
       const cx = bx + bw;
       const cw = Math.max(2, Math.min(chartW - (cx - trackX), bar.cureWidthRatio * chartW));
       if (cw > 1.5) {
-        pdf.rect(cx, y0 + 5, cw, rowH - 10, {
+        pdf.rect(cx, barY + 2, cw, 4, {
           fill: hexToPdfRgb("#FEF3C7"),
           stroke: hexToPdfRgb("#D97706"),
           lineWidth: 0.4,
@@ -680,8 +691,8 @@ export function drawPdfGanttTimeline(
       }
     }
 
-    pdf.drawText(bar.durationLabel, pdf.margin + pdf.contentWidth - 4, y0 + 10, {
-      size: 6.8,
+    pdf.drawText(bar.durationLabel, pdf.margin + pdf.contentWidth - 4, y0 + rowH / 2 + 2.5, {
+      size: 6.7,
       bold: true,
       align: "right",
       color: hexToPdfRgb("#334155"),

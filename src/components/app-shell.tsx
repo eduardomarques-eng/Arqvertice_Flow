@@ -13,16 +13,16 @@ import { prisma } from "@/server/db";
 
 // Links completos do sistema para o Administrador (Painel Executivo)
 const ALL_ADMIN_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
-  { label: "Painel Geral", href: "/admin", icon: "📊", module: "dashboard" },
+  { label: "Painel", href: "/admin", icon: "📊", module: "dashboard" },
   { label: "Projetos", href: "/admin/projetos", icon: "📋", module: "projetos" },
-  { label: "Cronograma & Operação", href: "/admin/cronograma", icon: "📅", module: "cronograma" },
-  { label: "Acervo Manager", href: "/admin/acervo", icon: "📁", module: "acervo" },
+  { label: "Cronograma", href: "/admin/cronograma", icon: "📅", module: "cronograma" },
+  { label: "Acervo", href: "/admin/acervo", icon: "📁", module: "acervo" },
   { label: "EAP", href: "/admin/eap", icon: "🧱", module: "projetos" },
-  { label: "Gestão Financeira", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
-  { label: "Base de Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
-  { label: "Central WhatsApp", href: "/admin/whatsapp", icon: "💬", module: "dashboard" },
-  { label: "E-mail Profissional", href: "/admin/email", icon: "✉️", module: "dashboard" },
-  { label: "Equipe & Governança", href: "/admin/equipe", icon: "🛡️", module: "equipe" },
+  { label: "Financeiro", href: "/admin/financeiro", icon: "💰", module: "financeiro" },
+  { label: "Clientes", href: "/admin/clientes", icon: "👥", module: "clientes" },
+  { label: "WhatsApp", href: "/admin/whatsapp", icon: "💬", module: "dashboard" },
+  { label: "E-mail", href: "/admin/email", icon: "✉️", module: "dashboard" },
+  { label: "Equipe", href: "/admin/equipe", icon: "🛡️", module: "equipe" },
 ];
 
 const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }> = [
@@ -31,7 +31,7 @@ const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }>
   { label: "Contratos", href: "/admin/contratos", module: "projetos" },
   { label: "Mensagens", href: "/admin/mensagens", module: "dashboard" },
   { label: "Serviços", href: "/admin/servicos", module: "dashboard" },
-  { label: "Plugins & Downloads", href: "/admin/acervo/plugins", module: "acervo" },
+  { label: "Plugins", href: "/admin/acervo/plugins", module: "acervo" },
   { label: "Configurações", href: "/admin/configuracoes", module: "equipe" },
 ];
 
@@ -39,15 +39,15 @@ const SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }>
  * Nunca apontam para /admin: os ambientes /admin e /equipe são 100% isolados.
  */
 const TEAM_MODULE_LINKS: Array<{ label: string; href: string; icon: string; module: AppModule }> = [
-  { label: "Painel Técnico", href: "/equipe", icon: "🏗️", module: "dashboard" },
+  { label: "Painel", href: "/equipe", icon: "🏗️", module: "dashboard" },
   { label: "Projetos", href: "/equipe/projetos", icon: "📋", module: "projetos" },
-  { label: "Cronograma & Operação", href: "/equipe/cronograma", icon: "📅", module: "cronograma" },
-  { label: "Acervo Manager", href: "/equipe/acervo", icon: "📁", module: "acervo" },
-  { label: "Gestão Financeira", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
-  { label: "Base de Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
-  { label: "Central WhatsApp", href: "/equipe/whatsapp", icon: "💬", module: "dashboard" },
-  { label: "E-mail Profissional", href: "/equipe/email", icon: "✉️", module: "dashboard" },
-  { label: "Equipe & Governança", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },
+  { label: "Cronograma", href: "/equipe/cronograma", icon: "📅", module: "cronograma" },
+  { label: "Acervo", href: "/equipe/acervo", icon: "📁", module: "acervo" },
+  { label: "Financeiro", href: "/equipe/financeiro", icon: "💰", module: "financeiro" },
+  { label: "Clientes", href: "/equipe/clientes", icon: "👥", module: "clientes" },
+  { label: "WhatsApp", href: "/equipe/whatsapp", icon: "💬", module: "dashboard" },
+  { label: "E-mail", href: "/equipe/email", icon: "✉️", module: "dashboard" },
+  { label: "Equipe", href: "/equipe/equipe", icon: "🛡️", module: "equipe" },
 ];
 
 const TEAM_SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModule }> = [
@@ -55,7 +55,7 @@ const TEAM_SECONDARY_LINKS: Array<{ label: string; href: string; module: AppModu
   { label: "Propostas", href: "/equipe/propostas", module: "projetos" },
   { label: "Mensagens", href: "/equipe/mensagens", module: "dashboard" },
   { label: "Serviços", href: "/equipe/servicos", module: "dashboard" },
-  { label: "Plugins & Downloads", href: "/equipe/acervo/plugins", module: "acervo" },
+  { label: "Plugins", href: "/equipe/acervo/plugins", module: "acervo" },
   { label: "Configurações", href: "/equipe/configuracoes", module: "equipe" },
 ];
 

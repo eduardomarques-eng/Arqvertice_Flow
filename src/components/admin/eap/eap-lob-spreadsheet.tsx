@@ -41,6 +41,7 @@ import {
   type EapDataOrigin,
 } from "@/lib/eap-preliminary-13m";
 import { clearLobAllocationsByMode, type EapClearMode } from "@/lib/eap-clear-helpers";
+import { evaluateSheetInput } from "@/lib/eap-sheet-formulas";
 
 interface ZoneDTO {
   id: string;
@@ -152,6 +153,7 @@ export function EapLobSpreadsheet({
   const [legendSearch, setLegendSearch] = useState("");
   const [originFilter, setOriginFilter] = useState<"ALL" | EapDataOrigin>("ALL");
   const [fillingPreliminary, setFillingPreliminary] = useState(false);
+  const [lobFormulaDraft, setLobFormulaDraft] = useState("");
 
   const [timelineStart, setTimelineStart] = useState<string>(
     plannedStartDate || analyticsStartDate || "2026-04-01"
@@ -618,17 +620,17 @@ export function EapLobSpreadsheet({
           const tokens =
             sourceItems.length > 0
               ? sourceItems.map((i) => ({
-                  teamCode: i.teamCode,
-                  packageNumber: i.packageNumber,
-                  code: `${i.teamCode}${i.packageNumber}`,
-                }))
+                teamCode: i.teamCode,
+                packageNumber: i.packageNumber,
+                code: `${i.teamCode}${i.packageNumber}`,
+              }))
               : [
-                  {
-                    teamCode: activeTeamCode.toUpperCase(),
-                    packageNumber: activePackageNumber,
-                    code: `${activeTeamCode.toUpperCase()}${activePackageNumber}`,
-                  },
-                ];
+                {
+                  teamCode: activeTeamCode.toUpperCase(),
+                  packageNumber: activePackageNumber,
+                  code: `${activeTeamCode.toUpperCase()}${activePackageNumber}`,
+                },
+              ];
 
           let workingCount = 0;
           for (let c = dragFillStart.colIndex; c <= dragFillHoverCol; c++) {
@@ -1060,11 +1062,10 @@ export function EapLobSpreadsheet({
     <div
       tabIndex={0}
       onKeyDown={handleGlobalKeyDown}
-      className={`outline-none ${
-        fullMode
-          ? "relative flex flex-1 min-h-0 flex-col gap-2.5 p-2"
-          : "flex flex-col gap-3"
-      }`}
+      className={`outline-none ${fullMode
+        ? "relative flex flex-1 min-h-0 flex-col gap-2.5 p-2"
+        : "flex flex-col gap-3"
+        }`}
     >
       {/* Faixa Superior: Controles + Equipe Ativa + Pacotes 1..N */}
       <div className="shrink-0 rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-xs backdrop-blur-md space-y-2.5 dark:border-zinc-800 dark:bg-[#16161D]/95">
@@ -1089,11 +1090,10 @@ export function EapLobSpreadsheet({
                   key={s}
                   type="button"
                   onClick={() => setScale(s)}
-                  className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold transition cursor-pointer ${
-                    scale === s
-                      ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
-                      : "text-slate-700 hover:text-slate-950 dark:text-zinc-300"
-                  }`}
+                  className={`h-7 rounded-lg px-2.5 text-[11px] font-semibold transition cursor-pointer ${scale === s
+                    ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-zinc-950"
+                    : "text-slate-700 hover:text-slate-950 dark:text-zinc-300"
+                    }`}
                 >
                   {SCALE_LABELS[s]}
                 </button>
@@ -1106,11 +1106,10 @@ export function EapLobSpreadsheet({
                   key={d}
                   type="button"
                   onClick={() => setDensity(d)}
-                  className={`h-7 rounded-lg px-2 text-[10px] font-semibold transition cursor-pointer ${
-                    density === d
-                      ? "bg-white text-slate-950 shadow-xs dark:bg-zinc-800 dark:text-zinc-100"
-                      : "text-slate-600 dark:text-zinc-400"
-                  }`}
+                  className={`h-7 rounded-lg px-2 text-[10px] font-semibold transition cursor-pointer ${density === d
+                    ? "bg-white text-slate-950 shadow-xs dark:bg-zinc-800 dark:text-zinc-100"
+                    : "text-slate-600 dark:text-zinc-400"
+                    }`}
                 >
                   {LOB_DENSITY_LABELS[d]}
                 </button>
@@ -1240,11 +1239,10 @@ export function EapLobSpreadsheet({
               type="button"
               onClick={() => void handleSaveMatrix()}
               disabled={saving}
-              className={`h-8 rounded-xl px-3.5 text-[11px] font-semibold text-white transition-all duration-150 active:scale-[0.985] cursor-pointer ${
-                dirty
-                  ? "bg-emerald-600 hover:bg-emerald-700 shadow-xs"
-                  : "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950"
-              }`}
+              className={`h-8 rounded-xl px-3.5 text-[11px] font-semibold text-white transition-all duration-150 active:scale-[0.985] cursor-pointer ${dirty
+                ? "bg-emerald-600 hover:bg-emerald-700 shadow-xs"
+                : "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950"
+                }`}
             >
               {saving ? "Salvando..." : dirty ? "💾 Salvar Matriz*" : "💾 Matriz Salva"}
             </button>
@@ -1277,11 +1275,10 @@ export function EapLobSpreadsheet({
                   key={team.teamCode}
                   type="button"
                   onClick={() => setActiveTeamCode(team.teamCode.toUpperCase())}
-                  className={`h-7 rounded-lg px-2.5 text-[11px] font-bold transition cursor-pointer ${
-                    active
-                      ? "bg-slate-900 text-white shadow-xs dark:bg-amber-500 dark:text-zinc-950"
-                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-                  }`}
+                  className={`h-7 rounded-lg px-2.5 text-[11px] font-bold transition cursor-pointer ${active
+                    ? "bg-slate-900 text-white shadow-xs dark:bg-amber-500 dark:text-zinc-950"
+                    : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                    }`}
                 >
                   {team.teamCode} · {team.name.split("—")[0].trim()}
                 </button>
@@ -1305,116 +1302,113 @@ export function EapLobSpreadsheet({
 
         {/* Painel de Legenda Funcional de Pacotes (Agrupado por Fase) — flutuante sobreposto em tela cheia quando aberto */}
         {(!fullMode || legendOpenFullscreen) && (
-        <div
-          className={`space-y-2 pt-2.5 pb-1 dark:border-zinc-800 ${
-            fullMode
+          <div
+            className={`space-y-2 pt-2.5 pb-1 dark:border-zinc-800 ${fullMode
               ? "absolute top-14 left-4 right-4 z-40 max-h-[55dvh] overflow-y-auto shadow-2xl backdrop-blur-xl rounded-2xl border border-slate-200/90 bg-white/95 p-3 dark:border-zinc-700 dark:bg-zinc-900/95"
               : "border-t border-slate-200/80"
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-300">
-                Legenda de Pacotes ({packageChips.length})
-              </span>
-              <input
-                type="text"
-                value={legendSearch}
-                onChange={(e) => setLegendSearch(e.target.value)}
-                placeholder="Buscar nº ou nome do pacote..."
-                className="h-7 w-52 rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-              {legendSearch && (
+              }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-300">
+                  Legenda de Pacotes ({packageChips.length})
+                </span>
+                <input
+                  type="text"
+                  value={legendSearch}
+                  onChange={(e) => setLegendSearch(e.target.value)}
+                  placeholder="Buscar nº ou nome do pacote..."
+                  className="h-7 w-52 rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                />
+                {legendSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setLegendSearch("")}
+                    className="text-[10px] font-semibold text-slate-500 hover:text-slate-900 cursor-pointer dark:text-zinc-400 dark:hover:text-zinc-100"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setLegendExpanded((v) => !v)}
+                className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                {legendExpanded || legendSearch.trim().length > 0
+                  ? "Modo Compacto"
+                  : `Expandir Todas (${legendPhaseGroups.length} fases)`}
+              </button>
+              {fullMode && (
                 <button
                   type="button"
-                  onClick={() => setLegendSearch("")}
-                  className="text-[10px] font-semibold text-slate-500 hover:text-slate-900 cursor-pointer dark:text-zinc-400 dark:hover:text-zinc-100"
+                  onClick={() => setLegendOpenFullscreen(false)}
+                  className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
                 >
-                  Limpar
+                  Fechar
                 </button>
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setLegendExpanded((v) => !v)}
-              className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-            >
-              {legendExpanded || legendSearch.trim().length > 0
-                ? "Modo Compacto"
-                : `Expandir Todas (${legendPhaseGroups.length} fases)`}
-            </button>
-            {fullMode && (
-              <button
-                type="button"
-                onClick={() => setLegendOpenFullscreen(false)}
-                className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                Fechar
-              </button>
-            )}
-          </div>
-
-          <div
-            className={`grid gap-2 ${
-              legendExpanded || legendSearch.trim().length > 0
+            <div
+              className={`grid gap-2 ${legendExpanded || legendSearch.trim().length > 0
                 ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
                 : "grid-cols-1 md:grid-cols-2"
-            }`}
-          >
-            {(legendExpanded || legendSearch.trim().length > 0
-              ? legendPhaseGroups
-              : legendPhaseGroups.filter(
+                }`}
+            >
+              {(legendExpanded || legendSearch.trim().length > 0
+                ? legendPhaseGroups
+                : legendPhaseGroups.filter(
                   (grp) =>
                     grp.items.some((i) => i.packageNumber === activePackageNumber) ||
                     grp.phaseOrder <= 2
                 )
-            ).map((group) => (
-              <div
-                key={group.phaseOrder}
-                className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 dark:border-zinc-800 dark:bg-zinc-900/50"
-              >
-                <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
-                  <span>{group.phaseTitle}</span>
-                  <span>{group.items.length} pct</span>
-                </div>
-                <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                  {group.items.map((item) => {
-                    const isActive = item.packageNumber === activePackageNumber;
-                    return (
-                      <button
-                        key={item.packageNumber}
-                        type="button"
-                        onClick={() => setActivePackageNumber(item.packageNumber)}
-                        title={`Selecionar Pacote ${String(item.packageNumber).padStart(2, "0")} — ${item.name} (Eq. ${item.defaultTeam} · ${item.durationDays}d) e destacar no calendário`}
-                        className={`flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1 text-left transition cursor-pointer ${
-                          isActive
+              ).map((group) => (
+                <div
+                  key={group.phaseOrder}
+                  className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 dark:border-zinc-800 dark:bg-zinc-900/50"
+                >
+                  <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
+                    <span>{group.phaseTitle}</span>
+                    <span>{group.items.length} pct</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                    {group.items.map((item) => {
+                      const isActive = item.packageNumber === activePackageNumber;
+                      return (
+                        <button
+                          key={item.packageNumber}
+                          type="button"
+                          onClick={() => setActivePackageNumber(item.packageNumber)}
+                          title={`Selecionar Pacote ${String(item.packageNumber).padStart(2, "0")} — ${item.name} (Eq. ${item.defaultTeam} · ${item.durationDays}d) e destacar no calendário`}
+                          className={`flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1 text-left transition cursor-pointer ${isActive
                             ? "border-slate-900 bg-white shadow-xs ring-1 ring-slate-900 dark:border-amber-400 dark:bg-zinc-900 dark:ring-amber-400"
                             : "border-slate-200/80 bg-white/90 hover:border-slate-300 hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/60 dark:hover:border-zinc-700"
-                        }`}
-                      >
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <span
-                            style={{ backgroundColor: item.corHex, color: item.textHex }}
-                            className="inline-flex h-5 min-w-[24px] shrink-0 items-center justify-center rounded px-1 font-mono text-[10px] font-extrabold"
-                          >
-                            {String(item.packageNumber).padStart(2, "0")}
+                            }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <span
+                              style={{ backgroundColor: item.corHex, color: item.textHex }}
+                              className="inline-flex h-5 min-w-[24px] shrink-0 items-center justify-center rounded px-1 font-mono text-[10px] font-extrabold"
+                            >
+                              {String(item.packageNumber).padStart(2, "0")}
+                            </span>
+                            <span className="text-[10px] font-semibold leading-tight text-slate-800 dark:text-zinc-100">
+                              {item.name}
+                            </span>
+                          </div>
+                          <span className="shrink-0 font-mono text-[9px] font-bold text-slate-500 dark:text-zinc-400">
+                            {item.defaultTeam}·{item.durationDays}d
                           </span>
-                          <span className="text-[10px] font-semibold leading-tight text-slate-800 dark:text-zinc-100">
-                            {item.name}
-                          </span>
-                        </div>
-                        <span className="shrink-0 font-mono text-[9px] font-bold text-slate-500 dark:text-zinc-400">
-                          {item.defaultTeam}·{item.durationDays}d
-                        </span>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
         )}
 
         {/* Painel Sincronizado Fase 10: Prazos, Validação, Nivelamento & Equipes */}
@@ -1429,17 +1423,16 @@ export function EapLobSpreadsheet({
             <span>
               Prazo Total:{" "}
               <strong className="font-mono text-slate-900 dark:text-zinc-100">
-                {analysis.totalWorkingDays} d.u. · {analysis.totalCalendarDays} d.c.
+                {analysis.totalWorkingDays} Dias Úteis · {analysis.totalCalendarDays} Dias Corridos
               </strong>
             </span>
             <button
               type="button"
               onClick={() => setShowConflictsDrawer((v) => !v)}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold cursor-pointer ${
-                analysis.isValid && analysis.conflicts.length === 0
-                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300"
-                  : "bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-300"
-              }`}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold cursor-pointer ${analysis.isValid && analysis.conflicts.length === 0
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300"
+                : "bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-300"
+                }`}
             >
               {analysis.isValid && analysis.conflicts.length === 0
                 ? "✓ 100% Validado — Sem Conflitos"
@@ -1525,11 +1518,10 @@ export function EapLobSpreadsheet({
                 key={chip.id}
                 type="button"
                 onClick={() => setOriginFilter(chip.id)}
-                className={`h-7 rounded-lg px-2.5 text-[10px] font-semibold cursor-pointer ${
-                  originFilter === chip.id
-                    ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
-                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-                }`}
+                className={`h-7 rounded-lg px-2.5 text-[10px] font-semibold cursor-pointer ${originFilter === chip.id
+                  ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                  : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                  }`}
               >
                 {chip.label}
               </button>
@@ -1606,22 +1598,87 @@ export function EapLobSpreadsheet({
 
         {feedback && (
           <div
-            className={`rounded-xl border px-3 py-1.5 text-xs font-medium ${
-              feedback.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
-                : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
-            }`}
+            className={`rounded-xl border px-3 py-1.5 text-xs font-medium ${feedback.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+              : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+              }`}
           >
             {feedback.text}
           </div>
         )}
+
+        {/* Barra de Fórmulas (fx) estilo Sheets para células LOB */}
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-zinc-800 dark:bg-zinc-900">
+          <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-800 dark:bg-zinc-800 dark:text-zinc-200">
+            fx
+          </span>
+          <span className="max-w-[200px] truncate text-[10px] font-medium text-slate-600 dark:text-zinc-400">
+            {selectedCell
+              ? `${matrix.floors[selectedCell.floorIndex]?.floorName || "Pav."} · Col ${selectedCell.colIndex + 1}`
+              : "Selecione uma célula na matriz"}
+          </span>
+          <input
+            type="text"
+            value={lobFormulaDraft}
+            disabled={!selectedCell}
+            onChange={(e) => setLobFormulaDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && selectedCell) {
+                e.preventDefault();
+                const col = timeline.columns[selectedCell.colIndex];
+                const floor = matrix.floors[selectedCell.floorIndex];
+                if (!col || !floor) return;
+                const raw = lobFormulaDraft.trim();
+                let resolvedRaw = raw;
+                if (raw.startsWith("=")) {
+                  const res = evaluateSheetInput(raw);
+                  if (!res.ok) {
+                    setFeedback({ type: "error", text: `Fórmula LOB: ${res.error}` });
+                    return;
+                  }
+                  resolvedRaw = `${activeTeamCode}${Math.max(1, Math.round(res.value))}`;
+                }
+                const tokens = parseLobCellInput(resolvedRaw, activeTeamCode);
+                const firstToken = tokens[0];
+                if (firstToken) {
+                  const dateIso = col.allDatesIso[0] ?? col.startIso;
+                  pushMatrix({
+                    floors: matrix.floors,
+                    allocations: [
+                      ...matrix.allocations.filter(
+                        (a) =>
+                          !(
+                            a.floorId === floor.floorId &&
+                            a.dateIso === dateIso &&
+                            a.packageNumber === firstToken.packageNumber
+                          )
+                      ),
+                      {
+                        floorId: floor.floorId,
+                        floorName: floor.floorName,
+                        floorOrder: floor.floorOrder,
+                        dateIso,
+                        packageNumber: firstToken.packageNumber,
+                        teamCode: firstToken.teamCode,
+                        isOvertime: false,
+                        dataOrigin: "EDITADO_USUARIO",
+                      },
+                    ],
+                  });
+                  setDirty(true);
+                }
+              }
+            }}
+            placeholder="Digite A1, B3 ou fórmula (=2+3, =SOMA(1;2))..."
+            className="h-7 flex-1 rounded-lg border border-slate-300 bg-white px-2 font-mono text-[11px] text-slate-900 focus:border-blue-600 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          />
+        </div>
       </div>
 
       {/* Grade Matricial Pavimentos × Datas Contínuas */}
       <div
-        className={`relative w-full overflow-x-auto overflow-y-auto overscroll-contain rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#14141B] ${
-          fullMode ? "flex-1 min-h-0" : "max-h-[620px]"
-        }`}
+        className={`relative w-full overflow-x-auto overflow-y-auto overscroll-contain rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#14141B] ${fullMode ? "flex-1 min-h-0" : "max-h-[620px]"
+          }`}
       >
         <table className="border-collapse text-left">
           <thead className="sticky top-0 z-20 bg-slate-950 text-white">
@@ -1672,13 +1729,12 @@ export function EapLobSpreadsheet({
               {timeline.columns.map((col) => (
                 <th
                   key={`dow-${col.key}`}
-                  className={`border-b border-r border-slate-800 px-1 py-0.5 text-center text-[9px] font-bold ${LOB_DENSITY_HEADER_WIDTH[density]} ${
-                    col.isHoliday
-                      ? "bg-slate-700 text-amber-300"
-                      : col.isWeekend
-                        ? "bg-stone-700/80 text-stone-200"
-                        : "bg-slate-900 text-slate-300"
-                  }`}
+                  className={`border-b border-r border-slate-800 px-1 py-0.5 text-center text-[9px] font-bold ${LOB_DENSITY_HEADER_WIDTH[density]} ${col.isHoliday
+                    ? "bg-slate-700 text-amber-300"
+                    : col.isWeekend
+                      ? "bg-stone-700/80 text-stone-200"
+                      : "bg-slate-900 text-slate-300"
+                    }`}
                 >
                   {col.weekdayInitial}
                 </th>
@@ -1689,13 +1745,12 @@ export function EapLobSpreadsheet({
                 <th
                   key={`dt-${col.key}`}
                   title={col.holidayName || (col.isWeekend ? "Fim de semana (sem trabalho)" : col.startIso)}
-                  className={`border-b border-r border-slate-800 px-1 py-1 text-center font-mono text-[9px] font-semibold tabular-nums ${LOB_DENSITY_HEADER_WIDTH[density]} ${
-                    col.isHoliday
-                      ? "bg-slate-700 text-amber-200"
-                      : col.isWeekend
-                        ? "bg-stone-700/80 text-stone-300"
-                        : "bg-slate-900 text-slate-100"
-                  }`}
+                  className={`border-b border-r border-slate-800 px-1 py-1 text-center font-mono text-[9px] font-semibold tabular-nums ${LOB_DENSITY_HEADER_WIDTH[density]} ${col.isHoliday
+                    ? "bg-slate-700 text-amber-200"
+                    : col.isWeekend
+                      ? "bg-stone-700/80 text-stone-300"
+                      : "bg-slate-900 text-slate-100"
+                    }`}
                 >
                   {col.dateShort}
                 </th>
@@ -1767,8 +1822,8 @@ export function EapLobSpreadsheet({
                       lanes.length === 1
                         ? allFloorCellItems
                         : allFloorCellItems.filter((it) =>
-                            laneTokens.has(`${it.teamCode}${it.packageNumber}`)
-                          );
+                          laneTokens.has(`${it.teamCode}${it.packageNumber}`)
+                        );
                     const hasOvertime = cellItems.some((i) => i.isOvertime);
                     const cellConstraintAlerts = cellItems
                       .map((i) => constraintBlocks[`${floor.floorId}::${i.packageNumber}`])
@@ -1782,15 +1837,15 @@ export function EapLobSpreadsheet({
                     const tooltipText =
                       cellItems.length > 0
                         ? cellItems
-                            .map((i) => {
-                              const pkg = resolvePackageVisual(i.packageNumber);
-                              const team = teamByCode.get(i.teamCode.toUpperCase());
-                              const workersStr = team
-                                ? team.workers.map((w) => `${w.headcount} ${w.roleName}`).join(", ")
-                                : `Equipe ${i.teamCode}`;
-                              return `${floor.floorName} • ${col.label} • Equipe ${i.teamCode} (${workersStr}) • Pacote ${pkg.packageNumber} (${pkg.name} — ${pkg.discipline})${i.isOvertime ? " [HORA EXTRA]" : ""}`;
-                            })
-                            .join("\n")
+                          .map((i) => {
+                            const pkg = resolvePackageVisual(i.packageNumber);
+                            const team = teamByCode.get(i.teamCode.toUpperCase());
+                            const workersStr = team
+                              ? team.workers.map((w) => `${w.headcount} ${w.roleName}`).join(", ")
+                              : `Equipe ${i.teamCode}`;
+                            return `${floor.floorName} • ${col.label} • Equipe ${i.teamCode} (${workersStr}) • Pacote ${pkg.packageNumber} (${pkg.name} — ${pkg.discipline})${i.isOvertime ? " [HORA EXTRA]" : ""}`;
+                          })
+                          .join("\n")
                         : `${floor.floorName} • ${col.label}${col.holidayName ? ` • Feriado: ${col.holidayName}` : col.isWeekend ? " • Fim de semana (clique direito para Hora Extra)" : ""}`;
 
                     return (
@@ -1819,25 +1874,21 @@ export function EapLobSpreadsheet({
                             setDragFillHoverCol(colIndex);
                           }
                         }}
-                        className={`relative border-r border-slate-200/80 p-0.5 text-center align-middle transition select-none dark:border-zinc-800 ${
-                          LOB_DENSITY_CELL[density]
-                        } ${
-                          col.isHoliday
+                        className={`relative border-r border-slate-200/80 p-0.5 text-center align-middle transition select-none dark:border-zinc-800 ${LOB_DENSITY_CELL[density]
+                          } ${col.isHoliday
                             ? "bg-zinc-500/85 text-white dark:bg-zinc-700/90"
                             : col.isWeekend
                               ? "bg-stone-200/75 dark:bg-zinc-800/75"
                               : "bg-white dark:bg-[#14141B]"
-                        } ${
-                          hasConflict
+                          } ${hasConflict
                             ? "ring-2 ring-inset ring-rose-500 bg-rose-50/70 dark:bg-rose-950/30"
                             : isSelected && laneIdx === 0
                               ? "ring-2 ring-inset ring-blue-600 dark:ring-amber-400"
                               : ""
-                        } ${
-                          isDragHighlighted && laneIdx === 0
+                          } ${isDragHighlighted && laneIdx === 0
                             ? "bg-blue-100/70 dark:bg-amber-950/40"
                             : ""
-                        }`}
+                          }`}
                       >
                         {isEditing && laneIdx === 0 ? (
                           <input
@@ -1880,26 +1931,24 @@ export function EapLobSpreadsheet({
                                       ? `Restrições pendentes: ${blk.titles.join(" | ")} • ${orgMeta.tooltip}`
                                       : `${orgMeta.label} (${orgMeta.shortBadge}) — ${orgMeta.tooltip}`
                                   }
-                                  className={`relative inline-flex items-center justify-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[9px] font-extrabold leading-none shadow-2xs transition ${
-                                    blk?.criticalCount
-                                      ? "ring-1 ring-rose-400"
-                                      : isHighlightedPkg
-                                        ? "ring-2 ring-slate-950 dark:ring-white scale-[1.04]"
-                                        : org === "PRELIMINAR_PADRAO"
-                                          ? "ring-1 ring-amber-300/80"
-                                          : ""
-                                  } ${dimmedByOrigin ? "opacity-25" : ""}`}
+                                  className={`relative inline-flex items-center justify-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[9px] font-extrabold leading-none shadow-2xs transition ${blk?.criticalCount
+                                    ? "ring-1 ring-rose-400"
+                                    : isHighlightedPkg
+                                      ? "ring-2 ring-slate-950 dark:ring-white scale-[1.04]"
+                                      : org === "PRELIMINAR_PADRAO"
+                                        ? "ring-1 ring-amber-300/80"
+                                        : ""
+                                    } ${dimmedByOrigin ? "opacity-25" : ""}`}
                                 >
                                   {it.teamCode}
                                   {it.packageNumber}
                                   <span
-                                    className={`ml-0.5 h-1.5 w-1.5 rounded-full ${
-                                      org === "PRELIMINAR_PADRAO"
-                                        ? "bg-amber-300"
-                                        : org === "QUANTITATIVO_IMPORTADO"
-                                          ? "bg-sky-300"
-                                          : "bg-emerald-300"
-                                    }`}
+                                    className={`ml-0.5 h-1.5 w-1.5 rounded-full ${org === "PRELIMINAR_PADRAO"
+                                      ? "bg-amber-300"
+                                      : org === "QUANTITATIVO_IMPORTADO"
+                                        ? "bg-sky-300"
+                                        : "bg-emerald-300"
+                                      }`}
                                   />
                                   {blk ? (
                                     <span
@@ -1965,13 +2014,12 @@ export function EapLobSpreadsheet({
               {timeline.columns.map((col) => (
                 <th
                   key={`ft-dt-${col.key}`}
-                  className={`border-t border-r border-slate-800 px-1 py-1 text-center font-mono text-[9px] ${
-                    col.isHoliday
-                      ? "bg-slate-700 text-amber-200"
-                      : col.isWeekend
-                        ? "bg-stone-700/80 text-stone-300"
-                        : "bg-slate-900 text-slate-200"
-                  }`}
+                  className={`border-t border-r border-slate-800 px-1 py-1 text-center font-mono text-[9px] ${col.isHoliday
+                    ? "bg-slate-700 text-amber-200"
+                    : col.isWeekend
+                      ? "bg-stone-700/80 text-stone-300"
+                      : "bg-slate-900 text-slate-200"
+                    }`}
                 >
                   {col.dateShort}
                 </th>
@@ -1981,15 +2029,14 @@ export function EapLobSpreadsheet({
               {timeline.columns.map((col) => (
                 <th
                   key={`ft-dow-${col.key}`}
-                  className={`border-t border-r border-slate-800 px-1 py-0.5 text-center text-[9px] font-bold ${
-                    col.isHoliday
-                      ? "bg-slate-700 text-amber-300"
-                      : col.weekdayInitial === "D"
-                        ? "bg-rose-950/70 text-rose-300"
-                        : col.isWeekend
-                          ? "bg-stone-700/80 text-stone-200"
-                          : "bg-slate-900 text-slate-300"
-                  }`}
+                  className={`border-t border-r border-slate-800 px-1 py-0.5 text-center text-[9px] font-bold ${col.isHoliday
+                    ? "bg-slate-700 text-amber-300"
+                    : col.weekdayInitial === "D"
+                      ? "bg-rose-950/70 text-rose-300"
+                      : col.isWeekend
+                        ? "bg-stone-700/80 text-stone-200"
+                        : "bg-slate-900 text-slate-300"
+                    }`}
                 >
                   {col.weekdayInitial}
                 </th>
@@ -2014,13 +2061,77 @@ export function EapLobSpreadsheet({
 
   return (
     <>
-      {renderMatrixContent(false)}
+      {!isFullscreen && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <div>
+              <h4 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
+                Resumo da Matriz LOB (Somente Leitura)
+              </h4>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
+                {matrix.floors.length} pavimento(s) · {matrix.allocations.length} alocação(ões) ·{" "}
+                {analysis.conflicts.length} alerta(s) · Clique em Entrar para editar células, escalas, equipes e fórmulas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-5 text-xs font-bold text-white shadow-sm hover:bg-slate-800 cursor-pointer dark:bg-amber-500 dark:text-zinc-950 dark:hover:bg-amber-400"
+            >
+              Entrar no Planejamento
+            </button>
+          </div>
+
+          <div className="max-h-[340px] overflow-auto rounded-2xl border border-slate-200/80 dark:border-zinc-800">
+            <table className="w-full min-w-[640px] border-collapse text-left text-xs">
+              <thead className="sticky top-0 bg-slate-50 dark:bg-zinc-900">
+                <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 dark:border-zinc-800">
+                  <th className="py-2 px-3">Pacote</th>
+                  <th className="py-2 px-2">Pavimentos</th>
+                  <th className="py-2 px-2">Equipes</th>
+                  <th className="py-2 px-2 text-right">Início</th>
+                  <th className="py-2 px-2 text-right">Término</th>
+                  <th className="py-2 px-3 text-right">Dias Alocados</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+                {Array.from(allocationSummaryByPkg.entries())
+                  .sort((a, b) => a[0] - b[0])
+                  .map(([pkgNum, ps]) => {
+                    const pkgName =
+                      packages.find((p) => p.packageNumber === pkgNum)?.name ??
+                      servicePackages.find((p) => p.packageNumber === pkgNum)?.name ??
+                      `Pacote ${pkgNum}`;
+                    return (
+                      <tr key={pkgNum}>
+                        <td className="py-1.5 px-3 font-semibold text-slate-900 dark:text-zinc-100">
+                          P{String(pkgNum).padStart(2, "0")} — {pkgName}
+                        </td>
+                        <td className="py-1.5 px-2 text-slate-600 dark:text-zinc-400">
+                          {ps.floors.length} pavimento(s)
+                        </td>
+                        <td className="py-1.5 px-2 font-mono text-slate-700 dark:text-zinc-300">
+                          {ps.teamCodes.join(", ") || "—"}
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-mono">{ps.startDate || "—"}</td>
+                        <td className="py-1.5 px-2 text-right font-mono">{ps.endDate || "—"}</td>
+                        <td className="py-1.5 px-3 text-right font-mono font-semibold">
+                          {ps.workingDaysCount} Dias Úteis
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <EapFullscreenShell
         open={isFullscreen}
         onClose={() => setIsFullscreen(false)}
-        title="ArqVértice OS — Matriz LOB (Pavimentos × Datas Contínuas)"
-        subtitle="Finais de semana sombreados · Células Equipe+Pacote (A1, B3) · Ctrl+Z / Ctrl+Y"
+        title="Planejamento LOB — Matriz Pavimentos × Datas Contínuas"
+        subtitle="Edição estilo Sheets · Células Equipe+Pacote (A1, B3) · Ctrl+Z / Ctrl+Y · Esc para sair"
       >
         {renderMatrixContent(true)}
       </EapFullscreenShell>

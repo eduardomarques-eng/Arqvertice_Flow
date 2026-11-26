@@ -415,7 +415,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             Histograma de Carga de Equipes por Mês
           </h3>
           <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-            Dias-equipe trabalhados mensalmente por cada equipe (Eq. A, B, C) ao longo da obra.
+            Dias-equipe trabalhados mensalmente por cada equipe (Equipes A, B, C) ao longo da obra.
           </p>
           <div className="mt-4 h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -429,7 +429,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                   <Bar
                     key={t.teamCode}
                     dataKey={t.teamCode}
-                    name={`Eq. ${t.teamCode}`}
+                    name={`Equipe ${t.teamCode}`}
                     stackId="a"
                     fill={TEAM_COLORS[idx % TEAM_COLORS.length]}
                     radius={idx === report.teams.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
@@ -445,7 +445,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             Distribuição de Dias Úteis por Pavimento
           </h3>
           <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-            Concentração de frentes de trabalho entre Fundação, Térreo, Pav. Superior, Coberta e Área Externa.
+            Concentração de frentes de trabalho entre Fundação, Térreo, Pavimento Superior, Coberta e Área Externa.
           </p>
           <div className="mt-4 h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -453,7 +453,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis type="number" tick={{ fontSize: 10 }} />
                 <YAxis type="category" dataKey="floorName" width={145} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value) => `${value} d.u.`} />
+                <Tooltip formatter={(value) => `${value} Dias Úteis`} />
                 <Bar dataKey="workingDays" name="Dias Úteis" radius={[0, 6, 6, 0]}>
                   {report.byFloor.map((_, idx) => (
                     <Cell key={idx} fill={FLOOR_COLORS[idx % FLOOR_COLORS.length]} />
@@ -510,7 +510,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
                     {fmtDateBR(pkg.endDate)}
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-bold tabular-nums">
-                    {pkg.workingDays} d.u.
+                    {pkg.workingDays} Dias Úteis
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Badge tone="green">{pkg.status}</Badge>
