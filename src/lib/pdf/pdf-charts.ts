@@ -472,14 +472,36 @@ export function drawPdfParetoAbcChart(
 
   const slice = opts.items.slice(0, 10);
   const rowH = 19;
-  pdf.ensure(26 + slice.length * rowH + 10);
+  pdf.ensure(42 + slice.length * rowH + 46);
 
   pdf.drawText(opts.title, pdf.margin, pdf.y + 10, {
     size: 9.5,
     bold: true,
     color: hexToPdfRgb("#0F172A"),
   });
-  pdf.y += 16;
+  pdf.y += 14;
+
+  // Legenda explícita do gráfico de Pareto
+  const leg1X = pdf.margin;
+  pdf.rect(leg1X, pdf.y + 2, 7, 7, { fill: hexToPdfRgb("#059669") });
+  pdf.drawText("Impacto do Item (R$ e %)", leg1X + 10, pdf.y + 8, {
+    size: 7,
+    color: hexToPdfRgb("#334155"),
+  });
+  const leg2X = leg1X + 115;
+  pdf.rect(leg2X, pdf.y + 3, 5, 5, { fill: hexToPdfRgb("#0F172A") });
+  pdf.drawText("Percentual Acumulado (%)", leg2X + 8, pdf.y + 8, {
+    size: 7,
+    color: hexToPdfRgb("#334155"),
+  });
+  const leg3X = leg2X + 118;
+  pdf.line(leg3X, pdf.y + 1, leg3X, pdf.y + 10, { stroke: "#DC2626", lineWidth: 1.0 });
+  pdf.drawText("Corte Classe A (80% do Orcamento)", leg3X + 5, pdf.y + 8, {
+    size: 7,
+    color: hexToPdfRgb("#B91C1C"),
+  });
+
+  pdf.y += 15;
 
   const labelW = 165;
   const valW = 110;
@@ -525,14 +547,22 @@ export function drawPdfParetoAbcChart(
 
     // Marcador de 80% Pareto
     const x80 = trackX + barAreaW * 0.8;
-    pdf.line(x80, y0 + 2, x80, y0 + 15, { stroke: "#DC2626", lineWidth: 0.6 });
+    pdf.line(x80, y0 + 2, x80, y0 + 15, { stroke: "#DC2626", lineWidth: 0.7 });
 
-    // Ponto do acumulado
-    const cumX = trackX + Math.min(1, Math.max(0, item.cumulativePercent / 100)) * barAreaW;
-    pdf.rect(cumX - 2, y0 + 6, 4, 5, { fill: hexToPdfRgb("#0F172A") });
+    // Marcador de percentual acumulado com rótulo legível
+    const cumRatio = Math.min(1, Math.max(0, item.cumulativePercent / 100));
+    const cumX = trackX + cumRatio * barAreaW;
+    pdf.line(cumX, y0 + 3, cumX, y0 + 14, { stroke: "#0F172A", lineWidth: 1.2 });
+    const cumLabel = `${item.cumulativePercent.toFixed(1).replace(".", ",")}%`;
+    const cumLabelX = cumX + 4 <= trackX + barAreaW - 24 ? cumX + 4 : Math.max(trackX + 2, cumX - 24);
+    pdf.drawText(cumLabel, cumLabelX, y0 + 11, {
+      size: 6.2,
+      bold: true,
+      color: hexToPdfRgb("#0F172A"),
+    });
 
     pdf.drawText(
-      `${item.formattedValue} (${item.cumulativePercent.toFixed(0)}%)`,
+      `${item.formattedValue} (${item.cumulativePercent.toFixed(1).replace(".", ",")}%)`,
       pdf.margin + pdf.contentWidth,
       y0 + 11,
       { size: 7, bold: true, align: "right", color: hexToPdfRgb("#334155") }
@@ -541,7 +571,34 @@ export function drawPdfParetoAbcChart(
     pdf.y += rowH;
   }
 
-  pdf.y += 6;
+  // Quadro explicativo resumido (Classe A / B / C)
+  pdf.y += 4;
+  pdf.ensure(38);
+  const boxY = pdf.y;
+  pdf.rect(pdf.margin, boxY, pdf.contentWidth, 34, {
+    fill: hexToPdfRgb("#F8FAFC"),
+    stroke: "#CBD5E1",
+    lineWidth: 0.5,
+  });
+  pdf.drawText(
+    "Classe A (ate 80%): Itens criticos de maior impacto financeiro — exigem cotacao rigorosa e prioridade executiva.",
+    pdf.margin + 8,
+    boxY + 11,
+    { size: 6.7, color: hexToPdfRgb("#065F46") }
+  );
+  pdf.drawText(
+    "Classe B (80% a 95%): Itens de impacto intermediario — controle padrao de suprimentos e cronograma.",
+    pdf.margin + 8,
+    boxY + 20,
+    { size: 6.7, color: hexToPdfRgb("#92400E") }
+  );
+  pdf.drawText(
+    "Classe C (acima de 95%): Itens complementares de menor representatividade unitaria no orcamento.",
+    pdf.margin + 8,
+    boxY + 29,
+    { size: 6.7, color: hexToPdfRgb("#475569") }
+  );
+  pdf.y += 40;
 }
 
 /**

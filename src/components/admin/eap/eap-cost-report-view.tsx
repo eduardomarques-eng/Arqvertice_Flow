@@ -49,6 +49,8 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [abcClassFilter, setAbcClassFilter] = useState<"ALL" | "A" | "B" | "C">("ALL");
+  const [abcSearch, setAbcSearch] = useState("");
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -135,7 +137,7 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
             />
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="neutral">Relatório de Custos da Planilha EAP</Badge>
+                <Badge tone="neutral">Relatório Custos</Badge>
                 <Badge tone="neutral">
                   Revisão R{String(report.meta.revision).padStart(2, "0")}
                 </Badge>
@@ -148,8 +150,7 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
               </h2>
               <p className="text-xs text-slate-600 dark:text-zinc-400">
                 Cliente: <strong className="text-slate-900 dark:text-zinc-200">{report.meta.clientName}</strong>{" "}
-                · Padrão: <strong className="text-slate-800 dark:text-zinc-200">{report.meta.constructionStandardLabel || "Médio Padrão"}</strong>{" "}
-                · {report.meta.concreteMethodLabel || "Concreto Usinado"} · Praça: {report.meta.cityLabel} · Área:{" "}
+                · Local: {report.meta.cityLabel} · Área Construída:{" "}
                 <span className="font-mono font-semibold tabular-nums">{report.meta.builtAreaM2} m²</span>{" "}
                 · BDI: <span className="font-mono font-semibold tabular-nums">{report.meta.bdiPercent}%</span>
               </p>
@@ -614,16 +615,45 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
               Priorização Pareto dos itens de maior impacto financeiro no orçamento da EAP.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 text-[11px] font-mono">
-            <Badge tone="green">
-              Classe A: {report.abcCurve.summaryByClass.A.count} itens ({report.abcCurve.summaryByClass.A.sharePercent.toFixed(1)}%)
-            </Badge>
-            <Badge tone="amber">
-              Classe B: {report.abcCurve.summaryByClass.B.count} itens ({report.abcCurve.summaryByClass.B.sharePercent.toFixed(1)}%)
-            </Badge>
-            <Badge tone="neutral">
-              Classe C: {report.abcCurve.summaryByClass.C.count} itens ({report.abcCurve.summaryByClass.C.sharePercent.toFixed(1)}%)
-            </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900">
+              {(["ALL", "A", "B", "C"] as const).map((cls) => (
+                <button
+                  key={cls}
+                  type="button"
+                  onClick={() => setAbcClassFilter(cls)}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition cursor-pointer ${
+                    abcClassFilter === cls
+                      ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                      : "text-slate-600 hover:bg-white dark:text-zinc-300"
+                  }`}
+                >
+                  {cls === "ALL" ? "Todas" : `Classe ${cls}`}
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              value={abcSearch}
+              onChange={(e) => setAbcSearch(e.target.value)}
+              placeholder="Buscar insumo ou etapa..."
+              className="h-8 w-52 rounded-xl border border-slate-300 bg-white px-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 text-[11px] md:grid-cols-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <div>
+            <strong className="text-emerald-700 dark:text-emerald-400">Classe A (até 80%):</strong>{" "}
+            <span className="text-slate-600 dark:text-zinc-300">Itens críticos de maior impacto financeiro no orçamento.</span>
+          </div>
+          <div>
+            <strong className="text-amber-700 dark:text-amber-400">Classe B (80% a 95%):</strong>{" "}
+            <span className="text-slate-600 dark:text-zinc-300">Impacto intermediário — controle padrão de compras.</span>
+          </div>
+          <div>
+            <strong className="text-slate-700 dark:text-zinc-300">Classe C (acima de 95%):</strong>{" "}
+            <span className="text-slate-600 dark:text-zinc-300">Itens complementares de baixo peso unitário.</span>
           </div>
         </div>
 
@@ -640,7 +670,19 @@ export function EapCostReportView({ projectId }: { projectId: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-              {report.abcCurve.items.map((item) => (
+              {report.abcCurve.items
+                .filter((item) => {
+                  if (abcClassFilter !== "ALL" && item.abcClass !== abcClassFilter) return false;
+                  const q = abcSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return (
+                    item.description.toLowerCase().includes(q) ||
+                    item.stageName.toLowerCase().includes(q) ||
+                    item.stageCode.toLowerCase().includes(q) ||
+                    item.code.toLowerCase().includes(q)
+                  );
+                })
+                .map((item) => (
                 <tr key={`${item.rank}-${item.code}`} className="text-slate-800 dark:text-zinc-200">
                   <td className="px-3 py-2">
                     <Badge

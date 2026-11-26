@@ -97,7 +97,7 @@ interface ScheduleApiPayload {
   }>;
 }
 
-type PlannerSubView = "lob" | "constraints" | "table" | "charts" | "procurement";
+type PlannerSubView = "lob" | "constraints" | "table" | "charts" | "baseline";
 
 const WAVE_COLORS = [
   "bg-blue-600 text-white",
@@ -149,6 +149,9 @@ export function EapSchedulePlanner({
   const [waveFilter, setWaveFilter] = useState("ALL");
   const [zoneFilter, setZoneFilter] = useState("ALL");
   const [liveLobAllocations, setLiveLobAllocations] = useState<LobFloorAllocationItem[]>([]);
+  const [baselineEdits, setBaselineEdits] = useState<
+    Record<string, { startDate: string; endDate: string; durationWorkingDays: number }>
+  >({});
 
   // Modal de edição rápida de segmento (clique no bloco LOB)
   const [editingSegment, setEditingSegment] = useState<{
@@ -528,7 +531,7 @@ export function EapSchedulePlanner({
             },
             { id: "table", label: "Tabela de Pacotes" },
             { id: "charts", label: "Gantt, Curva S & Desembolso Mensal" },
-            { id: "procurement", label: `Calendário de Suprimentos (${allGates.length})` },
+            { id: "baseline", label: "Baseline" },
           ] as const
         ).map((tab) => (
           <button
@@ -813,71 +816,125 @@ export function EapSchedulePlanner({
         </div>
       )}
 
-      {/* SUB-VISÃO 4: CALENDÁRIO DE SUPRIMENTOS */}
-      {subView === "procurement" && (
+      {/* SUB-VISÃO 4: BASELINE EDITÁVEL EM TEMPO REAL */}
+      {subView === "baseline" && (
         <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-                Calendário de Suprimentos & Contratações (Procurement Gates)
+                Baseline Editável (Linha de Base × Cronograma Atual)
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                Ordenado por data-limite de disparo de compra conforme antecedência (Lead Time).
+                Edite datas planejadas ou durações em dias úteis para simular e comparar desvios em tempo real.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowGateModal(true)}
-              className="h-9 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
-            >
-              + Novo Gatilho de Compra
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {data.baselines.map((b) => (
+                <Badge key={b.id} tone="green">
+                  {b.versionLabel}
+                </Badge>
+              ))}
+              <button
+                type="button"
+                onClick={handleApproveBaseline}
+                disabled={busy === "baseline"}
+                className="h-9 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
+              >
+                {busy === "baseline"
+                  ? "Salvando..."
+                  : `Capturar Baseline v${data.baselines.length + 1}.0`}
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-zinc-800">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600 dark:bg-zinc-900 dark:text-zinc-400">
                 <tr>
-                  <th className="px-3 py-2">Data-Limite</th>
-                  <th className="px-3 py-2">Lead Time</th>
                   <th className="px-3 py-2">Pacote</th>
-                  <th className="px-3 py-2">Compra / Contratação</th>
-                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Início Baseline</th>
+                  <th className="px-3 py-2">Término Baseline</th>
+                  <th className="px-3 py-2">Duração (d.u.)</th>
+                  <th className="px-3 py-2">Desvio vs Atual</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                {allGates.map((g) => (
-                  <tr key={g.id} className="text-slate-800 dark:text-zinc-200">
-                    <td className="px-3 py-2 font-mono font-bold">{g.triggerDate}</td>
-                    <td className="px-3 py-2">
-                      <Badge tone="amber">-{g.leadTimeDays}d</Badge>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px]">
-                      PCT {String(g.packageNumber).padStart(2, "0")}
-                    </td>
-                    <td className="px-3 py-2 font-medium">{g.title}</td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={g.status}
-                        disabled={busy === g.id}
-                        onChange={(e) => handleUpdateGateStatus(g.id, e.target.value)}
-                        className={INPUT_CLASS}
-                      >
-                        <option value="PENDENTE">PENDENTE</option>
-                        <option value="EM_COTACAO">EM COTAÇÃO</option>
-                        <option value="COMPRADO">COMPRADO</option>
-                        <option value="ENTREGUE">ENTREGUE</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-                {allGates.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
-                      Clique em &quot;Gerar / Recalcular da EAP&quot; para popular os gatilhos de suprimentos.
-                    </td>
-                  </tr>
-                )}
+                {data.packages.map((pkg) => {
+                  const firstSeg = pkg.segments[0];
+                  const lastSeg = pkg.segments[pkg.segments.length - 1];
+                  const currentStart = firstSeg?.startDate?.slice(0, 10) || startDateInput;
+                  const currentEnd = lastSeg?.endDate?.slice(0, 10) || currentStart;
+                  const edit = baselineEdits[pkg.id] ?? {
+                    startDate: currentStart,
+                    endDate: currentEnd,
+                    durationWorkingDays: pkg.durationWorkingDays,
+                  };
+                  const deltaDays = pkg.durationWorkingDays - edit.durationWorkingDays;
+                  const devTone = deltaDays < 0 ? "green" : deltaDays === 0 ? "neutral" : "amber";
+                  const devLabel =
+                    deltaDays < 0
+                      ? `Adiantado (${Math.abs(deltaDays)} d.u.)`
+                      : deltaDays === 0
+                        ? "No Prazo"
+                        : `Atraso de ${deltaDays} d.u.`;
+
+                  return (
+                    <tr key={pkg.id} className="text-slate-800 dark:text-zinc-200">
+                      <td className="px-3 py-2 font-medium">
+                        <span className="font-mono text-[11px] text-slate-500 mr-1.5">
+                          PCT {String(pkg.packageNumber).padStart(2, "0")}
+                        </span>
+                        {pkg.name}
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="date"
+                          value={edit.startDate}
+                          onChange={(e) =>
+                            setBaselineEdits((prev) => ({
+                              ...prev,
+                              [pkg.id]: { ...edit, startDate: e.target.value },
+                            }))
+                          }
+                          className={INPUT_CLASS}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="date"
+                          value={edit.endDate}
+                          onChange={(e) =>
+                            setBaselineEdits((prev) => ({
+                              ...prev,
+                              [pkg.id]: { ...edit, endDate: e.target.value },
+                            }))
+                          }
+                          className={INPUT_CLASS}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min={1}
+                          value={edit.durationWorkingDays}
+                          onChange={(e) =>
+                            setBaselineEdits((prev) => ({
+                              ...prev,
+                              [pkg.id]: {
+                                ...edit,
+                                durationWorkingDays: Math.max(1, Number(e.target.value) || 1),
+                              },
+                            }))
+                          }
+                          className={`${INPUT_CLASS} w-20`}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge tone={devTone}>{devLabel}</Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

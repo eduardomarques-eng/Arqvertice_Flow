@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EapMeasurementChartsPanel } from "@/components/admin/eap/eap-measurement-charts-panel";
+import { EapSiteDiary } from "@/components/admin/eap/eap-site-diary";
 import { buildFieldMeasurementChartData } from "@/lib/eap-measurement-charts";
 import {
   compressImageFileForField,
@@ -58,6 +59,7 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
 
   const [selectedFloor, setSelectedFloor] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [activeSection, setActiveSection] = useState<"medicao" | "diario">("medicao");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [referenceDate, setReferenceDate] = useState<string>(
@@ -474,6 +476,72 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
 
   return (
     <div className="space-y-4">
+      {/* Navegação interna de 5. Medição (Medição × Diário de Obra) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveSection("medicao")}
+            className={`h-8 rounded-xl px-3.5 text-xs font-semibold cursor-pointer ${
+              activeSection === "medicao"
+                ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+            }`}
+          >
+            Medição &amp; Boletim
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSection("diario")}
+            className={`h-8 rounded-xl px-3.5 text-xs font-semibold cursor-pointer ${
+              activeSection === "diario"
+                ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+            }`}
+          >
+            Diário de Obra
+          </button>
+        </div>
+      </div>
+
+      {activeSection === "diario" ? (
+        <EapSiteDiary projectId={projectId} />
+      ) : (
+        <>
+          {/* Resumo Executivo Didático para o Cliente */}
+          <Card className="rounded-3xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
+                  Resumo Executivo da Obra para o Cliente
+                </h3>
+                <p className="mt-1 text-xs text-slate-700 dark:text-zinc-300">
+                  Até o momento foram concluídos{" "}
+                  <strong>{liveSummary.physicalProgressPct.toFixed(1)}%</strong> dos serviços previstos (
+                  <strong>{fmtBRL(liveSummary.totalAccumulatedValue)}</strong> executados), restando{" "}
+                  <strong>{fmtBRL(liveSummary.totalPendingValue)}</strong> para conclusão total.{" "}
+                  Situação do prazo:{" "}
+                  <strong>
+                    {liveSummary.deviationPct > 1
+                      ? "Adiantado"
+                      : liveSummary.deviationPct >= -2
+                        ? "No Prazo"
+                        : "Atenção (Recuperar)"}
+                  </strong>{" "}
+                  ({liveSummary.deviationPct >= 0 ? "+" : ""}
+                  {liveSummary.deviationPct.toFixed(1)} p.p. vs Linha de Balanço).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSection("diario")}
+                className="h-8 rounded-xl border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 cursor-pointer dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-300"
+              >
+                Abrir Diário de Obra
+              </button>
+            </div>
+          </Card>
+
       {/* Painel Resumo "Feito × Pendente" */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <Card className="rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 shadow-xs backdrop-blur-md dark:border-zinc-800 dark:bg-[#16161D]/90">
@@ -1295,6 +1363,8 @@ export function EapFieldMeasurement({ projectId, onSaved }: EapFieldMeasurementP
           </div>,
           document.body
         )}
+        </>
+      )}
     </div>
   );
 }

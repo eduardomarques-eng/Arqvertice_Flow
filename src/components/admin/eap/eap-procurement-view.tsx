@@ -50,9 +50,49 @@ export function EapProcurementView({
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | ProcurementStatus>("ALL");
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"compras" | "calendario" | "curva_s">("compras");
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [draftEdits, setDraftEdits] = useState<
     Record<string, { supplierName?: string; closedAmount?: string; leadTimeDays?: string }>
   >({});
+
+  const monthlyRows = useMemo(() => {
+    const byMonth = new Map<string, { amount: number; pkgs: Set<string> }>();
+    for (const item of items) {
+      const iso = (item.orderDeadlineDate || item.needDate || "").slice(0, 7);
+      const monthKey = /^\d{4}-\d{2}$/.test(iso) ? iso : "2026-01";
+      const curr = byMonth.get(monthKey) ?? { amount: 0, pkgs: new Set<string>() };
+      curr.amount += item.closedAmount ?? item.estimatedAmount ?? 0;
+      if (item.packageName) curr.pkgs.add(item.packageName);
+      byMonth.set(monthKey, curr);
+    }
+    const keys = Array.from(byMonth.keys()).sort();
+    const total = keys.reduce((s, k) => s + (byMonth.get(k)?.amount ?? 0), 0);
+    let cum = 0;
+    return keys.map((k) => {
+      const entry = byMonth.get(k)!;
+      cum += entry.amount;
+      const [yr, mo] = k.split("-");
+      return {
+        monthKey: k,
+        monthLabel: `${mo}/${yr.slice(2)}`,
+        mainPackages: Array.from(entry.pkgs).slice(0, 2).join(", ") || "Suprimentos Gerais",
+        monthlyAmount: entry.amount,
+        cumulativeAmount: cum,
+        cumulativePct: total > 0 ? Math.round((cum / total) * 1000) / 10 : 0,
+      };
+    });
+  }, [items]);
+
+  const critical15dCount = useMemo(() => {
+    const now = Date.now();
+    const limit = now + 15 * 86_400_000;
+    return items.filter((i) => {
+      if (i.status === "ENTREGUE" || i.status === "PEDIDO_EMITIDO") return false;
+      const t = new Date(i.orderDeadlineDate).getTime();
+      return Number.isFinite(t) && t <= limit;
+    }).length;
+  }, [items]);
 
   const loadPlan = useCallback(async () => {
     setLoading(true);
@@ -233,58 +273,87 @@ export function EapProcurementView({
             >
               {busy === "sync" ? "Sincronizando..." : "Sincronizar com Financeiro"}
             </button>
-            <a
-              href={`/api/eap/projects/${projectId}/procurement/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-9 items-center rounded-xl border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            <button
+              type="button"
+              onClick={() => setShowPdfPreview(true)}
+              className="inline-flex h-9 items-center rounded-xl border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
             >
-              Relatório Aquisições (PDF)
-            </a>
+              Pré-visualizar &amp; Exportar PDF
+            </button>
           </div>
         </div>
 
         {summary && (
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Orçamento Previsto</p>
+              <p className="text-[11px] font-medium text-zinc-500">Orçamento Total de Suprimentos</p>
               <p className="mt-1 font-mono text-sm font-bold text-zinc-950 dark:text-zinc-100">
                 {formatBrl(summary.totalEstimated)}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Valor Fechado</p>
-              <p className="mt-1 font-mono text-sm font-bold text-blue-700 dark:text-blue-400">
-                {formatBrl(summary.totalClosed)}
+              <p className="text-[11px] font-medium text-zinc-500">Em Cotação / A Cotar</p>
+              <p className="mt-1 font-mono text-sm font-bold text-amber-700 dark:text-amber-400">
+                {summary.quotingCount} / {summary.toQuoteCount}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Comprometido Financeiro</p>
+              <p className="text-[11px] font-medium text-zinc-500">Pedidos / Comprometido</p>
               <p className="mt-1 font-mono text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                {formatBrl(summary.totalCommittedFinance)}
+                {formatBrl(summary.totalCommittedFinance || summary.totalClosed)}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Pedidos / Entregues</p>
-              <p className="mt-1 font-mono text-sm font-bold text-zinc-950 dark:text-zinc-100">
-                {summary.orderedCount} / {summary.deliveredCount}
+              <p className="text-[11px] font-medium text-zinc-500">Saldo a Contratar</p>
+              <p className="mt-1 font-mono text-sm font-bold text-blue-700 dark:text-blue-400">
+                {formatBrl(
+                  Math.max(
+                    0,
+                    summary.totalEstimated - (summary.totalCommittedFinance || summary.totalClosed)
+                  )
+                )}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Urgentes (≤ 7 dias)</p>
+              <p className="text-[11px] font-medium text-zinc-500">Marcos Críticos (15 dias)</p>
               <p
                 className={`mt-1 font-mono text-sm font-bold ${
-                  summary.urgentCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-700"
+                  critical15dCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-700"
                 }`}
               >
-                {summary.urgentCount} item(ns)
+                {critical15dCount} item(ns)
               </p>
             </div>
           </div>
         )}
+
+        {/* Sub-visões limpas dentro de 4. Aquisições */}
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-200/80 pt-3 dark:border-zinc-800">
+          {(
+            [
+              { id: "compras", label: "Plano de Compras" },
+              { id: "calendario", label: "Calendário de Suprimentos" },
+              { id: "curva_s", label: "Curva S & Desembolso Mensal" },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              className={`h-8 rounded-xl px-3.5 text-xs font-semibold cursor-pointer ${
+                activeTab === t.id
+                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </Card>
 
-      {/* Filtros & Tabela */}
+      {/* Filtros & Tabela (Plano de Compras) */}
+      {activeTab === "compras" && (
       <Card className="rounded-3xl border border-zinc-200/80 bg-white p-4 shadow-md dark:border-zinc-800 dark:bg-zinc-900/95">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
@@ -505,6 +574,156 @@ export function EapProcurementView({
           </div>
         )}
       </Card>
+      )}
+      {/* Sub-visão: Calendário de Suprimentos */}
+      {activeTab === "calendario" && (
+        <Card className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-md dark:border-zinc-800 dark:bg-zinc-900/95 space-y-3">
+          <div>
+            <h4 className="text-sm font-bold text-zinc-950 dark:text-zinc-100">
+              Calendário de Suprimentos (Datas-Limite de Pedido &amp; Entrega)
+            </h4>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Cronograma de disparo de compras ordenado pela data-limite conforme o lead time de cada pacote.
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-zinc-50 text-[11px] uppercase tracking-wider text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+                <tr>
+                  <th className="px-3 py-2">Data Limite Pedido</th>
+                  <th className="px-3 py-2">Necessidade Obra</th>
+                  <th className="px-3 py-2">Insumo / Serviço</th>
+                  <th className="px-3 py-2">Pacote</th>
+                  <th className="px-3 py-2 text-right">Valor Previsto</th>
+                  <th className="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {items.map((item) => (
+                  <tr key={item.id} className="text-zinc-800 dark:text-zinc-200">
+                    <td className="px-3 py-2 font-mono font-bold">{formatDateBr(item.orderDeadlineDate)}</td>
+                    <td className="px-3 py-2 font-mono">{formatDateBr(item.needDate)}</td>
+                    <td className="px-3 py-2 font-medium">{item.itemName}</td>
+                    <td className="px-3 py-2 text-[11px] text-zinc-500">{item.packageName}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatBrl(item.closedAmount ?? item.estimatedAmount)}</td>
+                    <td className="px-3 py-2">
+                      <Badge tone={STATUS_META[item.status]?.tone || "neutral"}>
+                        {STATUS_META[item.status]?.label || item.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Sub-visão: Curva S & Desembolso Mensal */}
+      {activeTab === "curva_s" && (
+        <Card className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-md dark:border-zinc-800 dark:bg-zinc-900/95 space-y-4">
+          <div>
+            <h4 className="text-sm font-bold text-zinc-950 dark:text-zinc-100">
+              Curva S Financeira &amp; Fluxo de Desembolso Mensal
+            </h4>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Projeção mensal de desembolso de suprimentos e percentual acumulado ao longo da obra.
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-zinc-50 text-[11px] uppercase tracking-wider text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+                <tr>
+                  <th className="px-3 py-2">Mês/Ano</th>
+                  <th className="px-3 py-2">Principais Pacotes/Compras do Mês</th>
+                  <th className="px-3 py-2 text-right">Desembolso Mensal (R$)</th>
+                  <th className="px-3 py-2 text-right">Acumulado (R$)</th>
+                  <th className="px-3 py-2 text-right">% Acumulado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {monthlyRows.map((m) => (
+                  <tr key={m.monthKey} className="text-zinc-800 dark:text-zinc-200">
+                    <td className="px-3 py-2 font-mono font-bold">{m.monthLabel}</td>
+                    <td className="px-3 py-2">{m.mainPackages}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatBrl(m.monthlyAmount)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatBrl(m.cumulativeAmount)}</td>
+                    <td className="px-3 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-400">
+                      {m.cumulativePct.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Modal Pré-visualização antes de Exportar PDF */}
+      {showPdfPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+          onClick={() => setShowPdfPreview(false)}
+        >
+          <div
+            className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-zinc-200 bg-white p-6 shadow-2xl space-y-4 dark:border-zinc-800 dark:bg-[#13131A]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-950 dark:text-zinc-100">
+                  Pré-visualização — Aquisições &amp; Calendário de Suprimentos (PDF)
+                </h3>
+                <p className="text-[11px] text-zinc-500">
+                  Inclui Curva S Financeira Acumulada, Fluxo de Desembolso Mensal e Calendário de Suprimentos.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/eap/projects/${projectId}/procurement/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center rounded-xl bg-zinc-900 px-4 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-amber-500 dark:text-zinc-950"
+                >
+                  Confirmar &amp; Baixar PDF
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setShowPdfPreview(false)}
+                  className="h-9 rounded-xl border border-zinc-200 px-3 text-xs font-semibold text-zinc-700 cursor-pointer dark:border-zinc-700 dark:text-zinc-200"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-zinc-200 dark:border-zinc-800">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-zinc-50 text-[10px] uppercase tracking-wider text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+                  <tr>
+                    <th className="px-3 py-2">Mês/Ano</th>
+                    <th className="px-3 py-2">Principais Pacotes</th>
+                    <th className="px-3 py-2 text-right">Desembolso Mensal</th>
+                    <th className="px-3 py-2 text-right">Acumulado</th>
+                    <th className="px-3 py-2 text-right">% Acum.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {monthlyRows.map((m) => (
+                    <tr key={m.monthKey}>
+                      <td className="px-3 py-1.5 font-mono font-bold">{m.monthLabel}</td>
+                      <td className="px-3 py-1.5">{m.mainPackages}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{formatBrl(m.monthlyAmount)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{formatBrl(m.cumulativeAmount)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold">{m.cumulativePct.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

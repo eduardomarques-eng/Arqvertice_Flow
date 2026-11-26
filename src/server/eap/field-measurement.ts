@@ -18,6 +18,11 @@ import {
   type FieldMeasurementChartData,
 } from "@/lib/eap-measurement-charts";
 import { DomainError } from "@/server/errors";
+import {
+  listSiteDiaryEntries,
+  summarizeSiteDiaryPeriod,
+  type SiteDiaryPeriodSummary,
+} from "./site-diary";
 
 export { buildFieldMeasurementChartData, type FieldMeasurementChartData };
 
@@ -904,6 +909,8 @@ export function renderFieldMeasurementBulletinPdf(input: {
   items: FieldMeasurementServiceRow[];
   evidences?: PdfBulletinEvidenceInput[];
   plannedLobPctByFloor?: Record<string, number>;
+  siteDiarySummary?: SiteDiaryPeriodSummary;
+  evolutionCurve?: Array<{ code: string; plannedPct: number; realizedPct: number }>;
 }): Uint8Array {
   const pdf = new PdfWriter(
     {
@@ -1012,6 +1019,32 @@ export function renderFieldMeasurementBulletinPdf(input: {
       colorHex: st.colorHex,
     })),
   });
+
+  if (input.evolutionCurve && input.evolutionCurve.length > 0) {
+    drawPdfGroupedBarChart(pdf, {
+      title: "Curva S de Evolucao Fisica (% Planejado Acumulado x % Medido Acumulado)",
+      seriesA: { label: "Planejado Acumulado (%)", colorHex: "#64748B" },
+      seriesB: { label: "Medido Acumulado (%)", colorHex: "#2563EB" },
+      items: input.evolutionCurve.map((pt) => ({
+        label: pt.code,
+        valueA: pt.plannedPct,
+        valueB: pt.realizedPct,
+        formattedA: `${pt.plannedPct.toFixed(1)}%`,
+        formattedB: `${pt.realizedPct.toFixed(1)}%`,
+      })),
+    });
+  }
+
+  if (input.siteDiarySummary && input.siteDiarySummary.totalDays > 0) {
+    pdf.ensure(55);
+    pdf.heading("Resumo do Diario de Obra no Periodo");
+    pdf.paragraph(
+      `Dias registrados: ${input.siteDiarySummary.totalDays} | Dias operaveis: ${input.siteDiarySummary.operableDays} | Dias de chuva: ${input.siteDiarySummary.rainDays} | Efetivo medio: ${input.siteDiarySummary.avgWorkforce} trab/dia`
+    );
+    for (const occ of input.siteDiarySummary.latestOccurrences.slice(0, 3)) {
+      pdf.paragraph(`- ${occ.entryDate}: ${occ.text}`);
+    }
+  }
 
   pdf.ensure(75);
   pdf.heading("2. Resumo por Pavimento");
@@ -1177,10 +1210,18 @@ export async function generateAutomaticMeasurementBulletinPdf(
   const snapshot = await buildFieldMeasurementSnapshot(projectId);
   if (!snapshot) return null;
 
-  const pdfEvidences = await resolveProjectEvidencesForPdf(
-    projectId,
-    snapshot.eapProjectId
-  );
+  const [pdfEvidences, diaryEntries] = await Promise.all([
+    resolveProjectEvidencesForPdf(projectId, snapshot.eapProjectId),
+    listSiteDiaryEntries(projectId).catch(() => []),
+  ]);
+  const siteDiarySummary = summarizeSiteDiaryPeriod(diaryEntries);
+  const evolutionCurve = [...snapshot.bulletins]
+    .reverse()
+    .map((b) => ({
+      code: b.bulletinCode,
+      plannedPct: snapshot.summary.plannedLobPct,
+      realizedPct: b.physicalProgressPct,
+    }));
 
   if (bulletinId) {
     const bulletin = await prisma.eapFieldMeasurementBulletin.findFirst({
@@ -1281,6 +1322,8 @@ export async function generateAutomaticMeasurementBulletinPdf(
       floorSummaries: bulletinFloorSummaries,
       items: entryRows,
       evidences: pdfEvidences,
+      siteDiarySummary,
+      evolutionCurve,
     });
 
     return { pdfBytes, bulletinCode: code, projectName: snapshot.projectName };
@@ -1300,6 +1343,8 @@ export async function generateAutomaticMeasurementBulletinPdf(
     floorSummaries: snapshot.floorSummaries,
     items: snapshot.items,
     evidences: pdfEvidences,
+    siteDiarySummary,
+    evolutionCurve,
   });
 
   return { pdfBytes, bulletinCode: code, projectName: snapshot.projectName };

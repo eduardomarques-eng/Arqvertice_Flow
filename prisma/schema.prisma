@@ -1925,6 +1925,7 @@ model EapProject {
   fieldMeasurementEntries   EapFieldMeasurementEntry[]
   measurementEvidences      EapMeasurementEvidence[]
   procurementItems          EapProcurementItem[]
+  siteDiaryEntries          EapSiteDiaryEntry[]
   createdAt                 DateTime                      @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -2245,6 +2246,7 @@ model EapFieldMeasurementBulletin {
   eapProject          EapProject                 @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
   entries             EapFieldMeasurementEntry[]
   evidences           EapMeasurementEvidence[]
+  siteDiaryEntries    EapSiteDiaryEntry[]
   createdAt           DateTime                   @default(now())
   updatedAt           DateTime                   @updatedAt
 
@@ -2333,4 +2335,25 @@ model EapMeasurementEvidence {
   @@index([eapProjectId, rowKey])
   @@index([bulletinId])
   @@index([eapProjectId, capturedAt])
+}
+
+model EapSiteDiaryEntry {
+  id                  String                       @id @default(uuid()) @db.Uuid
+  eapProjectId        String                       @db.Uuid
+  bulletinId          String?                      @db.Uuid
+  entryDate           DateTime
+  weatherMorning      String                       @default("SOL") // SOL | NUBLADO | CHUVA | IMPRATICAVEL
+  weatherAfternoon    String                       @default("SOL") // SOL | NUBLADO | CHUVA | IMPRATICAVEL
+  siteCondition       String                       @default("OPERAVEL") // OPERAVEL | PARCIAL | PARALISADO
+  workforceSummary    Json                         @default("{}")
+  activitiesExecuted  String                       @default("") @db.Text
+  occurrencesAndNotes String                       @default("") @db.Text
+  mediaItems          Json                         @default("[]")
+  eapProject          EapProject                   @relation(fields: [eapProjectId], references: [id], onDelete: Cascade)
+  bulletin            EapFieldMeasurementBulletin? @relation(fields: [bulletinId], references: [id], onDelete: SetNull)
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  @@index([eapProjectId, entryDate])
+  @@index([bulletinId])
 }

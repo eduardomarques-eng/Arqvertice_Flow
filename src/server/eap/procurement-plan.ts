@@ -1,7 +1,9 @@
 import { prisma } from "@/server/db";
+import { round2 } from "@/server/eap/calculator";
 import { PdfWriter } from "@/lib/pdf/pdf-writer";
 import {
   drawPdfBrandedHeader,
+  drawPdfHorizontalBarChart,
   drawPdfKpiCardsRow,
   PDF_PALETTE,
 } from "@/lib/pdf/pdf-charts";
@@ -641,45 +643,107 @@ const STATUS_LABEL: Record<ProcurementStatus, string> = {
   ENTREGUE: "Entregue",
 };
 
+export interface ProcurementMonthlyRow {
+  monthKey: string;
+  monthLabel: string;
+  mainPackages: string;
+  monthlyAmount: number;
+  cumulativeAmount: number;
+  cumulativePct: number;
+}
+
+export function buildProcurementMonthlyDisbursement(
+  items: EapProcurementItemDTO[]
+): ProcurementMonthlyRow[] {
+  const byMonth = new Map<string, { amount: number; pkgs: Set<string> }>();
+  for (const item of items) {
+    const iso = (item.orderDeadlineDate || item.needDate || "").slice(0, 7);
+    const monthKey = /^\d{4}-\d{2}$/.test(iso) ? iso : "2026-01";
+    const curr = byMonth.get(monthKey) ?? { amount: 0, pkgs: new Set<string>() };
+    curr.amount = round2(curr.amount + (item.closedAmount ?? item.estimatedAmount ?? 0));
+    if (item.packageName) curr.pkgs.add(item.packageName);
+    byMonth.set(monthKey, curr);
+  }
+
+  const sortedKeys = Array.from(byMonth.keys()).sort();
+  const total = sortedKeys.reduce((s, k) => s + (byMonth.get(k)?.amount ?? 0), 0);
+  let cum = 0;
+
+  return sortedKeys.map((k) => {
+    const entry = byMonth.get(k)!;
+    cum = round2(cum + entry.amount);
+    const [yr, mo] = k.split("-");
+    const monthLabel = `${mo}/${yr.slice(2)}`;
+    const mainPackages = Array.from(entry.pkgs).slice(0, 2).join(", ") || "Suprimentos Gerais";
+    return {
+      monthKey: k,
+      monthLabel,
+      mainPackages,
+      monthlyAmount: entry.amount,
+      cumulativeAmount: cum,
+      cumulativePct: total > 0 ? round2((cum / total) * 100) : 0,
+    };
+  });
+}
+
 export async function buildProcurementPdfBuffer(projectId: string): Promise<Buffer> {
   const plan = await getProcurementPlanForProject(projectId);
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { name: true, client: { select: { name: true } } },
+    select: {
+      name: true,
+      client: { select: { name: true } },
+      eapProject: {
+        select: {
+          builtAreaM2: true,
+          currentRevision: true,
+          city: { select: { name: true, state: true } },
+        },
+      },
+    },
   });
 
-  const title = `Plano de Aquisicoes & Compras — ${project?.name || plan.title}`;
-  const subtitle = `Cliente: ${project?.client?.name || "—"}`;
-  const metaLine = `${plan.summary.totalItems} itens · Gerado em ${new Date().toLocaleDateString("pt-BR")}`;
+  const cityLabel = project?.eapProject?.city
+    ? `${project.eapProject.city.name}/${project.eapProject.city.state}`
+    : "Fortaleza/CE";
+  const areaM2 = project?.eapProject?.builtAreaM2 ?? 0;
+  const rev = project?.eapProject?.currentRevision ?? 1;
+
+  const title = `Aquisicoes & Calendario de Suprimentos — ${project?.name || plan.title}`;
+  const subtitle = `Cliente: ${project?.client?.name || "—"} · ${cityLabel}`;
+  const metaLine = `Area Construida: ${areaM2} m2 · Revisao: R${String(rev).padStart(2, "0")} · ${plan.summary.totalItems} itens · Gerado em ${new Date().toLocaleDateString("pt-BR")}`;
 
   const pdf = new PdfWriter({
     title,
     author: "ArqVertice OS",
-    subject: "Plano de Aquisicoes e Compras da Obra",
+    subject: "Plano de Aquisicoes, Curva S e Calendario de Suprimentos",
   });
 
   drawPdfBrandedHeader(pdf, {
-    eyebrow: "ARQVERTICE OS · SUPRIMENTOS & COMPRAS",
-    title,
+    eyebrow: "ARQVERTICE OS · AQUISICOES & SUPRIMENTOS",
+    title: "Aquisicoes & Calendario de Suprimentos",
     subtitle,
     metaLine,
+    accentHex: "#0EA5E9",
   });
 
   drawPdfKpiCardsRow(pdf, [
     {
-      label: "Orcamento Previsto",
+      label: "Orcamento Total",
       value: formatBrl(plan.summary.totalEstimated),
       accentHex: PDF_PALETTE[0],
     },
     {
-      label: "Valor Fechado",
-      value: formatBrl(plan.summary.totalClosed),
-      accentHex: PDF_PALETTE[4],
+      label: "Comprometido",
+      value: formatBrl(plan.summary.totalCommittedFinance || plan.summary.totalClosed),
+      accentHex: PDF_PALETTE[1],
     },
     {
-      label: "Comprometido Financeiro",
-      value: formatBrl(plan.summary.totalCommittedFinance),
-      accentHex: PDF_PALETTE[1],
+      label: "Saldo a Contratar",
+      value: formatBrl(
+        Math.max(0, plan.summary.totalEstimated - (plan.summary.totalCommittedFinance || plan.summary.totalClosed))
+      ),
+      accentHex: PDF_PALETTE[4],
     },
     {
       label: "Urgentes (<= 7 dias)",
@@ -688,23 +752,69 @@ export async function buildProcurementPdfBuffer(projectId: string): Promise<Buff
     },
   ]);
 
+  const monthlyRows = buildProcurementMonthlyDisbursement(plan.items);
+
+  if (monthlyRows.length > 0) {
+    pdf.ensure(40);
+    pdf.heading("1. Curva S Financeira Acumulada e Fluxo de Desembolso Mensal");
+
+    drawPdfHorizontalBarChart(pdf, {
+      title: "Curva S Financeira — Desembolso Previsto Acumulado (%)",
+      items: monthlyRows.map((m) => ({
+        label: m.monthLabel,
+        value: m.cumulativePct,
+        formattedValue: `${m.cumulativePct.toFixed(1).replace(".", ",")}% (${formatBrl(m.cumulativeAmount)})`,
+        colorHex: "#2563EB",
+      })),
+    });
+
+    drawPdfHorizontalBarChart(pdf, {
+      title: "Fluxo de Desembolso Mensal Previsto (R$/Mes)",
+      items: monthlyRows.map((m, idx) => ({
+        label: m.monthLabel,
+        value: m.monthlyAmount,
+        formattedValue: formatBrl(m.monthlyAmount),
+        colorHex: PDF_PALETTE[idx % PDF_PALETTE.length],
+      })),
+    });
+
+    pdf.ensure(40);
+    pdf.heading("2. Tabela Consolidada de Desembolso Mensal");
+    pdf.table({
+      columns: [
+        { title: "Mes/Ano", weight: 0.9 },
+        { title: "Principais Pacotes/Compras do Mes", weight: 2.8 },
+        { title: "Desembolso Mensal", weight: 1.3, align: "right" },
+        { title: "Acumulado (R$)", weight: 1.3, align: "right" },
+        { title: "% Acum.", weight: 0.9, align: "right" },
+      ],
+      rows: monthlyRows.map((m) => [
+        m.monthLabel,
+        m.mainPackages,
+        formatBrl(m.monthlyAmount),
+        formatBrl(m.cumulativeAmount),
+        `${m.cumulativePct.toFixed(1).replace(".", ",")}%`,
+      ]),
+    });
+  }
+
   pdf.ensure(40);
-  pdf.heading("1. Cronograma de Aquisicoes e Compras da Obra");
+  pdf.heading("3. Calendario de Suprimentos e Compras da Obra");
 
   pdf.table({
     columns: [
-      { title: "Insumo / Servico", weight: 2.8 },
-      { title: "Pacote LOB", weight: 1.6 },
-      { title: "Limite Pedido", weight: 1.1 },
-      { title: "Necessidade", weight: 1.1 },
+      { title: "Data Limite Pedido", weight: 1.1 },
+      { title: "Necessidade Obra", weight: 1.1 },
+      { title: "Insumo / Servico", weight: 2.6 },
+      { title: "Pacote", weight: 1.5 },
       { title: "Valor Previsto", weight: 1.2, align: "right" },
-      { title: "Status", weight: 1.1 },
+      { title: "Status", weight: 1.0 },
     ],
     rows: plan.items.map((item) => [
-      item.itemName,
-      item.packageName,
       formatDateBr(item.orderDeadlineDate),
       formatDateBr(item.needDate),
+      item.itemName,
+      item.packageName,
       formatBrl(item.closedAmount ?? item.estimatedAmount),
       STATUS_LABEL[item.status] || item.status,
     ]),

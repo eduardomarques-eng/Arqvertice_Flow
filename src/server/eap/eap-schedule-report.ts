@@ -516,9 +516,9 @@ export function renderEapScheduleReportPdf(
 
   drawPdfBrandedHeader(pdf, {
     eyebrow: "ArqVertice OS · Planejamento & Linha de Balanco",
-    title: "RELATORIO DE PLANEJAMENTO & CRONOGRAMA",
+    title: "Planejamento",
     subtitle: `${payload.meta.projectName} · Cliente: ${payload.meta.clientName} · ${payload.meta.cityLabel}`,
-    metaLine: `${payload.meta.constructionStandardLabel ? `Padrao: ${payload.meta.constructionStandardLabel} · ` : ""}${payload.meta.concreteMethodLabel ? `${payload.meta.concreteMethodLabel} · ` : ""}${payload.meta.revision ? `R${String(payload.meta.revision).padStart(2, "0")} · ` : ""}${payload.meta.bdiPercent !== undefined ? `BDI: ${payload.meta.bdiPercent}% · ` : ""}Inicio: ${formatDateBR(payload.kpis.startDate)} · Termino: ${formatDateBR(payload.kpis.endDate)} · ${payload.meta.builtAreaM2} m2`,
+    metaLine: `Area Construida: ${payload.meta.builtAreaM2} m2 · ${payload.meta.revision ? `Revisao: R${String(payload.meta.revision).padStart(2, "0")} · ` : ""}Periodo: ${formatDateBR(payload.kpis.startDate)} a ${formatDateBR(payload.kpis.endDate)}`,
     accentHex: "#059669",
   });
 

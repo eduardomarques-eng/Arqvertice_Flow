@@ -121,7 +121,7 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
             />
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="neutral">Relatório de Planejamento e Cronograma LOB</Badge>
+                <Badge tone="neutral">Planejamento</Badge>
                 <Badge tone={k.teamOverloads + k.precedenceViolations === 0 ? "green" : "amber"}>
                   {k.healthLabel}
                 </Badge>
@@ -131,15 +131,8 @@ export function EapScheduleReportView({ projectId }: { projectId: string }) {
               </h2>
               <p className="text-xs text-slate-600 dark:text-zinc-400">
                 Cliente: <strong className="text-slate-900 dark:text-zinc-200">{report.meta.clientName}</strong>{" "}
-                {report.meta.constructionStandardLabel && (
-                  <>· Padrão: <strong className="text-slate-800 dark:text-zinc-200">{report.meta.constructionStandardLabel}</strong>{" "}</>
-                )}
-                {report.meta.concreteMethodLabel && <>· {report.meta.concreteMethodLabel}{" "}</>}
-                · Praça: {report.meta.cityLabel} · Área:{" "}
+                · Local: {report.meta.cityLabel} · Área Construída:{" "}
                 <span className="font-mono font-semibold tabular-nums">{report.meta.builtAreaM2} m²</span>
-                {report.meta.bdiPercent !== undefined && (
-                  <> · BDI: <span className="font-mono font-semibold tabular-nums">{report.meta.bdiPercent}%</span></>
-                )}
               </p>
             </div>
           </div>

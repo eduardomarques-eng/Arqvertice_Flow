@@ -792,9 +792,9 @@ export function renderEapCostReportPdf(payload: EapCostReportPayload): Uint8Arra
 
   drawPdfBrandedHeader(pdf, {
     eyebrow: "ArqVertice OS · Orcamento Executivo",
-    title: "RELATORIO DE CUSTOS DA PLANILHA EAP",
+    title: "Relatório Custos",
     subtitle: `${payload.meta.projectName} · Cliente: ${payload.meta.clientName} · ${payload.meta.cityLabel}`,
-    metaLine: `Padrao: ${payload.meta.constructionStandardLabel ?? "Medio Padrao"} · ${payload.meta.concreteMethodLabel ?? "Concreto Usinado"} · Area: ${payload.meta.builtAreaM2} m2 · R${String(payload.meta.revision).padStart(2, "0")} · BDI: ${payload.meta.bdiPercent}%`,
+    metaLine: `Area Construida: ${payload.meta.builtAreaM2} m2 · Revisao: R${String(payload.meta.revision).padStart(2, "0")} · BDI: ${payload.meta.bdiPercent}%`,
     accentHex: "#2563EB",
   });
 
