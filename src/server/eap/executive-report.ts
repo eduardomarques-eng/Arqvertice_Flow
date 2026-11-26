@@ -1061,13 +1061,21 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
 
   drawPdfBrandedHeader(pdf, {
     eyebrow: "ArqVertice OS · Gestao Executiva de Obras",
-    title: "DOSSIE EXECUTIVO INTEGRAL — EAP, COMPARATIVOS & IA",
+    title: "RELATORIO INTEGRAL DE OBRA",
     subtitle: `${payload.meta.projectName} · Cliente: ${payload.meta.clientName}`,
-    metaLine: `${payload.meta.cityLabel} · Area: ${payload.meta.builtAreaM2} m2 · Baseline: ${payload.meta.baselineLabel}${activeVersionsStr}`,
+    metaLine: `${payload.meta.cityLabel} · Area Construida: ${payload.meta.builtAreaM2} m2 · Revisao: ${payload.meta.baselineLabel} · Emissao: ${new Date().toLocaleDateString("pt-BR")}`,
     accentHex: "#059669",
   });
 
   // Cards KPI em linha única
+  const realizedPct = payload.kpis.actualPhysicalPercent ?? 0;
+  const scheduleStatus =
+    comp && comp.financial.physicalDeviationPct < -2
+      ? "Atencao (Recuperar)"
+      : comp && comp.financial.physicalDeviationPct > 1
+        ? "Adiantado"
+        : "No Prazo";
+
   drawPdfKpiCardsRow(pdf, [
     {
       label: "Investimento Comercial",
@@ -1093,9 +1101,9 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
       bgHex: "#ECFDF5",
     },
     {
-      label: "Indicadores TQS/BIM",
-      value: `${payload.kpis.steelRateKgPerM3} kg/m3`,
-      sub: `Conc. ${payload.kpis.concreteM3PerM2} · Alv. ${payload.kpis.masonryM2PerM2}`,
+      label: "Status & Saude da Obra",
+      value: `${realizedPct.toFixed(1)}% concluido`,
+      sub: scheduleStatus,
       accentHex: "#D97706",
       bgHex: "#FFFBEB",
     },
@@ -1318,16 +1326,28 @@ export function renderExecutiveReportPdf(payload: ExecutiveReportPayload): Uint8
 
   pdf.y += 8;
 
-  // 4. CURVA ABC — CLASSE A (80/20)
+  // 4. CURVA ABC — CLASSE A (80/20) EM TABELA ESTRUTURADA
+  pdf.ensure(60);
   pdf.flowText(
     `3. CURVA ABC — CLASSE A (${payload.abcCurve.summaryByClass.A.itemsCount} itens · ${payload.abcCurve.summaryByClass.A.sharePercent}% do investimento)`,
     { size: 12, bold: true, gapAfter: 6 }
   );
-  for (const item of payload.abcCurve.items.filter((i) => i.abcClass === "A").slice(0, 15)) {
-    pdf.flowText(
-      `[A] ${item.description} (${item.quantity.toFixed(2)} ${item.unit}) — ${fmtBRL(item.totalCommercialPrice)} (${item.sharePercent}% | Acum. ${item.cumulativePercent}%)`,
-      { size: 8.5, gapAfter: 2 }
-    );
+  const abcClassA = payload.abcCurve.items.filter((i) => i.abcClass === "A").slice(0, 15);
+  if (abcClassA.length > 0) {
+    pdf.table({
+      columns: [
+        { title: "Item", weight: 3.0 },
+        { title: "Quantidade", weight: 1.1, align: "right" },
+        { title: "Valor Total", weight: 1.3, align: "right" },
+        { title: "% Acumulado", weight: 1.0, align: "right" },
+      ],
+      rows: abcClassA.map((item) => [
+        item.description,
+        `${item.quantity.toFixed(2)} ${item.unit}`,
+        fmtBRL(item.totalCommercialPrice),
+        `${item.cumulativePercent.toFixed(1)}%`,
+      ]),
+    });
   }
 
   pdf.y += 8;

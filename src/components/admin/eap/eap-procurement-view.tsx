@@ -283,24 +283,32 @@ export function EapProcurementView({
           </div>
         </div>
 
+        {/* Quadro Resumo Explicativo para o Cliente */}
+        <div className="mt-4 rounded-2xl border border-sky-200/80 bg-sky-50/60 p-3.5 text-xs text-slate-700 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-zinc-300">
+          <strong className="text-sky-900 dark:text-sky-300">Como funciona o Plano de Aquisições:</strong>{" "}
+          O painel cruza os insumos da Planilha EAP com o cronograma da obra para indicar{" "}
+          <strong>quanto está orçado</strong>, <strong>quanto já foi comprometido em pedidos</strong> e as{" "}
+          <strong>datas-limite de compra</strong> para evitar atrasos no canteiro.
+        </div>
+
         {summary && (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Orçamento Total de Suprimentos</p>
+              <p className="text-[11px] font-medium text-zinc-500">Orçamento de Suprimentos</p>
               <p className="mt-1 font-mono text-sm font-bold text-zinc-950 dark:text-zinc-100">
                 {formatBrl(summary.totalEstimated)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+              <p className="text-[11px] font-medium text-zinc-500">Comprometido (Pedidos Emitidos)</p>
+              <p className="mt-1 font-mono text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                {formatBrl(summary.totalCommittedFinance || summary.totalClosed)}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
               <p className="text-[11px] font-medium text-zinc-500">Em Cotação / A Cotar</p>
               <p className="mt-1 font-mono text-sm font-bold text-amber-700 dark:text-amber-400">
                 {summary.quotingCount} / {summary.toQuoteCount}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Pedidos / Comprometido</p>
-              <p className="mt-1 font-mono text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                {formatBrl(summary.totalCommittedFinance || summary.totalClosed)}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
@@ -312,16 +320,6 @@ export function EapProcurementView({
                     summary.totalEstimated - (summary.totalCommittedFinance || summary.totalClosed)
                   )
                 )}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[11px] font-medium text-zinc-500">Marcos Críticos (15 dias)</p>
-              <p
-                className={`mt-1 font-mono text-sm font-bold ${
-                  critical15dCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-700"
-                }`}
-              >
-                {critical15dCount} item(ns)
               </p>
             </div>
           </div>

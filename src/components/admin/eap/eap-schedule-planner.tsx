@@ -97,7 +97,7 @@ interface ScheduleApiPayload {
   }>;
 }
 
-type PlannerSubView = "lob" | "constraints" | "table" | "charts" | "baseline";
+type PlannerSubView = "lob" | "baseline" | "constraints" | "table" | "charts";
 
 const WAVE_COLORS = [
   "bg-blue-600 text-white",
@@ -524,14 +524,8 @@ export function EapSchedulePlanner({
       <div className="flex flex-wrap gap-2">
         {(
           [
-            { id: "lob", label: "Linha de Balanço (LOB — Zonas)" },
-            {
-              id: "constraints",
-              label: `Restrições & Suprimentos (${data.constraintsMetrics?.criticalCount ? `${data.constraintsMetrics.criticalCount} crít.` : "Lookahead 45d"})`,
-            },
-            { id: "table", label: "Tabela de Pacotes" },
-            { id: "charts", label: "Gantt, Curva S & Desembolso Mensal" },
-            { id: "baseline", label: "Baseline" },
+            { id: "lob", label: "Visão Geral LOB" },
+            { id: "baseline", label: "Baseline & Pacotes" },
           ] as const
         ).map((tab) => (
           <button
@@ -816,16 +810,16 @@ export function EapSchedulePlanner({
         </div>
       )}
 
-      {/* SUB-VISÃO 4: BASELINE EDITÁVEL EM TEMPO REAL */}
+      {/* SUB-VISÃO 2: BASELINE & PACOTES UNIFICADA E EDITÁVEL */}
       {subView === "baseline" && (
         <Card className="rounded-3xl border border-slate-200/90 bg-white p-5 dark:border-zinc-800 dark:bg-[#16161D] space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-slate-950 dark:text-zinc-100">
-                Baseline Editável (Linha de Base × Cronograma Atual)
+                Baseline &amp; Pacotes (Editável e Sincronizado em Tempo Real)
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                Edite datas planejadas ou durações em dias úteis para simular e comparar desvios em tempo real.
+                Edite equipe, duração em dias úteis, datas de Baseline e datas programadas diretamente na tabela.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -841,8 +835,8 @@ export function EapSchedulePlanner({
                 className="h-9 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white cursor-pointer dark:bg-amber-500 dark:text-zinc-950"
               >
                 {busy === "baseline"
-                  ? "Salvando..."
-                  : `Capturar Baseline v${data.baselines.length + 1}.0`}
+                  ? "Fixando..."
+                  : `Fixar / Atualizar Linha de Base v${data.baselines.length + 1}.0`}
               </button>
             </div>
           </div>
@@ -851,11 +845,14 @@ export function EapSchedulePlanner({
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600 dark:bg-zinc-900 dark:text-zinc-400">
                 <tr>
-                  <th className="px-3 py-2">Pacote</th>
+                  <th className="px-3 py-2">Pacote · Etapas EAP</th>
+                  <th className="px-3 py-2">Equipe</th>
+                  <th className="px-3 py-2">Duração (d.u.)</th>
                   <th className="px-3 py-2">Início Baseline</th>
                   <th className="px-3 py-2">Término Baseline</th>
-                  <th className="px-3 py-2">Duração (d.u.)</th>
-                  <th className="px-3 py-2">Desvio vs Atual</th>
+                  <th className="px-3 py-2">Início Programado</th>
+                  <th className="px-3 py-2">Término Programado</th>
+                  <th className="px-3 py-2">Desvio</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
@@ -881,10 +878,35 @@ export function EapSchedulePlanner({
                   return (
                     <tr key={pkg.id} className="text-slate-800 dark:text-zinc-200">
                       <td className="px-3 py-2 font-medium">
-                        <span className="font-mono text-[11px] text-slate-500 mr-1.5">
-                          PCT {String(pkg.packageNumber).padStart(2, "0")}
-                        </span>
-                        {pkg.name}
+                        <div>
+                          <span className="font-mono text-[11px] text-slate-500 mr-1.5">
+                            PCT {String(pkg.packageNumber).padStart(2, "0")}
+                          </span>
+                          {pkg.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          Etapas: {pkg.linkedStageCodes.join(", ") || "—"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px]">
+                        {liveLobAllocations.find((a) => a.packageNumber === pkg.packageNumber)?.teamCode || "A"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min={1}
+                          value={edit.durationWorkingDays}
+                          onChange={(e) =>
+                            setBaselineEdits((prev) => ({
+                              ...prev,
+                              [pkg.id]: {
+                                ...edit,
+                                durationWorkingDays: Math.max(1, Number(e.target.value) || 1),
+                              },
+                            }))
+                          }
+                          className={`${INPUT_CLASS} w-20`}
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -912,23 +934,8 @@ export function EapSchedulePlanner({
                           className={INPUT_CLASS}
                         />
                       </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={1}
-                          value={edit.durationWorkingDays}
-                          onChange={(e) =>
-                            setBaselineEdits((prev) => ({
-                              ...prev,
-                              [pkg.id]: {
-                                ...edit,
-                                durationWorkingDays: Math.max(1, Number(e.target.value) || 1),
-                              },
-                            }))
-                          }
-                          className={`${INPUT_CLASS} w-20`}
-                        />
-                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px]">{currentStart}</td>
+                      <td className="px-3 py-2 font-mono text-[11px]">{currentEnd}</td>
                       <td className="px-3 py-2">
                         <Badge tone={devTone}>{devLabel}</Badge>
                       </td>

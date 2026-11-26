@@ -764,7 +764,7 @@ export function EapProjectHub({
           ) : (
             <EapSchedulePlanner
               projectId={projectId}
-              externalSubView={planningSubTab === "constraints" ? "constraints" : planningSubTab === "table" ? "table" : "lob"}
+              externalSubView={planningSubTab === "table" ? "baseline" : "lob"}
               onBaselineApproved={() => router.refresh()}
               onOpenScheduleReport={() => setPlanningSubTab("scheduleReport")}
             />
