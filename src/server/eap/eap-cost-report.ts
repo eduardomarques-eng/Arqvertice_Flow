@@ -408,9 +408,16 @@ export function buildEapCostReport(params: {
   }
 
   const ind = tree.indicators;
-  const totalCommercial = ind.totalCommercialPrice;
   const totalDirect = ind.totalDirectCost;
-  const bdiValue = round2(Math.max(0, totalCommercial - totalDirect));
+  const shouldApplyProjectBdi =
+    tree.bdiPercent > 0 && ind.totalCommercialPrice <= totalDirect + 0.01;
+  const bdiFactor = shouldApplyProjectBdi ? 1 + tree.bdiPercent / 100 : 1;
+  const bdiValue = shouldApplyProjectBdi
+    ? round2(totalDirect * (tree.bdiPercent / 100))
+    : round2(Math.max(0, ind.totalCommercialPrice - totalDirect));
+  const totalCommercial = shouldApplyProjectBdi
+    ? round2(totalDirect + bdiValue)
+    : ind.totalCommercialPrice;
   const area = tree.builtAreaM2 > 0 ? tree.builtAreaM2 : 1;
 
   const floorAcc = new Map<
@@ -464,6 +471,11 @@ export function buildEapCostReport(params: {
     const stageItemsCount = stageItems.length;
     totalItemsCount += stageItemsCount;
 
+    const stageCommercialPrice =
+      shouldApplyProjectBdi && stage.totalCommercialPrice <= stage.totalDirectCost + 0.01
+        ? round2(stage.totalDirectCost * bdiFactor)
+        : stage.totalCommercialPrice;
+
     stages.push({
       code: stage.code,
       name: stage.name,
@@ -473,9 +485,9 @@ export function buildEapCostReport(params: {
       laborCost: round2(stage.totalLabor),
       thirdPartyCost: round2(stage.totalThirdParty),
       directCost: round2(stage.totalDirectCost),
-      commercialPrice: round2(stage.totalCommercialPrice),
+      commercialPrice: round2(stageCommercialPrice),
       sharePercent:
-        totalCommercial > 0 ? round2((stage.totalCommercialPrice / totalCommercial) * 100) : 0,
+        totalCommercial > 0 ? round2((stageCommercialPrice / totalCommercial) * 100) : 0,
       itemsCount: stageItemsCount,
     });
 
@@ -493,7 +505,7 @@ export function buildEapCostReport(params: {
     dCurr.laborCost = round2(dCurr.laborCost + stage.totalLabor);
     dCurr.thirdPartyCost = round2(dCurr.thirdPartyCost + stage.totalThirdParty);
     dCurr.directCost = round2(dCurr.directCost + stage.totalDirectCost);
-    dCurr.commercialPrice = round2(dCurr.commercialPrice + stage.totalCommercialPrice);
+    dCurr.commercialPrice = round2(dCurr.commercialPrice + stageCommercialPrice);
     dCurr.itemsCount += stageItemsCount;
     discAcc.set(discipline, dCurr);
 
@@ -514,7 +526,7 @@ export function buildEapCostReport(params: {
     pCurr.laborCost = round2(pCurr.laborCost + stage.totalLabor);
     pCurr.thirdPartyCost = round2(pCurr.thirdPartyCost + stage.totalThirdParty);
     pCurr.directCost = round2(pCurr.directCost + stage.totalDirectCost);
-    pCurr.commercialPrice = round2(pCurr.commercialPrice + stage.totalCommercialPrice);
+    pCurr.commercialPrice = round2(pCurr.commercialPrice + stageCommercialPrice);
     pCurr.itemsCount += stageItemsCount;
     pCurr.stageSet.add(stage.code);
     pCurr.stagesCount = pCurr.stageSet.size;
@@ -523,7 +535,12 @@ export function buildEapCostReport(params: {
     const isInfraStage = ["01", "02", "03"].includes(stage.code);
 
     for (const item of stageItems) {
-      if (item.totalCommercialPrice > 0) {
+      const itemCommercialPrice =
+        shouldApplyProjectBdi && item.totalCommercialPrice <= item.totalDirectCost + 0.01
+          ? round2(item.totalDirectCost * bdiFactor)
+          : item.totalCommercialPrice;
+
+      if (itemCommercialPrice > 0) {
         rawAbcItems.push({
           code: item.code || `${stage.code}.${item.orderIndex}`,
           description: item.description,
@@ -531,13 +548,13 @@ export function buildEapCostReport(params: {
           stageName: stage.name,
           unit: item.unit,
           quantity: round2(item.totalQtyWithLoss),
-          totalCommercialPrice: round2(item.totalCommercialPrice),
+          totalCommercialPrice: round2(itemCommercialPrice),
         });
       }
 
       const zq = item.zoneQuantities;
       const qSum = zq.FUND_TERREO + zq.PAV_SUPERIOR + zq.COBERTURA + zq.EXTERNO;
-      if (qSum > 0 && item.totalCommercialPrice > 0) {
+      if (qSum > 0 && itemCommercialPrice > 0) {
         const parts: Array<{ bucketCode: string; qty: number }> = [
           { bucketCode: isInfraStage ? "INFRAESTRUTURA" : "TERREO", qty: zq.FUND_TERREO },
           { bucketCode: "PAV_SUPERIOR", qty: zq.PAV_SUPERIOR },
@@ -553,7 +570,7 @@ export function buildEapCostReport(params: {
           bucket.laborCost = round2(bucket.laborCost + item.totalLabor * ratio);
           bucket.thirdPartyCost = round2(bucket.thirdPartyCost + item.totalThirdParty * ratio);
           bucket.directCost = round2(bucket.directCost + item.totalDirectCost * ratio);
-          bucket.commercialPrice = round2(bucket.commercialPrice + item.totalCommercialPrice * ratio);
+          bucket.commercialPrice = round2(bucket.commercialPrice + itemCommercialPrice * ratio);
         }
       }
 

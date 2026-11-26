@@ -1,4 +1,4 @@
-﻿export type EapZoneCode = "FUND_TERREO" | "PAV_SUPERIOR" | "COBERTURA" | "EXTERNO";
+export type EapZoneCode = "FUND_TERREO" | "PAV_SUPERIOR" | "COBERTURA" | "EXTERNO";
 
 export interface MasterEapZoneTemplate {
   code: EapZoneCode;
@@ -636,7 +636,7 @@ export const MASTER_LOB_PACKAGES: MasterLobPackageTemplate[] = [
   },
   {
     packageNumber: 37,
-    name: "Esquadria de Alumínio — Guarda-Corpos e Corrimãos",
+    name: "Guarda-Corpos em Madeira Maciça e Corrimãos",
     waveName: "Fase 6 — Pintura, Esquadrias & Finalização",
     linkedStageCodes: ["16"],
     predecessorNumbers: [32, 36],

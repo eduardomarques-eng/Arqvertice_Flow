@@ -1221,6 +1221,50 @@ export async function generateAutomaticMeasurementBulletinPdf(
       snapshot.summary.plannedLobPct
     );
 
+    const floorOrderMap = new Map(
+      snapshot.floorSummaries.map((f) => [f.floorId, f])
+    );
+    const bulletinFloorAgg = new Map<string, FieldMeasurementFloorSummary>();
+    for (const f of snapshot.floorSummaries) {
+      bulletinFloorAgg.set(f.floorId, {
+        ...f,
+        itemsCount: 0,
+        completedCount: 0,
+        plannedAmount: 0,
+        accumulatedAmount: 0,
+        pendingAmount: 0,
+        progressPct: 0,
+      });
+    }
+    for (const row of entryRows) {
+      const existing = bulletinFloorAgg.get(row.floorId) ?? {
+        floorId: row.floorId,
+        floorName: row.floorName,
+        floorOrder: floorOrderMap.get(row.floorId)?.floorOrder ?? row.floorOrder,
+        itemsCount: 0,
+        completedCount: 0,
+        plannedAmount: 0,
+        accumulatedAmount: 0,
+        pendingAmount: 0,
+        progressPct: 0,
+      };
+      existing.itemsCount += 1;
+      if (row.status === "CONCLUIDO") existing.completedCount += 1;
+      existing.plannedAmount = round2(existing.plannedAmount + row.plannedAmount);
+      existing.accumulatedAmount = round2(existing.accumulatedAmount + row.accumulatedAmount);
+      existing.pendingAmount = round2(existing.pendingAmount + row.pendingAmount);
+      bulletinFloorAgg.set(row.floorId, existing);
+    }
+    const bulletinFloorSummaries = Array.from(bulletinFloorAgg.values())
+      .sort((a, b) => a.floorOrder - b.floorOrder)
+      .map((fs) => ({
+        ...fs,
+        progressPct:
+          fs.plannedAmount > 0
+            ? Math.min(100, round2((fs.accumulatedAmount / fs.plannedAmount) * 100))
+            : 0,
+      }));
+
     const pdfBytes = renderFieldMeasurementBulletinPdf({
       projectName: snapshot.projectName,
       bulletinCode: code,
@@ -1234,7 +1278,7 @@ export async function generateAutomaticMeasurementBulletinPdf(
         completedItemsCount: entryRows.filter((r) => r.status === "CONCLUIDO").length,
         totalItemsCount: entryRows.length,
       },
-      floorSummaries: snapshot.floorSummaries,
+      floorSummaries: bulletinFloorSummaries,
       items: entryRows,
       evidences: pdfEvidences,
     });

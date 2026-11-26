@@ -376,7 +376,7 @@ export function drawPdfGroupedBarChart(
   if (opts.items.length === 0) return;
 
   const rowH = 26;
-  const headerH = 22;
+  const headerH = 34;
   const totalH = headerH + opts.items.length * rowH + 10;
   pdf.ensure(totalH + 10);
 
@@ -386,20 +386,24 @@ export function drawPdfGroupedBarChart(
     color: hexToPdfRgb("#0F172A"),
   });
 
-  // Legenda topo direito
-  const legX = pdf.margin + pdf.contentWidth - 180;
-  pdf.rect(legX, pdf.y + 3, 8, 8, { fill: hexToPdfRgb(opts.seriesA.colorHex) });
-  pdf.drawText(opts.seriesA.label, legX + 11, pdf.y + 10, {
+  pdf.y += 14;
+
+  // Legenda em linha própria abaixo do título (sem colisão horizontal)
+  const legX = pdf.margin;
+  pdf.rect(legX, pdf.y + 2, 8, 8, { fill: hexToPdfRgb(opts.seriesA.colorHex) });
+  pdf.drawText(opts.seriesA.label, legX + 11, pdf.y + 9, {
     size: 7.5,
     color: hexToPdfRgb("#334155"),
   });
-  pdf.rect(legX + 85, pdf.y + 3, 8, 8, { fill: hexToPdfRgb(opts.seriesB.colorHex) });
-  pdf.drawText(opts.seriesB.label, legX + 96, pdf.y + 10, {
+  const secondLegX =
+    legX + 18 + Math.max(120, measureText(opts.seriesA.label, false) * 7.5 + 12);
+  pdf.rect(secondLegX, pdf.y + 2, 8, 8, { fill: hexToPdfRgb(opts.seriesB.colorHex) });
+  pdf.drawText(opts.seriesB.label, secondLegX + 11, pdf.y + 9, {
     size: 7.5,
     color: hexToPdfRgb("#334155"),
   });
 
-  pdf.y += 18;
+  pdf.y += 16;
 
   const labelW = 158;
   const valueW = 96;
@@ -500,7 +504,15 @@ export function drawPdfParetoAbcChart(
       color: hexToPdfRgb("#FFFFFF"),
     });
 
-    const cleanLabel = item.label;
+    const maxLabelW = labelW - 22;
+    let cleanLabel = item.label;
+    if (measureText(cleanLabel, false) * 7.1 > maxLabelW) {
+      let cut = cleanLabel.length;
+      while (cut > 3 && measureText(`${cleanLabel.slice(0, cut).trimEnd()}...`, false) * 7.1 > maxLabelW) {
+        cut -= 1;
+      }
+      cleanLabel = `${cleanLabel.slice(0, cut).trimEnd()}...`;
+    }
     pdf.drawText(cleanLabel, pdf.margin + 16, y0 + 11, {
       size: 7.1,
       color: hexToPdfRgb("#1E293B"),
